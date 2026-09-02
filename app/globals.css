@@ -1019,3 +1019,70 @@ table.tabella tbody tr:hover {
 		margin-bottom: 0.5rem;
 	}
 }
+
+/* ────────────────────────────────────────────────────────────── anagrafica */
+
+.persone {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.persona-riga {
+	display: flex;
+	align-items: center;
+	gap: 0.85rem;
+	padding: 0.85rem 0;
+	border-top: 1px solid var(--border);
+	color: inherit;
+	text-decoration: none;
+}
+
+.persone li:first-child .persona-riga {
+	border-top: 0;
+}
+
+.persona-riga:hover {
+	background: var(--accent-tint);
+	text-decoration: none;
+}
+
+/* Il pallino con le iniziali è lo stesso della sidebar, ma qui sta su fondo
+   chiaro: il colore dell'accento va invertito. */
+.persona-riga .user-badge {
+	background: var(--accent-tint);
+	border-color: rgba(139, 108, 20, 0.3);
+	color: var(--accent);
+}
+
+.persona-corpo {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+}
+
+.persona-nome {
+	font-size: var(--text-base);
+}
+
+.persona-meta {
+	overflow: hidden;
+	font-size: var(--text-xs);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.persona-numeri {
+	flex-shrink: 0;
+	font-size: var(--text-2xs);
+	text-align: right;
+	line-height: 1.5;
+}
+
+@media (max-width: 560px) {
+	.persona-numeri {
+		display: none;
+	}
+}

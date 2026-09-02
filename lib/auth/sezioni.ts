@@ -67,7 +67,7 @@ const DEFINIZIONI = [
     gruppo: 'Richieste dal sito',
   },
   // Anagrafica deduplicata: una scheda per persona con tutte le sue richieste.
-  { chiave: 'persone', label: 'Persone', href: '/dashboard/persone', gruppo: 'Moduli', inArrivo: true },
+  { chiave: 'persone', label: 'Persone', href: '/dashboard/persone', gruppo: 'Anagrafica' },
   // Sessioni e campagne raccolte da /api/track sul sito.
   { chiave: 'visite-sito', label: 'Visite al sito', href: '/dashboard/visite', gruppo: 'Amministrazione', inArrivo: true },
   { chiave: 'timbratura', label: 'Timbra cartellino', href: '/dashboard/timbratura', gruppo: 'Amministrazione' },
