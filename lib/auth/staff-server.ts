@@ -8,6 +8,8 @@ export type RigaStaff = {
   sezioni_consentite: string[]
   puo_invitare: boolean
   puo_cancellare: boolean
+  commerciale: boolean
+  puo_riassegnare: boolean
 } | null
 
 // La riga di staff_users dell'operatore corrente: chi può vedere cosa,
@@ -25,7 +27,7 @@ export const rigaStaffCorrente = cache(async (email: string | null | undefined):
   const supabase = createSupabaseServiceClient()
   const { data } = await supabase
     .from('staff_users')
-    .select('email, nome, cognome, sezioni_consentite, puo_invitare, puo_cancellare')
+    .select('email, nome, cognome, sezioni_consentite, puo_invitare, puo_cancellare, commerciale, puo_riassegnare')
     .eq('email', pulita)
     .maybeSingle()
 

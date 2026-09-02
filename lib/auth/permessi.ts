@@ -15,3 +15,20 @@ export async function puoAmministrare(email: string | null | undefined): Promise
 export async function puoCancellare(email: string | null | undefined): Promise<boolean> {
   return !!(await rigaStaffCorrente(email))?.puo_cancellare
 }
+
+/**
+ * Diritto commerciale: può prendere in carico una trattativa libera ed essere
+ * scelto come assegnatario (colonna commerciale, assegnabile da Gestione
+ * utenti).
+ */
+export async function eCommerciale(email: string | null | undefined): Promise<boolean> {
+  return !!(await rigaStaffCorrente(email))?.commerciale
+}
+
+/**
+ * Diritto di spostare una trattativa che è di un altro operatore. Chi la ha
+ * in mano può sempre passarla: il controllo serve per tutte le altre.
+ */
+export async function puoRiassegnare(email: string | null | undefined): Promise<boolean> {
+  return !!(await rigaStaffCorrente(email))?.puo_riassegnare
+}

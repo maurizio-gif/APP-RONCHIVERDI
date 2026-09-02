@@ -1101,3 +1101,55 @@ table.tabella tbody tr:hover {
 .visite-colonne .card + .card {
 	margin-top: 0;
 }
+
+/* ───────────────────────────────────────────────────────────── trattativa */
+
+/* Il blocco sulla riga di una richiesta Club/Family: stato, chi la segue e i
+   comandi, su una riga che va a capo su schermo stretto. */
+.trattativa {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+	margin-top: 0.75rem;
+	padding: 0.6rem 0.75rem;
+	background: var(--bg);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+}
+
+.trattativa-chi {
+	font-size: var(--text-xs);
+}
+
+/* I due select stanno in linea coi badge: la misura piena del campo li
+   renderebbe il centro visivo della riga, che è la richiesta, non loro. */
+.trattativa-select {
+	padding: 0.3rem 0.45rem;
+	background: var(--surface);
+	border: 1px solid var(--border-strong);
+	border-radius: 6px;
+	color: var(--text);
+	font-family: inherit;
+	font-size: var(--text-2xs);
+	max-width: 220px;
+}
+
+.trattativa-motivo {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+	align-items: center;
+	flex-basis: 100%;
+}
+
+.trattativa-motivo input {
+	flex: 1;
+	min-width: 180px;
+	padding: 0.35rem 0.5rem;
+	background: var(--surface);
+	border: 1px solid var(--border-strong);
+	border-radius: 6px;
+	font-family: inherit;
+	font-size: var(--text-xs);
+}

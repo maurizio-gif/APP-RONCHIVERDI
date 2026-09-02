@@ -2,8 +2,11 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, getSezioniConsentite } from '@/lib/auth/sezioni-server'
+import { eCommerciale, puoRiassegnare } from '@/lib/auth/permessi'
 import { canaleDaChiave } from '@/lib/richieste'
-import { RigaRichiesta, type Richiesta } from '../RigaRichiesta'
+import type { StatoTrattativa } from '@/lib/pipeline'
+import { RigaRichiesta, type ContestoTrattativa, type Richiesta } from '../RigaRichiesta'
+import type { DatiTrattativa } from '../Trattativa'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,7 +34,7 @@ export default async function CanalePage({
   let query = supabase
     .from('form_contatti')
     .select(
-      'id, created_at, nome, cognome, email, cellulare, attivita_label, settore, azione, data_scelta, ora_scelta, messaggio, dettagli, minore_nome, minore_cognome, minore_data_nascita, marketing, gestito, gestito_da, gestito_il, note, utm_source, utm_campaign'
+      'id, created_at, nome, cognome, email, cellulare, attivita_label, settore, azione, data_scelta, ora_scelta, messaggio, dettagli, minore_nome, minore_cognome, minore_data_nascita, marketing, gestito, gestito_da, gestito_il, note, utm_source, utm_campaign, opportunita_id'
     )
     .order('created_at', { ascending: false })
     .limit(200)
@@ -66,6 +69,40 @@ export default async function CanalePage({
     : queryDaLavorare.in('attivita', canale.attivita)
   if (canale.settore) queryDaLavorare = queryDaLavorare.eq('settore', canale.settore)
   const { count: daLavorare } = await queryDaLavorare
+
+  // Le trattative servono solo dove esiste un team che se le prende in
+  // carico: negli altri canali il responsabile è unico e il canale è già
+  // l'assegnazione, quindi non si carica nulla.
+  let contesto: ContestoTrattativa | undefined
+  if (canale.inAgenda) {
+    const ids = [...new Set(richieste.map((x) => x.opportunita_id).filter(Boolean))] as string[]
+    const [{ data: trattative }, { data: staff }, sonoCommerciale, possoRiassegnare] = await Promise.all([
+      ids.length
+        ? supabase.from('opportunita').select('id, stato, assegnato_a, motivo_perso').in('id', ids)
+        : Promise.resolve({ data: [] as any[] }),
+      supabase.from('staff_users').select('email').eq('commerciale', true).order('email'),
+      eCommerciale(emailCorrente()),
+      puoRiassegnare(emailCorrente()),
+    ])
+
+    contesto = {
+      io: emailCorrente(),
+      sonoCommerciale,
+      possoRiassegnare,
+      commerciali: (staff ?? []).map((x) => x.email as string),
+      trattative: Object.fromEntries(
+        (trattative ?? []).map((t) => [
+          t.id as string,
+          {
+            id: t.id as string,
+            stato: t.stato as StatoTrattativa,
+            assegnato_a: t.assegnato_a as string | null,
+            motivo_perso: t.motivo_perso as string | null,
+          } satisfies DatiTrattativa,
+        ])
+      ),
+    }
+  }
 
   const r = canale.responsabile
 
@@ -125,7 +162,7 @@ export default async function CanalePage({
         ) : (
           <ul className="richieste">
             {richieste.map((riga) => (
-              <RigaRichiesta r={riga} key={riga.id} />
+              <RigaRichiesta r={riga} contesto={contesto} key={riga.id} />
             ))}
           </ul>
         )}

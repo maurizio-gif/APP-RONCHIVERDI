@@ -4,6 +4,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { dataOra, nomePersona } from '@/lib/persone'
 import { canaleDiRichiesta } from '@/lib/richieste'
+import { CLASSE_STATO, ETICHETTE_STATO, type StatoTrattativa } from '@/lib/pipeline'
 import { SchedaPersona } from '../SchedaPersona'
 
 export const dynamic = 'force-dynamic'
@@ -18,7 +19,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
   }
 
   const supabase = createSupabaseServiceClient()
-  const [{ data: persona }, { data: richieste }] = await Promise.all([
+  const [{ data: persona }, { data: richieste }, { data: trattative }] = await Promise.all([
     supabase
       .from('persone')
       .select('id, nome, cognome, email, cellulare, note, creato_il')
@@ -29,6 +30,14 @@ export default async function PersonaPage({ params }: { params: { id: string } }
       .select('id, created_at, origine, attivita, attivita_label, settore, azione, data_scelta, ora_scelta, messaggio, gestito, gestito_da, utm_source, utm_campaign')
       .eq('persona_id', params.id)
       .order('created_at', { ascending: false }),
+    // Le trattative in sola lettura: si lavorano nella sezione Club e Family,
+    // e avere due posti dove cambiare stato vorrebbe dire due abitudini
+    // diverse per la stessa cosa.
+    supabase
+      .from('opportunita')
+      .select('id, stato, assegnato_a, creato_il, chiuso_il, motivo_perso')
+      .eq('persona_id', params.id)
+      .order('creato_il', { ascending: false }),
   ])
 
   if (!persona) notFound()
@@ -84,6 +93,38 @@ export default async function PersonaPage({ params }: { params: { id: string } }
           <span className="stat-label">Prima volta che ha scritto</span>
         </div>
       </div>
+
+      {(trattative ?? []).length > 0 && (
+        <div className="card">
+          <div className="card-head">
+            <h2>Trattativa</h2>
+            <span className="muted">Club e Family</span>
+          </div>
+          <ul className="voci">
+            {(trattative ?? []).map((t) => (
+              <li className="voce" key={t.id as string}>
+                <span className="voce-ora">{dataOra(t.creato_il as string)}</span>
+                <span className="voce-corpo">
+                  <span className="voce-titolo">
+                    <span className={`badge ${CLASSE_STATO[t.stato as StatoTrattativa]}`}>
+                      {ETICHETTE_STATO[t.stato as StatoTrattativa]}
+                    </span>
+                    <span className="muted" style={{ marginLeft: '0.5rem', fontSize: 'var(--text-sm)' }}>
+                      {t.assegnato_a ? `la segue ${t.assegnato_a}` : 'nessun assegnatario'}
+                    </span>
+                  </span>
+                  {t.motivo_perso && <span className="voce-note muted">Motivo: {t.motivo_perso}</span>}
+                </span>
+                <span className="voce-azioni">
+                  <Link className="btn btn-ghost btn-sm" href="/dashboard/richieste/richieste-club?mostra=tutte">
+                    Apri in Club e Family
+                  </Link>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <SchedaPersona
         id={persona.id}

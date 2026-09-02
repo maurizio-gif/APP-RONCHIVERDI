@@ -79,6 +79,8 @@ export async function invitaStaff(formData: FormData) {
       cognome,
       puo_invitare: false,
       puo_cancellare: false,
+      commerciale: false,
+      puo_riassegnare: false,
       sezioni_consentite: SEZIONI.filter((s) => s.gruppo !== 'Amministrazione').map((s) => s.chiave),
     })
     if (error) redirect(urlErrore(error.message))
@@ -155,6 +157,47 @@ export async function impostaPuoCancellare(email: string, valore: boolean): Prom
   if (error) return { ok: false, errore: error.message }
 
   await registraLog(emailCorrente(), 'permesso_cancellare_modificato', {
+    entita: 'staff_users',
+    entitaId: email,
+    dettagli: { email_target: email, valore },
+  })
+
+  revalidatePath('/dashboard/utenti')
+  return { ok: true }
+}
+
+export async function impostaCommerciale(email: string, valore: boolean): Promise<Risultato> {
+  if (!(await chiamanteAmministra())) {
+    return { ok: false, errore: 'Non hai il permesso di modificare i permessi degli altri utenti.' }
+  }
+
+  const supabase = createSupabaseServiceClient()
+  const { error } = await supabase.from('staff_users').update({ commerciale: valore }).eq('email', email)
+  if (error) return { ok: false, errore: error.message }
+
+  await registraLog(emailCorrente(), 'permesso_commerciale_modificato', {
+    entita: 'staff_users',
+    entitaId: email,
+    dettagli: { email_target: email, valore },
+  })
+
+  revalidatePath('/dashboard/utenti')
+  return { ok: true }
+}
+
+export async function impostaPuoRiassegnare(email: string, valore: boolean): Promise<Risultato> {
+  if (!(await chiamanteAmministra())) {
+    return { ok: false, errore: 'Non hai il permesso di modificare i permessi degli altri utenti.' }
+  }
+
+  const supabase = createSupabaseServiceClient()
+  const { error } = await supabase
+    .from('staff_users')
+    .update({ puo_riassegnare: valore })
+    .eq('email', email)
+  if (error) return { ok: false, errore: error.message }
+
+  await registraLog(emailCorrente(), 'permesso_riassegnare_modificato', {
     entita: 'staff_users',
     entitaId: email,
     dettagli: { email_target: email, valore },

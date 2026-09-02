@@ -29,6 +29,11 @@ export const AZIONI_LOG: Record<string, string> = {
   contatto_nota_salvata: 'Richiesta dal sito: nota salvata',
   persona_nota_salvata: 'Anagrafica: nota salvata',
   persona_nome_corretto: 'Anagrafica: nome corretto',
+  trattativa_assegnata: 'Trattativa assegnata',
+  trattativa_liberata: 'Trattativa liberata',
+  trattativa_stato_cambiato: 'Trattativa: stato cambiato',
+  permesso_commerciale_modificato: 'Permesso "Commerciale" modificato',
+  permesso_riassegnare_modificato: 'Permesso "Può riassegnare" modificato',
 }
 
 export function etichettaAzione(azione: string): string {

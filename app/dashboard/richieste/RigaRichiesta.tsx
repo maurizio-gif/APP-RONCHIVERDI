@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { salvaNota, segnaGestita } from './actions'
+import { Trattativa, type DatiTrattativa } from './Trattativa'
 
 export type Richiesta = {
   id: string
@@ -27,6 +28,17 @@ export type Richiesta = {
   note: string | null
   utm_source: string | null
   utm_campaign: string | null
+  opportunita_id: string | null
+}
+
+/** Diritti e anagrafica del team, passati dal Server Component. */
+export type ContestoTrattativa = {
+  io: string | null
+  sonoCommerciale: boolean
+  possoRiassegnare: boolean
+  commerciali: string[]
+  /** Le trattative per id: una sola riga anche se la persona ha più richieste. */
+  trattative: Record<string, DatiTrattativa>
 }
 
 function dataOra(iso: string): string {
@@ -44,7 +56,13 @@ function soloCifre(numero: string): string {
   return numero.replace(/[^0-9]/g, '')
 }
 
-export function RigaRichiesta({ r }: { r: Richiesta }) {
+export function RigaRichiesta({
+  r,
+  contesto,
+}: {
+  r: Richiesta
+  contesto?: ContestoTrattativa
+}) {
   const [aperta, setAperta] = useState(false)
   const [nota, setNota] = useState(r.note ?? '')
   const [errore, setErrore] = useState<string | null>(null)
@@ -111,6 +129,18 @@ export function RigaRichiesta({ r }: { r: Richiesta }) {
           </button>
         </div>
       </div>
+
+      {/* La trattativa è della persona: compare solo su Club e Family, dove
+          esiste un team che se la prende in carico. */}
+      {contesto && r.opportunita_id && contesto.trattative[r.opportunita_id] && (
+        <Trattativa
+          t={contesto.trattative[r.opportunita_id]}
+          io={contesto.io}
+          sonoCommerciale={contesto.sonoCommerciale}
+          possoRiassegnare={contesto.possoRiassegnare}
+          commerciali={contesto.commerciali}
+        />
+      )}
 
       {r.gestito && (
         <p className="richiesta-meta muted" style={{ margin: '0.35rem 0 0' }}>

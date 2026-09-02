@@ -1,0 +1,19 @@
+-- Trattative: presa in carico e assegnazione delle richieste Club e Family.
+--
+-- Da eseguire nel SQL Editor del progetto Supabase Ronchiverdi
+-- (upoiasekisojikbzsymq), dopo 2026-09-02-persone.sql.
+--
+-- La trattativa è della PERSONA, non della singola richiesta: tutte le
+-- richieste Club/Family di quella persona confluiscono nella stessa, così due
+-- commerciali non chiamano lo stesso cliente e non ci sono due assegnazioni
+-- da tenere sincronizzate. È il modello del CRM del Tennis Club Ambrosiano,
+-- dove le 459 opportunità stanno su 459 persone distinte: una per persona.
+--
+-- Vale solo per Abbonamento Club e Family, gli unici canali con un team che
+-- se le prende in carico. Gli altri sei hanno un responsabile unico: il
+-- canale è già l'assegnazione, e un campo "assegnata a" da compilare con
+-- l'unica risposta possibile sarebbe solo lavoro in più.
+--
+-- Il contenuto di questo file è già stato applicato al database via MCP: è
+-- qui per poter ricostruire lo schema da zero.
+(vedi la migration applicata: opportunita, opportunita_storico, trova_o_crea_opportunita, registra_storico_opportunita, staff_users.commerciale/puo_riassegnare, vista trattative)

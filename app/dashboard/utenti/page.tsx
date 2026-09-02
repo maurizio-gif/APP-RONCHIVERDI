@@ -2,7 +2,13 @@ import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { puoAmministrare } from '@/lib/auth/permessi'
-import { invitaStaff, impostaPuoCancellare, impostaPuoInvitare } from './actions'
+import {
+  invitaStaff,
+  impostaCommerciale,
+  impostaPuoCancellare,
+  impostaPuoInvitare,
+  impostaPuoRiassegnare,
+} from './actions'
 import { TogglePermesso } from './TogglePermesso'
 import { SezioniToggle } from './SezioniToggle'
 import { RimuoviButton } from './RimuoviButton'
@@ -16,6 +22,8 @@ type RigaUtente = {
   sezioni_consentite: string[] | null
   puo_invitare: boolean
   puo_cancellare: boolean
+  commerciale: boolean
+  puo_riassegnare: boolean
   created_at: string
 }
 
@@ -38,7 +46,7 @@ export default async function UtentiPage({
   const supabase = createSupabaseServiceClient()
   const { data } = await supabase
     .from('staff_users')
-    .select('email, nome, cognome, sezioni_consentite, puo_invitare, puo_cancellare, created_at')
+    .select('email, nome, cognome, sezioni_consentite, puo_invitare, puo_cancellare, commerciale, puo_riassegnare, created_at')
     .order('created_at', { ascending: true })
 
   const utenti = (data ?? []) as RigaUtente[]
@@ -89,8 +97,8 @@ export default async function UtentiPage({
               </div>
             </div>
             <p className="field-hint" style={{ marginBottom: '1rem' }}>
-              Parte senza permessi di amministrazione e con le sole sezioni operative: allarga tu
-              quello che serve dalla tabella qui sotto.
+              Parte senza permessi e con le sole sezioni operative: il diritto commerciale — quello
+              che permette di prendere in carico le trattative — si dà dalla tabella qui sotto.
             </p>
             <button type="submit" className="btn">
               Invia invito
@@ -157,6 +165,22 @@ export default async function UtentiPage({
                           valoreIniziale={u.puo_cancellare}
                           etichetta="Può cancellare record"
                           azione={impostaPuoCancellare}
+                          disabilitato={!amministra}
+                          motivoDisabilitato="Serve il permesso di amministrare"
+                        />
+                        <TogglePermesso
+                          email={u.email}
+                          valoreIniziale={u.commerciale}
+                          etichetta="Commerciale"
+                          azione={impostaCommerciale}
+                          disabilitato={!amministra}
+                          motivoDisabilitato="Serve il permesso di amministrare"
+                        />
+                        <TogglePermesso
+                          email={u.email}
+                          valoreIniziale={u.puo_riassegnare}
+                          etichetta="Può riassegnare le trattative"
+                          azione={impostaPuoRiassegnare}
                           disabilitato={!amministra}
                           motivoDisabilitato="Serve il permesso di amministrare"
                         />
