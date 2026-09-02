@@ -20,6 +20,12 @@ export const AZIONI_LOG: Record<string, string> = {
   timbratura_entrata: 'Timbratura: entrata',
   timbratura_uscita: 'Timbratura: uscita',
   timbratura_rifiutata: 'Timbratura rifiutata (fuori zona)',
+  agenda_voce_creata: 'Agenda: voce creata',
+  agenda_voce_completata: 'Agenda: voce segnata fatta',
+  agenda_voce_riaperta: 'Agenda: voce riaperta',
+  agenda_voce_annullata: 'Agenda: voce annullata',
+  agenda_voce_eliminata: 'Agenda: voce eliminata',
+  contatto_gestito: 'Richiesta dal sito: stato gestione modificato',
 }
 
 export function etichettaAzione(azione: string): string {

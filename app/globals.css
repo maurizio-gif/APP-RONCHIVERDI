@@ -189,7 +189,9 @@ a:hover {
 
 @media (max-width: 900px) {
 	.main-content {
-		padding: 5rem 1.25rem 2.5rem;
+		/* Lo spazio in cima tiene conto dell'altezza della topbar fissa
+		   (logo + padding): se cambia l'altezza del logo va rivisto qui. */
+		padding: 6.5rem 1.25rem 2.5rem;
 	}
 }
 
@@ -366,7 +368,10 @@ a:hover {
 	}
 
 	.sidebar-brand .brand-logo {
-		height: 30px;
+		/* Deciso grande: sul telefono la topbar è l'unico posto dove si vede
+		   il marchio, e il logo è quasi quadrato — a 30px la scritta
+		   "Ronchiverdi" era un francobollo illeggibile. */
+		height: 56px;
 		margin: 0;
 	}
 
@@ -822,4 +827,112 @@ table.tabella tbody tr:hover {
    che in italiano non si scrive maiuscolo. */
 .giorno-testa h3::first-letter {
 	text-transform: uppercase;
+}
+
+/* ────────────────────────────────────────────────────────────────── agenda */
+
+.agenda-barra {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	margin-bottom: 1.5rem;
+}
+
+.agenda-nav {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+.agenda-giorno {
+	padding: 1.25rem 1.5rem;
+}
+
+.agenda-giorno + .agenda-giorno {
+	margin-top: 1rem;
+}
+
+/* Il giorno corrente si distingue con un filo d'oro sul bordo sinistro:
+   basta a trovarlo scorrendo, senza cambiare colore a tutta la card. */
+.agenda-giorno.is-oggi {
+	border-left: 3px solid var(--accent);
+}
+
+.agenda-giorno-titolo {
+	margin: 0;
+	font-size: var(--text-lg);
+}
+
+.agenda-giorno-titolo::first-letter {
+	text-transform: uppercase;
+}
+
+.voci {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.voce {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.75rem 1rem;
+	padding: 0.75rem 0;
+	border-top: 1px solid var(--border);
+}
+
+.voce:first-child {
+	border-top: 0;
+	padding-top: 0;
+}
+
+/* Una voce fatta resta leggibile ma si ritira: chi apre l'agenda deve vedere
+   per prima cosa quello che manca. */
+.voce.is-fatta .voce-titolo,
+.voce.is-fatta .voce-ora {
+	opacity: 0.55;
+}
+
+.voce-ora {
+	flex-shrink: 0;
+	width: 105px;
+	font-family: var(--font-serif);
+	font-size: var(--text-md);
+	font-variant-numeric: tabular-nums;
+}
+
+.voce-corpo {
+	flex: 1;
+	min-width: 200px;
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+}
+
+.voce-titolo {
+	font-size: var(--text-base);
+}
+
+.voce-note {
+	font-size: var(--text-xs);
+}
+
+.voce-azioni {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+	margin-left: auto;
+}
+
+@media (max-width: 560px) {
+	.voce-ora {
+		width: auto;
+	}
+
+	.voce-azioni {
+		margin-left: 0;
+	}
 }

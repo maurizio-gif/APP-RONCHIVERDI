@@ -13,7 +13,7 @@
 const DEFINIZIONI = [
   // La pagina che una persona della segreteria tiene aperta durante la
   // giornata: appuntamenti e cose da fare.
-  { chiave: 'agenda', label: 'Agenda', href: '/dashboard/agenda', inArrivo: true },
+  { chiave: 'agenda', label: 'Agenda', href: '/dashboard/agenda' },
   // I lead che il sito raccoglie in form_contatti, con la loro provenienza
   // (UTM e sessione) e lo stato di lavorazione.
   { chiave: 'enquiries', label: 'Enquiries', href: '/dashboard/enquiries', gruppo: 'Moduli', inArrivo: true },
