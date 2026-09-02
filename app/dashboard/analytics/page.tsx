@@ -13,8 +13,10 @@ import {
   formattaVariazione,
   percentuale,
   periodoDa,
+  perCanaleTraffico,
   serieCompleta,
   variazione,
+  dominioDi,
   type Statistiche,
   type Voce,
 } from '@/lib/analytics'
@@ -30,7 +32,7 @@ export const dynamic = 'force-dynamic'
  * La mappatura vive in lib/richieste.ts e non in SQL: due copie della
  * tabella di instradamento sarebbero due verità da tenere allineate.
  */
-function perCanale(s: Statistiche): Voce[] {
+function perSezione(s: Statistiche): Voce[] {
   const conteggi = new Map<string, number>()
   for (const c of s.combinazioni) {
     const canale = canaleDiRichiesta(c)
@@ -118,8 +120,18 @@ export default async function AnalyticsPage({
   const c = (prima ?? null) as Statistiche | null
 
   const serie = serieCompleta(s.giorni, estremi.da, estremi.a)
-  const canali = perCanale(s)
-  const canaliPrima = c ? perCanale(c) : null
+  // Due dimensioni diverse che in TCA si chiamano entrambe "canale": quella
+  // di traffico (da dove arriva la persona) e quella di instradamento (a chi
+  // va la richiesta). Qui hanno due nomi.
+  const traffico = perCanaleTraffico(s.coppie_utm)
+  const trafficoPrima = c ? perCanaleTraffico(c.coppie_utm) : null
+  const sezioni = perSezione(s)
+  const sezioniPrima = c ? perSezione(c) : null
+
+  const referrerPuliti: Voce[] = s.referrer.map((v) => ({
+    ...v,
+    voce: v.voce.startsWith('http') ? dominioDi(v.voce) : v.voce,
+  }))
 
   function link(p: { periodo?: string; confronto?: string }) {
     const params = new URLSearchParams()
@@ -170,9 +182,10 @@ export default async function AnalyticsPage({
         <Totale titolo="Richieste" valore={s.richieste} prima={c?.richieste} />
         <Totale titolo="Persone nuove" valore={s.persone_nuove} prima={c?.persone_nuove} />
         <Totale titolo="Con appuntamento" valore={s.con_appuntamento} prima={c?.con_appuntamento} />
+        <Totale titolo="Lavorate" valore={percentuale(s.lavorate, s.richieste)} suffisso="" />
         <Totale
-          titolo="Lavorate"
-          valore={percentuale(s.lavorate, s.richieste)}
+          titolo="Con sessione tracciata"
+          valore={percentuale(s.con_sessione, s.richieste)}
           suffisso=""
         />
       </div>
@@ -211,11 +224,19 @@ export default async function AnalyticsPage({
           </div>
 
           <Ripartizione
-            titolo="Richieste per canale"
-            voci={canali}
-            vociConfronto={canaliPrima}
+            titolo="Richieste per canale di traffico"
+            voci={traffico}
+            vociConfronto={trafficoPrima}
             totale={s.richieste}
-            nota={`Gli ${CANALI.length} canali di instradamento: chi non corrisponde a nessuno compare come «non instradata».`}
+            nota="Stessa classificazione del CRM del Tennis Club Ambrosiano, con le etichette in italiano. Un click id o un referrer senza UTM non contano come traffico diretto: la campagna non aveva i parametri, non è arrivata da sola."
+          />
+
+          <Ripartizione
+            titolo="Richieste per sezione di destinazione"
+            voci={sezioni}
+            vociConfronto={sezioniPrima}
+            totale={s.richieste}
+            nota={`Gli ${CANALI.length} canali di instradamento ai responsabili: chi non corrisponde a nessuno compare come «non instradata».`}
           />
 
           <div className="visite-colonne">
@@ -256,6 +277,41 @@ export default async function AnalyticsPage({
               vociConfronto={c?.termini}
               totale={s.richieste}
             />
+            <Ripartizione
+              titolo="Per contenuto (utm_content)"
+              voci={s.contenuti}
+              vociConfronto={c?.contenuti}
+              totale={s.richieste}
+            />
+            <Ripartizione
+              titolo="Per pubblico"
+              voci={s.audience}
+              vociConfronto={c?.audience}
+              totale={s.richieste}
+            />
+            <Ripartizione
+              titolo="Per click id pubblicitario"
+              voci={s.click_id}
+              totale={s.richieste}
+              nota="Quale piattaforma ha fatto l’ultimo clic, anche quando la campagna non ha messo le UTM."
+            />
+            <Ripartizione
+              titolo="First touch: sorgente"
+              voci={s.first_sorgenti}
+              totale={s.richieste}
+              nota="La campagna che ha portato la persona sul sito la prima volta, che può essere diversa da quella che l’ha fatta convertire."
+            />
+            <Ripartizione
+              titolo="First touch: campagna"
+              voci={s.first_campagne}
+              totale={s.richieste}
+            />
+            <Ripartizione
+              titolo="Per pagina di atterraggio"
+              voci={s.landing}
+              totale={s.richieste}
+            />
+            <Ripartizione titolo="Per sito di provenienza" voci={referrerPuliti} totale={s.richieste} />
             <Ripartizione titolo="Per CTA" voci={s.cta} totale={s.richieste} />
             <Ripartizione titolo="Per pagina" voci={s.pagine} totale={s.richieste} />
             <Ripartizione

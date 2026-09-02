@@ -107,14 +107,61 @@ export function dataBreve(d: Date): string {
   return d.toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
+/**
+ * Canale di traffico da sorgente e mezzo, con la stessa classificazione del
+ * CRM del Tennis Club Ambrosiano (classificaCanale in lib/analytics.ts là):
+ * le stesse liste di piattaforme e le stesse regole, nello stesso ordine, così
+ * i numeri dei due club sono confrontabili. Le etichette sono in italiano —
+ * là sono in inglese perché dovevano combaciare con i bucket di HubSpot.
+ */
+const PIATTAFORME_SOCIAL = ['facebook', 'instagram', 'tiktok', 'linkedin', 'twitter', 'pinterest', 'snapchat']
+const MOTORI_RICERCA = ['google', 'bing', 'yahoo', 'duckduckgo', 'ecosia']
+
+export function classificaCanaleTraffico(source: unknown, medium: unknown): string {
+  const s = String(source ?? '').trim().toLowerCase()
+  const m = String(medium ?? '').trim().toLowerCase()
+
+  if (!s && !m) return 'Traffico diretto'
+
+  const ePagato = /cpc|ppc|paid|adwords/.test(m)
+  const eSocial = PIATTAFORME_SOCIAL.some((p) => s.includes(p))
+  const eMotore = MOTORI_RICERCA.some((p) => s.includes(p))
+
+  if (ePagato) return eSocial ? 'Social a pagamento' : 'Ricerca a pagamento'
+  if (m === 'organic' || (!m && eMotore)) return 'Ricerca organica'
+  if (m.includes('social') || eSocial) return 'Social organico'
+  if (m === 'email' || s === 'email') return 'Email marketing'
+  if (m === 'referral') return 'Referral'
+  return 'Altre campagne'
+}
+
+/** Solo il dominio di un referrer, che è l'unica parte leggibile in tabella. */
+export function dominioDi(url: string): string {
+  try {
+    return new URL(url).host.replace(/^www\./, '')
+  } catch {
+    return url
+  }
+}
+
 export type Voce = { voce: string; richieste: number }
-export type Giorno = { giorno: string; richieste: number }
+export type Giorno = { giorno: string; richieste: number; adulti?: number; young?: number; altro?: number }
 export type Combinazione = {
   attivita: string | null
   settore: string | null
   origine: string | null
   richieste: number
   lavorate: number
+}
+
+/** Coppia UTM grezza, da classificare in canale di traffico. */
+export type CoppiaUtm = {
+  utm_source: string | null
+  utm_medium: string | null
+  referrer: string | null
+  gclid: string | null
+  fbclid: string | null
+  richieste: number
 }
 
 export type Statistiche = {
@@ -125,15 +172,25 @@ export type Statistiche = {
   trattative_aperte: number
   trattative_vinte: number
   trattative_perse: number
+  con_sessione: number
+  con_consenso_analytics: number
   giorni: Giorno[]
   combinazioni: Combinazione[]
+  coppie_utm: CoppiaUtm[]
   attivita: Voce[]
+  audience: Voce[]
   sorgenti: Voce[]
   mezzi: Voce[]
   campagne: Voce[]
   termini: Voce[]
+  contenuti: Voce[]
+  first_sorgenti: Voce[]
+  first_campagne: Voce[]
+  click_id: Voce[]
   cta: Voce[]
   pagine: Voce[]
+  landing: Voce[]
+  referrer: Voce[]
   stati_trattativa: Voce[]
   assegnatari: Voce[]
   lavorate_da: Voce[]
@@ -147,15 +204,25 @@ export const STATISTICHE_VUOTE: Statistiche = {
   trattative_aperte: 0,
   trattative_vinte: 0,
   trattative_perse: 0,
+  con_sessione: 0,
+  con_consenso_analytics: 0,
   giorni: [],
   combinazioni: [],
+  coppie_utm: [],
   attivita: [],
+  audience: [],
   sorgenti: [],
   mezzi: [],
   campagne: [],
   termini: [],
+  contenuti: [],
+  first_sorgenti: [],
+  first_campagne: [],
+  click_id: [],
   cta: [],
   pagine: [],
+  landing: [],
+  referrer: [],
   stati_trattativa: [],
   assegnatari: [],
   lavorate_da: [],
@@ -176,4 +243,30 @@ export function serieCompleta(giorni: Giorno[], da: Date, a: Date): Giorno[] {
     cursore.setUTCDate(cursore.getUTCDate() + 1)
   }
   return serie
+}
+
+/**
+ * Le coppie UTM grezze piegate sui canali di traffico. Un referrer senza UTM
+ * conta come referral e un click id senza UTM come piattaforma pagata: sono i
+ * casi in cui la campagna non ha messo i parametri, e senza questo
+ * finirebbero tutti in "traffico diretto" gonfiandolo.
+ */
+export function perCanaleTraffico(coppie: CoppiaUtm[]): Voce[] {
+  const conteggi = new Map<string, number>()
+
+  for (const c of coppie) {
+    let canale = classificaCanaleTraffico(c.utm_source, c.utm_medium)
+
+    if (canale === 'Traffico diretto') {
+      if (c.gclid) canale = 'Ricerca a pagamento'
+      else if (c.fbclid) canale = 'Social a pagamento'
+      else if (c.referrer) canale = 'Referral'
+    }
+
+    conteggi.set(canale, (conteggi.get(canale) ?? 0) + Number(c.richieste))
+  }
+
+  return [...conteggi.entries()]
+    .map(([voce, richieste]) => ({ voce, richieste }))
+    .sort((a, b) => b.richieste - a.richieste)
 }
