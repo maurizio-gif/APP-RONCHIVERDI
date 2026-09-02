@@ -1086,3 +1086,18 @@ table.tabella tbody tr:hover {
 		display: none;
 	}
 }
+
+/* ─────────────────────────────────────────────────────────── visite al sito */
+
+/* Due tabelle brevi affiancate su schermo largo, in colonna su stretto:
+   pagine viste e dispositivi si leggono insieme e non meritano una card a
+   tutta larghezza ciascuna. */
+.visite-colonne {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+	gap: 1.5rem;
+}
+
+.visite-colonne .card + .card {
+	margin-top: 0;
+}
