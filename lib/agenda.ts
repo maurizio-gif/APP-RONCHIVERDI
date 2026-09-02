@@ -57,13 +57,14 @@ export function eAppuntamentoVero(tipo: TipoVoce): boolean {
 
 /**
  * Quanto occupa in agenda ciascun tipo quando non è indicato diversamente.
- * I 30 e i 15 minuti sono gli stessi passi che il form del sito usa per
- * visita e telefonata (src/lib/leadForm.client.js): se cambiano là vanno
- * cambiati qui, altrimenti il sito offre slot che l'agenda non riconosce.
+ * I 45 e i 20 minuti sono gli stessi passi con cui il form del sito offre gli
+ * orari (DISPONIBILITA in src/lib/leadForm.client.js): vanno cambiati nei due
+ * posti insieme, altrimenti il sito propone slot che l'agenda calcola più
+ * lunghi o più corti, e la sottrazione degli occupati sbaglia i confini.
  */
 export const DURATA_PREDEFINITA: Record<TipoVoce, number> = {
-  appuntamento_in_sede: 30,
-  appuntamento_telefonico: 15,
+  appuntamento_in_sede: 45,
+  appuntamento_telefonico: 20,
   task: 10,
   email: 5,
   whatsapp: 5,
