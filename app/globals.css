@@ -936,3 +936,86 @@ table.tabella tbody tr:hover {
 		margin-left: 0;
 	}
 }
+
+/* ──────────────────────────────────────────────── richieste dal sito */
+
+.richieste {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.richiesta {
+	padding: 1rem 0;
+	border-top: 1px solid var(--border);
+}
+
+.richiesta:first-child {
+	padding-top: 0;
+	border-top: 0;
+}
+
+/* Una richiesta già presa in carico si ritira ma resta leggibile: chi apre
+   la sezione deve vedere per prima cosa quello che manca. */
+.richiesta.is-gestita .richiesta-testa {
+	opacity: 0.6;
+}
+
+.richiesta-testa {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 0.75rem;
+}
+
+.richiesta-meta {
+	margin-top: 0.2rem;
+	font-size: var(--text-xs);
+}
+
+.richiesta-azioni {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+}
+
+.richiesta-dettagli {
+	margin-top: 1rem;
+	padding: 1rem;
+	background: var(--bg);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+}
+
+/* Etichetta e valore in due colonne, con l'etichetta stretta: su una scheda
+   di dettaglio si scorre la colonna dei valori, non si legge riga per riga. */
+.dettagli-lista {
+	display: grid;
+	grid-template-columns: minmax(90px, auto) 1fr;
+	gap: 0.35rem 1rem;
+	margin: 0 0 1rem;
+	font-size: var(--text-sm);
+}
+
+.dettagli-lista dt {
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.dettagli-lista dd {
+	margin: 0;
+}
+
+@media (max-width: 560px) {
+	.dettagli-lista {
+		grid-template-columns: 1fr;
+		gap: 0.1rem;
+	}
+
+	.dettagli-lista dd {
+		margin-bottom: 0.5rem;
+	}
+}

@@ -14,9 +14,58 @@ const DEFINIZIONI = [
   // La pagina che una persona della segreteria tiene aperta durante la
   // giornata: appuntamenti e cose da fare.
   { chiave: 'agenda', label: 'Agenda', href: '/dashboard/agenda' },
-  // I lead che il sito raccoglie in form_contatti, con la loro provenienza
-  // (UTM e sessione) e lo stato di lavorazione.
-  { chiave: 'enquiries', label: 'Enquiries', href: '/dashboard/enquiries', gruppo: 'Moduli', inArrivo: true },
+  // Le richieste dal form del sito, instradate al responsabile: una sezione
+  // per canale, così ciascuno vede le proprie e non legge i contatti degli
+  // altri. Le chiavi e i responsabili stanno in lib/richieste.ts — aggiungere
+  // un corso significa aggiungere una voce là e una riga qui.
+  {
+    chiave: 'richieste-club',
+    label: 'Abbonamenti Club e Family',
+    href: '/dashboard/richieste/richieste-club',
+    gruppo: 'Richieste dal sito',
+  },
+  {
+    chiave: 'richieste-tennis-scuola',
+    label: 'Tennis — Scuola',
+    href: '/dashboard/richieste/richieste-tennis-scuola',
+    gruppo: 'Richieste dal sito',
+  },
+  {
+    chiave: 'richieste-tennis-competizione',
+    label: 'Tennis — Competizione',
+    href: '/dashboard/richieste/richieste-tennis-competizione',
+    gruppo: 'Richieste dal sito',
+  },
+  {
+    chiave: 'richieste-nuoto',
+    label: 'Young School Nuoto',
+    href: '/dashboard/richieste/richieste-nuoto',
+    gruppo: 'Richieste dal sito',
+  },
+  {
+    chiave: 'richieste-triathlon',
+    label: 'Young School Triathlon',
+    href: '/dashboard/richieste/richieste-triathlon',
+    gruppo: 'Richieste dal sito',
+  },
+  {
+    chiave: 'richieste-summer-camp',
+    label: 'Summer Camp',
+    href: '/dashboard/richieste/richieste-summer-camp',
+    gruppo: 'Richieste dal sito',
+  },
+  {
+    chiave: 'richieste-chinesis',
+    label: 'Chinesis',
+    href: '/dashboard/richieste/richieste-chinesis',
+    gruppo: 'Richieste dal sito',
+  },
+  {
+    chiave: 'richieste-padel',
+    label: 'Corsi Padel',
+    href: '/dashboard/richieste/richieste-padel',
+    gruppo: 'Richieste dal sito',
+  },
   // Anagrafica deduplicata: una scheda per persona con tutte le sue richieste.
   { chiave: 'persone', label: 'Persone', href: '/dashboard/persone', gruppo: 'Moduli', inArrivo: true },
   // Sessioni e campagne raccolte da /api/track sul sito.

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { slotOccupati, voceDaContatto, voceDaTask, type VoceAgenda } from '@/lib/agenda'
+import { ATTIVITA_IN_AGENDA } from '@/lib/richieste'
 
 export const dynamic = 'force-dynamic'
 
@@ -74,7 +75,11 @@ export async function GET(request: Request) {
         .from('form_contatti')
         .select('id, azione, data_scelta, ora_scelta, nome, cognome, email, cellulare, attivita_label, messaggio, gestito')
         .gte('data_scelta', da)
-        .lte('data_scelta', a),
+        .lte('data_scelta', a)
+        // Solo le attività che prenotano un orario dalla segreteria: gli
+        // altri corsi mettono in contatto diretto col responsabile e non
+        // occupano questo calendario (vedi lib/richieste.ts).
+        .in('attivita', ATTIVITA_IN_AGENDA),
     ])
 
   if (erroreTask || erroreContatti) {

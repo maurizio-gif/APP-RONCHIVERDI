@@ -26,6 +26,7 @@ export const AZIONI_LOG: Record<string, string> = {
   agenda_voce_annullata: 'Agenda: voce annullata',
   agenda_voce_eliminata: 'Agenda: voce eliminata',
   contatto_gestito: 'Richiesta dal sito: stato gestione modificato',
+  contatto_nota_salvata: 'Richiesta dal sito: nota salvata',
 }
 
 export function etichettaAzione(azione: string): string {

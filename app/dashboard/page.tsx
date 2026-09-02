@@ -1,6 +1,8 @@
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, getNomeUtente, getSezioniConsentite } from '@/lib/auth/sezioni-server'
+import { puoAmministrare } from '@/lib/auth/permessi'
 import { SEZIONI } from '@/lib/auth/sezioni'
+import { canaleDiRichiesta } from '@/lib/richieste'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,13 +28,41 @@ async function contatori() {
   }
 }
 
+/**
+ * Le richieste che non corrispondono a nessun canale (vedi lib/richieste.ts):
+ * un'attività nuova sul sito non ancora instradata, o una richiesta tennis
+ * arrivata senza settore. Non finiscono nella sezione di nessuno, quindi
+ * senza questa spia resterebbero invisibili — che è il modo più silenzioso di
+ * perdere un contatto.
+ */
+async function richiesteNonInstradate() {
+  const supabase = createSupabaseServiceClient()
+  const { data } = await supabase
+    .from('form_contatti')
+    .select('attivita, settore, origine')
+    .eq('gestito', false)
+    .limit(500)
+
+  const fuori = (data ?? []).filter((r) => !canaleDiRichiesta(r))
+  const motivi = new Map<string, number>()
+  for (const r of fuori) {
+    const chiave = r.attivita ? `attività "${r.attivita}"${r.settore ? '' : ' (senza settore)'}` : `origine "${r.origine ?? 'non indicata'}"`
+    motivi.set(chiave, (motivi.get(chiave) ?? 0) + 1)
+  }
+  return { totale: fuori.length, motivi: [...motivi.entries()] }
+}
+
 export default async function RiepilogoPage() {
   const email = emailCorrente()
-  const [nomeUtente, sezioniConsentite, numeri] = await Promise.all([
+  const [nomeUtente, sezioniConsentite, numeri, amministra] = await Promise.all([
     getNomeUtente(email),
     getSezioniConsentite(email),
     contatori(),
+    puoAmministrare(email),
   ])
+
+  // La spia interessa solo chi amministra: è lui che aggiunge un canale.
+  const nonInstradate = amministra ? await richiesteNonInstradate() : { totale: 0, motivi: [] }
 
   const conversione =
     numeri.sessioni > 0 ? Math.round((numeri.sessioniConvertite / numeri.sessioni) * 1000) / 10 : 0
@@ -65,6 +95,26 @@ export default async function RiepilogoPage() {
           <span className="stat-label">Sessioni che convertono</span>
         </div>
       </div>
+
+      {nonInstradate.totale > 0 && (
+        <div className="card" style={{ borderColor: 'rgba(138, 100, 16, 0.35)' }}>
+          <div className="card-head">
+            <h2>Richieste senza sezione</h2>
+            <span className="badge badge-warn">{nonInstradate.totale} da instradare</span>
+          </div>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Queste richieste non compaiono nella sezione di nessun responsabile: va aggiunto il
+            canale corrispondente in <code>lib/richieste.ts</code>.
+          </p>
+          <ul style={{ margin: '0.75rem 0 0', paddingLeft: '1.1rem' }}>
+            {nonInstradate.motivi.map(([motivo, quante]) => (
+              <li key={motivo} style={{ marginBottom: '0.35rem' }}>
+                {motivo} — {quante} {quante === 1 ? 'richiesta' : 'richieste'}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {inArrivo.length > 0 && (
         <div className="card">

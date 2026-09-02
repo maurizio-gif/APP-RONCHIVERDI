@@ -14,6 +14,7 @@ import {
   voceDaTask,
   type VoceAgenda,
 } from '@/lib/agenda'
+import { ATTIVITA_IN_AGENDA } from '@/lib/richieste'
 import { NuovaVoce } from './NuovaVoce'
 import { AzioniVoce } from './AzioniVoce'
 
@@ -56,7 +57,12 @@ export default async function AgendaPage({
         'id, azione, data_scelta, ora_scelta, nome, cognome, email, cellulare, attivita_label, messaggio, gestito'
       )
       .gte('data_scelta', inizio)
-      .lte('data_scelta', fine),
+      .lte('data_scelta', fine)
+      // Solo Club e Family: sono le richieste che passano dalla segreteria e
+      // che hanno un appuntamento da tenere. Le altre vanno diritte al
+      // responsabile del corso e vivono nella sua sezione (lib/richieste.ts),
+      // non in questo calendario.
+      .in('attivita', ATTIVITA_IN_AGENDA),
   ])
 
   let voci: VoceAgenda[] = [
