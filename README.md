@@ -36,6 +36,9 @@ da **Gestione utenti**, che manda l'email con il link per scegliere la password.
 Perché l'invito funzioni, `NEXT_PUBLIC_SITE_URL` deve essere configurata su
 Vercel **e** comparire fra i Redirect URLs in Supabase Auth → URL
 Configuration: altrimenti l'email parte con un link che non porta al pannello.
+In produzione vale `https://app-ronchiverdi.vercel.app`, e nella allowlist di
+Supabase va inserito `https://app-ronchiverdi.vercel.app/auth/callback` (più
+`http://localhost:3000/auth/callback` per provare gli inviti in locale).
 
 ## Permessi
 
@@ -56,6 +59,9 @@ finisce su una pagina che non esiste.
 Fatto: autenticazione, invito e primo accesso, permessi granulari, guscio del
 pannello, Riepilogo, Gestione utenti, log operatori (scrittura).
 
-Da fare: Timbra cartellino (geofence sulla sede di Corso Moncalieri 466, raggio
-250 m), Enquiries, Persone, Agenda con `/api/disponibilita` per gli slot che il
+Fatto anche: **Timbra cartellino** — geofence sulla sede di Corso Moncalieri
+466 (centro e raggio in [`lib/timbratura.ts`](lib/timbratura.ts)), turni
+accoppiati entrata/uscita, ore del giorno e degli ultimi 14 giorni.
+
+Da fare: Enquiries, Persone, Agenda con `/api/disponibilita` per gli slot che il
 sito offre nel form contatti, Visite al sito, pagina di Controllo operatori.

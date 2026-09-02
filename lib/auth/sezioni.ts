@@ -21,7 +21,7 @@ const DEFINIZIONI = [
   { chiave: 'persone', label: 'Persone', href: '/dashboard/persone', gruppo: 'Moduli', inArrivo: true },
   // Sessioni e campagne raccolte da /api/track sul sito.
   { chiave: 'visite-sito', label: 'Visite al sito', href: '/dashboard/visite', gruppo: 'Amministrazione', inArrivo: true },
-  { chiave: 'timbratura', label: 'Timbra cartellino', href: '/dashboard/timbratura', gruppo: 'Amministrazione', inArrivo: true },
+  { chiave: 'timbratura', label: 'Timbra cartellino', href: '/dashboard/timbratura', gruppo: 'Amministrazione' },
   { chiave: 'utenti', label: 'Gestione utenti', href: '/dashboard/utenti', gruppo: 'Amministrazione' },
   { chiave: 'log-operatori', label: 'Controllo operatori', href: '/dashboard/log-operatori', gruppo: 'Amministrazione', inArrivo: true },
 ] as const

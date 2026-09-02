@@ -17,6 +17,9 @@ export const AZIONI_LOG: Record<string, string> = {
   permesso_invitare_modificato: 'Permesso "Può invitare" modificato',
   permesso_cancellare_modificato: 'Permesso "Può cancellare" modificato',
   sezioni_modificate: 'Sezioni visibili modificate',
+  timbratura_entrata: 'Timbratura: entrata',
+  timbratura_uscita: 'Timbratura: uscita',
+  timbratura_rifiutata: 'Timbratura rifiutata (fuori zona)',
 }
 
 export function etichettaAzione(azione: string): string {
