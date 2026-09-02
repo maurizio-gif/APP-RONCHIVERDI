@@ -1153,3 +1153,49 @@ table.tabella tbody tr:hover {
 	font-family: inherit;
 	font-size: var(--text-xs);
 }
+
+/* ──────────────────────────────────────────────────────────────── analytics */
+
+.grafico svg {
+	display: block;
+	width: 100%;
+	height: 150px;
+}
+
+.grafico-barra {
+	fill: var(--accent);
+}
+
+/* Un giorno a zero non si disegna, ma la regola resta per chiarezza: se in
+   futuro si volesse un segno anche sullo zero, si cambia solo qui. */
+.grafico-barra.is-vuota {
+	fill: none;
+}
+
+.grafico-asse {
+	stroke: var(--border-strong);
+	stroke-width: 0.15;
+}
+
+.grafico-etichette {
+	display: flex;
+	justify-content: space-between;
+	margin-top: 0.35rem;
+	font-size: var(--text-2xs);
+}
+
+.grafico-massimo {
+	margin: 0.5rem 0 0;
+	font-size: var(--text-2xs);
+}
+
+/* Le card statistiche dell'Analytics portano anche il badge di variazione:
+   incolonnare tutto a sinistra tiene allineati numero, etichetta e delta. */
+.griglia-stat .stat .badge {
+	align-self: flex-start;
+}
+
+.griglia-stat .stat {
+	display: flex;
+	flex-direction: column;
+}

@@ -1,0 +1,17 @@
+-- Aggregazioni per la sezione Analytics: statistiche_richieste(da, a).
+--
+-- Da eseguire nel SQL Editor del progetto Supabase Ronchiverdi
+-- (upoiasekisojikbzsymq), dopo 2026-09-02-opportunita.sql.
+--
+-- Il raggruppamento sta in SQL perché il client Supabase non sa fare GROUP BY,
+-- e contare le righe in memoria smette di funzionare appena le richieste
+-- crescono. La funzione viene chiamata due volte dalla pagina — periodo e
+-- confronto — e la variazione si calcola sui due risultati.
+--
+-- La dimensione "canale" NON è calcolata qui: dipende dalla tabella di
+-- instradamento in lib/richieste.ts (attività + settore + origine → canale),
+-- e duplicarla in SQL vorrebbe dire due verità da tenere allineate. La
+-- funzione restituisce le combinazioni grezze e l'app le piega sui canali.
+--
+-- Il contenuto è già stato applicato al database via MCP: questo file serve a
+-- ricostruire lo schema da zero.
