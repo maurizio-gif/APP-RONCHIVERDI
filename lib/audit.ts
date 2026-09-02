@@ -34,6 +34,8 @@ export const AZIONI_LOG: Record<string, string> = {
   trattativa_stato_cambiato: 'Trattativa: stato cambiato',
   permesso_commerciale_modificato: 'Permesso "Commerciale" modificato',
   permesso_riassegnare_modificato: 'Permesso "Può riassegnare" modificato',
+  timbratura_corretta: 'Timbratura corretta a mano',
+  timbratura_eliminata: 'Timbratura eliminata',
 }
 
 export function etichettaAzione(azione: string): string {

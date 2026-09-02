@@ -1199,3 +1199,37 @@ table.tabella tbody tr:hover {
 	display: flex;
 	flex-direction: column;
 }
+
+/* ─────────────────────────────────────────────────── controllo operatori */
+
+.filtri {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+}
+
+.filtri-titolo {
+	margin: 0 0 0.4rem;
+	font-size: var(--text-2xs);
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+}
+
+/* La correzione di un timbro apre un campo data/ora accanto ai pulsanti:
+   va a capo su schermo stretto invece di stringere la tabella. */
+.correggi {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.35rem;
+}
+
+.correggi input {
+	padding: 0.3rem 0.45rem;
+	background: var(--surface);
+	border: 1px solid var(--border-strong);
+	border-radius: 6px;
+	color: var(--text);
+	font-family: inherit;
+	font-size: var(--text-2xs);
+}
