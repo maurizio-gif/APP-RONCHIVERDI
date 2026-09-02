@@ -48,4 +48,9 @@ export const CHIAVI_SEZIONI: readonly SezioneChiave[] = SEZIONI.map((s) => s.chi
 // Header con cui il middleware propaga al layout l'email già validata: il
 // nome è specifico dell'app per non confondersi con quello di altri pannelli
 // dello stesso gruppo (il CRM TCA usa x-tca-user-email).
+//
+// ATTENZIONE: lo stesso valore è ripetuto in middleware.ts, che lo scrive.
+// Non può importarlo da qui — gira sull'Edge runtime e Vercel rifiuta il
+// bundle di un'Edge Function che referenzia un modulo locale — quindi se
+// cambia qui va cambiato anche là.
 export const HEADER_EMAIL = 'x-rv-user-email'

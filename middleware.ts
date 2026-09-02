@@ -1,6 +1,14 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { HEADER_EMAIL } from '@/lib/auth/sezioni'
+
+// Deve restare identico a HEADER_EMAIL in lib/auth/sezioni.ts, che è il lato
+// che lo legge. È scritto due volte invece di importarlo di proposito: il
+// middleware gira sull'Edge runtime, dove il grafo dei moduli è ristretto, e
+// Vercel rifiuta il bundle di un'Edge Function che referenzia un modulo
+// locale ("The Edge Function middleware is referencing unsupported modules").
+// La build passa comunque, il deploy no: il prezzo di tenerlo in un solo
+// posto sarebbe un deploy rotto.
+const HEADER_EMAIL = 'x-rv-user-email'
 
 // Gira su ogni richiesta a /dashboard/*: rinfresca il cookie di sessione
 // Supabase e, se manca una sessione valida, rimanda a /login.
