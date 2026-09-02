@@ -20,10 +20,14 @@ export const TIPI = [
 ] as const
 export type TipoVoce = (typeof TIPI)[number]
 
+// Il tipo si chiama "Task", non "Da fare": "Da fare" è lo stato di una voce
+// (vedi ETICHETTE_STATO), e usare la stessa parola per il tipo e per lo stato
+// rendeva illeggibile l'elenco — il badge del tipo e quello dello stato
+// dicevano la stessa cosa per due concetti diversi.
 export const ETICHETTE_TIPO: Record<TipoVoce, string> = {
   appuntamento_in_sede: 'Visita in sede',
   appuntamento_telefonico: 'Telefonata',
-  task: 'Da fare',
+  task: 'Task',
   email: 'Email',
   whatsapp: 'WhatsApp',
 }
@@ -31,7 +35,7 @@ export const ETICHETTE_TIPO: Record<TipoVoce, string> = {
 export const ETICHETTE_TIPO_BREVI: Record<TipoVoce, string> = {
   appuntamento_in_sede: 'In sede',
   appuntamento_telefonico: 'Telefonata',
-  task: 'Da fare',
+  task: 'Task',
   email: 'Email',
   whatsapp: 'WhatsApp',
 }
