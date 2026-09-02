@@ -36,9 +36,25 @@ da **Gestione utenti**, che manda l'email con il link per scegliere la password.
 Perché l'invito funzioni, `NEXT_PUBLIC_SITE_URL` deve essere configurata su
 Vercel **e** comparire fra i Redirect URLs in Supabase Auth → URL
 Configuration: altrimenti l'email parte con un link che non porta al pannello.
-In produzione vale `https://app-ronchiverdi.vercel.app`, e nella allowlist di
-Supabase va inserito `https://app-ronchiverdi.vercel.app/auth/callback` (più
-`http://localhost:3000/auth/callback` per provare gli inviti in locale).
+L'URL di produzione **non** è `app-ronchiverdi.vercel.app`: quel dominio
+risponde 404 e non appartiene a questo progetto. Il progetto vive sul team
+Vercel R2D e l'alias generato porta il suffisso del team:
+`https://app-ronchiverdi-r2d.vercel.app`. Nella allowlist di Supabase va quindi
+`https://app-ronchiverdi-r2d.vercel.app/auth/callback` (più
+`http://localhost:3000/auth/callback` per provare gli inviti in locale), e le
+due voci vanno aggiornate quando arriva il dominio personalizzato.
+
+## Accesso dall'esterno
+
+Il progetto ha la Vercel Authentication attiva in modalità
+`all_except_custom_domains`: **ogni** indirizzo `*.vercel.app` chiede prima il
+login a Vercel, quindi oggi il pannello è raggiungibile solo da chi è nel team
+R2D — la segreteria no, nemmeno con le credenziali giuste. Un dominio
+personalizzato è escluso dalla protezione, quindi collegarne uno (es.
+`app.ronchiverdi.it`) risolve; l'alternativa è disattivare la Vercel
+Authentication e lasciare che il login del pannello faccia da solo la guardia.
+Sono due decisioni diverse: la prima tiene fuori i motori di ricerca e i
+curiosi dagli indirizzi di preview, la seconda espone anche quelli.
 
 ## Permessi
 
