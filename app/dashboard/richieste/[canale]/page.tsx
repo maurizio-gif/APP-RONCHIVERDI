@@ -72,21 +72,21 @@ export default async function CanalePage({
   return (
     <>
       <div className="page-head">
-        <p className="eyebrow">Richieste dal sito</p>
+        <p className="eyebrow">Richieste dal sito · {canale.gruppo}</p>
         <h1>{canale.label}</h1>
         <p className="muted">{canale.descrizione}</p>
       </div>
 
+      {/* La sezione è dell'attività, non della persona: il referente è
+          un'informazione di servizio in coda, non l'intestazione — la sezione
+          resta la stessa anche quando cambia chi la segue. */}
       <div className="card">
         <div className="card-head" style={{ marginBottom: 0 }}>
-          <div>
-            <h2 style={{ marginBottom: '0.2rem' }}>{r.nome}</h2>
-            <p className="muted" style={{ margin: 0, fontSize: 'var(--text-sm)' }}>
-              {r.ruolo}
-              {r.telefono && ` · ${r.telefono}`}
-              {r.email && ` · ${r.email}`}
-            </p>
-          </div>
+          <p className="muted" style={{ margin: 0, fontSize: 'var(--text-sm)' }}>
+            Referente: <strong>{r.nome}</strong> · {r.ruolo}
+            {r.telefono && ` · ${r.telefono}`}
+            {r.email && ` · ${r.email}`}
+          </p>
           <span className={`badge ${daLavorare ? 'badge-warn' : 'badge-ok'}`}>
             {daLavorare ? `${daLavorare} da lavorare` : 'tutto lavorato'}
           </span>

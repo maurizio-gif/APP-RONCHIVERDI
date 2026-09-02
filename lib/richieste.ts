@@ -32,6 +32,14 @@ export type Canale = {
   /** Sottotitolo della pagina: cosa contiene questo canale. */
   descrizione: string
   /**
+   * Gruppo dell'alberatura del sito (leadActivityGroups: "Abbonamento",
+   * "Corsi e scuole") o l'area a cui la richiesta appartiene per i form di
+   * pagina. Le sezioni si chiamano con l'attività e si collocano col gruppo:
+   * il nome del responsabile non entra nell'identità della sezione, perché
+   * la sezione resta quella anche quando cambia la persona.
+   */
+  gruppo: string
+  /**
    * Id attività del form generico (src/data/leadActivities.ts) che finiscono
    * qui. Vuoto per i canali che si agganciano all'origine — vedi `origine`.
    */
@@ -60,7 +68,8 @@ export type Canale = {
 export const CANALI: readonly Canale[] = [
   {
     chiave: 'richieste-club',
-    label: 'Abbonamenti Club e Family',
+    label: 'Abbonamento Club e Family',
+    gruppo: 'Abbonamento',
     descrizione:
       'Le richieste che passano dalla segreteria: appuntamento in sede, telefonata o messaggio. Gli appuntamenti con un orario compaiono anche in Agenda.',
     attivita: ['club-adulti', 'family'],
@@ -69,7 +78,8 @@ export const CANALI: readonly Canale[] = [
   },
   {
     chiave: 'richieste-tennis-scuola',
-    label: 'Tennis — Scuola',
+    label: 'Young School Tennis — Scuola',
+    gruppo: 'Corsi e scuole',
     descrizione: 'Young School Tennis, richieste per il settore Scuola.',
     attivita: ['corsi-tennis'],
     settore: 'scuola',
@@ -83,7 +93,8 @@ export const CANALI: readonly Canale[] = [
   },
   {
     chiave: 'richieste-tennis-competizione',
-    label: 'Tennis — Competizione',
+    label: 'Young School Tennis — Competizione',
+    gruppo: 'Corsi e scuole',
     descrizione: 'Young School Tennis, richieste per il settore Competizione.',
     attivita: ['corsi-tennis'],
     settore: 'competizione',
@@ -98,6 +109,7 @@ export const CANALI: readonly Canale[] = [
   {
     chiave: 'richieste-nuoto',
     label: 'Young School Nuoto',
+    gruppo: 'Corsi e scuole',
     descrizione: 'Corsi di nuoto per bambini e ragazzi.',
     attivita: ['scuola-nuoto'],
     responsabile: {
@@ -111,6 +123,7 @@ export const CANALI: readonly Canale[] = [
   {
     chiave: 'richieste-triathlon',
     label: 'Young School Triathlon',
+    gruppo: 'Corsi e scuole',
     descrizione: 'Nuoto, bici e corsa per bambini e ragazzi dai 6 ai 13 anni.',
     attivita: ['triathlon-young'],
     responsabile: {
@@ -124,6 +137,7 @@ export const CANALI: readonly Canale[] = [
   {
     chiave: 'richieste-summer-camp',
     label: 'Summer Camp',
+    gruppo: 'Corsi e scuole',
     descrizione: 'Le settimane estive per bambini e ragazzi.',
     attivita: ['summer-camp'],
     responsabile: {
@@ -137,6 +151,7 @@ export const CANALI: readonly Canale[] = [
   {
     chiave: 'richieste-chinesis',
     label: 'Chinesis',
+    gruppo: 'Servizi',
     descrizione:
       'Richieste dal form della pagina Chinesis. Non passano dall’alberatura delle attività: si riconoscono dall’origine "chinesis-inline".',
     attivita: [],
@@ -148,6 +163,7 @@ export const CANALI: readonly Canale[] = [
   {
     chiave: 'richieste-padel',
     label: 'Corsi Padel',
+    gruppo: 'Corsi e scuole',
     descrizione: 'Corsi di gruppo e lezioni individuali per adulti.',
     attivita: ['corsi-padel'],
     responsabile: {

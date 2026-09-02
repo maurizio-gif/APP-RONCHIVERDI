@@ -20,19 +20,19 @@ const DEFINIZIONI = [
   // un corso significa aggiungere una voce là e una riga qui.
   {
     chiave: 'richieste-club',
-    label: 'Abbonamenti Club e Family',
+    label: 'Abbonamento Club e Family',
     href: '/dashboard/richieste/richieste-club',
     gruppo: 'Richieste dal sito',
   },
   {
     chiave: 'richieste-tennis-scuola',
-    label: 'Tennis — Scuola',
+    label: 'Young School Tennis — Scuola',
     href: '/dashboard/richieste/richieste-tennis-scuola',
     gruppo: 'Richieste dal sito',
   },
   {
     chiave: 'richieste-tennis-competizione',
-    label: 'Tennis — Competizione',
+    label: 'Young School Tennis — Competizione',
     href: '/dashboard/richieste/richieste-tennis-competizione',
     gruppo: 'Richieste dal sito',
   },
