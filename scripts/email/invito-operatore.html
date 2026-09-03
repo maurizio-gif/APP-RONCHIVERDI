@@ -1,0 +1,133 @@
+<!--
+	Template dell'email di invito, da incollare in Supabase →
+	Authentication → Emails → Invite user.
+
+	Perché è scritto così, e non come una pagina normale:
+
+	- Tabelle e non flex/grid: Outlook su Windows usa il motore di Word, che
+	  non conosce i layout moderni. Con i div la struttura si sfalda.
+	- Stili in linea e non in un <style>: diversi client (Outlook.com in
+	  testa) rimuovono il blocco <style>, e con esso tutto l'aspetto.
+	- Nessun font remoto: Cormorant e Jost non si caricano nelle email, si
+	  degrada su Georgia e Helvetica che ci somigliano abbastanza.
+	- Nessun rgba() e nessuna variabile CSS: i colori sono esadecimali pieni.
+	  Gli angoli arrotondati restano, ma Outlook li ignora e li fa quadrati:
+	  è un peggioramento accettabile, non un difetto.
+	- Il pulsante è una tabella con bgcolor e non un <a> colorato: un link
+	  con solo il padding, su Outlook, diventa una scritta senza sfondo.
+	- Il link compare due volte, anche in chiaro: se le immagini o il
+	  pulsante non passano, l'indirizzo resta copiabile a mano.
+
+	{{ .ConfirmationURL }} è la variabile di Supabase: va lasciata identica.
+-->
+<!doctype html>
+<html lang="it">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="x-apple-disable-message-reformatting" />
+		<meta name="color-scheme" content="light" />
+		<meta name="supported-color-schemes" content="light" />
+		<title>Invito al CRM Ronchiverdi</title>
+	</head>
+	<body style="margin: 0; padding: 0; background-color: #f8f2e5;">
+		<!-- Anteprima nella lista dei messaggi: senza, i client ci mettono le
+		     prime parole del codice o del footer. -->
+		<div style="display: none; max-height: 0; overflow: hidden; opacity: 0;">
+			Attiva il tuo accesso al CRM di Ronchiverdi Sport Club.
+		</div>
+
+		<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8f2e5;">
+			<tr>
+				<td align="center" style="padding: 32px 16px;">
+					<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width: 100%; max-width: 600px;">
+						<!-- Fascia scura col marchio, come l'intestazione del pannello -->
+						<tr>
+							<td align="center" bgcolor="#1c1c18" style="background-color: #1c1c18; padding: 28px 24px; border-radius: 8px 8px 0 0;">
+								<img
+									src="https://crm.ronchiverdi.it/logo-ronchiverdi-sport.png"
+									alt="Ronchiverdi Sport Club"
+									width="160"
+									height="97"
+									style="display: block; width: 160px; height: auto; border: 0;"
+								/>
+							</td>
+						</tr>
+
+						<tr>
+							<td bgcolor="#fdfaf3" style="background-color: #fdfaf3; padding: 36px 32px 32px; border-left: 1px solid #e8e2d0; border-right: 1px solid #e8e2d0;">
+								<p style="margin: 0 0 6px; font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: #8b6c14;">
+									CRM RONCHIVERDI
+								</p>
+
+								<h1 style="margin: 0 0 18px; font-family: Georgia, 'Times New Roman', serif; font-size: 28px; font-weight: 400; line-height: 1.25; color: #1c1c18;">
+									Hai ricevuto un invito
+								</h1>
+
+								<p style="margin: 0 0 16px; font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #1c1c18;">
+									Ti è stato aperto un accesso al CRM di Ronchiverdi Sport Club: il punto
+									unico da cui tutto il personale del club lavora, ciascuno sulle proprie
+									funzioni. Entrando troverai le sezioni abilitate per te.
+								</p>
+
+								<p style="margin: 0 0 28px; font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 16px; line-height: 1.6; color: #1c1c18;">
+									Per cominciare, imposta la tua password:
+								</p>
+
+								<!-- Pulsante a tabella: su Outlook un <a> con solo il padding
+								     perderebbe lo sfondo. -->
+								<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px;">
+									<tr>
+										<td align="center" bgcolor="#8b6c14" style="background-color: #8b6c14; border-radius: 8px;">
+											<a
+												href="{{ .ConfirmationURL }}"
+												style="display: inline-block; padding: 14px 28px; font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 15px; font-weight: 500; letter-spacing: 0.04em; color: #ffffff; text-decoration: none;"
+											>
+												Attiva il tuo accesso
+											</a>
+										</td>
+									</tr>
+								</table>
+
+								<p style="margin: 0 0 8px; font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 13px; line-height: 1.6; color: #4a4a42;">
+									Se il pulsante non funziona, copia questo indirizzo nel tuo browser:
+								</p>
+								<p style="margin: 0 0 24px; font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 13px; line-height: 1.5; word-break: break-all;">
+									<a href="{{ .ConfirmationURL }}" style="color: #8b6c14; text-decoration: underline;">{{ .ConfirmationURL }}</a>
+								</p>
+
+								<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+									<tr>
+										<td style="padding-top: 20px; border-top: 1px solid #e8e2d0;">
+											<p style="margin: 0; font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 13px; line-height: 1.6; color: #4a4a42;">
+												Il link è personale e vale una volta sola. Se non aspettavi questo
+												invito puoi ignorare l'email: finché non lo apri, nessun accesso
+												viene creato.
+											</p>
+										</td>
+									</tr>
+								</table>
+							</td>
+						</tr>
+
+						<tr>
+							<td bgcolor="#fdfaf3" style="background-color: #fdfaf3; padding: 20px 32px 24px; border-radius: 0 0 8px 8px; border-left: 1px solid #e8e2d0; border-right: 1px solid #e8e2d0; border-bottom: 1px solid #e8e2d0;">
+								<p style="margin: 0; font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 12px; line-height: 1.6; color: #4a4a42;">
+									Ronchiverdi Sport Club · Corso Moncalieri 466, Torino
+								</p>
+							</td>
+						</tr>
+
+						<tr>
+							<td align="center" style="padding: 20px 16px 0;">
+								<p style="margin: 0; font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 11px; color: #8a857a;">
+									Email automatica inviata dal CRM Ronchiverdi.
+								</p>
+							</td>
+						</tr>
+					</table>
+				</td>
+			</tr>
+		</table>
+	</body>
+</html>
