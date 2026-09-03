@@ -1326,7 +1326,7 @@ table.tabella tbody tr:hover {
 
 /* Sotto i 700px la tabella diventa una pila di schede: sei colonne su un
    telefono si leggono solo scorrendo in orizzontale, e l'intestazione resta
-   fuori schermo proprio quando serve. Le etichette le rimette data-label. */
+   fuori schermo proprio quando serve. */
 @media (max-width: 700px) {
 	.tabella-agenda,
 	.tabella-agenda thead,
@@ -1341,10 +1341,18 @@ table.tabella tbody tr:hover {
 		display: none;
 	}
 
+	/* La scheda si legge in tre fasce: orario, tipo e stato sulla prima riga,
+	   il nome coi recapiti sotto, l'assegnatario in coda. Impilare anche quelle
+	   tre con le etichette di colonna in maiuscolo faceva una scheda alta mezzo
+	   telefono: in agenda conta vedere quante più voci possibile per volta. */
 	.tabella-agenda .riga-agenda {
 		position: relative;
-		margin-bottom: 0.5rem;
-		padding: 0.75rem 1rem 0.75rem 2rem;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.25rem 0.5rem;
+		margin-bottom: 0.4rem;
+		padding: 0.55rem 0.7rem 0.6rem 1.8rem;
 		background: var(--surface);
 		border: 1px solid var(--border);
 		border-radius: var(--radius);
@@ -1357,35 +1365,75 @@ table.tabella tbody tr:hover {
 	}
 
 	.tabella-agenda .riga-agenda td {
+		width: auto;
 		padding: 0;
 		border-bottom: 0;
 	}
 
 	.tabella-agenda .riga-agenda .col-espandi {
 		position: absolute;
-		top: 0.75rem;
-		left: 0.6rem;
+		top: 0.5rem;
+		left: 0.45rem;
 		width: auto;
 	}
 
+	/* Niente etichette di colonna: un badge "Visita in sede" e uno "Da fare"
+	   dicono già di cosa sono, e ripeterlo sopra ogni valore costava una riga
+	   di testo a testa. Sull'assegnatario l'etichetta resta, in linea. */
 	.tabella-agenda .riga-agenda td[data-label]::before {
-		content: attr(data-label);
-		display: block;
-		margin-top: 0.4rem;
-		color: var(--text-muted);
-		font-size: var(--text-2xs);
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
+		content: none;
 	}
 
-	/* Data e Chi non hanno bisogno dell'etichetta: sono la riga stessa. */
-	.tabella-agenda .riga-agenda td[data-label='Data']::before,
-	.tabella-agenda .riga-agenda td[data-label='Chi']::before {
-		content: none;
+	.tabella-agenda .riga-agenda td[data-label='Data'] {
+		order: 1;
+	}
+
+	.tabella-agenda .riga-agenda td[data-label='Tipologia'] {
+		order: 2;
+	}
+
+	/* Lo stato all'estremità destra della prima riga: è la cosa che si cerca
+	   scorrendo la giornata, e in colonna si trova sempre nello stesso punto. */
+	.tabella-agenda .riga-agenda td[data-label='Stato'] {
+		order: 3;
+		margin-left: auto;
+	}
+
+	.tabella-agenda .riga-agenda td[data-label='Chi'] {
+		flex: 0 0 100%;
+		order: 4;
 	}
 
 	.tabella-agenda .riga-agenda td[data-label='Chi'] .cella-chi-nome {
 		font-size: var(--text-base);
+	}
+
+	.tabella-agenda .riga-agenda td[data-label='Assegnato a'] {
+		flex: 0 0 100%;
+		order: 5;
+		color: var(--text-muted);
+		font-size: var(--text-xs);
+	}
+
+	.tabella-agenda .riga-agenda td[data-label='Assegnato a']::before {
+		content: 'Assegnato a: ';
+		display: inline;
+		margin: 0;
+		color: inherit;
+		font-size: inherit;
+		letter-spacing: normal;
+		text-transform: none;
+	}
+
+	/* Giorno e ora in linea: sono due parole, e una sopra l'altra allungavano
+	   la scheda senza aggiungere niente. */
+	.tabella-agenda .riga-agenda .cella-data-giorno,
+	.tabella-agenda .riga-agenda .cella-data-ora {
+		display: inline;
+	}
+
+	.tabella-agenda .riga-agenda .cella-data-giorno + .cella-data-ora::before {
+		content: ' · ';
 	}
 
 	.tabella-agenda .riga-dettaglio td {
