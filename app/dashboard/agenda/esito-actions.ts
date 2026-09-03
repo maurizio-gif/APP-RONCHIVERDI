@@ -201,6 +201,92 @@ export async function chiudiConEsito(input: {
 }
 
 /**
+ * Sposta una voce a un altro giorno (e a un'altra ora, se è un appuntamento)
+ * senza chiuderla: l'incontro non è andato come previsto, ma non è né
+ * eseguito né fallito — è stato rinviato.
+ *
+ * Senza questa via, un rinvio costava due gesti sbagliati: chiudere "fallita"
+ * qualcosa che non è fallito, e poi programmare un evento nuovo. Lo storico
+ * ne usciva con una sconfitta che non c'è stata.
+ *
+ * La nota resta obbligatoria: fra un mese "spostato al 12" senza il perché
+ * non dice se ha chiesto lui, se non si è presentato, o se eravamo noi a non
+ * poter esserci.
+ */
+export async function riprogrammaVoce(input: {
+  origine: OrigineVoce
+  id: string
+  nota: string
+  data: string
+  ora?: string | null
+}): Promise<Esito> {
+  if (!(await autorizzato())) return { ok: false, errore: 'Non hai accesso a questa sezione.' }
+
+  const nota = (input.nota ?? '').trim()
+  if (!nota) return { ok: false, errore: 'La nota è obbligatoria: scrivi perché la riprogrammi.' }
+  if (!eDataValida(input.data ?? '')) return { ok: false, errore: 'La nuova data non è valida.' }
+
+  const email = emailCorrente()
+  const supabase = createSupabaseServiceClient()
+
+  // Se accetta un'ora lo decide la riga, non il client: il tipo sta sul
+  // database, e fidarsi di quello che arriva vorrebbe dire poter mettere un
+  // orario su un'email — che occuperebbe una fascia che il sito offre ancora.
+  const { data: riga, error: erroreLettura } = await supabase
+    .from(input.origine)
+    .select(input.origine === 'task' ? 'tipo, data, ora' : 'azione, data_scelta, ora_scelta')
+    .eq('id', input.id)
+    .maybeSingle()
+
+  if (erroreLettura || !riga) {
+    console.error('Voce da riprogrammare non letta:', erroreLettura?.message)
+    return { ok: false, errore: 'Non abbiamo trovato la voce da riprogrammare.' }
+  }
+
+  const dati = riga as Record<string, unknown>
+  const conOrario =
+    input.origine === 'task'
+      ? eTipoValido(dati.tipo as string) && eAppuntamentoVero(dati.tipo as TipoVoce)
+      : dati.azione === 'appuntamento' || dati.azione === 'telefonata'
+
+  const oraGrezza = conOrario ? (input.ora ?? '') : ''
+  const ora = oraGrezza ? normalizzaOra(oraGrezza) : null
+  if (oraGrezza && !ora) return { ok: false, errore: 'L’ora non è valida (formato HH:MM).' }
+
+  const prima = {
+    data: String(dati[input.origine === 'task' ? 'data' : 'data_scelta'] ?? '').slice(0, 10) || null,
+    ora: normalizzaOra(dati[input.origine === 'task' ? 'ora' : 'ora_scelta'] as string),
+  }
+
+  // La nota si accumula invece di sostituire: una voce rinviata due volte ha
+  // due ragioni, e tenere solo l'ultima cancella la prima.
+  const riga_nota = `Riprogrammata${prima.data ? ` dal ${prima.data}${prima.ora ? ` ${prima.ora}` : ''}` : ''} al ${input.data}${ora ? ` ${ora}` : ''}: ${nota}`
+
+  const { error } = await supabase
+    .from(input.origine)
+    .update(
+      input.origine === 'task'
+        ? { data: input.data, ora, note: riga_nota, stato: 'aperto', completato_il: null }
+        : { data_scelta: input.data, ora_scelta: ora }
+    )
+    .eq('id', input.id)
+
+  if (error) {
+    console.error('Riprogrammazione non riuscita:', error.message)
+    return { ok: false, errore: 'Non siamo riusciti a riprogrammare la voce. Riprova.' }
+  }
+
+  await registraLog(email, 'voce_riprogrammata', {
+    entita: input.origine,
+    entitaId: input.id,
+    dettagli: { da: prima, a: { data: input.data, ora }, nota },
+  })
+
+  rinfresca()
+  return { ok: true }
+}
+
+/**
  * Rimuove del tutto una voce: serve per gli errori e le prove, che non vanno
  * chiuse con un esito ma cancellate — un test rimasto in giro falsa i
  * conteggi di quanto è stato eseguito e quanto è fallito.

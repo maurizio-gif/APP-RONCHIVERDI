@@ -12,6 +12,7 @@ import {
 import {
   chiudiConEsito,
   rimuoviVoce,
+  riprogrammaVoce,
   type EventoDaProgrammare,
   type OrigineVoce,
 } from '@/app/dashboard/agenda/esito-actions'
@@ -21,11 +22,16 @@ import {
 // uno solo perché il gesto è lo stesso — due copie avrebbero preso strade
 // diverse alla prima modifica.
 
-type Gruppo = 'eseguita' | 'fallita' | 'annullata'
+type Gruppo = 'eseguita' | 'fallita' | 'riprogrammata' | 'annullata'
 
 const GRUPPI: { chiave: Gruppo; etichetta: string }[] = [
   { chiave: 'eseguita', etichetta: 'Eseguita' },
   { chiave: 'fallita', etichetta: 'Fallita' },
+  // Riprogrammata non è un esito e non chiude niente: la voce resta aperta a
+  // un'altra data. Sta qui perché è la terza cosa che si vuole fare aprendo
+  // la gestione, e cercarla altrove avrebbe portato a chiudere "fallita"
+  // qualcosa che è stato solo rinviato.
+  { chiave: 'riprogrammata', etichetta: 'Riprogrammata' },
   { chiave: 'annullata', etichetta: 'Annullata' },
 ]
 
@@ -51,6 +57,9 @@ export function GestioneEsito({
   titolo,
   operatori,
   puoCancellare,
+  conOrario = false,
+  dataCorrente,
+  oraCorrente,
 }: {
   origine: OrigineVoce
   id: string
@@ -58,12 +67,23 @@ export function GestioneEsito({
   titolo: string
   operatori: string[]
   puoCancellare: boolean
+  /** Se la voce è un appuntamento vero: solo quelli si spostano anche di ora. */
+  conOrario?: boolean
+  /** Giorno e ora attuali, come punto di partenza della riprogrammazione. */
+  dataCorrente?: string | null
+  oraCorrente?: string | null
 }) {
   const [gruppo, setGruppo] = useState<Gruppo | null>(null)
   const [nota, setNota] = useState('')
   const [eventi, setEventi] = useState<RigaEvento[]>([])
   const [errore, setErrore] = useState<string | null>(null)
   const [inCorso, startTransition] = useTransition()
+
+  // Si parte da dov'è adesso: chi rinvia sposta di qualche giorno, e
+  // ridigitare la data da zero è lavoro in più per arrivare vicino a quella
+  // che c'era già.
+  const [nuovaData, setNuovaData] = useState(dataCorrente || oggiRoma())
+  const [nuovaOra, setNuovaOra] = useState(oraCorrente ?? '')
 
   // Il contatore non torna indietro: riusare l'indice come chiave farebbe
   // ereditare a una riga i valori di quella cancellata sopra di lei.
@@ -92,8 +112,16 @@ export function GestioneEsito({
     })
   }
 
+  function riprogramma() {
+    if (!nota.trim()) return setErrore('La nota è obbligatoria: scrivi perché la riprogrammi.')
+    if (!nuovaData) return setErrore('Scegli il nuovo giorno.')
+    esegui(() =>
+      riprogrammaVoce({ origine, id, nota, data: nuovaData, ora: conOrario ? nuovaOra : null })
+    )
+  }
+
   function chiudi(conEventi: boolean) {
-    if (!gruppo || gruppo === 'annullata') return
+    if (!gruppo || gruppo === 'annullata' || gruppo === 'riprogrammata') return
     if (!nota.trim()) return setErrore('La nota è obbligatoria: scrivi com’è andata.')
     if (conEventi && eventi.length === 0) {
       return setErrore('Aggiungi almeno un evento, oppure chiudi senza programmare.')
@@ -149,15 +177,60 @@ export function GestioneEsito({
               onChange={(e) => setNota(e.target.value)}
               placeholder={
                 gruppo === 'fallita'
-                  ? 'Perché non è andata: non ha risposto, ha rinviato, non è più interessato…'
+                  ? 'Perché non è andata: non ha risposto, non è più interessato…'
                   : gruppo === 'annullata'
                     ? 'Perché la rimuovi: creata per errore, prova, doppione…'
-                    : 'Cosa è stato detto e cosa succede adesso'
+                    : gruppo === 'riprogrammata'
+                      ? 'Perché si sposta: ha chiesto lui, non si è presentato, imprevisto nostro…'
+                      : 'Cosa è stato detto e cosa succede adesso'
               }
             />
           </div>
 
-          {gruppo === 'annullata' ? (
+          {gruppo === 'riprogrammata' ? (
+            <>
+              <div className="form-row">
+                <div className="field">
+                  <label htmlFor={`data-${origine}-${id}`}>Nuovo giorno</label>
+                  <input
+                    id={`data-${origine}-${id}`}
+                    type="date"
+                    value={nuovaData}
+                    onChange={(e) => setNuovaData(e.target.value)}
+                  />
+                </div>
+                {/* L'ora solo per gli appuntamenti veri, come in tutto il
+                    resto: un'email o una cosa da fare si spostano di giorno. */}
+                {conOrario && (
+                  <div className="field">
+                    <label htmlFor={`ora-${origine}-${id}`}>Nuova ora</label>
+                    <input
+                      id={`ora-${origine}-${id}`}
+                      type="time"
+                      value={nuovaOra}
+                      onChange={(e) => setNuovaOra(e.target.value)}
+                    />
+                    <p className="field-hint">Vuota = entro la giornata.</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="esito-azioni">
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  disabled={inCorso}
+                  onClick={riprogramma}
+                >
+                  {inCorso ? 'Spostamento…' : 'Riprogramma'}
+                </button>
+                <p className="field-hint">
+                  La voce resta da fare e si sposta al nuovo giorno. Non viene chiusa: non è né
+                  eseguita né fallita.
+                </p>
+              </div>
+            </>
+          ) : gruppo === 'annullata' ? (
             <div className="esito-azioni">
               <button
                 type="button"

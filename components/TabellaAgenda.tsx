@@ -6,6 +6,7 @@ import {
   ETICHETTE_ESITO,
   ETICHETTE_TIPO,
   dataBreve,
+  eAppuntamentoVero,
   etichettaStato,
   intervalloOrario,
   type VoceAgenda,
@@ -197,6 +198,9 @@ function RigaVoce({
               titolo={voce.titolo}
               operatori={operatori}
               puoCancellare={puoCancellare}
+              conOrario={eAppuntamentoVero(voce.tipo)}
+              dataCorrente={voce.data}
+              oraCorrente={voce.ora}
             />
           </td>
         </tr>

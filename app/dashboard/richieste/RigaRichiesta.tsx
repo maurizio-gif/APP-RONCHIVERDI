@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { ETICHETTE_ESITO, eEsitoValido } from '@/lib/agenda'
+import { ETICHETTE_ESITO, eEsitoValido, tipoDaAzione } from '@/lib/agenda'
 import { GestioneEsito } from '@/components/GestioneEsito'
 import { riapriRichiesta } from './actions'
 import { Trattativa, type DatiTrattativa } from './Trattativa'
@@ -332,6 +332,11 @@ export function RigaRichiesta({
             titolo={nome}
             operatori={operatori}
             puoCancellare={puoCancellare}
+            // Appuntamento e telefonata sono gli unici che hanno un orario:
+            // un messaggio non si sposta di ora perché non ne ha una.
+            conOrario={!!tipoDaAzione(r.azione)}
+            dataCorrente={r.data_scelta}
+            oraCorrente={r.ora_scelta ? String(r.ora_scelta).slice(0, 5) : null}
           />
         </div>
       )}

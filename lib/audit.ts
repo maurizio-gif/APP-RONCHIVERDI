@@ -30,6 +30,7 @@ export const AZIONI_LOG: Record<string, string> = {
   esito_eseguita: 'Chiusa con esito: eseguita',
   esito_fallita: 'Chiusa con esito: fallita',
   voce_rimossa: 'Rimossa (errore o prova)',
+  voce_riprogrammata: 'Riprogrammata',
   // Come agenda_voce_completata: la presa in carico a mano non esiste più —
   // si chiude solo con esito — ma le righe già registrate restano.
   contatto_gestito: 'Richiesta dal sito: stato gestione modificato',
