@@ -161,6 +161,18 @@ export const CANALI: readonly Canale[] = [
     responsabile: { nome: 'Centro Chinesis', ruolo: 'Referente da definire' },
   },
   {
+    chiave: 'richieste-fitness-manager',
+    label: 'Fitness Manager',
+    gruppo: 'Servizi',
+    descrizione:
+      'Le richieste di consulenza dalla pagina Personal Training: chi ha compilato il questionario sugli obiettivi e aspetta una chiamata per scegliere il trainer. Si riconoscono dall\u2019origine "fitness-manager-inline".',
+    attivita: [],
+    origine: ['fitness-manager-inline'],
+    // Nome e recapiti del Fitness Manager non sono pubblicati sul sito: da
+    // completare qui quando arrivano.
+    responsabile: { nome: 'Fitness Manager', ruolo: 'Referente da definire' },
+  },
+  {
     chiave: 'richieste-padel',
     label: 'Corsi Padel',
     gruppo: 'Corsi e scuole',

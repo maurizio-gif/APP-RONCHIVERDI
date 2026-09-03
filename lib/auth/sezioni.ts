@@ -74,6 +74,12 @@ const DEFINIZIONI = [
     href: '/dashboard/richieste/richieste-padel',
     gruppo: 'Richieste dal sito',
   },
+  {
+    chiave: 'richieste-fitness-manager',
+    label: 'Fitness Manager',
+    href: '/dashboard/richieste/richieste-fitness-manager',
+    gruppo: 'Richieste dal sito',
+  },
   // Anagrafica deduplicata: una scheda per persona con tutte le sue richieste.
   // La chiave resta 'persone' — è il permesso salvato in staff_users e la
   // rotta: rinominarla vorrebbe dire migrare i permessi di tutti per un

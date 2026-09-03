@@ -9,10 +9,14 @@ import { Trattativa, type DatiTrattativa } from './Trattativa'
 export type Richiesta = {
   id: string
   created_at: string
+  /** Da quale form del sito arriva: distingue i moduli inline di pagina. */
+  origine: string | null
   nome: string | null
   cognome: string | null
   email: string | null
   cellulare: string | null
+  /** Data di nascita di chi scrive: la chiede il form del Fitness Manager. */
+  data_nascita: string | null
   attivita_label: string | null
   settore: string | null
   azione: string | null
@@ -57,6 +61,21 @@ function dataOra(iso: string): string {
   })
 }
 
+// L'ordine delle domande del questionario (il form del Fitness Manager, in
+// src/pages/attivita/personal-training.astro nel repo del sito). Le risposte
+// arrivano gia' in quest'ordine, ma il database non lo garantisce: qui si
+// legge sempre obiettivo, poi livello, poi frequenza, e una voce che non
+// riconosciamo resta in fondo invece di sparire.
+const ORDINE_RISPOSTE = ['Obiettivo', 'Livello', 'Frequenza']
+
+function ordinaRisposte(risposte: string[]): string[] {
+  const posizione = (r: string) => {
+    const i = ORDINE_RISPOSTE.findIndex((etichetta) => r.startsWith(`${etichetta}:`))
+    return i === -1 ? ORDINE_RISPOSTE.length : i
+  }
+  return [...risposte].sort((a, b) => posizione(a) - posizione(b))
+}
+
 /** Numero pronto per wa.me: solo cifre, senza + né spazi. */
 function soloCifre(numero: string): string {
   return numero.replace(/[^0-9]/g, '')
@@ -83,6 +102,7 @@ export function RigaRichiesta({
   const [inCorso, startTransition] = useTransition()
 
   const nome = [r.nome, r.cognome].filter(Boolean).join(' ') || '—'
+  const eQuestionario = r.origine === 'fitness-manager-inline'
   const minore = [r.minore_nome, r.minore_cognome].filter(Boolean).join(' ')
 
   // Una richiesta ripetuta va detta prima di chiamare: il database riusa la
@@ -245,6 +265,12 @@ export function RigaRichiesta({
                 </dd>
               </>
             )}
+            {r.data_nascita && (
+              <>
+                <dt>Data di nascita</dt>
+                <dd>{r.data_nascita}</dd>
+              </>
+            )}
             {minore && (
               <>
                 <dt>Bambino/a</dt>
@@ -266,8 +292,34 @@ export function RigaRichiesta({
             )}
             {r.dettagli && r.dettagli.length > 0 && (
               <>
-                <dt>Interessi</dt>
-                <dd>{r.dettagli.join(', ')}</dd>
+                {/* Per il Fitness Manager quelle righe sono le risposte a
+                    domande precise (obiettivo, livello, frequenza), non le
+                    caselle "cosa ti interessa" del form generico: chiamarle
+                    Interessi le farebbe leggere come preferenze vaghe. */}
+                <dt>{eQuestionario ? 'Questionario' : 'Interessi'}</dt>
+                <dd>
+                  {eQuestionario ? (
+                    // Le risposte del questionario sono coppie domanda/valore:
+                    // in fila su una riga sola si leggono come un elenco di
+                    // interessi, e chi chiama deve rileggerle per capire quale
+                    // e' l'obiettivo e quale la frequenza.
+                    <ul className="dettagli-risposte">
+                      {ordinaRisposte(r.dettagli).map((risposta, i) => {
+                        const taglio = risposta.indexOf(':')
+                        return taglio === -1 ? (
+                          <li key={i}>{risposta}</li>
+                        ) : (
+                          <li key={i}>
+                            <span className="muted">{risposta.slice(0, taglio + 1)}</span>{' '}
+                            {risposta.slice(taglio + 1).trim()}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  ) : (
+                    r.dettagli.join(', ')
+                  )}
+                </dd>
               </>
             )}
             {r.messaggio && (

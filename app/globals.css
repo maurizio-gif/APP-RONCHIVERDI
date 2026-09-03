@@ -1838,6 +1838,18 @@ table.tabella tbody tr:hover {
 	}
 }
 
+/* Le risposte del questionario del Fitness Manager: una per riga, con la
+   domanda in grigio davanti al valore. Sono tre o quattro voci e vanno lette
+   a colpo d'occhio prima di chiamare, non scorse come una frase. */
+.dettagli-risposte {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+}
+
 /* ────────────────────────────────────────────────────────────── anagrafica */
 
 .persone {
