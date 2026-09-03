@@ -2,11 +2,18 @@
 
 import { useState, useTransition } from 'react'
 import type { VoceAgenda } from '@/lib/agenda'
-import { annullaVoce, completaVoce, riapriVoce, segnaContattoGestito } from './actions'
+import { annullaVoce, riapriVoce, segnaContattoGestito } from './actions'
 
-// I comandi su una singola voce. Le richieste arrivate dal sito non si
-// annullano né si cancellano da qui: non sono impegni nostri, sono richieste
-// di una persona — si segnano lavorate, e basta.
+// I comandi su una singola voce. Chiudere non è fra questi: si chiude solo da
+// "Chiudi con esito", qui sotto nel dettaglio. Un "Segna fatto" accanto
+// significava due modi di chiudere la stessa voce, uno con l'esito e il perché
+// e uno senza: una voce chiusa da qui restava senza esito e il pannello la
+// riproponeva da chiudere.
+//
+// Resta la riapertura, che è il modo di disfare una chiusura, e l'annullamento,
+// che è un'altra cosa: libera lo slot per il sito. Le richieste arrivate dal
+// sito non si annullano né si cancellano da qui — non sono impegni nostri, sono
+// richieste di una persona.
 export function AzioniVoce({ voce }: { voce: VoceAgenda }) {
   const [errore, setErrore] = useState<string | null>(null)
   const [inCorso, startTransition] = useTransition()
@@ -23,18 +30,7 @@ export function AzioniVoce({ voce }: { voce: VoceAgenda }) {
 
   return (
     <div className="voce-azioni">
-      {voce.daFare ? (
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm"
-          disabled={inCorso}
-          onClick={() =>
-            esegui(() => (daSito ? segnaContattoGestito(voce.id, true) : completaVoce(voce.id, null)))
-          }
-        >
-          Segna fatto
-        </button>
-      ) : (
+      {!voce.daFare && (
         <button
           type="button"
           className="btn btn-ghost btn-sm"

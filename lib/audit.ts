@@ -21,6 +21,8 @@ export const AZIONI_LOG: Record<string, string> = {
   timbratura_uscita: 'Timbratura: uscita',
   timbratura_rifiutata: 'Timbratura rifiutata (fuori zona)',
   agenda_voce_creata: 'Agenda: voce creata',
+  // Il "Segna fatto" non esiste più — si chiude solo con esito — ma le righe
+  // già registrate restano, e senza etichetta mostrerebbero la chiave grezza.
   agenda_voce_completata: 'Agenda: voce segnata fatta',
   agenda_voce_riaperta: 'Agenda: voce riaperta',
   agenda_voce_annullata: 'Agenda: voce annullata',
