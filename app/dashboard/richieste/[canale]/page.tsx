@@ -18,7 +18,7 @@ export default async function CanalePage({
   searchParams,
 }: {
   params: { canale: string }
-  searchParams: { mostra?: string; stato?: string }
+  searchParams: { mostra?: string; stato?: string; mie?: string }
 }) {
   const canale = canaleDaChiave(params.canale)
   if (!canale) notFound()
@@ -38,6 +38,11 @@ export default async function CanalePage({
   // di default l'elenco sarebbe sempre vuoto — un link che promette un numero
   // e porta a una pagina vuota è peggio di nessun link.
   const soloDaLavorare = !statoRichiesto && searchParams.mostra !== 'tutte'
+
+  // «Assegnate a me» guarda l'assegnatario della trattativa, perché la
+  // richiesta in sé non ha un titolare: è la persona a essere seguita da
+  // qualcuno, non il singolo modulo. Esiste solo dove esistono le trattative.
+  const soloMie = canale.inAgenda && searchParams.mie === '1'
 
   const supabase = createSupabaseServiceClient()
   let query = supabase
@@ -177,19 +182,47 @@ export default async function CanalePage({
   // Il filtro per stato si applica qui e non in SQL: lo stato sta su
   // `opportunita`, non su form_contatti, e le trattative si conoscono solo
   // dopo averle caricate qui sopra.
-  const richiesteMostrate =
-    statoRichiesto && contesto
-      ? richieste.filter((x) => {
-          const idTrattativa = x.opportunita_id
-          if (!idTrattativa) {
-            // Senza trattativa la richiesta è lavoro che nessuno ha ancora
-            // preso: vale come "da prendere in carico", così non scompare dai
-            // conti di chi apre quel riquadro.
-            return statoRichiesto === 'nuovo'
-          }
-          return contesto!.trattative[idTrattativa]?.stato === statoRichiesto
-        })
-      : richieste
+  const io = emailCorrente()
+  const richiesteMostrate = richieste.filter((x) => {
+    const trattativa = x.opportunita_id ? contesto?.trattative[x.opportunita_id] : undefined
+
+    if (statoRichiesto) {
+      // Senza trattativa la richiesta è lavoro che nessuno ha ancora preso:
+      // vale come "da prendere in carico", così non scompare dai conti di chi
+      // apre quel riquadro.
+      const stato = trattativa?.stato ?? 'nuovo'
+      if (stato !== statoRichiesto) return false
+    }
+
+    // Solo le proprie vuol dire proprie davvero: le libere non ci entrano,
+    // perché per quelle c'è il filtro «Da prendere in carico» — un «mie» che
+    // comprende anche quelle di nessuno non risponde più a nessuna domanda.
+    if (soloMie && trattativa?.assegnato_a !== io) return false
+
+    return true
+  })
+
+  // Quanti filtri sono attivi: serve a dire in pagina che si sta guardando un
+  // sottoinsieme, e a offrire l'azzeramento solo quando ha senso.
+  const filtriAttivi = [!soloDaLavorare, !!statoRichiesto, soloMie].filter(Boolean).length
+
+  // Catturata fuori dalla funzione: dentro una chiusura TypeScript non tiene
+  // il restringimento fatto da notFound() qui sopra, e `canale` torna a essere
+  // possibilmente undefined.
+  const chiaveCanale = canale.chiave
+
+  /** Un link che cambia un filtro e lascia stare gli altri. */
+  function link(cambi: { mostra?: string | null; stato?: string | null; mie?: string | null }) {
+    const params = new URLSearchParams()
+    const mostra = cambi.mostra === undefined ? searchParams.mostra : cambi.mostra
+    const stato = cambi.stato === undefined ? searchParams.stato : cambi.stato
+    const mie = cambi.mie === undefined ? searchParams.mie : cambi.mie
+    if (mostra) params.set('mostra', mostra)
+    if (stato) params.set('stato', stato)
+    if (mie) params.set('mie', mie)
+    const qs = params.toString()
+    return `/dashboard/richieste/${chiaveCanale}${qs ? `?${qs}` : ''}`
+  }
 
   const r = canale.responsabile
 
@@ -217,54 +250,106 @@ export default async function CanalePage({
         </div>
       </div>
 
-      <div className="agenda-barra">
-        <div className="agenda-nav">
-          <Link
-            className={`btn btn-sm ${soloDaLavorare ? '' : 'btn-ghost'}`}
-            href={`/dashboard/richieste/${canale.chiave}`}
-          >
-            Da lavorare
-          </Link>
-          <Link
-            className={`btn btn-sm ${!soloDaLavorare && !statoRichiesto ? '' : 'btn-ghost'}`}
-            href={`/dashboard/richieste/${canale.chiave}?mostra=tutte`}
-          >
-            Tutte
-          </Link>
+      {/* Prima erano due file di pulsanti appiccicate: non si capiva che
+          fossero filtri, né che fossero due serie indipendenti — «Tutte» e
+          «In gestione» sembravano alternative fra loro. Ora ogni serie ha il
+          suo nome, si vede quante scelte sono attive e c'è come azzerarle. */}
+      <div className="filtri">
+        <div className="filtri-testa">
+          <span className="filtri-titolo">Filtra l&apos;elenco</span>
+          {filtriAttivi > 0 && (
+            <Link className="link filtri-azzera" href={link({ mostra: null, stato: null, mie: null })}>
+              Azzera i filtri ({filtriAttivi})
+            </Link>
+          )}
         </div>
 
-        {/* Gli stessi quattro stati dei riquadri del riepilogo: arrivando da
-            un riquadro si vede quale filtro è attivo e si può cambiarlo senza
-            tornare indietro. Solo dove esistono le trattative. */}
-        {canale.inAgenda && (
-          <div className="agenda-nav">
-            {STATI.map((stato) => (
-              <Link
-                key={stato}
-                className={`btn btn-sm ${statoRichiesto === stato ? '' : 'btn-ghost'}`}
-                href={
-                  statoRichiesto === stato
-                    ? `/dashboard/richieste/${canale.chiave}`
-                    : `/dashboard/richieste/${canale.chiave}?stato=${stato}`
-                }
-              >
-                {ETICHETTE_STATO[stato]}
-              </Link>
-            ))}
-          </div>
-        )}
+        <div className="filtri-gruppi">
+          <fieldset className="filtro-gruppo">
+            <legend>Lavorazione</legend>
+            <Link
+              className={`btn btn-sm ${soloDaLavorare ? '' : 'btn-ghost'}`}
+              aria-current={soloDaLavorare ? 'true' : undefined}
+              href={link({ mostra: null, stato: null })}
+            >
+              Da lavorare
+            </Link>
+            <Link
+              className={`btn btn-sm ${!soloDaLavorare ? '' : 'btn-ghost'}`}
+              aria-current={!soloDaLavorare ? 'true' : undefined}
+              href={link({ mostra: 'tutte' })}
+            >
+              Tutte
+            </Link>
+          </fieldset>
+
+          {/* Gli stessi quattro stati dei riquadri del riepilogo: arrivando da
+              un riquadro si vede quale filtro è attivo e si può cambiarlo
+              senza tornare indietro. Solo dove esistono le trattative. */}
+          {canale.inAgenda && (
+            <>
+              <fieldset className="filtro-gruppo">
+                <legend>Stato della trattativa</legend>
+                <Link
+                  className={`btn btn-sm ${statoRichiesto ? 'btn-ghost' : ''}`}
+                  aria-current={statoRichiesto ? undefined : 'true'}
+                  href={link({ stato: null })}
+                >
+                  Qualsiasi
+                </Link>
+                {STATI.map((stato) => (
+                  <Link
+                    key={stato}
+                    className={`btn btn-sm ${statoRichiesto === stato ? '' : 'btn-ghost'}`}
+                    aria-current={statoRichiesto === stato ? 'true' : undefined}
+                    href={link({ stato: statoRichiesto === stato ? null : stato })}
+                  >
+                    {ETICHETTE_STATO[stato]}
+                  </Link>
+                ))}
+              </fieldset>
+
+              <fieldset className="filtro-gruppo">
+                <legend>Assegnazione</legend>
+                <Link
+                  className={`btn btn-sm ${soloMie ? 'btn-ghost' : ''}`}
+                  aria-current={soloMie ? undefined : 'true'}
+                  href={link({ mie: null })}
+                >
+                  Tutte
+                </Link>
+                <Link
+                  className={`btn btn-sm ${soloMie ? '' : 'btn-ghost'}`}
+                  aria-current={soloMie ? 'true' : undefined}
+                  href={link({ mie: '1' })}
+                >
+                  Assegnate a me
+                </Link>
+              </fieldset>
+            </>
+          )}
+        </div>
       </div>
+
+      {/* Quante si stanno guardando su quante ce ne sono: senza, un elenco
+          filtrato e un elenco corto si somigliano troppo. */}
+      {filtriAttivi > 0 && richiesteMostrate.length > 0 && (
+        <p className="filtri-esito muted">
+          {richiesteMostrate.length} di {richieste.length}{' '}
+          {richieste.length === 1 ? 'richiesta caricata' : 'richieste caricate'}
+        </p>
+      )}
 
       <div className="card">
         {richiesteMostrate.length === 0 ? (
           <p className="vuoto">
-            {statoRichiesto
-              ? `Nessuna richiesta con trattativa «${ETICHETTE_STATO[statoRichiesto]}». `
+            {filtriAttivi > 0
+              ? 'Nessuna richiesta con questi filtri. '
               : soloDaLavorare
                 ? 'Nessuna richiesta da lavorare. '
                 : 'Nessuna richiesta per questa sezione. '}
-            {(soloDaLavorare || statoRichiesto) && (
-              <Link href={`/dashboard/richieste/${canale.chiave}?mostra=tutte`}>
+            {(soloDaLavorare || filtriAttivi > 0) && (
+              <Link href={link({ mostra: 'tutte', stato: null, mie: null })}>
                 Guarda tutte le richieste
               </Link>
             )}
