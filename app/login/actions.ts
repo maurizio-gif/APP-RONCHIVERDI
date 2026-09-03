@@ -11,7 +11,22 @@ export async function login(formData: FormData) {
 
   // Prima l'allowlist: un utente Supabase Auth che non è in staff_users non
   // deve nemmeno arrivare a provare la password.
-  if (!(await isStaffEmail(email))) {
+  //
+  // Il controllo sta fuori dal try/catch che segue perché redirect() funziona
+  // lanciando: chiamarlo dentro un catch lo intercetterebbe come se fosse un
+  // guasto.
+  let autorizzata: boolean
+  try {
+    autorizzata = await isStaffEmail(email)
+  } catch (e) {
+    console.error('login: allowlist non verificabile', e)
+    await registraLog(email, 'login_fallito', {
+      dettagli: { motivo: 'controllo allowlist non riuscito' },
+    })
+    redirect('/login?error=servizio')
+  }
+
+  if (!autorizzata) {
     await registraLog(email, 'login_fallito', { dettagli: { motivo: 'email non autorizzata' } })
     redirect('/login?error=non-autorizzato')
   }

@@ -1,6 +1,15 @@
 import { cache } from 'react'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 
+// Lanciata quando la query su staff_users non riesce: distingue un guasto di
+// configurazione o di rete da un'email semplicemente non autorizzata.
+export class ErroreStaffUsers extends Error {
+  constructor(dettaglio: string) {
+    super(`Controllo staff_users non riuscito: ${dettaglio}`)
+    this.name = 'ErroreStaffUsers'
+  }
+}
+
 export type RigaStaff = {
   email: string
   nome: string | null
@@ -25,11 +34,20 @@ export const rigaStaffCorrente = cache(async (email: string | null | undefined):
   if (!pulita) return null
 
   const supabase = createSupabaseServiceClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('staff_users')
     .select('email, nome, cognome, sezioni_consentite, puo_invitare, puo_cancellare, commerciale, puo_riassegnare')
     .eq('email', pulita)
     .maybeSingle()
+
+  // null significa "email non in staff_users", cioè non autorizzata: è una
+  // risposta legittima. Un errore della query è un'altra cosa — service role
+  // key mancante o sbagliata, progetto Supabase giù, tabella rinominata — e
+  // restituire null lo farebbe passare per un problema di permessi, con
+  // l'utente giusto respinto da un messaggio che parla d'altro. Lo lanciamo,
+  // così chi chiama può dire "servizio non disponibile" invece di accusare
+  // l'account.
+  if (error) throw new ErroreStaffUsers(error.message)
 
   return data as RigaStaff
 })

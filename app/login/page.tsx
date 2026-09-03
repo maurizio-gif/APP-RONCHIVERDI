@@ -19,6 +19,12 @@ export default function LoginPage({ searchParams }: { searchParams: { error?: st
         {searchParams.error === 'non-autorizzato' && (
           <p className="error-banner">Questo account non è abilitato al pannello.</p>
         )}
+        {searchParams.error === 'servizio' && (
+          <p className="error-banner">
+            Non riusciamo a verificare le autorizzazioni: non dipende dalle tue credenziali.
+            Riprova tra poco, e se persiste avvisa chi gestisce il pannello.
+          </p>
+        )}
 
         <form action={login}>
           <div className="field">
