@@ -93,26 +93,6 @@ export async function creaVoce(formData: FormData): Promise<Esito> {
   return { ok: true }
 }
 
-export async function completaVoce(id: string, esitoTesto: string | null): Promise<Esito> {
-  if (!(await autorizzato())) return { ok: false, errore: 'Non hai accesso all’agenda.' }
-
-  const supabase = createSupabaseServiceClient()
-  const { error } = await supabase
-    .from('task')
-    .update({
-      stato: 'completato',
-      completato_il: new Date().toISOString(),
-      esito: esitoTesto?.trim() || null,
-    })
-    .eq('id', id)
-
-  if (error) return { ok: false, errore: error.message }
-
-  await registraLog(emailCorrente(), 'agenda_voce_completata', { entita: 'task', entitaId: id })
-  revalidatePath('/dashboard/agenda')
-  return { ok: true }
-}
-
 export async function riapriVoce(id: string): Promise<Esito> {
   if (!(await autorizzato())) return { ok: false, errore: 'Non hai accesso all’agenda.' }
 
