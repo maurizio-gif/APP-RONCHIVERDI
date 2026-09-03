@@ -136,10 +136,13 @@ async function impegniOperatore(email: string | null) {
 
 export default async function RiepilogoPage() {
   const email = emailCorrente()
-  const [nomeUtente, sezioniConsentite, numeri, amministra] = await Promise.all([
-    getNomeUtente(email),
+
+  // Sezioni e diritti prima di tutto, perché decidono *cosa* vale la pena
+  // leggere. Costano una lettura sola: stanno tutti sulla stessa riga di
+  // staff_users, che rigaStaffCorrente tiene in cache per la durata della
+  // richiesta — e il layout l'ha già chiesta.
+  const [sezioniConsentite, amministra] = await Promise.all([
     getSezioniConsentite(email),
-    contatori(),
     puoAmministrare(email),
   ])
 
@@ -149,15 +152,20 @@ export default async function RiepilogoPage() {
   const vedeTrattative = sezioniConsentite.includes('richieste-club')
   const vedeAgenda = sezioniConsentite.includes('agenda')
 
-  const [trattative, impegni] = await Promise.all([
+  // Tutto il resto parte insieme. Erano tre attese in fila — i contatori, poi
+  // trattative e impegni, poi le richieste non instradate — e si sommavano
+  // tre andate e ritorni verso Supabase per disegnare una pagina che il
+  // database calcola in frazioni di millisecondo.
+  const [nomeUtente, numeri, trattative, impegni, nonInstradate] = await Promise.all([
+    getNomeUtente(email),
+    contatori(),
     vedeTrattative ? trattativePerStato() : Promise.resolve(null),
     vedeAgenda ? impegniOperatore(email) : Promise.resolve(null),
+    // La spia interessa solo chi amministra: è lui che aggiunge un canale.
+    amministra ? richiesteNonInstradate() : Promise.resolve({ totale: 0, motivi: [] as [string, number][] }),
   ])
 
   const oggi = oggiRoma()
-
-  // La spia interessa solo chi amministra: è lui che aggiunge un canale.
-  const nonInstradate = amministra ? await richiesteNonInstradate() : { totale: 0, motivi: [] }
 
   const conversione =
     numeri.sessioni > 0 ? Math.round((numeri.sessioniConvertite / numeri.sessioni) * 1000) / 10 : 0

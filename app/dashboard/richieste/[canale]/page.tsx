@@ -59,14 +59,6 @@ export default async function CanalePage({
   if (canale.settore) query = query.eq('settore', canale.settore)
   if (soloDaLavorare) query = query.eq('gestito', false)
 
-  const { data, error } = await query
-
-  if (error) {
-    console.error('Richieste non lette:', error.message)
-  }
-
-  const richieste = (data ?? []) as unknown as Richiesta[]
-
   // Il totale da lavorare non dipende dal filtro in pagina: serve a sapere
   // quanto resta anche mentre si guarda lo storico completo.
   let queryDaLavorare = supabase
@@ -77,7 +69,41 @@ export default async function CanalePage({
     ? queryDaLavorare.in('origine', canale.origine)
     : queryDaLavorare.in('attivita', canale.attivita)
   if (canale.settore) queryDaLavorare = queryDaLavorare.eq('settore', canale.settore)
-  const { count: daLavorare } = await queryDaLavorare
+
+  // ── Prima ondata: tutto ciò che non dipende da nient'altro ────────────
+  //
+  // Ogni lettura è una richiesta HTTP a Supabase, e il database risponde in
+  // frazioni di millisecondo: quello che si paga è il viaggio, non il lavoro.
+  // Aspettarle una per volta sommava cinque andate e ritorni prima di
+  // disegnare la pagina; qui partono insieme e si paga il più lento.
+  const [
+    { data, error },
+    { count: daLavorare },
+    { data: tuttoLoStaff },
+    possoCancellare,
+    sonoCommerciale,
+    possoRiassegnare,
+    { data: staffCommerciale },
+  ] = await Promise.all([
+    query,
+    queryDaLavorare,
+    supabase.from('staff_users').select('email').order('email'),
+    puoCancellare(emailCorrente()),
+    eCommerciale(emailCorrente()),
+    puoRiassegnare(emailCorrente()),
+    // Serve solo dove esistono le trattative, ma chiederlo qui costa nulla:
+    // viaggia in parallelo con le altre invece di aggiungere un'ondata.
+    canale.inAgenda
+      ? supabase.from('staff_users').select('email').eq('commerciale', true).order('email')
+      : Promise.resolve({ data: [] as { email: string }[] }),
+  ])
+
+  if (error) {
+    console.error('Richieste non lette:', error.message)
+  }
+
+  const richieste = (data ?? []) as unknown as Richiesta[]
+  const operatori = (tuttoLoStaff ?? []).map((x) => x.email as string)
 
   // Chi ha già scritto prima. Il database riconosce la persona e riusa la
   // trattativa aperta (trova_o_crea_opportunita), ma non lascia alcun segno:
@@ -89,13 +115,21 @@ export default async function CanalePage({
   // chiesto del nuoto e poi dell'abbonamento è comunque una persona che
   // conosciamo già, ed è l'informazione che cambia la telefonata.
   const personaIds = [...new Set(richieste.map((x) => x.persona_id).filter(Boolean))] as string[]
-  const { data: righeStessePersone } = personaIds.length
-    ? await supabase
-        .from('form_contatti')
-        .select('id, persona_id, created_at')
-        .in('persona_id', personaIds)
-        .order('created_at', { ascending: true })
-    : { data: [] as { id: string; persona_id: string; created_at: string }[] }
+  const trattativaIds = [...new Set(richieste.map((x) => x.opportunita_id).filter(Boolean))] as string[]
+
+  // ── Seconda ondata: solo ciò che ha bisogno degli id appena letti ──────
+  const [{ data: righeStessePersone }, { data: trattative }] = await Promise.all([
+    personaIds.length
+      ? supabase
+          .from('form_contatti')
+          .select('id, persona_id, created_at')
+          .in('persona_id', personaIds)
+          .order('created_at', { ascending: true })
+      : Promise.resolve({ data: [] as { id: string; persona_id: string; created_at: string }[] }),
+    canale.inAgenda && trattativaIds.length
+      ? supabase.from('opportunita').select('id, stato, assegnato_a, motivo_perso').in('id', trattativaIds)
+      : Promise.resolve({ data: [] as any[] }),
+  ])
 
   // Per ogni richiesta: che numero è nella storia di quella persona, quante
   // sono in tutto, e quando è arrivata quella prima di lei.
@@ -116,35 +150,16 @@ export default async function CanalePage({
     })
   }
 
-  // Chi può essere assegnatario di un evento programmato chiudendo una
-  // richiesta, e se chi guarda può rimuovere le righe sbagliate. Serve a
-  // ogni canale, non solo dove esistono le trattative.
-  const [{ data: tuttoLoStaff }, possoCancellare] = await Promise.all([
-    supabase.from('staff_users').select('email').order('email'),
-    puoCancellare(emailCorrente()),
-  ])
-  const operatori = (tuttoLoStaff ?? []).map((x) => x.email as string)
-
   // Le trattative servono solo dove esiste un team che se le prende in
   // carico: negli altri canali il responsabile è unico e il canale è già
-  // l'assegnazione, quindi non si carica nulla.
+  // l'assegnazione, quindi non si costruisce nulla.
   let contesto: ContestoTrattativa | undefined
   if (canale.inAgenda) {
-    const ids = [...new Set(richieste.map((x) => x.opportunita_id).filter(Boolean))] as string[]
-    const [{ data: trattative }, { data: staff }, sonoCommerciale, possoRiassegnare] = await Promise.all([
-      ids.length
-        ? supabase.from('opportunita').select('id, stato, assegnato_a, motivo_perso').in('id', ids)
-        : Promise.resolve({ data: [] as any[] }),
-      supabase.from('staff_users').select('email').eq('commerciale', true).order('email'),
-      eCommerciale(emailCorrente()),
-      puoRiassegnare(emailCorrente()),
-    ])
-
     contesto = {
       io: emailCorrente(),
       sonoCommerciale,
       possoRiassegnare,
-      commerciali: (staff ?? []).map((x) => x.email as string),
+      commerciali: (staffCommerciale ?? []).map((x) => x.email as string),
       trattative: Object.fromEntries(
         (trattative ?? []).map((t) => [
           t.id as string,
