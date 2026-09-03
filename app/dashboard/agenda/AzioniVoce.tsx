@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import type { VoceAgenda } from '@/lib/agenda'
-import { annullaVoce, riapriVoce, segnaContattoGestito } from './actions'
+import { annullaVoce, riapriContatto, riapriVoce } from './actions'
 
 // I comandi su una singola voce. Chiudere non è fra questi: si chiude solo da
 // "Chiudi con esito", qui sotto nel dettaglio. Un "Segna fatto" accanto
@@ -36,7 +36,7 @@ export function AzioniVoce({ voce }: { voce: VoceAgenda }) {
           className="btn btn-ghost btn-sm"
           disabled={inCorso}
           onClick={() =>
-            esegui(() => (daSito ? segnaContattoGestito(voce.id, false) : riapriVoce(voce.id)))
+            esegui(() => (daSito ? riapriContatto(voce.id) : riapriVoce(voce.id)))
           }
         >
           Riapri

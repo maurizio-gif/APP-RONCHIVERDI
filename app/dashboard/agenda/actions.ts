@@ -144,24 +144,31 @@ export async function eliminaVoce(id: string): Promise<Esito> {
 }
 
 /**
- * Segna come lavorata una richiesta arrivata dal sito. In agenda le richieste
- * dal sito non hanno uno stato proprio: `gestito` su form_contatti è il segno
- * che la segreteria le ha prese in carico, ed è quello che l'agenda mostra
- * come "fatto".
+ * Riporta fra quelle da lavorare una richiesta arrivata dal sito. In agenda
+ * le richieste dal sito non hanno uno stato proprio: `gestito` su
+ * form_contatti è il segno che la segreteria le ha lavorate, ed è quello che
+ * l'agenda mostra come "fatto".
+ *
+ * Si riapre e basta: la chiusura passa solo da "Chiudi con esito". L'esito si
+ * azzera insieme al resto, altrimenti la richiesta riaperta continuerebbe a
+ * portarsi dietro il giudizio di una lavorazione annullata.
  */
-export async function segnaContattoGestito(id: string, gestito: boolean): Promise<Esito> {
+export async function riapriContatto(id: string): Promise<Esito> {
   if (!(await autorizzato())) return { ok: false, errore: 'Non hai accesso all’agenda.' }
 
   const supabase = createSupabaseServiceClient()
-  const { error } = await supabase.from('form_contatti').update({ gestito }).eq('id', id)
+  const { error } = await supabase
+    .from('form_contatti')
+    .update({ gestito: false, gestito_da: null, gestito_il: null, esito_tipo: null, esito: null })
+    .eq('id', id)
   if (error) return { ok: false, errore: error.message }
 
-  await registraLog(emailCorrente(), 'contatto_gestito', {
+  await registraLog(emailCorrente(), 'contatto_riaperto', {
     entita: 'form_contatti',
     entitaId: id,
-    dettagli: { gestito },
   })
 
   revalidatePath('/dashboard/agenda')
+  revalidatePath('/dashboard/richieste', 'layout')
   return { ok: true }
 }

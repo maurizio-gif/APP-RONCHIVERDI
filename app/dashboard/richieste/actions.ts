@@ -29,7 +29,15 @@ async function puoLavorare(idRichiesta: string): Promise<boolean> {
   return sezioni.includes(canale.chiave)
 }
 
-export async function segnaGestita(id: string, gestito: boolean): Promise<Esito> {
+/**
+ * Riporta una richiesta chiusa fra quelle da lavorare. È il modo di disfare
+ * una chiusura sbagliata, e l'unico gesto che tocca `gestito` da qui: la
+ * chiusura passa solo da "Chiudi con esito", che scrive anche il perché.
+ *
+ * Azzera anche l'esito: senza, una richiesta riaperta continuerebbe a
+ * mostrare "eseguita" e la nota di chiusura di una lavorazione annullata.
+ */
+export async function riapriRichiesta(id: string): Promise<Esito> {
   if (!(await puoLavorare(id))) {
     return { ok: false, errore: 'Questa richiesta non è nelle tue sezioni.' }
   }
@@ -39,21 +47,22 @@ export async function segnaGestita(id: string, gestito: boolean): Promise<Esito>
   const { error } = await supabase
     .from('form_contatti')
     .update({
-      gestito,
-      gestito_da: gestito ? email : null,
-      gestito_il: gestito ? new Date().toISOString() : null,
+      gestito: false,
+      gestito_da: null,
+      gestito_il: null,
+      esito_tipo: null,
+      esito: null,
     })
     .eq('id', id)
 
   if (error) {
-    console.error('Presa in carico non salvata:', error.message)
+    console.error('Riapertura richiesta non salvata:', error.message)
     return { ok: false, errore: 'Non siamo riusciti a salvare. Riprova.' }
   }
 
-  await registraLog(email, 'contatto_gestito', {
+  await registraLog(email, 'contatto_riaperto', {
     entita: 'form_contatti',
     entitaId: id,
-    dettagli: { gestito },
   })
 
   revalidatePath('/dashboard/richieste', 'layout')
