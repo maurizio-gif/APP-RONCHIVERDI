@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { ETICHETTE_ESITO, eEsitoValido } from '@/lib/agenda'
 import { GestioneEsito } from '@/components/GestioneEsito'
-import { salvaNota, segnaGestita } from './actions'
+import { riapriRichiesta, salvaNota } from './actions'
 import { Trattativa, type DatiTrattativa } from './Trattativa'
 
 export type Richiesta = {
@@ -151,14 +151,21 @@ export function RigaRichiesta({
               Email
             </a>
           )}
-          <button
-            type="button"
-            className={`btn btn-sm${r.gestito ? ' btn-ghost' : ''}`}
-            disabled={inCorso}
-            onClick={() => esegui(() => segnaGestita(r.id, !r.gestito))}
-          >
-            {r.gestito ? 'Riapri' : 'Presa in carico'}
-          </button>
+          {/* Solo la riapertura: prendere in carico segnava la richiesta
+              lavorata senza esito e senza il perché, e "Chiudi con esito" —
+              nei dettagli qui sotto — continuava a proporla da chiudere. La
+              stessa richiesta risultava fatta in agenda e ancora aperta nel
+              pannello dell'esito. */}
+          {r.gestito && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={inCorso}
+              onClick={() => esegui(() => riapriRichiesta(r.id))}
+            >
+              Riapri
+            </button>
+          )}
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => setAperta((v) => !v)}>
             {aperta ? 'Chiudi' : 'Dettagli'}
           </button>
@@ -177,9 +184,12 @@ export function RigaRichiesta({
         />
       )}
 
+      {/* Non è un comando ma il fatto già avvenuto: chi l'ha chiusa e quando.
+          Diceva "presa in carico" quando la si prendeva in carico a mano; ora
+          `gestito` lo scrive solo la chiusura con esito. */}
       {r.gestito && (
         <p className="richiesta-meta muted" style={{ margin: '0.35rem 0 0' }}>
-          Presa in carico
+          Chiusa
           {r.gestito_da && ` da ${r.gestito_da}`}
           {r.gestito_il && ` il ${dataOra(r.gestito_il)}`}
         </p>
