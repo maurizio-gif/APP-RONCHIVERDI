@@ -1490,6 +1490,91 @@ table.tabella tbody tr:hover {
 	min-width: 10rem;
 }
 
+/* ──────────────────────────────────────────────── elenco degli utenti */
+
+.utenti {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.utente {
+	border-top: 1px solid var(--border);
+}
+
+.utente:first-child {
+	border-top: 0;
+}
+
+/* Aperta si stacca dalle vicine, altrimenti non si capisce dove finisce il
+   pannello di una persona e comincia la riga di un'altra. */
+.utente.is-aperta {
+	background: var(--bg);
+	border-radius: var(--radius);
+}
+
+.utente-testa {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem 0.9rem;
+	padding: 0.7rem 0.75rem;
+	cursor: pointer;
+}
+
+.utente-identita {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-width: 12rem;
+	gap: 0.1rem;
+}
+
+.utente-nome {
+	font-size: var(--text-base);
+}
+
+.utente-email {
+	font-size: var(--text-xs);
+}
+
+/* I badge del riassunto stanno a destra e non vanno a capo uno per riga:
+   servono a leggere in un colpo d'occhio chi può fare cosa. */
+.utente-riassunto {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+	margin-left: auto;
+}
+
+.utente-dettagli {
+	display: flex;
+	flex-direction: column;
+	gap: 1.25rem;
+	padding: 0.5rem 0.75rem 1.25rem 2.1rem;
+}
+
+.utente-blocco-titolo {
+	margin-bottom: 0.6rem;
+	color: var(--accent);
+	font-size: var(--text-2xs);
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+}
+
+@media (max-width: 560px) {
+	/* Su telefono il riassunto va sotto il nome: accanto, con quattro badge,
+	   spingerebbe l'email fuori dallo schermo. */
+	.utente-riassunto {
+		margin-left: 0;
+		flex-basis: 100%;
+	}
+
+	.utente-dettagli {
+		padding-left: 0.75rem;
+	}
+}
+
 /* ─────────────────────────────────────────── chiusura con esito */
 
 .esito {
@@ -1596,6 +1681,41 @@ table.tabella tbody tr:hover {
 	align-items: flex-start;
 	justify-content: space-between;
 	gap: 0.75rem;
+	cursor: pointer;
+}
+
+/* Il nome si sottolinea al passaggio: dice che la riga fa qualcosa prima di
+   provarci, senza aggiungere niente di visibile a riposo. */
+.richiesta-testa:hover strong {
+	text-decoration: underline;
+	text-decoration-color: var(--accent);
+	text-underline-offset: 3px;
+}
+
+/* La freccia guarda in basso perché il dettaglio si apre qui sotto, e si
+   gira quando è aperto: è il solo segno che distingue "mostra qui" da
+   "porta altrove". */
+.richiesta-espandi {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+}
+
+.richiesta-caret {
+	display: inline-block;
+	font-size: 0.7em;
+	line-height: 1;
+	transition: transform 0.15s ease;
+}
+
+.richiesta-espandi[aria-expanded='true'] .richiesta-caret {
+	transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.richiesta-caret {
+		transition: none;
+	}
 }
 
 .richiesta-meta {

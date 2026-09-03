@@ -2,30 +2,13 @@ import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { puoAmministrare } from '@/lib/auth/permessi'
-import {
-  invitaStaff,
-  impostaCommerciale,
-  impostaPuoCancellare,
-  impostaPuoInvitare,
-  impostaPuoRiassegnare,
-} from './actions'
-import { TogglePermesso } from './TogglePermesso'
-import { SezioniToggle } from './SezioniToggle'
-import { RimuoviButton } from './RimuoviButton'
+import { invitaStaff } from './actions'
+import { RigaUtente, type DatiUtente } from './RigaUtente'
 
 export const dynamic = 'force-dynamic'
 
-type RigaUtente = {
-  email: string
-  nome: string | null
-  cognome: string | null
-  sezioni_consentite: string[] | null
-  puo_invitare: boolean
-  puo_cancellare: boolean
-  commerciale: boolean
-  puo_riassegnare: boolean
-  created_at: string
-}
+/** La riga come arriva dal database: i campi che la lista mostra, più la data d'ordinamento. */
+type RigaStaff = DatiUtente & { created_at: string }
 
 export default async function UtentiPage({
   searchParams,
@@ -49,7 +32,7 @@ export default async function UtentiPage({
     .select('email, nome, cognome, sezioni_consentite, puo_invitare, puo_cancellare, commerciale, puo_riassegnare, created_at')
     .order('created_at', { ascending: true })
 
-  const utenti = (data ?? []) as RigaUtente[]
+  const utenti = (data ?? []) as RigaStaff[]
 
   return (
     <>
@@ -98,7 +81,8 @@ export default async function UtentiPage({
             </div>
             <p className="field-hint" style={{ marginBottom: '1rem' }}>
               Parte senza permessi e con le sole sezioni operative: il diritto commerciale — quello
-              che permette di prendere in carico le trattative — si dà dalla tabella qui sotto.
+              che permette di prendere in carico le trattative — si dà aprendo la persona
+              nell&apos;elenco qui sotto.
             </p>
             <button type="submit" className="btn">
               Invia invito
@@ -119,90 +103,16 @@ export default async function UtentiPage({
             altri.
           </p>
         ) : (
-          <div className="tabella-wrap">
-            <table className="tabella">
-              <thead>
-                <tr>
-                  <th>Persona</th>
-                  <th>Permessi</th>
-                  <th>Sezioni visibili</th>
-                  {amministra && <th />}
-                </tr>
-              </thead>
-              <tbody>
-                {utenti.map((u) => {
-                  const eSeStesso = u.email === email
-                  return (
-                    <tr key={u.email}>
-                      <td>
-                        <strong>{[u.nome, u.cognome].filter(Boolean).join(' ') || '—'}</strong>
-                        <br />
-                        <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>
-                          {u.email}
-                        </span>
-                        {eSeStesso && (
-                          <>
-                            <br />
-                            <span className="badge">tu</span>
-                          </>
-                        )}
-                      </td>
-                      <td>
-                        <TogglePermesso
-                          email={u.email}
-                          valoreIniziale={u.puo_invitare}
-                          etichetta="Può invitare e amministrare"
-                          azione={impostaPuoInvitare}
-                          disabilitato={!amministra || eSeStesso}
-                          motivoDisabilitato={
-                            eSeStesso
-                              ? 'Non puoi togliere a te stesso il permesso di amministrare'
-                              : 'Serve il permesso di amministrare'
-                          }
-                        />
-                        <TogglePermesso
-                          email={u.email}
-                          valoreIniziale={u.puo_cancellare}
-                          etichetta="Può cancellare record"
-                          azione={impostaPuoCancellare}
-                          disabilitato={!amministra}
-                          motivoDisabilitato="Serve il permesso di amministrare"
-                        />
-                        <TogglePermesso
-                          email={u.email}
-                          valoreIniziale={u.commerciale}
-                          etichetta="Commerciale"
-                          azione={impostaCommerciale}
-                          disabilitato={!amministra}
-                          motivoDisabilitato="Serve il permesso di amministrare"
-                        />
-                        <TogglePermesso
-                          email={u.email}
-                          valoreIniziale={u.puo_riassegnare}
-                          etichetta="Può riassegnare le trattative"
-                          azione={impostaPuoRiassegnare}
-                          disabilitato={!amministra}
-                          motivoDisabilitato="Serve il permesso di amministrare"
-                        />
-                      </td>
-                      <td>
-                        <SezioniToggle
-                          email={u.email}
-                          sezioniIniziali={u.sezioni_consentite ?? []}
-                          disabilitato={!amministra}
-                        />
-                      </td>
-                      {amministra && (
-                        <td className="cella-nowrap">
-                          <RimuoviButton email={u.email} disabilitato={eSeStesso} />
-                        </td>
-                      )}
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <ul className="utenti">
+            {utenti.map((u) => (
+              <RigaUtente
+                key={u.email}
+                u={u}
+                amministra={amministra}
+                eSeStesso={u.email === email}
+              />
+            ))}
+          </ul>
         )}
       </div>
     </>

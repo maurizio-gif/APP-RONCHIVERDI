@@ -70,24 +70,7 @@ export async function riapriRichiesta(id: string): Promise<Esito> {
   return { ok: true }
 }
 
-export async function salvaNota(id: string, nota: string): Promise<Esito> {
-  if (!(await puoLavorare(id))) {
-    return { ok: false, errore: 'Questa richiesta non è nelle tue sezioni.' }
-  }
-
-  const supabase = createSupabaseServiceClient()
-  const { error } = await supabase
-    .from('form_contatti')
-    .update({ note: nota.trim() || null })
-    .eq('id', id)
-
-  if (error) return { ok: false, errore: error.message }
-
-  await registraLog(emailCorrente(), 'contatto_nota_salvata', {
-    entita: 'form_contatti',
-    entitaId: id,
-  })
-
-  revalidatePath('/dashboard/richieste', 'layout')
-  return { ok: true }
-}
+// La nota libera su form_contatti.note non si scrive più: la nota è una sola
+// ed è quella obbligatoria della chiusura con esito (form_contatti.esito, vedi
+// chiudiConEsito). Ce n'erano due nello stesso pannello, e non era chiaro
+// quale contasse. Le note già salvate restano leggibili nei dettagli.

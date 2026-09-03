@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { ETICHETTE_ESITO, eEsitoValido } from '@/lib/agenda'
 import { GestioneEsito } from '@/components/GestioneEsito'
-import { riapriRichiesta, salvaNota } from './actions'
+import { riapriRichiesta } from './actions'
 import { Trattativa, type DatiTrattativa } from './Trattativa'
 
 export type Richiesta = {
@@ -78,7 +78,7 @@ export function RigaRichiesta({
   storico?: { ordinale: number; totale: number; precedenteIl: string | null }
 }) {
   const [aperta, setAperta] = useState(false)
-  const [nota, setNota] = useState(r.note ?? '')
+  const [gestioneAperta, setGestioneAperta] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
   const [inCorso, startTransition] = useTransition()
 
@@ -103,8 +103,15 @@ export function RigaRichiesta({
   }
 
   return (
-    <li className={`richiesta${r.gestito ? ' is-gestita' : ''}`}>
-      <div className="richiesta-testa">
+    <li
+      className={`richiesta${r.gestito ? ' is-gestita' : ''}${
+        aperta || gestioneAperta ? ' is-aperta' : ''
+      }`}
+    >
+      {/* Tutta la testa apre e chiude: è il bersaglio che si colpisce
+          naturalmente col mouse. Il pulsante in fondo è quello che la rende
+          raggiungibile da tastiera e che annuncia se è aperta. */}
+      <div className="richiesta-testa" onClick={() => setAperta((v) => !v)}>
         <div>
           <strong>{nome}</strong>
           {minore && <span className="muted"> · per {minore}</span>}
@@ -129,45 +136,58 @@ export function RigaRichiesta({
         </div>
 
         <div className="richiesta-azioni">
-          {/* I contatti sono la prima cosa che serve a un responsabile:
-              cliccabili, non da copiare a mano. */}
-          {r.cellulare && (
-            <>
-              <a className="btn btn-ghost btn-sm" href={`tel:${soloCifre(r.cellulare)}`}>
-                Chiama
-              </a>
-              <a
-                className="btn btn-ghost btn-sm"
-                href={`https://wa.me/${soloCifre(r.cellulare)}`}
-                target="_blank"
-                rel="noopener"
-              >
-                WhatsApp
-              </a>
-            </>
-          )}
-          {r.email && (
-            <a className="btn btn-ghost btn-sm" href={`mailto:${r.email}`}>
-              Email
-            </a>
-          )}
           {/* Solo la riapertura: prendere in carico segnava la richiesta
               lavorata senza esito e senza il perché, e "Chiudi con esito" —
               nei dettagli qui sotto — continuava a proporla da chiudere. La
               stessa richiesta risultava fatta in agenda e ancora aperta nel
-              pannello dell'esito. */}
+              pannello dell'esito.
+
+              Il click non deve arrivare alla testa, o riaprire la richiesta
+              aprirebbe anche il dettaglio. */}
           {r.gestito && (
             <button
               type="button"
               className="btn btn-ghost btn-sm"
               disabled={inCorso}
-              onClick={() => esegui(() => riapriRichiesta(r.id))}
+              onClick={(e) => {
+                e.stopPropagation()
+                esegui(() => riapriRichiesta(r.id))
+              }}
             >
               Riapri
             </button>
           )}
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setAperta((v) => !v)}>
-            {aperta ? 'Chiudi' : 'Dettagli'}
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm richiesta-espandi"
+            aria-expanded={aperta}
+            onClick={(e) => {
+              e.stopPropagation()
+              setAperta((v) => !v)
+            }}
+          >
+            Dettagli
+            {/* La freccia dice da che parte si apre, e ruota una volta
+                aperta: "Dettagli" da solo non lascia capire se porta altrove
+                o mostra qualcosa qui sotto. */}
+            <span className="richiesta-caret" aria-hidden="true">
+              ▾
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className={`btn btn-sm richiesta-espandi${gestioneAperta ? '' : ' btn-ghost'}`}
+            aria-expanded={gestioneAperta}
+            onClick={(e) => {
+              e.stopPropagation()
+              setGestioneAperta((v) => !v)
+            }}
+          >
+            Gestione
+            <span className="richiesta-caret" aria-hidden="true">
+              ▾
+            </span>
           </button>
         </div>
       </div>
@@ -198,16 +218,31 @@ export function RigaRichiesta({
       {aperta && (
         <div className="richiesta-dettagli">
           <dl className="dettagli-lista">
+            {/* Recapiti cliccabili: i pulsanti Chiama, WhatsApp ed Email non
+                stanno più in riga, e un numero da ricopiare a mano sarebbe un
+                passo indietro. Qui sono un tocco, ma senza occupare l'elenco. */}
             {r.email && (
               <>
                 <dt>Email</dt>
-                <dd>{r.email}</dd>
+                <dd>
+                  <a href={`mailto:${r.email}`}>{r.email}</a>
+                </dd>
               </>
             )}
             {r.cellulare && (
               <>
                 <dt>Cellulare</dt>
-                <dd>{r.cellulare}</dd>
+                <dd>
+                  <a href={`tel:${soloCifre(r.cellulare)}`}>{r.cellulare}</a>
+                  {' · '}
+                  <a
+                    href={`https://wa.me/${soloCifre(r.cellulare)}`}
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    WhatsApp
+                  </a>
+                </dd>
               </>
             )}
             {minore && (
@@ -270,31 +305,27 @@ export function RigaRichiesta({
                 <dd>{r.esito}</dd>
               </>
             )}
+            {/* Nota del vecchio riquadro "Note", che non esiste più: la nota
+                ora è una sola e si scrive chiudendo l'esito. Le vecchie
+                restano leggibili invece di sparire col riquadro. */}
+            {r.note && (
+              <>
+                <dt>Nota precedente</dt>
+                <dd>{r.note}</dd>
+              </>
+            )}
           </dl>
+        </div>
+      )}
 
-          <div className="field" style={{ marginBottom: 0 }}>
-            <label htmlFor={`nota-${r.id}`}>Note</label>
-            <textarea
-              id={`nota-${r.id}`}
-              rows={2}
-              value={nota}
-              onChange={(e) => setNota(e.target.value)}
-              placeholder="Cosa è stato detto, cosa resta da fare…"
-            />
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              style={{ marginTop: '0.5rem' }}
-              disabled={inCorso || nota === (r.note ?? '')}
-              onClick={() => esegui(() => salvaNota(r.id, nota))}
-            >
-              {inCorso ? 'Salvataggio…' : 'Salva nota'}
-            </button>
-          </div>
-
-          {/* La chiusura con esito è lo stesso pannello dell'agenda: una
-              richiesta dal sito e una voce di segreteria si chiudono con lo
-              stesso gesto, e chi lavora non deve imparare due schemi. */}
+      {/* La gestione ha un'espansione sua, accanto ai dettagli e non dentro:
+          chiudere una richiesta è l'azione più frequente, e nasconderla
+          sotto i dati costava un clic in più ogni volta. */}
+      {gestioneAperta && (
+        <div className="richiesta-dettagli">
+          {/* Lo stesso pannello dell'agenda: una richiesta dal sito e una voce
+              di segreteria si chiudono con lo stesso gesto, e chi lavora non
+              deve imparare due schemi. */}
           <GestioneEsito
             origine="form_contatti"
             id={r.id}
