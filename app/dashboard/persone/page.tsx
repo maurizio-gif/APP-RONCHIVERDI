@@ -33,7 +33,7 @@ export default async function PersonePage() {
     <>
       <div className="page-head">
         <p className="eyebrow">Anagrafica</p>
-        <h1>Persone</h1>
+        <h1>Contatti</h1>
         <p className="muted">
           Una scheda per persona, con tutte le sue richieste. Si popola da sé: il database riconosce
           chi ha già scritto dall’email o dal cellulare, anche scritti in modo diverso.

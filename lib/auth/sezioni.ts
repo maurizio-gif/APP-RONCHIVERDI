@@ -11,18 +11,26 @@
 // disattivata invece di portare a una pagina che non esiste. Quando il modulo
 // arriva basta togliere il flag.
 const DEFINIZIONI = [
+  // "Core" sono le tre voci che si usano ogni giorno: la Dashboard (aggiunta
+  // dalla Sidebar, non è una sezione assegnabile), l'agenda e le richieste
+  // Club e Family. Stanno insieme in cima perché sono il lavoro corrente;
+  // gli altri canali restano nel loro gruppo, che si consulta quando serve.
+  //
   // La pagina che una persona della segreteria tiene aperta durante la
   // giornata: appuntamenti e cose da fare.
-  { chiave: 'agenda', label: 'Agenda', href: '/dashboard/agenda' },
+  { chiave: 'agenda', label: 'Agenda', href: '/dashboard/agenda', gruppo: 'Core' },
   // Le richieste dal form del sito, instradate al responsabile: una sezione
   // per canale, così ciascuno vede le proprie e non legge i contatti degli
   // altri. Le chiavi e i responsabili stanno in lib/richieste.ts — aggiungere
   // un corso significa aggiungere una voce là e una riga qui.
+  //
+  // Club e Family sta in Core e non fra i canali: è l'unico che passa dalla
+  // segreteria e che alimenta agenda e trattative.
   {
     chiave: 'richieste-club',
     label: 'Abbonamento Club e Family',
     href: '/dashboard/richieste/richieste-club',
-    gruppo: 'Richieste dal sito',
+    gruppo: 'Core',
   },
   {
     chiave: 'richieste-tennis-scuola',
@@ -67,7 +75,10 @@ const DEFINIZIONI = [
     gruppo: 'Richieste dal sito',
   },
   // Anagrafica deduplicata: una scheda per persona con tutte le sue richieste.
-  { chiave: 'persone', label: 'Persone', href: '/dashboard/persone', gruppo: 'Anagrafica' },
+  // La chiave resta 'persone' — è il permesso salvato in staff_users e la
+  // rotta: rinominarla vorrebbe dire migrare i permessi di tutti per un
+  // cambio di etichetta.
+  { chiave: 'persone', label: 'Contatti', href: '/dashboard/persone', gruppo: 'Anagrafica' },
   // Sessioni e campagne raccolte da /api/track sul sito.
   { chiave: 'analytics', label: 'Analytics', href: '/dashboard/analytics', gruppo: 'Amministrazione' },
   { chiave: 'visite-sito', label: 'Visite al sito', href: '/dashboard/visite', gruppo: 'Amministrazione' },

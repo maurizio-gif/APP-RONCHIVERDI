@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { logout } from '@/app/login/actions'
 import { SEZIONI } from '@/lib/auth/sezioni'
+import { IconaMenu } from './IconeMenu'
 
 type VoceMenu = {
   href: string
@@ -52,10 +53,11 @@ export function Sidebar({
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
 
-  // Il Riepilogo è visibile a chiunque sia autenticato e non fa parte delle
-  // sezioni assegnabili per utente.
+  // La Dashboard è visibile a chiunque sia autenticato e non fa parte delle
+  // sezioni assegnabili per utente. Sta nel gruppo Core con le altre due voci
+  // che si usano tutti i giorni.
   const navItems: VoceMenu[] = [
-    { href: '/dashboard', label: 'Riepilogo', chiave: 'riepilogo' },
+    { href: '/dashboard', label: 'Dashboard', chiave: 'dashboard', gruppo: 'Core' },
     ...SEZIONI.filter((s) => sezioniConsentite.includes(s.chiave)),
   ]
   const gruppiMenu = raggruppaVoci(navItems)
@@ -98,6 +100,7 @@ export function Sidebar({
                 // Modulo non ancora costruito: la voce si vede — così chi ha
                 // il permesso sa che gli spetta — ma non è un link.
                 <span className="nav-item is-in-arrivo" key={voce.chiave}>
+                  <IconaMenu chiave={voce.chiave} />
                   {voce.label}
                   <span className="nav-tag">in arrivo</span>
                 </span>
@@ -107,6 +110,7 @@ export function Sidebar({
                   key={voce.chiave}
                   className={`nav-item${pathname === voce.href ? ' is-active' : ''}`}
                 >
+                  <IconaMenu chiave={voce.chiave} />
                   {voce.label}
                 </Link>
               )

@@ -30,28 +30,6 @@ const RIQUADRI_STATO: { stato: StatoTrattativa; classe: string }[] = [
   { stato: 'perso', classe: 'stat-perso' },
 ]
 
-// Conteggi di apertura: i lead che il sito ha raccolto e le sessioni
-// registrate da /api/track. Sono le due tabelle che esistono già oggi — i
-// numeri dei moduli in arrivo si aggiungeranno qui quando quei moduli
-// arriveranno, senza cambiare la struttura della pagina.
-async function contatori() {
-  const supabase = createSupabaseServiceClient()
-
-  const [lead, leadDaLavorare, sessioni, sessioniConvertite] = await Promise.all([
-    supabase.from('form_contatti').select('*', { count: 'exact', head: true }),
-    supabase.from('form_contatti').select('*', { count: 'exact', head: true }).eq('gestito', false),
-    supabase.from('sessioni').select('*', { count: 'exact', head: true }),
-    supabase.from('sessioni').select('*', { count: 'exact', head: true }).eq('convertita', true),
-  ])
-
-  return {
-    lead: lead.count ?? 0,
-    leadDaLavorare: leadDaLavorare.count ?? 0,
-    sessioni: sessioni.count ?? 0,
-    sessioniConvertite: sessioniConvertite.count ?? 0,
-  }
-}
-
 /**
  * Le richieste che non corrispondono a nessun canale (vedi lib/richieste.ts):
  * un'attività nuova sul sito non ancora instradata, o una richiesta tennis
@@ -152,13 +130,11 @@ export default async function RiepilogoPage() {
   const vedeTrattative = sezioniConsentite.includes('richieste-club')
   const vedeAgenda = sezioniConsentite.includes('agenda')
 
-  // Tutto il resto parte insieme. Erano tre attese in fila — i contatori, poi
-  // trattative e impegni, poi le richieste non instradate — e si sommavano
-  // tre andate e ritorni verso Supabase per disegnare una pagina che il
-  // database calcola in frazioni di millisecondo.
-  const [nomeUtente, numeri, trattative, impegni, nonInstradate] = await Promise.all([
+  // Tutto il resto parte insieme: erano attese in fila, e si sommavano andate
+  // e ritorni verso Supabase per disegnare una pagina che il database calcola
+  // in frazioni di millisecondo.
+  const [nomeUtente, trattative, impegni, nonInstradate] = await Promise.all([
     getNomeUtente(email),
-    contatori(),
     vedeTrattative ? trattativePerStato() : Promise.resolve(null),
     vedeAgenda ? impegniOperatore(email) : Promise.resolve(null),
     // La spia interessa solo chi amministra: è lui che aggiunge un canale.
@@ -167,38 +143,21 @@ export default async function RiepilogoPage() {
 
   const oggi = oggiRoma()
 
-  const conversione =
-    numeri.sessioni > 0 ? Math.round((numeri.sessioniConvertite / numeri.sessioni) * 1000) / 10 : 0
-
   const inArrivo = SEZIONI.filter((s) => s.inArrivo && sezioniConsentite.includes(s.chiave))
 
   return (
     <>
       <div className="page-head">
         <p className="eyebrow">Pannello Ronchiverdi</p>
-        <h1>{nomeUtente ? `Ciao ${nomeUtente.split(' ')[0]}` : 'Riepilogo'}</h1>
-        <p className="muted">Richieste dal sito e traffico delle campagne.</p>
+        <h1>{nomeUtente ? `Ciao ${nomeUtente.split(' ')[0]}` : 'Dashboard'}</h1>
+        <p className="muted">Le trattative in corso e cosa ti aspetta oggi.</p>
       </div>
 
-      <div className="griglia-stat">
-        <div className="stat">
-          <span className="stat-valore">{numeri.lead}</span>
-          <span className="stat-label">Richieste totali</span>
-        </div>
-        <div className="stat">
-          <span className="stat-valore">{numeri.leadDaLavorare}</span>
-          <span className="stat-label">Ancora da lavorare</span>
-        </div>
-        <div className="stat">
-          <span className="stat-valore">{numeri.sessioni}</span>
-          <span className="stat-label">Sessioni sul sito</span>
-        </div>
-        <div className="stat">
-          <span className="stat-valore">{conversione}%</span>
-          <span className="stat-label">Sessioni che convertono</span>
-        </div>
-      </div>
-
+      {/* I quattro contatori che c'erano prima — richieste totali, ancora da
+          lavorare, sessioni, conversione — erano numeri da guardare, non da
+          aprire, e stavano davanti alle due cose su cui si agisce. I dati sul
+          traffico restano in Analytics e Visite al sito, dove si leggono con
+          il periodo e il confronto. */}
       {trattative && (
         <section className="riepilogo-sezione">
           <h2 className="riepilogo-titolo">Trattative Club e Family</h2>
