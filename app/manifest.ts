@@ -20,10 +20,18 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation: 'portrait',
     background_color: '#f6f4ec',
     theme_color: '#1c1c18',
+    // Ritagliate da design/icona-crm-2048.jpeg con lo script di quel commit:
+    // la variante maskable è rimpicciolita perché Android ritaglia in tondo e
+    // taglierebbe la scritta "Ronchiverdi CRM".
     icons: [
       {
         src: '/apple-touch-icon.png',
         sizes: '180x180',
+        type: 'image/png',
+      },
+      {
+        src: '/icon-192.png',
+        sizes: '192x192',
         type: 'image/png',
       },
       {
@@ -33,7 +41,7 @@ export default function manifest(): MetadataRoute.Manifest {
         purpose: 'any',
       },
       {
-        src: '/favicon.png',
+        src: '/icon-maskable-512.png',
         sizes: '512x512',
         type: 'image/png',
         purpose: 'maskable',
