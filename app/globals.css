@@ -584,6 +584,96 @@ a:hover {
 	border-radius: var(--radius);
 }
 
+/* Un riquadro che porta da qualche parte deve dirlo prima del clic: la
+   freccia in alto a destra è l'unico segno che distingue a colpo d'occhio i
+   numeri che si aprono da quelli che si guardano — e quelli che si guardano
+   restano dei <div>, non dei link finti. */
+a.stat {
+	position: relative;
+	display: block;
+	color: inherit;
+	text-decoration: none;
+	transition:
+		border-color 0.15s ease,
+		box-shadow 0.15s ease,
+		transform 0.15s ease;
+}
+
+a.stat:hover,
+a.stat:focus-visible {
+	border-color: var(--accent);
+	box-shadow: 0 4px 14px rgba(28, 28, 24, 0.08);
+	transform: translateY(-2px);
+}
+
+/* Il riscontro alla pressione, non al rilascio: come i pulsanti del sito. */
+a.stat:active {
+	box-shadow: none;
+	transform: scale(0.99);
+}
+
+.stat-freccia {
+	position: absolute;
+	top: 0.75rem;
+	right: 0.9rem;
+	color: var(--border-strong);
+	font-size: var(--text-sm);
+	transition:
+		color 0.15s ease,
+		transform 0.15s ease;
+}
+
+a.stat:hover .stat-freccia {
+	color: var(--accent);
+	transform: translateX(2px);
+}
+
+/* Una banda di colore a sinistra, non un fondo pieno: quattro fondi colorati
+   in fila diventano un semaforo rotto e il numero perde contrasto. */
+.stat-nuovo {
+	border-left: 3px solid var(--warn);
+}
+
+.stat-nuovo .stat-valore {
+	color: var(--warn);
+}
+
+.stat-gestione {
+	border-left: 3px solid var(--accent);
+}
+
+.stat-gestione .stat-valore {
+	color: var(--accent);
+}
+
+.stat-vinto {
+	border-left: 3px solid var(--ok);
+}
+
+.stat-vinto .stat-valore {
+	color: var(--ok);
+}
+
+.stat-perso {
+	border-left: 3px solid var(--error);
+}
+
+.stat-perso .stat-valore {
+	color: var(--error);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	a.stat,
+	.stat-freccia {
+		transition: none;
+	}
+
+	a.stat:hover,
+	a.stat:focus-visible {
+		transform: none;
+	}
+}
+
 .stat-valore {
 	display: block;
 	font-family: var(--font-serif);
@@ -666,6 +756,14 @@ table.tabella tbody tr:hover {
 .badge-off {
 	background: rgba(28, 28, 24, 0.06);
 	color: var(--text-muted);
+}
+
+/* Una voce chiusa male non deve leggersi come una chiusa bene: "Fallita" in
+   verde accanto a "Eseguita" in verde renderebbe i due esiti indistinguibili
+   scorrendo l'elenco. */
+.badge-ko {
+	background: var(--error-tint);
+	color: var(--error);
 }
 
 .banner {
@@ -937,6 +1035,489 @@ table.tabella tbody tr:hover {
 	}
 }
 
+/* ──────────────────────────────────────────── agenda: calendario mensile */
+
+.cal-testa {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	margin-bottom: 1rem;
+}
+
+.cal-mese {
+	margin: 0;
+	font-size: var(--text-xl);
+}
+
+.cal-mese::first-letter {
+	text-transform: uppercase;
+}
+
+.cal-legenda {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1rem;
+	margin-bottom: 1rem;
+	color: var(--text-muted);
+	font-size: var(--text-xs);
+}
+
+.cal-legenda span {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+}
+
+/* Il pallino porta tutto il segnale di stato del calendario: rosso = resta
+   qualcosa da fare, verde = giornata chiusa. Sta anche nella colonna Data
+   dell'elenco, così le due viste si leggono con lo stesso codice. */
+.puntino {
+	display: inline-block;
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+
+.puntino.rosso {
+	background: var(--error);
+}
+
+.puntino.verde {
+	background: var(--ok);
+}
+
+.puntino-riga {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0.45rem;
+}
+
+.cal-griglia {
+	display: grid;
+	grid-template-columns: repeat(7, 1fr);
+	gap: 0.4rem;
+	margin-bottom: 1.5rem;
+}
+
+.cal-dow {
+	padding-bottom: 0.25rem;
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+	font-weight: 500;
+	letter-spacing: 0.1em;
+	text-align: center;
+	text-transform: uppercase;
+}
+
+/* Le celle sono <button>: senza questo azzeramento arrivano con il bordo e il
+   font del browser, e la griglia sembra una barra di pulsanti. */
+.cal-cella {
+	display: flex;
+	flex-direction: column;
+	min-height: 58px;
+	padding: 0.4rem 0.5rem;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	color: inherit;
+	font-family: inherit;
+	font-size: var(--text-sm);
+	text-align: left;
+	cursor: pointer;
+	appearance: none;
+}
+
+.cal-cella:hover {
+	border-color: var(--accent);
+}
+
+.cal-cella.is-vuota {
+	background: none;
+	border: 0;
+	cursor: default;
+}
+
+.cal-cella.is-selezionata {
+	background: var(--accent-tint);
+	border-color: var(--accent);
+	box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* Oggi è solo il numero sottolineato in oro: un bordo pieno lo renderebbe
+   indistinguibile dalla cella selezionata, che è un'altra cosa. */
+.cal-cella.is-oggi .cal-numero {
+	color: var(--accent);
+	text-decoration: underline;
+	text-decoration-thickness: 2px;
+	text-underline-offset: 3px;
+}
+
+.cal-numero {
+	font-weight: 500;
+	font-variant-numeric: tabular-nums;
+}
+
+.cal-segni {
+	display: flex;
+	align-items: center;
+	gap: 0.25rem;
+	margin-top: auto;
+}
+
+.cal-conteggio {
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+	font-variant-numeric: tabular-nums;
+}
+
+.agenda-nuova {
+	margin-top: 1.5rem;
+}
+
+.vista-tab-contatore {
+	margin-left: 0.4rem;
+	font-variant-numeric: tabular-nums;
+}
+
+/* ────────────────────────────────────── agenda: elenco a righe espandibili */
+
+.tabella-agenda .col-espandi {
+	width: 1.75rem;
+	padding-right: 0;
+	color: var(--accent);
+	text-align: center;
+}
+
+.riga-agenda {
+	cursor: pointer;
+}
+
+.btn-espandi {
+	padding: 0;
+	background: none;
+	border: 0;
+	color: var(--accent);
+	font-family: inherit;
+	font-size: var(--text-md);
+	line-height: 1;
+	cursor: pointer;
+	appearance: none;
+}
+
+.riga-agenda.is-aperta {
+	background: var(--accent-tint);
+}
+
+.cella-data {
+	white-space: nowrap;
+}
+
+.cella-data-giorno,
+.cella-data-ora,
+.cella-chi-nome,
+.cella-chi-dettagli {
+	display: block;
+}
+
+.cella-data-giorno {
+	font-variant-numeric: tabular-nums;
+}
+
+.cella-data-ora {
+	color: var(--text-muted);
+	font-size: var(--text-xs);
+	font-variant-numeric: tabular-nums;
+}
+
+.cella-chi-dettagli {
+	color: var(--text-muted);
+	font-size: var(--text-xs);
+}
+
+.cella-chi-oggetto {
+	display: block;
+	max-width: 26rem;
+	overflow: hidden;
+	color: var(--text);
+	font-size: var(--text-xs);
+	font-style: italic;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* In scheda, dove la larghezza è quella del telefono, il troncamento a una
+   riga taglierebbe quasi tutto: meglio mandarlo a capo. */
+@media (max-width: 700px) {
+	.cella-chi-oggetto {
+		max-width: none;
+		white-space: normal;
+	}
+}
+
+/* Il dettaglio non deve sembrare un'altra riga dell'elenco: sfondo pieno e
+   filo d'oro a sinistra lo legano alla riga che l'ha aperto. */
+.riga-dettaglio td {
+	padding: 0;
+	background: var(--bg);
+}
+
+.riga-dettaglio:hover td {
+	background: var(--bg);
+}
+
+.dettaglio-voce {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 1rem 1.25rem;
+	border-left: 3px solid var(--accent);
+}
+
+.dettaglio-voce .voce-azioni {
+	margin-left: 0;
+}
+
+/* Badge della tipologia: un colore per tipo, perché in elenco il tipo si
+   riconosca prima di leggerlo. */
+.badge-tipo {
+	display: inline-block;
+	padding: 0.15rem 0.55rem;
+	border: 1px solid transparent;
+	border-radius: 999px;
+	font-size: var(--text-2xs);
+	font-weight: 500;
+	white-space: nowrap;
+}
+
+.badge-tipo.tipo-sede {
+	background: var(--ok-tint);
+	border-color: rgba(74, 107, 58, 0.3);
+	color: var(--ok);
+}
+
+.badge-tipo.tipo-telefono {
+	background: var(--accent-tint);
+	border-color: rgba(139, 108, 20, 0.3);
+	color: var(--accent);
+}
+
+.badge-tipo.tipo-task {
+	background: rgba(28, 28, 24, 0.06);
+	border-color: var(--border-strong);
+	color: var(--text-muted);
+}
+
+.badge-tipo.tipo-email {
+	background: rgba(58, 90, 107, 0.12);
+	border-color: rgba(58, 90, 107, 0.3);
+	color: #35566b;
+}
+
+.badge-tipo.tipo-whatsapp {
+	background: var(--warn-tint);
+	border-color: rgba(138, 100, 16, 0.3);
+	color: var(--warn);
+}
+
+/* Sotto i 700px la tabella diventa una pila di schede: sei colonne su un
+   telefono si leggono solo scorrendo in orizzontale, e l'intestazione resta
+   fuori schermo proprio quando serve. Le etichette le rimette data-label. */
+@media (max-width: 700px) {
+	.tabella-agenda,
+	.tabella-agenda thead,
+	.tabella-agenda tbody,
+	.tabella-agenda tr,
+	.tabella-agenda td {
+		display: block;
+		width: 100%;
+	}
+
+	.tabella-agenda thead {
+		display: none;
+	}
+
+	.tabella-agenda .riga-agenda {
+		position: relative;
+		margin-bottom: 0.5rem;
+		padding: 0.75rem 1rem 0.75rem 2rem;
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius);
+	}
+
+	.tabella-agenda .riga-agenda.is-aperta {
+		margin-bottom: 0;
+		border-bottom: 0;
+		border-radius: var(--radius) var(--radius) 0 0;
+	}
+
+	.tabella-agenda .riga-agenda td {
+		padding: 0;
+		border-bottom: 0;
+	}
+
+	.tabella-agenda .riga-agenda .col-espandi {
+		position: absolute;
+		top: 0.75rem;
+		left: 0.6rem;
+		width: auto;
+	}
+
+	.tabella-agenda .riga-agenda td[data-label]::before {
+		content: attr(data-label);
+		display: block;
+		margin-top: 0.4rem;
+		color: var(--text-muted);
+		font-size: var(--text-2xs);
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+
+	/* Data e Chi non hanno bisogno dell'etichetta: sono la riga stessa. */
+	.tabella-agenda .riga-agenda td[data-label='Data']::before,
+	.tabella-agenda .riga-agenda td[data-label='Chi']::before {
+		content: none;
+	}
+
+	.tabella-agenda .riga-agenda td[data-label='Chi'] .cella-chi-nome {
+		font-size: var(--text-base);
+	}
+
+	.tabella-agenda .riga-dettaglio td {
+		border-radius: 0 0 var(--radius) var(--radius);
+	}
+
+	.cal-cella {
+		min-height: 46px;
+		padding: 0.3rem 0.35rem;
+		font-size: var(--text-xs);
+	}
+}
+
+/* ──────────────────────────────────────────────────── riepilogo */
+
+.riepilogo-sezione {
+	margin-bottom: 1.75rem;
+}
+
+.riepilogo-titolo {
+	margin: 0 0 0.75rem;
+	color: var(--text-muted);
+	font-family: var(--font-sans);
+	font-size: var(--text-2xs);
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+}
+
+.impegni {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.impegno {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem 0.75rem;
+	padding: 0.6rem 0;
+	border-top: 1px solid var(--border);
+	font-size: var(--text-sm);
+}
+
+.impegno:first-child {
+	border-top: 0;
+	padding-top: 0;
+}
+
+/* Il titolo prende lo spazio che resta, così data e badge restano allineati a
+   destra invece di ballare in base alla lunghezza del titolo. */
+.impegno-titolo {
+	flex: 1;
+	min-width: 10rem;
+}
+
+/* ─────────────────────────────────────────── chiusura con esito */
+
+.esito {
+	margin-top: 1rem;
+	padding: 1rem 1.25rem;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-left: 3px solid var(--accent);
+	border-radius: var(--radius);
+}
+
+.esito-titolo {
+	margin-bottom: 0.75rem;
+	color: var(--accent);
+	font-family: var(--font-sans);
+	font-size: var(--text-2xs);
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+}
+
+.esito-gruppi {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-bottom: 1rem;
+}
+
+.esito-azioni {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+	margin-top: 0.75rem;
+}
+
+.esito-azioni .field-hint {
+	flex-basis: 100%;
+	margin: 0;
+}
+
+.esito-eventi {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+	margin-top: 1rem;
+}
+
+/* Ogni evento programmato è un blocco riconoscibile: in fila senza cornice,
+   con quattro campi a testa, non si capisce dove finisce uno e comincia
+   l'altro. */
+.esito-evento {
+	padding: 0.85rem 1rem;
+	background: var(--bg);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+}
+
+.esito-evento-testa {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	margin-bottom: 0.5rem;
+}
+
+.esito-evento-numero {
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.esito-evento .form-row {
+	margin-bottom: 0;
+}
+
 /* ──────────────────────────────────────────────── richieste dal sito */
 
 .richieste {
@@ -972,6 +1553,12 @@ table.tabella tbody tr:hover {
 .richiesta-meta {
 	margin-top: 0.2rem;
 	font-size: var(--text-xs);
+}
+
+/* Non "muted": questa riga è il motivo per cui la telefonata cambia, e in
+   grigio spento finirebbe letta come i metadati sopra di lei. */
+.richiesta-ripetuta {
+	color: var(--warn);
 }
 
 .richiesta-azioni {

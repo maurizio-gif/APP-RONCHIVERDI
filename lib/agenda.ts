@@ -43,6 +43,19 @@ export const ETICHETTE_TIPO_BREVI: Record<TipoVoce, string> = {
 export const OPZIONI_TIPO = TIPI.map((tipo) => ({ valore: tipo, etichetta: ETICHETTE_TIPO[tipo] }))
 
 /**
+ * Una classe di colore per tipologia. In elenco il tipo si riconosce dal
+ * colore prima che dal testo: cinque badge tutti grigi obbligano a leggerli
+ * uno per uno.
+ */
+export const CLASSE_TIPO: Record<TipoVoce, string> = {
+  appuntamento_in_sede: 'tipo-sede',
+  appuntamento_telefonico: 'tipo-telefono',
+  task: 'tipo-task',
+  email: 'tipo-email',
+  whatsapp: 'tipo-whatsapp',
+}
+
+/**
  * I due tipi che prenotano davvero uno slot, e i soli che il sito può
  * offrire. Email, WhatsApp e le cose da fare generiche sono impegni della
  * giornata, non appuntamenti presi con qualcuno: contarli porterebbe via
@@ -77,6 +90,34 @@ export const ETICHETTE_STATO: Record<Stato, string> = {
   aperto: 'Da fare',
   completato: 'Fatto',
   annullato: 'Annullato',
+}
+
+/**
+ * Com'è andata una voce chiusa. È un asse diverso dallo stato: `stato` dice se
+ * c'è ancora da lavorarci, l'esito dice se è andata a buon fine. Una
+ * telefonata fatta e una telefonata a cui non ha risposto nessuno sono
+ * entrambe chiuse, e per la segreteria non sono la stessa cosa.
+ */
+export const ESITI = ['eseguita', 'fallita'] as const
+export type Esito = (typeof ESITI)[number]
+
+export const ETICHETTE_ESITO: Record<Esito, string> = {
+  eseguita: 'Eseguita',
+  fallita: 'Fallita',
+}
+
+export function eEsitoValido(valore: string | null | undefined): valore is Esito {
+  return !!valore && (ESITI as readonly string[]).includes(valore)
+}
+
+/**
+ * L'etichetta da mostrare: su una voce chiusa vince l'esito, perché "Fatto" su
+ * qualcosa che è andata male direbbe il falso. Senza esito (voci chiuse prima
+ * che gli esiti esistessero) resta l'etichetta dello stato.
+ */
+export function etichettaStato(stato: Stato, esitoTipo: Esito | null): string {
+  if (stato === 'completato' && esitoTipo) return ETICHETTE_ESITO[esitoTipo]
+  return ETICHETTE_STATO[stato]
 }
 
 export function eTipoValido(valore: string | null | undefined): valore is TipoVoce {
@@ -154,6 +195,69 @@ export function dataLunga(giorno: string): string {
   })
 }
 
+/** "lun 2 set" — per la colonna Data dell'elenco, dove lo spazio è poco. */
+export function dataBreve(giorno: string): string {
+  return new Date(`${giorno}T12:00:00Z`).toLocaleDateString('it-IT', {
+    timeZone: 'UTC',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  })
+}
+
+// ─────────────────────────────────────────────────────── griglia del mese
+//
+// Il calendario mensile ragiona su anno e mese numerici, non su date: una
+// griglia si costruisce contando i giorni, e passare per oggetti Date solo
+// per poi riestrarne i pezzi introduce fusi che qui non servono.
+
+/** Il primo giorno del mese che contiene il giorno dato, in YYYY-MM-DD. */
+export function primoDelMese(giorno: string): string {
+  return `${giorno.slice(0, 7)}-01`
+}
+
+/** Sposta di N mesi restando sul primo del mese. Gestisce il cambio d'anno. */
+export function mesePiu(giorno: string, mesi: number): string {
+  const [anno, mese] = giorno.split('-').map(Number)
+  const totale = anno * 12 + (mese - 1) + mesi
+  return chiaveGiorno(Math.floor(totale / 12), totale % 12, 1)
+}
+
+/** Ultimo giorno del mese: il "giorno 0" del mese dopo. */
+export function ultimoDelMese(giorno: string): string {
+  const [anno, mese] = giorno.split('-').map(Number)
+  const fine = new Date(Date.UTC(anno, mese, 0))
+  return chiaveGiorno(fine.getUTCFullYear(), fine.getUTCMonth(), fine.getUTCDate())
+}
+
+/** "settembre 2026", per l'intestazione del calendario. */
+export function etichettaMese(giorno: string): string {
+  return new Date(`${primoDelMese(giorno)}T12:00:00Z`).toLocaleDateString('it-IT', {
+    timeZone: 'UTC',
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
+/**
+ * Le celle vuote da mettere prima del giorno 1 perché il mese cominci nella
+ * colonna giusta. La settimana comincia lunedì, quindi lo scarto è
+ * (giorno della settimana + 6) % 7 e non il getUTCDay() nudo.
+ */
+export function celleVuoteIniziali(giorno: string): number {
+  const d = new Date(`${primoDelMese(giorno)}T12:00:00Z`)
+  return (d.getUTCDay() + 6) % 7
+}
+
+/** Tutti i giorni del mese, in ordine, come chiavi YYYY-MM-DD. */
+export function giorniDelMese(giorno: string): string[] {
+  const primo = primoDelMese(giorno)
+  const quanti = Number(ultimoDelMese(primo).slice(8, 10))
+  return Array.from({ length: quanti }, (_, i) => giornoPiu(primo, i))
+}
+
+export const GIORNI_SETTIMANA = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'] as const
+
 /** Le colonne `time` di Postgres arrivano come 'HH:MM:SS': i secondi non servono. */
 export function normalizzaOra(ora: string | null | undefined): string | null {
   if (!ora) return null
@@ -230,6 +334,20 @@ export type VoceAgenda = {
   daFare: boolean
   /** Nome, email e cellulare in minuscolo: su questo cerca la ricerca. */
   ricerca: string
+  /**
+   * I recapiti di chi c'è dietro la voce, quando ci sono: l'elenco li mostra
+   * sotto il nome, così chi deve richiamare non apre il dettaglio per
+   * cercarli. Le voci della segreteria (task) non hanno una persona e li
+   * lasciano a null.
+   */
+  email: string | null
+  cellulare: string | null
+  /** L'attività richiesta sul sito ("Tennis", "Nuoto"…), quando c'è. */
+  attivita: string | null
+  /** Com'è andata, se è già stata chiusa con un esito. */
+  esitoTipo: Esito | null
+  /** La nota scritta chiudendo la voce. */
+  esito: string | null
 }
 
 type Riga = Record<string, any>
@@ -252,6 +370,11 @@ export function voceDaTask(riga: Riga): VoceAgenda {
     stato,
     daFare: stato === 'aperto',
     ricerca: [riga.titolo, riga.note].filter(Boolean).join(' ').toLowerCase(),
+    email: null,
+    cellulare: null,
+    attivita: null,
+    esitoTipo: eEsitoValido(riga.esito_tipo) ? riga.esito_tipo : null,
+    esito: riga.esito ?? null,
   }
 }
 
@@ -290,7 +413,10 @@ export function voceDaContatto(riga: Riga): VoceAgenda | null {
     data: String(riga.data_scelta).slice(0, 10),
     ora: normalizzaOra(riga.ora_scelta),
     durataMinuti: DURATA_PREDEFINITA[tipo],
-    note: [riga.attivita_label, riga.messaggio].filter(Boolean).join(' — ') || null,
+    // Solo il testo scritto dalla persona: l'attività ha una voce sua
+    // (`attivita` qui sotto) e ripeterla dentro le note la faceva comparire
+    // due volte nella stessa riga.
+    note: riga.messaggio ?? null,
     assegnatoA: null,
     stato,
     daFare: stato === 'aperto',
@@ -298,6 +424,11 @@ export function voceDaContatto(riga: Riga): VoceAgenda | null {
       .filter(Boolean)
       .join(' ')
       .toLowerCase(),
+    email: riga.email ?? null,
+    cellulare: riga.cellulare ?? null,
+    attivita: riga.attivita_label ?? null,
+    esitoTipo: eEsitoValido(riga.esito_tipo) ? riga.esito_tipo : null,
+    esito: riga.esito ?? null,
   }
 }
 

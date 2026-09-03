@@ -7,6 +7,7 @@ import { puoCancellare } from '@/lib/auth/permessi'
 import { registraLog } from '@/lib/audit'
 import {
   DURATA_PREDEFINITA,
+  eAppuntamentoVero,
   eGiaAvvenuto,
   eTipoValido,
   normalizzaOra,
@@ -41,8 +42,16 @@ export async function creaVoce(formData: FormData): Promise<Esito> {
   if (!eTipoValido(tipoGrezzo)) return { ok: false, errore: 'Tipo non valido.' }
 
   const tipo: TipoVoce = tipoGrezzo
-  const ora = oraGrezza ? normalizzaOra(oraGrezza) : null
-  if (oraGrezza && !ora) return { ok: false, errore: 'L’ora non è valida (formato HH:MM).' }
+
+  // L'ora la hanno solo gli appuntamenti veri: quelli sì sono un impegno preso
+  // con qualcuno a un'ora precisa, e sono gli unici che togliono uno slot al
+  // sito. Un'email o una cosa da fare valgono per la giornata, e dargli un'ora
+  // significherebbe occupare una fascia che invece resta prenotabile. Il
+  // vincolo sta qui e non solo nel form, così vale anche per le voci create
+  // dalla chiusura di un esito.
+  const oraRichiesta = eAppuntamentoVero(tipo) ? oraGrezza : ''
+  const ora = oraRichiesta ? normalizzaOra(oraRichiesta) : null
+  if (oraRichiesta && !ora) return { ok: false, errore: 'L’ora non è valida (formato HH:MM).' }
 
   const durata = Number(durataGrezza)
   const durataMinuti =

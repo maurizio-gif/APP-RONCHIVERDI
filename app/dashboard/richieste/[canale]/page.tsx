@@ -2,9 +2,9 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, getSezioniConsentite } from '@/lib/auth/sezioni-server'
-import { eCommerciale, puoRiassegnare } from '@/lib/auth/permessi'
+import { eCommerciale, puoCancellare, puoRiassegnare } from '@/lib/auth/permessi'
 import { canaleDaChiave } from '@/lib/richieste'
-import type { StatoTrattativa } from '@/lib/pipeline'
+import { ETICHETTE_STATO, STATI, eStatoValido, type StatoTrattativa } from '@/lib/pipeline'
 import { RigaRichiesta, type ContestoTrattativa, type Richiesta } from '../RigaRichiesta'
 import type { DatiTrattativa } from '../Trattativa'
 
@@ -18,7 +18,7 @@ export default async function CanalePage({
   searchParams,
 }: {
   params: { canale: string }
-  searchParams: { mostra?: string }
+  searchParams: { mostra?: string; stato?: string }
 }) {
   const canale = canaleDaChiave(params.canale)
   if (!canale) notFound()
@@ -28,13 +28,22 @@ export default async function CanalePage({
   const sezioni = await getSezioniConsentite(emailCorrente())
   if (!sezioni.includes(canale.chiave)) redirect('/dashboard')
 
-  const soloDaLavorare = searchParams.mostra !== 'tutte'
+  // Lo stato arriva dai riquadri del riepilogo. Si accetta solo un valore
+  // della pipeline: un parametro inventato non deve svuotare l'elenco senza
+  // spiegazione, deve semplicemente non filtrare.
+  const statoRichiesto = eStatoValido(searchParams.stato) ? searchParams.stato : null
+
+  // Filtrando per stato si guarda tutta la storia, non solo il da lavorare:
+  // «vinte» e «perse» sono per definizione richieste già chiuse, e col filtro
+  // di default l'elenco sarebbe sempre vuoto — un link che promette un numero
+  // e porta a una pagina vuota è peggio di nessun link.
+  const soloDaLavorare = !statoRichiesto && searchParams.mostra !== 'tutte'
 
   const supabase = createSupabaseServiceClient()
   let query = supabase
     .from('form_contatti')
     .select(
-      'id, created_at, nome, cognome, email, cellulare, attivita_label, settore, azione, data_scelta, ora_scelta, messaggio, dettagli, minore_nome, minore_cognome, minore_data_nascita, marketing, gestito, gestito_da, gestito_il, note, utm_source, utm_campaign, opportunita_id'
+      'id, created_at, nome, cognome, email, cellulare, attivita_label, settore, azione, data_scelta, ora_scelta, messaggio, dettagli, minore_nome, minore_cognome, minore_data_nascita, marketing, gestito, gestito_da, gestito_il, note, utm_source, utm_campaign, opportunita_id, esito_tipo, esito, persona_id'
     )
     .order('created_at', { ascending: false })
     .limit(200)
@@ -70,6 +79,52 @@ export default async function CanalePage({
   if (canale.settore) queryDaLavorare = queryDaLavorare.eq('settore', canale.settore)
   const { count: daLavorare } = await queryDaLavorare
 
+  // Chi ha già scritto prima. Il database riconosce la persona e riusa la
+  // trattativa aperta (trova_o_crea_opportunita), ma non lascia alcun segno:
+  // stato e assegnatario non cambiano, quindi la seconda richiesta arriva in
+  // elenco identica a un contatto nuovo. Questa lettura è ciò che permette di
+  // dirlo in riga, senza aprire nulla.
+  //
+  // Si contano le richieste di tutti i canali, non solo di questo: chi ha
+  // chiesto del nuoto e poi dell'abbonamento è comunque una persona che
+  // conosciamo già, ed è l'informazione che cambia la telefonata.
+  const personaIds = [...new Set(richieste.map((x) => x.persona_id).filter(Boolean))] as string[]
+  const { data: righeStessePersone } = personaIds.length
+    ? await supabase
+        .from('form_contatti')
+        .select('id, persona_id, created_at')
+        .in('persona_id', personaIds)
+        .order('created_at', { ascending: true })
+    : { data: [] as { id: string; persona_id: string; created_at: string }[] }
+
+  // Per ogni richiesta: che numero è nella storia di quella persona, quante
+  // sono in tutto, e quando è arrivata quella prima di lei.
+  const storicoPersona = new Map<string, { ordinale: number; totale: number; precedenteIl: string | null }>()
+  const perPersona = new Map<string, { id: string; created_at: string }[]>()
+  for (const riga of righeStessePersone ?? []) {
+    const chiave = riga.persona_id as string
+    if (!perPersona.has(chiave)) perPersona.set(chiave, [])
+    perPersona.get(chiave)!.push({ id: riga.id as string, created_at: riga.created_at as string })
+  }
+  for (const elenco of perPersona.values()) {
+    elenco.forEach((riga, indice) => {
+      storicoPersona.set(riga.id, {
+        ordinale: indice + 1,
+        totale: elenco.length,
+        precedenteIl: indice > 0 ? elenco[indice - 1].created_at : null,
+      })
+    })
+  }
+
+  // Chi può essere assegnatario di un evento programmato chiudendo una
+  // richiesta, e se chi guarda può rimuovere le righe sbagliate. Serve a
+  // ogni canale, non solo dove esistono le trattative.
+  const [{ data: tuttoLoStaff }, possoCancellare] = await Promise.all([
+    supabase.from('staff_users').select('email').order('email'),
+    puoCancellare(emailCorrente()),
+  ])
+  const operatori = (tuttoLoStaff ?? []).map((x) => x.email as string)
+
   // Le trattative servono solo dove esiste un team che se le prende in
   // carico: negli altri canali il responsabile è unico e il canale è già
   // l'assegnazione, quindi non si carica nulla.
@@ -103,6 +158,23 @@ export default async function CanalePage({
       ),
     }
   }
+
+  // Il filtro per stato si applica qui e non in SQL: lo stato sta su
+  // `opportunita`, non su form_contatti, e le trattative si conoscono solo
+  // dopo averle caricate qui sopra.
+  const richiesteMostrate =
+    statoRichiesto && contesto
+      ? richieste.filter((x) => {
+          const idTrattativa = x.opportunita_id
+          if (!idTrattativa) {
+            // Senza trattativa la richiesta è lavoro che nessuno ha ancora
+            // preso: vale come "da prendere in carico", così non scompare dai
+            // conti di chi apre quel riquadro.
+            return statoRichiesto === 'nuovo'
+          }
+          return contesto!.trattative[idTrattativa]?.stato === statoRichiesto
+        })
+      : richieste
 
   const r = canale.responsabile
 
@@ -139,30 +211,60 @@ export default async function CanalePage({
             Da lavorare
           </Link>
           <Link
-            className={`btn btn-sm ${soloDaLavorare ? 'btn-ghost' : ''}`}
+            className={`btn btn-sm ${!soloDaLavorare && !statoRichiesto ? '' : 'btn-ghost'}`}
             href={`/dashboard/richieste/${canale.chiave}?mostra=tutte`}
           >
             Tutte
           </Link>
         </div>
+
+        {/* Gli stessi quattro stati dei riquadri del riepilogo: arrivando da
+            un riquadro si vede quale filtro è attivo e si può cambiarlo senza
+            tornare indietro. Solo dove esistono le trattative. */}
+        {canale.inAgenda && (
+          <div className="agenda-nav">
+            {STATI.map((stato) => (
+              <Link
+                key={stato}
+                className={`btn btn-sm ${statoRichiesto === stato ? '' : 'btn-ghost'}`}
+                href={
+                  statoRichiesto === stato
+                    ? `/dashboard/richieste/${canale.chiave}`
+                    : `/dashboard/richieste/${canale.chiave}?stato=${stato}`
+                }
+              >
+                {ETICHETTE_STATO[stato]}
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="card">
-        {richieste.length === 0 ? (
+        {richiesteMostrate.length === 0 ? (
           <p className="vuoto">
-            {soloDaLavorare
-              ? 'Nessuna richiesta da lavorare. '
-              : 'Nessuna richiesta per questa sezione. '}
-            {soloDaLavorare && (
+            {statoRichiesto
+              ? `Nessuna richiesta con trattativa «${ETICHETTE_STATO[statoRichiesto]}». `
+              : soloDaLavorare
+                ? 'Nessuna richiesta da lavorare. '
+                : 'Nessuna richiesta per questa sezione. '}
+            {(soloDaLavorare || statoRichiesto) && (
               <Link href={`/dashboard/richieste/${canale.chiave}?mostra=tutte`}>
-                Guarda anche quelle già lavorate
+                Guarda tutte le richieste
               </Link>
             )}
           </p>
         ) : (
           <ul className="richieste">
-            {richieste.map((riga) => (
-              <RigaRichiesta r={riga} contesto={contesto} key={riga.id} />
+            {richiesteMostrate.map((riga) => (
+              <RigaRichiesta
+                r={riga}
+                contesto={contesto}
+                operatori={operatori}
+                puoCancellare={possoCancellare}
+                storico={storicoPersona.get(riga.id)}
+                key={riga.id}
+              />
             ))}
           </ul>
         )}

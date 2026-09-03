@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { ETICHETTE_ESITO, eEsitoValido } from '@/lib/agenda'
+import { GestioneEsito } from '@/components/GestioneEsito'
 import { salvaNota, segnaGestita } from './actions'
 import { Trattativa, type DatiTrattativa } from './Trattativa'
 
@@ -26,9 +28,13 @@ export type Richiesta = {
   gestito_da: string | null
   gestito_il: string | null
   note: string | null
+  esito_tipo: string | null
+  esito: string | null
   utm_source: string | null
   utm_campaign: string | null
   opportunita_id: string | null
+  /** La persona riconosciuta dal database: è la chiave con cui si contano le richieste ripetute. */
+  persona_id: string | null
 }
 
 /** Diritti e anagrafica del team, passati dal Server Component. */
@@ -59,9 +65,17 @@ function soloCifre(numero: string): string {
 export function RigaRichiesta({
   r,
   contesto,
+  operatori = [],
+  puoCancellare = false,
+  storico,
 }: {
   r: Richiesta
   contesto?: ContestoTrattativa
+  /** Chi può essere assegnatario di un evento programmato chiudendo la richiesta. */
+  operatori?: string[]
+  puoCancellare?: boolean
+  /** Che numero è questa richiesta nella storia della persona. */
+  storico?: { ordinale: number; totale: number; precedenteIl: string | null }
 }) {
   const [aperta, setAperta] = useState(false)
   const [nota, setNota] = useState(r.note ?? '')
@@ -70,6 +84,15 @@ export function RigaRichiesta({
 
   const nome = [r.nome, r.cognome].filter(Boolean).join(' ') || '—'
   const minore = [r.minore_nome, r.minore_cognome].filter(Boolean).join(' ')
+
+  // Una richiesta ripetuta va detta prima di chiamare: il database riusa la
+  // trattativa già aperta senza cambiare niente, quindi in elenco questa riga
+  // sarebbe indistinguibile da un contatto nuovo. Chi la prende in mano
+  // rischia di ripresentarsi come se fosse il primo contatto — o di
+  // richiamare qualcuno che un collega sta già seguendo.
+  const ripetuta = !!storico && storico.ordinale > 1
+  const trattativa = r.opportunita_id ? contesto?.trattative[r.opportunita_id] : undefined
+  const giaSeguitaDa = trattativa?.stato === 'in_gestione' ? trattativa.assegnato_a : null
 
   function esegui(azione: () => Promise<{ ok: true } | { ok: false; errore: string }>) {
     setErrore(null)
@@ -85,12 +108,24 @@ export function RigaRichiesta({
         <div>
           <strong>{nome}</strong>
           {minore && <span className="muted"> · per {minore}</span>}
+          {ripetuta && (
+            <span className="badge badge-warn" style={{ marginLeft: '0.5rem' }}>
+              {storico!.ordinale}ª richiesta
+            </span>
+          )}
           <div className="richiesta-meta muted">
             {dataOra(r.created_at)}
             {r.attivita_label && ` · ${r.attivita_label}`}
             {r.settore && ` · settore ${r.settore}`}
             {r.utm_campaign && ` · campagna ${r.utm_campaign}`}
           </div>
+          {ripetuta && (
+            <div className="richiesta-meta richiesta-ripetuta">
+              Ha già scritto {storico!.totale === 2 ? 'una volta' : `${storico!.totale - 1} volte`}
+              {storico!.precedenteIl && ` · la precedente il ${dataOra(storico!.precedenteIl)}`}
+              {giaSeguitaDa && ` · trattativa già seguita da ${giaSeguitaDa}`}
+            </div>
+          )}
         </div>
 
         <div className="richiesta-azioni">
@@ -192,7 +227,13 @@ export function RigaRichiesta({
             )}
             {r.messaggio && (
               <>
-                <dt>Messaggio</dt>
+                {/* Se la persona ha prenotato, quel testo è l'oggetto che ha
+                    scritto scegliendo giorno e ora: chiamarlo "Messaggio" lo
+                    farebbe sembrare un commento in più, non la ragione
+                    dell'incontro. */}
+                <dt>
+                  {r.azione === 'appuntamento' || r.azione === 'telefonata' ? 'Oggetto' : 'Messaggio'}
+                </dt>
                 <dd>{r.messaggio}</dd>
               </>
             )}
@@ -205,6 +246,18 @@ export function RigaRichiesta({
                   {r.utm_source}
                   {r.utm_campaign && ` · ${r.utm_campaign}`}
                 </dd>
+              </>
+            )}
+            {eEsitoValido(r.esito_tipo) && (
+              <>
+                <dt>Esito</dt>
+                <dd>{ETICHETTE_ESITO[r.esito_tipo]}</dd>
+              </>
+            )}
+            {r.esito && (
+              <>
+                <dt>Nota di chiusura</dt>
+                <dd>{r.esito}</dd>
               </>
             )}
           </dl>
@@ -228,6 +281,17 @@ export function RigaRichiesta({
               {inCorso ? 'Salvataggio…' : 'Salva nota'}
             </button>
           </div>
+
+          {/* La chiusura con esito è lo stesso pannello dell'agenda: una
+              richiesta dal sito e una voce di segreteria si chiudono con lo
+              stesso gesto, e chi lavora non deve imparare due schemi. */}
+          <GestioneEsito
+            origine="form_contatti"
+            id={r.id}
+            titolo={nome}
+            operatori={operatori}
+            puoCancellare={puoCancellare}
+          />
         </div>
       )}
 

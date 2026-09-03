@@ -16,6 +16,13 @@ create table if not exists public.persone (
 
 	nome text,
 	cognome text,
+	-- Da dove viene la riga: 'form_contatti' per chi ha scritto dal sito,
+	-- 'migrazione' per chi è stato importato.
+	fonte text,
+	-- Una persona importata e mai manifestatasi: sta in anagrafica per
+	-- riconoscerla se scrive, ma non è un contatto che ha chiesto qualcosa.
+	-- Torna false appena arriva una sua richiesta (vedi trova_o_crea_persona).
+	storico boolean not null default false,
 	-- Sempre in minuscolo e senza spazi: è una delle due chiavi di
 	-- deduplicazione, e "Mario@Example.it " e "mario@example.it" sono la
 	-- stessa persona.
@@ -38,6 +45,7 @@ comment on column public.persone.cellulare_norm is 'Cifre significative del cell
 create unique index if not exists persone_email_idx on public.persone (email) where email is not null;
 create unique index if not exists persone_cellulare_idx on public.persone (cellulare_norm) where cellulare_norm is not null;
 create index if not exists persone_cognome_idx on public.persone (cognome, nome);
+create index if not exists persone_fonte_idx on public.persone (fonte) where fonte is not null;
 
 alter table public.persone enable row level security;
 revoke all on public.persone from anon, authenticated;
@@ -111,7 +119,8 @@ create or replace function public.trova_o_crea_persona(
 	p_nome text,
 	p_cognome text,
 	p_email text,
-	p_cellulare text
+	p_cellulare text,
+	p_fonte text default 'form_contatti'
 ) returns uuid
 language plpgsql
 security definer
@@ -122,10 +131,14 @@ declare
 	v_norm text := normalizza_cellulare(p_cellulare);
 	v_id uuid;
 begin
+	-- Senza nessuna delle due chiavi non si può deduplicare: creare una riga
+	-- qui vorrebbe dire un duplicato garantito al contatto successivo.
 	if v_email is null and v_norm is null then
 		return null;
 	end if;
 
+	-- L'email ha precedenza sul telefono: è il dato che le persone scrivono
+	-- in modo più stabile, mentre un numero di casa può essere condiviso.
 	if v_email is not null then
 		select id into v_id from persone where email = v_email limit 1;
 	end if;
@@ -135,18 +148,32 @@ begin
 	end if;
 
 	if v_id is null then
-		insert into persone (nome, cognome, email, cellulare, cellulare_norm)
-		values (nullif(btrim(coalesce(p_nome, '')), ''), nullif(btrim(coalesce(p_cognome, '')), ''), v_email, p_cellulare, v_norm)
+		insert into persone (nome, cognome, email, cellulare, cellulare_norm, fonte, storico)
+		values (
+			nullif(btrim(coalesce(p_nome, '')), ''),
+			nullif(btrim(coalesce(p_cognome, '')), ''),
+			v_email,
+			p_cellulare,
+			v_norm,
+			p_fonte,
+			p_fonte = 'migrazione'
+		)
 		returning id into v_id;
 		return v_id;
 	end if;
 
+	-- Sulla riga trovata si completano solo i campi vuoti, mai sovrascrivendo
+	-- un valore presente: un form compilato in fretta non deve peggiorare
+	-- un'anagrafica già buona. E una persona importata che poi scrive dal
+	-- sito smette di essere "storico": si è manifestata davvero.
 	update persone set
 		nome = coalesce(nome, nullif(btrim(coalesce(p_nome, '')), '')),
 		cognome = coalesce(cognome, nullif(btrim(coalesce(p_cognome, '')), '')),
 		email = coalesce(email, v_email),
 		cellulare = coalesce(cellulare, p_cellulare),
 		cellulare_norm = coalesce(cellulare_norm, v_norm),
+		fonte = coalesce(fonte, p_fonte),
+		storico = case when p_fonte = 'migrazione' then storico else false end,
 		aggiornato_il = now()
 	where id = v_id;
 
@@ -154,8 +181,8 @@ begin
 end;
 $$;
 
-revoke all on function public.trova_o_crea_persona(text, text, text, text) from public, anon, authenticated;
-grant execute on function public.trova_o_crea_persona(text, text, text, text) to service_role;
+revoke all on function public.trova_o_crea_persona(text, text, text, text, text) from public, anon, authenticated;
+grant execute on function public.trova_o_crea_persona(text, text, text, text, text) to service_role;
 
 /**
  * Aggancia ogni nuova richiesta alla sua persona.
@@ -165,6 +192,11 @@ grant execute on function public.trova_o_crea_persona(text, text, text, text) to
  * persona e un telefono che punta a un'altra — la richiesta deve entrare
  * comunque, con persona_id nullo. Un lead perso è un danno vero; un
  * collegamento di anagrafica mancante si sistema dopo.
+ *
+ * ATTENZIONE: questa è la versione di questo passo. 2026-09-02-opportunita.sql
+ * la sostituisce con quella in produzione, che aggancia anche la trattativa.
+ * Ricostruendo lo schema da zero i file vanno eseguiti in ordine, e l'ultima
+ * parola è quella dell'altro file.
  */
 create or replace function public.collega_persona_a_contatto()
 returns trigger
@@ -197,7 +229,8 @@ do $$
 declare
 	r record;
 begin
-	for r in select id, nome, cognome, email, cellulare from form_contatti where persona_id is null order by created_at loop
+	for r in select id, nome, cognome, email, cellulare from form_contatti
+		where persona_id is null order by created_at loop
 		begin
 			update form_contatti
 			set persona_id = trova_o_crea_persona(r.nome, r.cognome, r.email, r.cellulare)
