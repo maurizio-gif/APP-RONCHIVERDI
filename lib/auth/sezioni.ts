@@ -32,6 +32,20 @@ const DEFINIZIONI = [
     href: '/dashboard/richieste/richieste-club',
     gruppo: 'Core',
   },
+  // "Segreteria" raccoglie le operazioni che il banco esegue per il socio —
+  // non richieste da lavorare, ma azioni che producono qualcosa lì per lì.
+  // Oggi c'è solo l'emissione dei voucher; le prossime si aggiungono qui.
+  //
+  // Voucher monouso per i benefit ai soci: oggi la visita medica inclusa
+  // negli abbonamenti oltre soglia (partnership Chiron). Emettere e validare
+  // sono due sezioni diverse: chi brucia i codici è il partner, e non deve
+  // poterseli emettere (vedi 'validazione-voucher', gruppo Partner).
+  {
+    chiave: 'voucher',
+    label: 'Voucher visita medica',
+    href: '/dashboard/voucher',
+    gruppo: 'Segreteria',
+  },
   {
     chiave: 'richieste-tennis-scuola',
     label: 'Young School Tennis — Scuola',
@@ -80,12 +94,6 @@ const DEFINIZIONI = [
     href: '/dashboard/richieste/richieste-fitness-manager',
     gruppo: 'Richieste dal sito',
   },
-  // Voucher monouso per i benefit ai soci: oggi la visita medica inclusa
-  // negli abbonamenti oltre soglia (partnership Chiron). Sta in Core e non in
-  // Amministrazione perché lo si emette alla vendita, dallo stesso banco che
-  // lavora le richieste. Emettere e validare sono due sezioni diverse: chi
-  // brucia i codici è il partner, e non deve poterseli emettere.
-  { chiave: 'voucher', label: 'Voucher visita medica', href: '/dashboard/voucher', gruppo: 'Core' },
   // La pagina che usa il centro medico per bruciare i codici. E' una sezione
   // come le altre — account personale, permesso assegnabile — ma marcata
   // "esterna": chi ha solo questa non e' della segreteria, e il pannello non
