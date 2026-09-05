@@ -70,6 +70,37 @@ Una sezione marcata `inArrivo` in `sezioni.ts` è un permesso già assegnabile i
 cui modulo non è ancora costruito: appare nel menu disattivata, così nessuno
 finisce su una pagina che non esiste.
 
+## Voucher visita medica (partnership Chiron)
+
+Gli abbonamenti sopra i €1.000 includono la visita medico-sportiva. Il diritto
+viaggia su un **voucher monouso**: un codice numerico di otto cifre che il
+socio detta al telefono al centro medico, e che si consuma nel momento in cui
+la visita viene prenotata.
+
+- **Emissione** — `/dashboard/voucher`, sezione `voucher`. Per ora il trigger
+  è manuale: la segreteria inserisce il socio e il codice parte subito per
+  email. Quando arriverà l'estrazione notturna dal gestionale scriverà sulla
+  stessa tabella, e il form resterà per i casi fuori flusso.
+- **Validazione** — `/chiron`, fuori dal pannello: una cella e un pulsante.
+  Il centro medico entra con un codice condiviso (`CHIRON_ACCESS_CODE`), vede
+  stato e intestatario, e conferma. La bruciatura scrive timestamp e partner
+  sul database del Club, e manda al socio la notifica di utilizzo: nessun uso
+  può avvenire a sua insaputa.
+- **Email** — SendGrid, chiamato via `fetch` da `lib/email.ts` dentro la
+  funzione Vercel della Server Action. I testi stanno tutti in
+  `lib/voucher-email.ts` perché sono comunicazioni concordate con il partner.
+  Se l'invio fallisce il voucher esiste comunque e l'elenco lo segna «email
+  non partita», con il pulsante per rimandarla.
+
+Il certificato **non passa da qui**: arriva dal socio alla casella dedicata
+(`EMAIL_CERTIFICATI`), citata in tutte le email. Nessun dato sanitario entra
+nel database, e nessun dato del socio viene trasmesso al partner: è il socio
+a presentarsi con il codice.
+
+La tabella (`scripts/sql/2026-09-05-voucher.sql`) non parla di medicina: la
+colonna `tipo` distingue il benefit, così lo stesso motore serve il prossimo
+— merchandising, ingressi omaggio — senza una tabella nuova.
+
 ## Stato
 
 Fatto: autenticazione, invito e primo accesso, permessi granulari, guscio del
@@ -78,6 +109,9 @@ pannello, Riepilogo, Gestione utenti, log operatori (scrittura).
 Fatto anche: **Timbra cartellino** — geofence sulla sede di Corso Moncalieri
 466 (centro e raggio in [`lib/timbratura.ts`](lib/timbratura.ts)), turni
 accoppiati entrata/uscita, ore del giorno e degli ultimi 14 giorni.
+
+Fatto anche: **Voucher visita medica** — emissione, email al socio via
+SendGrid, pagina di validazione per il partner, annullamento e reinvio.
 
 Da fare: Enquiries, Persone, Agenda con `/api/disponibilita` per gli slot che il
 sito offre nel form contatti, Visite al sito, pagina di Controllo operatori.

@@ -43,6 +43,14 @@ export const AZIONI_LOG: Record<string, string> = {
   trattativa_stato_cambiato: 'Trattativa: stato cambiato',
   permesso_commerciale_modificato: 'Permesso "Commerciale" modificato',
   permesso_riassegnare_modificato: 'Permesso "Può riassegnare" modificato',
+  voucher_emesso: 'Voucher emesso',
+  voucher_email_reinviata: 'Voucher: email rimandata al socio',
+  voucher_annullato: 'Voucher annullato',
+  // Le due righe scritte dall'interfaccia del partner: non hanno un
+  // operatore del pannello (email nulla), il partner sta in dettagli.
+  voucher_utilizzato: 'Voucher utilizzato dal partner',
+  voucher_uso_rifiutato: 'Voucher: utilizzo rifiutato',
+  chiron_accesso_rifiutato: 'Validazione voucher: accesso rifiutato',
   timbratura_corretta: 'Timbratura corretta a mano',
   timbratura_eliminata: 'Timbratura eliminata',
 }
