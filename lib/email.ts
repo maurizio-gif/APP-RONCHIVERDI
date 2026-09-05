@@ -12,19 +12,19 @@
 const ENDPOINT = 'https://api.sendgrid.com/v3/mail/send'
 
 // Mittente verificato su SendGrid (Sender Authentication): un indirizzo non
-// verificato fa rifiutare la chiamata con 403, non arriva "in spam". Il
-// default e' l'indirizzo oggi verificato sull'account del Club — cambiarlo
-// senza verificare il nuovo su SendGrid ferma tutti gli invii.
-const MITTENTE_EMAIL = process.env.SENDGRID_FROM_EMAIL ?? 'info@ronchiverdi.it'
+// verificato fa rifiutare la chiamata con 403, non arriva "in spam".
+// Cambiare questo default senza verificare prima il nuovo indirizzo su
+// SendGrid ferma tutti gli invii.
+const MITTENTE_EMAIL = process.env.SENDGRID_FROM_EMAIL ?? 'digital@ronchiverdi.it'
 const MITTENTE_NOME = process.env.SENDGRID_FROM_NAME ?? 'Ronchiverdi Sport Club'
 
 // Dove il socio risponde se ha bisogno di qualcosa. E' una variabile a parte
 // dal mittente proprio perche' le due caselle non devono per forza coincidere:
 // il mittente lo decide SendGrid (dev'essere verificato), la casella delle
-// risposte la decide il Club (dev'essere presidiata). Oggi sono la stessa,
+// risposte la decide il Club (dev'essere presidiata). Il socio scrive a
 // info@; quando i certificati avranno la loro casella, qui va quella — le
 // risposte a un voucher ("non ho prenotato io") sono la comunicazione piu'
-// urgente del flusso e non devono finire in una casella piena di spam.
+// urgente del flusso e non devono restare sepolte fra le altre.
 const RISPOSTE_A = process.env.EMAIL_REPLY_TO ?? 'info@ronchiverdi.it'
 
 export type EsitoEmail = { ok: true } | { ok: false; errore: string }
