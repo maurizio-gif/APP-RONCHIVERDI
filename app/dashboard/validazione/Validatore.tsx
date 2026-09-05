@@ -59,8 +59,8 @@ export function Validatore() {
   }
 
   return (
-    <>
-      <form onSubmit={controlla}>
+    <div style={{ maxWidth: '34rem' }}>
+      <form onSubmit={controlla} className="card">
         <div className="field">
           <label htmlFor="codice">Codice del voucher</label>
           <input
@@ -145,6 +145,6 @@ export function Validatore() {
           )}
         </div>
       )}
-    </>
+    </div>
   )
 }

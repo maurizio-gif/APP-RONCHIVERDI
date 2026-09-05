@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { logout } from '@/app/login/actions'
-import { SEZIONI } from '@/lib/auth/sezioni'
+import { SEZIONI, soloAccessoEsterno } from '@/lib/auth/sezioni'
 import { IconaMenu } from './IconeMenu'
 
 type VoceMenu = {
@@ -56,8 +56,16 @@ export function Sidebar({
   // La Dashboard è visibile a chiunque sia autenticato e non fa parte delle
   // sezioni assegnabili per utente. Sta nel gruppo Core con le altre due voci
   // che si usano tutti i giorni.
+  //
+  // L'eccezione e' l'account di un partner esterno: il Riepilogo gli
+  // rimanderebbe alla sua unica pagina (vedi app/dashboard/page.tsx), e una
+  // voce di menu che gira a vuoto e' solo un invito a chiedersi cosa ci sia
+  // dietro.
+  const soloEsterno = soloAccessoEsterno(sezioniConsentite)
   const navItems: VoceMenu[] = [
-    { href: '/dashboard', label: 'Dashboard', chiave: 'dashboard', gruppo: 'Core' },
+    ...(soloEsterno
+      ? []
+      : [{ href: '/dashboard', label: 'Dashboard', chiave: 'dashboard', gruppo: 'Core' }]),
     ...SEZIONI.filter((s) => sezioniConsentite.includes(s.chiave)),
   ]
   const gruppiMenu = raggruppaVoci(navItems)

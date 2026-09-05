@@ -83,9 +83,20 @@ const DEFINIZIONI = [
   // Voucher monouso per i benefit ai soci: oggi la visita medica inclusa
   // negli abbonamenti oltre soglia (partnership Chiron). Sta in Core e non in
   // Amministrazione perché lo si emette alla vendita, dallo stesso banco che
-  // lavora le richieste. L'interfaccia che il partner usa per bruciare i
-  // codici e' /chiron, fuori dal pannello: non e' una sezione assegnabile.
+  // lavora le richieste. Emettere e validare sono due sezioni diverse: chi
+  // brucia i codici è il partner, e non deve poterseli emettere.
   { chiave: 'voucher', label: 'Voucher visita medica', href: '/dashboard/voucher', gruppo: 'Core' },
+  // La pagina che usa il centro medico per bruciare i codici. E' una sezione
+  // come le altre — account personale, permesso assegnabile — ma marcata
+  // "esterna": chi ha solo questa non e' della segreteria, e il pannello non
+  // deve mostrargli niente del Club oltre al voucher che gli viene dettato.
+  {
+    chiave: 'validazione-voucher',
+    label: 'Validazione voucher',
+    href: '/dashboard/validazione',
+    gruppo: 'Partner',
+    esterna: true,
+  },
   // Anagrafica deduplicata: una scheda per persona con tutte le sue richieste.
   // La chiave resta 'persone' — è il permesso salvato in staff_users e la
   // rotta: rinominarla vorrebbe dire migrare i permessi di tutti per un
@@ -107,6 +118,8 @@ export type Sezione = {
   href: string
   gruppo?: string
   inArrivo?: boolean
+  /** Sezione destinata a un partner esterno, non alla segreteria: vedi SEZIONI_ESTERNE. */
+  esterna?: boolean
 }
 
 // L'array è dichiarato `as const` per ricavarne l'unione delle chiavi, ma
@@ -114,6 +127,25 @@ export type Sezione = {
 // ogni voce col suo letterale esatto e `s.inArrivo` non esisterebbe sulle
 // voci che non lo hanno, rendendo impossibile filtrarci sopra.
 export const SEZIONI: readonly Sezione[] = DEFINIZIONI
+
+// Le sezioni che si danno a chi non lavora per il Club. Non entrano nel
+// corredo di un invito normale, e chi ha solo queste vede il pannello ridotto
+// alla sua pagina: niente Riepilogo, che parla di trattative e richieste dei
+// soci.
+export const SEZIONI_ESTERNE: readonly SezioneChiave[] = SEZIONI.filter((s) => s.esterna).map(
+  (s) => s.chiave as SezioneChiave
+)
+
+// Vero per un account che ha soltanto sezioni esterne (e almeno una): e' un
+// partner, non un operatore. Un account senza nessuna sezione non e' un
+// esterno — e' un operatore a cui non e' ancora stato dato niente, e mandarlo
+// su una pagina di validazione sarebbe peggio che lasciarlo sul Riepilogo.
+export function soloAccessoEsterno(sezioniConsentite: readonly string[]): boolean {
+  return (
+    sezioniConsentite.length > 0 &&
+    sezioniConsentite.every((chiave) => SEZIONI_ESTERNE.includes(chiave as SezioneChiave))
+  )
+}
 
 // Tutte le chiavi esistenti: è quello che si assegna a un nuovo invitato.
 export const CHIAVI_SEZIONI: readonly SezioneChiave[] = SEZIONI.map((s) => s.chiave)

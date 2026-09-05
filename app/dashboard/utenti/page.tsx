@@ -79,6 +79,13 @@ export default async function UtentiPage({
                 <input id="email" name="email" type="email" required autoComplete="off" />
               </div>
             </div>
+            <label className="check-riga" style={{ marginBottom: '0.75rem' }}>
+              <input type="checkbox" name="esterno" />
+              <span>
+                Accesso esterno: <strong>solo la validazione dei voucher</strong> — per il centro
+                medico, che non deve vedere niente del Club.
+              </span>
+            </label>
             <p className="field-hint" style={{ marginBottom: '1rem' }}>
               Parte senza permessi e con le sole sezioni operative: il diritto commerciale — quello
               che permette di prendere in carico le trattative — si dà aprendo la persona

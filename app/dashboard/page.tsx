@@ -1,8 +1,9 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, getNomeUtente, getSezioniConsentite } from '@/lib/auth/sezioni-server'
 import { puoAmministrare } from '@/lib/auth/permessi'
-import { SEZIONI } from '@/lib/auth/sezioni'
+import { SEZIONI, soloAccessoEsterno } from '@/lib/auth/sezioni'
 import { canaleDiRichiesta } from '@/lib/richieste'
 import { STATI, ETICHETTE_STATO, type StatoTrattativa } from '@/lib/pipeline'
 import {
@@ -123,6 +124,16 @@ export default async function RiepilogoPage() {
     getSezioniConsentite(email),
     puoAmministrare(email),
   ])
+
+  // Un account di un partner esterno non vede il Riepilogo: parla di
+  // trattative, richieste e impegni dei soci, e chi valida i voucher non deve
+  // leggerne niente. Lo si manda subito sulla sua pagina, che per lui è tutto
+  // il pannello. Il controllo sta qui e non solo nel menu: /dashboard resta
+  // un indirizzo digitabile.
+  if (soloAccessoEsterno(sezioniConsentite)) {
+    const suaSezione = SEZIONI.find((s) => sezioniConsentite.includes(s.chiave))
+    if (suaSezione) redirect(suaSezione.href)
+  }
 
   // Un numero che porta a «non hai accesso» è peggio di un numero che non
   // c'è: i riquadri esistono solo per chi può poi aprirli, e la lettura che
