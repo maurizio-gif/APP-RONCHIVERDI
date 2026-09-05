@@ -1,37 +1,30 @@
 'use server'
 
-import { redirect } from 'next/navigation'
 import { registraLog } from '@/lib/audit'
+import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { ETICHETTE_STATO, formattaCodice, nomeCompleto, normalizzaCodice, statoEffettivo } from '@/lib/voucher'
 import { bruciaVoucher, leggiVoucherPerCodice } from '@/lib/voucher-server'
-import { accessoValido, apriSessione, chiudiSessione, codiceConfigurato } from './accesso'
 
-// Chi risulta aver bruciato il codice: il partner, non una persona. Vedi
-// app/chiron/accesso.ts sul perché l'accesso è condiviso.
-const PARTNER = process.env.PARTNER_MEDICO_NOME ?? 'Chiron'
+// Le azioni della pagina di validazione, quella che usa il centro medico.
+//
+// L'accesso è un account del pannello con la sola sezione
+// 'validazione-voucher': chi brucia un codice ha un nome e cognome, e resta
+// scritto accanto al voucher. Revocare l'accesso a una persona che cambia
+// lavoro è togliere una riga da Gestione utenti, non cambiare un codice
+// condiviso a tutti.
 
-export async function entra(formData: FormData) {
-  const inserito = String(formData.get('codice_accesso') ?? '').trim()
-  const atteso = codiceConfigurato()
+const NEGATO = 'Non hai il permesso di validare i voucher.'
 
-  if (!atteso) redirect('/chiron?error=non-configurato')
-  if (inserito !== atteso) {
-    await registraLog(null, 'chiron_accesso_rifiutato', { entita: 'voucher' })
-    redirect('/chiron?error=credenziali')
-  }
-
-  apriSessione(inserito)
-  redirect('/chiron')
+async function operatore(): Promise<string | null> {
+  const email = emailCorrente()
+  if (!email) return null
+  if (!(await utenteHaSezione('validazione-voucher'))) return null
+  return email
 }
 
-export async function esci() {
-  chiudiSessione()
-  redirect('/chiron')
-}
-
-// Quello che il partner vede dopo aver digitato un codice. Il nominativo si
-// mostra solo su un voucher che esiste: su un codice inesistente sarebbe un
-// modo per pescare nomi di soci provando cifre a caso.
+// Quello che si vede dopo aver digitato un codice. Il nominativo si mostra
+// solo su un voucher che esiste: su un codice inesistente sarebbe un modo per
+// pescare nomi di soci provando cifre a caso.
 export type Verifica = {
   codice: string
   stato: 'attivo' | 'utilizzato' | 'annullato' | 'scaduto' | 'inesistente'
@@ -42,7 +35,7 @@ export type Verifica = {
 }
 
 export async function verificaCodice(inserito: string): Promise<Verifica | { errore: string }> {
-  if (!accessoValido()) return { errore: 'Sessione scaduta: ricarica la pagina e rientra.' }
+  if (!(await operatore())) return { errore: NEGATO }
 
   const codice = normalizzaCodice(inserito)
   if (codice.length < 4) return { errore: 'Inserisci il codice numerico che ti detta il socio.' }
@@ -68,16 +61,17 @@ export type EsitoUso =
   | { ok: false; errore: string }
 
 export async function usaCodice(inserito: string): Promise<EsitoUso> {
-  if (!accessoValido()) return { ok: false, errore: 'Sessione scaduta: ricarica la pagina e rientra.' }
+  const email = await operatore()
+  if (!email) return { ok: false, errore: NEGATO }
 
   const codice = normalizzaCodice(inserito)
-  const esito = await bruciaVoucher(codice, PARTNER)
+  const esito = await bruciaVoucher(codice, email)
 
   if (!esito.ok) {
-    await registraLog(null, 'voucher_uso_rifiutato', {
+    await registraLog(email, 'voucher_uso_rifiutato', {
       entita: 'voucher',
       entitaId: esito.voucher?.id,
-      dettagli: { codice, motivo: esito.motivo, partner: PARTNER },
+      dettagli: { codice, motivo: esito.motivo },
     })
 
     const messaggi: Record<typeof esito.motivo, string> = {
@@ -90,10 +84,10 @@ export async function usaCodice(inserito: string): Promise<EsitoUso> {
     return { ok: false, errore: messaggi[esito.motivo] }
   }
 
-  await registraLog(null, 'voucher_utilizzato', {
+  await registraLog(email, 'voucher_utilizzato', {
     entita: 'voucher',
     entitaId: esito.voucher.id,
-    dettagli: { codice: esito.voucher.codice, partner: PARTNER, destinatario: esito.voucher.email },
+    dettagli: { codice: esito.voucher.codice, destinatario: esito.voucher.email },
   })
 
   return {

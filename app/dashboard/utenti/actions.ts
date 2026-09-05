@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
-import { CHIAVI_SEZIONI, SEZIONI, type SezioneChiave } from '@/lib/auth/sezioni'
+import { CHIAVI_SEZIONI, SEZIONI, SEZIONI_ESTERNE, type SezioneChiave } from '@/lib/auth/sezioni'
 import { emailCorrente } from '@/lib/auth/sezioni-server'
 import { puoAmministrare } from '@/lib/auth/permessi'
 import { registraLog } from '@/lib/audit'
@@ -31,6 +31,12 @@ export async function invitaStaff(formData: FormData) {
     .toLowerCase()
   const nome = String(formData.get('nome') ?? '').trim()
   const cognome = String(formData.get('cognome') ?? '').trim()
+  // Accesso esterno: un partner (oggi il centro medico che valida i voucher),
+  // non una persona della segreteria. Si sceglie all'invito e non correggendo
+  // le caselle dopo, perche' il corredo normale contiene richieste dal sito e
+  // anagrafica dei soci: toglierle una per una a mano funziona finche' non ci
+  // si dimentica, e la dimenticanza qui e' un partner che legge i contatti.
+  const esterno = formData.get('esterno') === 'on'
 
   if (!email || !nome || !cognome) {
     redirect(urlErrore('Nome, cognome ed email sono obbligatori.'))
@@ -81,7 +87,9 @@ export async function invitaStaff(formData: FormData) {
       puo_cancellare: false,
       commerciale: false,
       puo_riassegnare: false,
-      sezioni_consentite: SEZIONI.filter((s) => s.gruppo !== 'Amministrazione').map((s) => s.chiave),
+      sezioni_consentite: esterno
+        ? [...SEZIONI_ESTERNE]
+        : SEZIONI.filter((s) => s.gruppo !== 'Amministrazione' && !s.esterna).map((s) => s.chiave),
     })
     if (error) redirect(urlErrore(error.message))
   }

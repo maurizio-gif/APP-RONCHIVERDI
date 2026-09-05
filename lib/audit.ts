@@ -46,11 +46,10 @@ export const AZIONI_LOG: Record<string, string> = {
   voucher_emesso: 'Voucher emesso',
   voucher_email_reinviata: 'Voucher: email rimandata al socio',
   voucher_annullato: 'Voucher annullato',
-  // Le due righe scritte dall'interfaccia del partner: non hanno un
-  // operatore del pannello (email nulla), il partner sta in dettagli.
-  voucher_utilizzato: 'Voucher utilizzato dal partner',
+  // Scritte dalla pagina di validazione: l'operatore e' l'account del
+  // partner, quindi si vede chi ha bruciato cosa come per ogni altra azione.
+  voucher_utilizzato: 'Voucher utilizzato (validazione)',
   voucher_uso_rifiutato: 'Voucher: utilizzo rifiutato',
-  chiron_accesso_rifiutato: 'Validazione voucher: accesso rifiutato',
   timbratura_corretta: 'Timbratura corretta a mano',
   timbratura_eliminata: 'Timbratura eliminata',
 }

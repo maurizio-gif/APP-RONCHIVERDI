@@ -81,11 +81,17 @@ la visita viene prenotata.
   è manuale: la segreteria inserisce il socio e il codice parte subito per
   email. Quando arriverà l'estrazione notturna dal gestionale scriverà sulla
   stessa tabella, e il form resterà per i casi fuori flusso.
-- **Validazione** — `/chiron`, fuori dal pannello: una cella e un pulsante.
-  Il centro medico entra con un codice condiviso (`CHIRON_ACCESS_CODE`), vede
-  stato e intestatario, e conferma. La bruciatura scrive timestamp e partner
-  sul database del Club, e manda al socio la notifica di utilizzo: nessun uso
-  può avvenire a sua insaputa.
+- **Validazione** — `/dashboard/validazione`, sezione `validazione-voucher`:
+  una cella e un pulsante. Al centro medico si creano account del pannello
+  con **quella sola sezione** (casella «Accesso esterno» al momento
+  dell'invito). La bruciatura scrive timestamp e operatore sul database del
+  Club, e manda al socio la notifica di utilizzo: nessun uso può avvenire a
+  sua insaputa.
+
+  La sezione è marcata `esterna` in `sezioni.ts`: chi ha soltanto sezioni
+  esterne non è della segreteria, quindi non vede il Riepilogo — che parla di
+  trattative, richieste e impegni — e viene mandato direttamente alla sua
+  pagina. Il controllo è nel Server Component, non solo nel menu.
 - **Email** — SendGrid, chiamato via `fetch` da `lib/email.ts` dentro la
   funzione Vercel della Server Action. I testi stanno tutti in
   `lib/voucher-email.ts` perché sono comunicazioni concordate con il partner.
