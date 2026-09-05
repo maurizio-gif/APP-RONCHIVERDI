@@ -80,6 +80,12 @@ const DEFINIZIONI = [
     href: '/dashboard/richieste/richieste-fitness-manager',
     gruppo: 'Richieste dal sito',
   },
+  // Voucher monouso per i benefit ai soci: oggi la visita medica inclusa
+  // negli abbonamenti oltre soglia (partnership Chiron). Sta in Core e non in
+  // Amministrazione perché lo si emette alla vendita, dallo stesso banco che
+  // lavora le richieste. L'interfaccia che il partner usa per bruciare i
+  // codici e' /chiron, fuori dal pannello: non e' una sezione assegnabile.
+  { chiave: 'voucher', label: 'Voucher visita medica', href: '/dashboard/voucher', gruppo: 'Core' },
   // Anagrafica deduplicata: una scheda per persona con tutte le sue richieste.
   // La chiave resta 'persone' — è il permesso salvato in staff_users e la
   // rotta: rinominarla vorrebbe dire migrare i permessi di tutti per un

@@ -98,6 +98,13 @@ const DISEGNI: Record<string, React.ReactNode> = {
       <path d="M12 3c-2.4 2.4-3.6 5.4-3.6 9s1.2 6.6 3.6 9c2.4-2.4 3.6-5.4 3.6-9S14.4 5.4 12 3z" />
     </>
   ),
+  // Voucher: il tagliando con lo strappo.
+  voucher: (
+    <>
+      <path d="M3 8.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 3v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-3z" />
+      <path d="M14 7.5v1.5M14 11.2v1.6M14 15v1.5" />
+    </>
+  ),
   // Timbra cartellino: l'orologio.
   timbratura: (
     <>
