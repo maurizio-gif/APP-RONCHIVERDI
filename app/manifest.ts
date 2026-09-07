@@ -20,9 +20,10 @@ export default function manifest(): MetadataRoute.Manifest {
     orientation: 'portrait',
     background_color: '#f6f4ec',
     theme_color: '#1c1c18',
-    // Ritagliate da design/icona-crm-2048.jpeg con lo script di quel commit:
-    // la variante maskable è rimpicciolita perché Android ritaglia in tondo e
-    // taglierebbe la scritta "Ronchiverdi CRM".
+    // Ritagliate da design/icona-crm.jpeg con scripts/genera-icone.py: la
+    // variante maskable è rimpicciolita perché Android ritaglia in tondo e
+    // taglierebbe la scritta "CRM". Per cambiare icona si sostituisce il
+    // master e si rilancia lo script, non si ritocca un file di public/.
     icons: [
       {
         src: '/apple-touch-icon.png',
