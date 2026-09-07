@@ -1,7 +1,11 @@
-# Pannello Ronchiverdi
+# CRM Ronchiverdi
 
 Pannello di gestione del Ronchiverdi Sport Club: le richieste che arrivano dal
 sito, l'agenda degli appuntamenti, la timbratura del cartellino.
+
+Il nome con cui l'app si salva sulla Home — **CRM Ronchiverdi** — vive in tre
+punti che vanno cambiati insieme: `name` e `short_name` in `app/manifest.ts`
+(Android) e `appleWebApp.title` in `app/layout.tsx` (iOS).
 
 Next.js 14 (App Router) + Supabase, in deploy su Vercel. Stessa impostazione
 del CRM del Tennis Club Ambrosiano, di cui questo pannello riprende i pattern —
@@ -106,6 +110,28 @@ a presentarsi con il codice.
 La tabella (`scripts/sql/2026-09-05-voucher.sql`) non parla di medicina: la
 colonna `tipo` distingue il benefit, così lo stesso motore serve il prossimo
 — merchandising, ingressi omaggio — senza una tabella nuova.
+
+## Icona sulla Home
+
+Il pannello si usa dal telefono come app installata ("Aggiungi a Home"), quindi
+l'icona è un asset di prodotto, non un favicon. Il master è
+`design/icona-crm.jpeg` — la tavola dell'icona così com'è disegnata, riquadro su
+sfondo di presentazione — e le misure servite si rigenerano da lì:
+
+```bash
+pip install Pillow
+python3 scripts/genera-icone.py
+```
+
+Lo script ritaglia il riquadro (lo sfondo della tavola, dentro la maschera
+arrotondata di iOS, diventerebbe un secondo bordo) e scrive i quattro file
+dichiarati in `app/manifest.ts`: `apple-touch-icon.png` 180, `icon-192.png`,
+`favicon.png` 512 e `icon-maskable-512.png`, quest'ultima col contenuto al 78%
+perché Android ritaglia le maskable dentro un cerchio e a piena pagina taglierebbe
+la scritta "CRM".
+
+Per cambiare icona si sostituisce il master e si rilancia lo script: i file di
+`public/` non si ritoccano a mano, o la prossima rigenerazione li sovrascrive.
 
 ## Stato
 
