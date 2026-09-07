@@ -1,7 +1,11 @@
-# Pannello Ronchiverdi
+# CRM Ronchiverdi
 
 Pannello di gestione del Ronchiverdi Sport Club: le richieste che arrivano dal
 sito, l'agenda degli appuntamenti, la timbratura del cartellino.
+
+Il nome con cui l'app si salva sulla Home — **CRM Ronchiverdi** — vive in tre
+punti che vanno cambiati insieme: `name` e `short_name` in `app/manifest.ts`
+(Android) e `appleWebApp.title` in `app/layout.tsx` (iOS).
 
 Next.js 14 (App Router) + Supabase, in deploy su Vercel. Stessa impostazione
 del CRM del Tennis Club Ambrosiano, di cui questo pannello riprende i pattern —

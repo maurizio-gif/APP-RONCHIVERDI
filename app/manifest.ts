@@ -10,8 +10,13 @@ import type { MetadataRoute } from 'next'
 // parte sempre; senza sessione valida il middleware rimanda a /login.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Pannello Ronchiverdi',
-    short_name: 'Ronchiverdi',
+    // short_name è l'etichetta sotto l'icona quando Android salva l'app sulla
+    // Home; name è il nome lungo, quello del prompt di installazione. Su iOS
+    // l'etichetta arriva invece da appleWebApp.title, in app/layout.tsx: i tre
+    // valori vanno cambiati insieme, o l'app si chiama in due modi diversi a
+    // seconda del telefono.
+    name: 'CRM Ronchiverdi',
+    short_name: 'CRM Ronchiverdi',
     description: 'Richieste dal sito, trattative e agenda del Ronchiverdi Sport Club.',
     lang: 'it',
     start_url: '/dashboard',

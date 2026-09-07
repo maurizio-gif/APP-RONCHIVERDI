@@ -159,7 +159,7 @@ export default async function RiepilogoPage() {
   return (
     <>
       <div className="page-head">
-        <p className="eyebrow">Pannello Ronchiverdi</p>
+        <p className="eyebrow">CRM Ronchiverdi</p>
         <h1>{nomeUtente ? `Ciao ${nomeUtente.split(' ')[0]}` : 'Dashboard'}</h1>
         <p className="muted">Le trattative in corso e cosa ti aspetta oggi.</p>
       </div>

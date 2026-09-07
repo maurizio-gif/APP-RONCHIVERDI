@@ -17,7 +17,7 @@ const cormorant = Cormorant_Garamond({
 })
 
 export const metadata = {
-  title: 'Pannello Ronchiverdi',
+  title: 'CRM Ronchiverdi',
   icons: {
     icon: '/favicon.png',
     apple: '/apple-touch-icon.png',
@@ -27,7 +27,10 @@ export const metadata = {
   // timbrare il cartellino.
   appleWebApp: {
     capable: true,
-    title: 'Ronchiverdi',
+    // Etichetta sotto l'icona quando iOS salva l'app sulla Home: deve restare
+    // allineata a name/short_name del manifest (app/manifest.ts), che è quello
+    // che usa Android.
+    title: 'CRM Ronchiverdi',
     statusBarStyle: 'default',
   },
 }
