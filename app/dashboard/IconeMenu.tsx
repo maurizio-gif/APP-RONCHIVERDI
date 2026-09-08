@@ -105,6 +105,14 @@ const DISEGNI: Record<string, React.ReactNode> = {
       <path d="M14 7.5v1.5M14 11.2v1.6M14 15v1.5" />
     </>
   ),
+  // Curriculum: il foglio con la persona sopra.
+  candidature: (
+    <>
+      <path d="M6 3h12v18H6z" />
+      <circle cx="12" cy="10" r="2.2" />
+      <path d="M8.8 16.5c.5-1.6 1.7-2.4 3.2-2.4s2.7.8 3.2 2.4" />
+    </>
+  ),
   // Timbra cartellino: l'orologio.
   timbratura: (
     <>
