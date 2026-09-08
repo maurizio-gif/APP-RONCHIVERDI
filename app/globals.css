@@ -2188,3 +2188,683 @@ table.tabella tbody tr:hover {
 		align-items: center;
 	}
 }
+
+/* ─────────────────────────────────────────────────────── messaggi interni
+ *
+ * Tre pezzi che vivono in posti diversi: l'interruttore delle notifiche e il
+ * badge nel menu laterale (fondo scuro), il modulo e l'elenco nella pagina
+ * (fondo crema), e l'avviso bloccante sopra qualunque pagina.
+ */
+
+/* Il numero di messaggi da confermare, accanto alla voce di menu. Oro pieno e
+   non un pallino discreto: è l'unica cosa nel menu che chiede di essere
+   guardata adesso. */
+.nav-badge {
+	margin-left: auto;
+	min-width: 1.25rem;
+	padding: 0.05rem 0.35rem;
+	background: var(--accent-on-dark);
+	border-radius: 999px;
+	color: var(--bg-dark);
+	font-size: var(--text-2xs);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	text-align: center;
+}
+
+/* Interruttore delle push nel menu: tratteggiato per dire che agisce sul
+   posto e non porta a un'altra pagina, come le voci di navigazione. */
+.push-nav {
+	margin-bottom: 0.75rem;
+}
+
+.push-nav-toggle {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	width: 100%;
+	padding: 0.5rem 0.65rem;
+	background: transparent;
+	border: 1px dashed var(--border-dark);
+	border-radius: var(--radius);
+	color: var(--text-muted-on-dark);
+	font-family: inherit;
+	font-size: var(--text-xs);
+	text-align: left;
+	cursor: pointer;
+}
+
+.push-nav-toggle:hover:not(:disabled) {
+	border-color: var(--accent-on-dark);
+	color: var(--text-on-dark);
+}
+
+.push-nav-toggle.is-attivo {
+	border-style: solid;
+	border-color: var(--accent-on-dark);
+	color: var(--accent-on-dark);
+}
+
+.push-nav-toggle:disabled {
+	opacity: 0.55;
+	cursor: default;
+}
+
+.push-nav-errore {
+	margin: 0.35rem 0 0;
+	color: var(--accent-on-dark);
+	font-size: var(--text-2xs);
+	line-height: 1.4;
+}
+
+/* ── Il modulo di composizione ── */
+
+.componi {
+	margin-bottom: 1.5rem;
+}
+
+.componi-titolo {
+	margin-bottom: 1rem;
+	font-size: var(--text-md);
+	font-family: var(--font-sans);
+	font-weight: 500;
+}
+
+/* Tendina con caselle invece di un elenco sempre aperto: i destinatari
+   possibili sono tutta la segreteria, e una lista lunga spingerebbe il campo
+   del testo fuori dallo schermo. */
+.destinatari {
+	position: relative;
+	margin-bottom: 0.75rem;
+}
+
+.destinatari-scelta {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	width: 100%;
+	padding: 0.6rem 0.75rem;
+	background: var(--surface);
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius);
+	color: var(--text);
+	font-family: inherit;
+	font-size: var(--text-base);
+	text-align: left;
+	cursor: pointer;
+}
+
+.destinatari-scelta:hover:not(:disabled) {
+	border-color: var(--accent);
+}
+
+.destinatari-scelta:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+.destinatari-freccia {
+	flex-shrink: 0;
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+}
+
+.destinatari-menu {
+	position: absolute;
+	z-index: 20;
+	top: calc(100% + 0.25rem);
+	left: 0;
+	right: 0;
+	max-height: 16rem;
+	overflow-y: auto;
+	margin: 0;
+	padding: 0.35rem;
+	list-style: none;
+	background: var(--surface);
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius);
+	box-shadow: 0 12px 28px rgba(28, 28, 24, 0.14);
+}
+
+.destinatari-opzione {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	padding: 0.45rem 0.55rem;
+	border-radius: 6px;
+	font-size: var(--text-sm);
+	cursor: pointer;
+}
+
+.destinatari-opzione:hover {
+	background: var(--bg-alt);
+}
+
+.destinatari-opzione.is-attiva {
+	color: var(--accent);
+	font-weight: 500;
+}
+
+.destinatari-opzione input {
+	width: 1rem;
+	height: 1rem;
+	accent-color: var(--accent);
+	cursor: pointer;
+}
+
+.destinatari-tag-lista {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+	margin-bottom: 1rem;
+}
+
+.destinatari-tag {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	padding: 0.2rem 0.35rem 0.2rem 0.6rem;
+	background: var(--accent);
+	border-radius: 999px;
+	color: var(--text-on-dark);
+	font-size: var(--text-xs);
+}
+
+.destinatari-tag button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.1rem;
+	height: 1.1rem;
+	background: transparent;
+	border: none;
+	border-radius: 50%;
+	color: var(--text-on-dark);
+	font-size: var(--text-sm);
+	line-height: 1;
+	cursor: pointer;
+}
+
+.destinatari-tag button:hover {
+	background: rgba(246, 239, 222, 0.22);
+}
+
+.destinatari-tag button:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+/* ── L'elenco dei messaggi ── */
+
+.msg-elenco {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.msg-elenco .card + .card {
+	margin-top: 0;
+}
+
+.msg-card {
+	padding: 1rem 1.25rem;
+}
+
+/* Il filo d'oro sul bordo: un messaggio ancora da confermare si distingue
+   scorrendo l'elenco, senza dover leggere ogni badge. */
+.msg-card.is-da-leggere {
+	border-left: 3px solid var(--accent);
+}
+
+.msg-testa {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.msg-apri {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+	min-width: 0;
+	padding: 0;
+	background: none;
+	border: none;
+	color: inherit;
+	font-family: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.msg-chi {
+	font-size: var(--text-base);
+	font-weight: 500;
+}
+
+.msg-apri:hover .msg-chi {
+	color: var(--accent);
+}
+
+/* Una riga sola: l'anteprima serve a riconoscere il messaggio, non a
+   leggerlo — il testo intero si vede aprendo. */
+.msg-anteprima {
+	overflow: hidden;
+	color: var(--text-muted);
+	font-size: var(--text-sm);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.msg-meta {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 0.35rem;
+	flex-shrink: 0;
+}
+
+.msg-data {
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+	white-space: nowrap;
+}
+
+.msg-corpo {
+	margin-top: 1rem;
+	padding-top: 1rem;
+	border-top: 1px solid var(--border);
+}
+
+/* white-space: pre-wrap perché un messaggio di servizio è spesso un elenco
+   scritto a capo: senza, tornerebbe tutto su una riga. */
+.msg-testo {
+	margin: 0 0 0.75rem;
+	font-size: var(--text-base);
+	line-height: 1.6;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.msg-allegato {
+	margin: 0 0 0.75rem;
+	font-size: var(--text-sm);
+}
+
+.msg-azioni {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: 0.75rem;
+	margin-top: 1rem;
+}
+
+.risposta {
+	min-width: 15rem;
+	margin: 0;
+}
+
+.risposta textarea {
+	width: 100%;
+	margin-bottom: 0.5rem;
+	padding: 0.6rem 0.75rem;
+	background: var(--surface);
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius);
+	color: var(--text);
+	font-family: inherit;
+	font-size: var(--text-sm);
+	line-height: 1.6;
+	resize: vertical;
+}
+
+.risposta-azioni {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+/* ── L'avviso bloccante ── */
+
+/* Copre tutto, sidebar inclusa: un messaggio nuovo deve risaltare dovunque si
+   sia nel pannello. Finché non si conferma la lettura non c'è modo di
+   chiuderlo — è il punto della sezione (vedi NotificheBanner). */
+.msg-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 200;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 1.5rem;
+	background: rgba(28, 28, 24, 0.62);
+}
+
+.msg-modale {
+	position: relative;
+	width: 100%;
+	max-width: 30rem;
+	max-height: calc(100vh - 3rem);
+	overflow-y: auto;
+	padding: 1.5rem;
+	background: var(--surface);
+	border: 1px solid var(--border-strong);
+	border-left: 4px solid var(--accent);
+	border-radius: var(--radius);
+	box-shadow: 0 24px 56px rgba(28, 28, 24, 0.3);
+}
+
+/* Compare solo dopo la conferma di lettura. */
+.msg-modale-chiudi {
+	position: absolute;
+	top: 0.5rem;
+	right: 0.5rem;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.75rem;
+	height: 1.75rem;
+	background: transparent;
+	border: none;
+	border-radius: 50%;
+	color: var(--text-muted);
+	font-size: var(--text-md);
+	line-height: 1;
+	cursor: pointer;
+}
+
+.msg-modale-chiudi:hover {
+	background: var(--bg-alt);
+	color: var(--text);
+}
+
+.msg-modale-testa {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-bottom: 0.5rem;
+	padding-right: 2rem;
+}
+
+.msg-modale-testa .eyebrow {
+	margin: 0;
+}
+
+/* Cliccabile: apre i nomi degli altri destinatari, letti al volo la prima
+   volta (getDestinatariBatch), così si capisce subito se il messaggio
+   riguarda solo chi legge. */
+.msg-modale-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	padding: 0.1rem 0.5rem;
+	background: var(--bg-alt);
+	border: 1px solid var(--border-strong);
+	border-radius: 999px;
+	color: var(--text-muted);
+	font-family: inherit;
+	font-size: var(--text-2xs);
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.msg-modale-badge:hover {
+	border-color: var(--accent);
+	color: var(--accent);
+}
+
+.msg-modale-destinatari {
+	margin: 0 0 0.5rem;
+	font-size: var(--text-xs);
+}
+
+.msg-modale-azioni {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: 0.75rem;
+	margin-top: 1.25rem;
+}
+
+@media (max-width: 640px) {
+	.msg-testa {
+		flex-direction: column;
+	}
+	.msg-meta {
+		flex-direction: row;
+		align-items: center;
+	}
+}
+
+/* ──────────────────────────────────── eventi di una trattativa Club/Family
+ *
+ * Il seguito di una trattativa, dentro la riga della richiesta: prima gli
+ * eventi vivevano solo in Agenda, e per sapere se il richiamo era stato fatto
+ * bisognava cercarlo in un calendario di tutti.
+ */
+
+/* Dice quante cose restano da fare, sul pulsante che apre il pannello. */
+.richiesta-conteggio {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 1.15rem;
+	margin-left: 0.35rem;
+	padding: 0 0.25rem;
+	background: var(--accent);
+	border-radius: 999px;
+	color: var(--text-on-dark);
+	font-size: var(--text-2xs);
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.eventi-testa {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	margin-bottom: 0.75rem;
+}
+
+.eventi-titolo {
+	font-size: var(--text-xs);
+	font-weight: 500;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.eventi-elenco {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.evento {
+	padding: 0.75rem 0;
+	border-top: 1px solid var(--border);
+}
+
+.evento:first-child {
+	padding-top: 0;
+	border-top: none;
+}
+
+/* Un evento chiuso resta leggibile ma smette di chiedere attenzione: in una
+   trattativa lunga il seguito già fatto è storia, non lavoro. */
+.evento.is-chiuso {
+	opacity: 0.72;
+}
+
+.evento-riga {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.evento-quando {
+	font-size: var(--text-sm);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.evento-titolo {
+	flex: 1;
+	min-width: 8rem;
+	font-size: var(--text-sm);
+	font-weight: 500;
+}
+
+.evento-meta {
+	margin-top: 0.2rem;
+	font-size: var(--text-2xs);
+}
+
+.evento-nota {
+	margin: 0.35rem 0 0;
+	font-size: var(--text-sm);
+	line-height: 1.5;
+}
+
+.evento-azioni {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-top: 0.5rem;
+}
+
+/* Il modulo dei campi (CampiEvento) è lo stesso della programmazione in
+   "Chiudi con esito": qui compare dentro un evento dell'elenco, quindi si
+   stacca dal bordo invece di appoggiarsi alla riga sopra. */
+.evento .esito-evento,
+.eventi > .esito-evento {
+	margin-top: 0.75rem;
+}
+
+.trattativa-etichetta {
+	font-size: var(--text-2xs);
+	font-weight: 500;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-muted);
+}
+
+/* Programma o registra: la scelta sta in cima al modulo, prima dei campi —
+   è quella che decide se la voce nasce da fare o già chiusa, e leggerla dopo
+   aver compilato tutto vorrebbe dire ricominciare. */
+.modo-evento {
+	margin-bottom: 1rem;
+	padding-bottom: 1rem;
+	border-bottom: 1px solid var(--border);
+}
+
+.modo-evento .esito-gruppi {
+	margin-bottom: 0.35rem;
+}
+
+.modo-evento .field-hint {
+	margin: 0;
+}
+
+/* ────────────────────────────────── dashboard: impegni gestibili sul posto */
+
+/* .impegno è una riga flat; questa variante impila la riga principale, i
+   dettagli e il pannello di gestione, che è alto. */
+.impegno-gestibile {
+	display: block;
+}
+
+.impegno-riga {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem 0.75rem;
+}
+
+.impegno-quando,
+.impegno-chi {
+	font-size: var(--text-2xs);
+	white-space: nowrap;
+}
+
+.impegno-dettagli {
+	margin-top: 0.2rem;
+	font-size: var(--text-2xs);
+}
+
+/* Una riga sola: l'oggetto di un appuntamento può essere lungo, e per intero
+   sta nel pannello di gestione. */
+.impegno-nota {
+	display: inline-block;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	vertical-align: bottom;
+	white-space: nowrap;
+}
+
+.impegno-gestione {
+	margin-top: 0.75rem;
+	padding-top: 0.75rem;
+	border-top: 1px dashed var(--border-strong);
+}
+
+.impegno-gestione .esito {
+	margin-bottom: 0.75rem;
+}
+
+/* ─────────────────────────────── dashboard: le trattative da lavorare */
+
+.trattative-elenco {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.trattativa-riga {
+	padding: 0.75rem 0;
+	border-top: 1px solid var(--border);
+}
+
+.trattativa-riga:first-child {
+	padding-top: 0;
+	border-top: none;
+}
+
+.trattativa-chi-riga {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.5rem;
+}
+
+.trattativa-nome {
+	font-size: var(--text-base);
+	font-weight: 500;
+}
+
+.trattativa-recapiti {
+	font-size: var(--text-2xs);
+}
+
+/* Dentro l'elenco della dashboard il blocco trattativa non ha bisogno del
+   suo riquadro: la riga è già la sua cornice. */
+.trattativa-riga .trattativa {
+	margin-top: 0.5rem;
+	padding: 0;
+	background: none;
+	border: none;
+}
+
+/* Il totale del club sotto i propri riquadri: una riga, non quattro card
+   accanto ai tuoi numeri — serve a sapere se sei tu a essere carico o è
+   carico il club. */
+.riepilogo-club {
+	margin: 0.75rem 0 1rem;
+	font-size: var(--text-xs);
+}

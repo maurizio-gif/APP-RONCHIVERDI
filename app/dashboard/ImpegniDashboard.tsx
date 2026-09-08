@@ -1,0 +1,120 @@
+'use client'
+
+import { useState } from 'react'
+import Link from 'next/link'
+import {
+  CLASSE_TIPO,
+  ETICHETTE_TIPO_BREVI,
+  dataBreve,
+  eAppuntamentoVero,
+  intervalloOrario,
+  type VoceAgenda,
+} from '@/lib/agenda'
+import { GestioneEsito } from '@/components/GestioneEsito'
+
+// Gli impegni del giorno, gestibili qui.
+//
+// Prima erano un elenco da leggere: per chiudere una telefonata fatta si
+// apriva l'agenda, si ritrovava la riga e si apriva il suo pannello — tre
+// passaggi per un gesto che si ripete venti volte al giorno. Il pannello di
+// chiusura è lo stesso dell'agenda e delle richieste: chi lavora non deve
+// imparare tre schemi.
+
+export function ImpegniDashboard({
+  voci,
+  oggi,
+  io,
+  operatori,
+  puoCancellare,
+}: {
+  voci: VoceAgenda[]
+  /** Oggi a Roma: serve a marcare gli arretrati. */
+  oggi: string
+  io: string | null
+  operatori: string[]
+  puoCancellare: boolean
+}) {
+  const [aperta, setAperta] = useState<string | null>(null)
+
+  return (
+    <ul className="impegni">
+      {voci.map((voce) => {
+        const arretrato = voce.data < oggi
+        const mio = voce.assegnatoA === io
+        const inGestione = aperta === voce.chiave
+
+        return (
+          <li className="impegno impegno-gestibile" key={voce.chiave}>
+            <div className="impegno-riga">
+              <span className={`badge-tipo ${CLASSE_TIPO[voce.tipo]}`}>
+                {ETICHETTE_TIPO_BREVI[voce.tipo]}
+              </span>
+
+              <span className="impegno-titolo">{voce.titolo}</span>
+
+              <span className="muted impegno-quando">
+                {dataBreve(voce.data)}
+                {' · '}
+                {intervalloOrario(voce.ora, voce.durataMinuti) ?? 'in giornata'}
+              </span>
+
+              {arretrato && <span className="badge badge-warn">arretrato</span>}
+
+              {/* Di chi è: gli appuntamenti si vedono tutti, anche quelli dei
+                  colleghi (in sede o al telefono, il club è uno). Dirlo evita
+                  che due persone si presentino alla stessa telefonata. */}
+              {!mio && (
+                <span className="muted impegno-chi">
+                  {voce.assegnatoA
+                    ? voce.assegnatoA
+                    : voce.origine === 'form_contatti'
+                      ? 'prenotato dal sito'
+                      : 'di nessuno'}
+                </span>
+              )}
+
+              <button
+                type="button"
+                className={`btn btn-sm${inGestione ? '' : ' btn-ghost'}`}
+                aria-expanded={inGestione}
+                onClick={() => setAperta(inGestione ? null : voce.chiave)}
+              >
+                Gestisci
+              </button>
+            </div>
+
+            {(voce.persona || voce.note) && (
+              <div className="impegno-dettagli muted">
+                {voce.persona && <span>{voce.persona}</span>}
+                {voce.persona && voce.note && ' · '}
+                {voce.note && <span className="impegno-nota">{voce.note}</span>}
+              </div>
+            )}
+
+            {inGestione && (
+              <div className="impegno-gestione">
+                <GestioneEsito
+                  origine={voce.origine}
+                  id={voce.id}
+                  titolo={voce.titolo}
+                  operatori={operatori}
+                  puoCancellare={puoCancellare}
+                  conOrario={eAppuntamentoVero(voce.tipo)}
+                  dataCorrente={voce.data}
+                  oraCorrente={voce.ora}
+                />
+                {/* La scheda della persona, per chi deve sapere qualcosa in
+                    più prima di chiamare: da qui non si vede la storia. */}
+                {voce.personaId && (
+                  <Link className="btn btn-ghost btn-sm" href={`/dashboard/persone/${voce.personaId}`}>
+                    Apri la scheda del contatto
+                  </Link>
+                )}
+              </div>
+            )}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}

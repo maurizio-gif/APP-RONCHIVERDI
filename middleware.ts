@@ -10,8 +10,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 // posto sarebbe un deploy rotto.
 const HEADER_EMAIL = 'x-rv-user-email'
 
-// Gira su ogni richiesta a /dashboard/*: rinfresca il cookie di sessione
-// Supabase e, se manca una sessione valida, rimanda a /login.
+// Gira su ogni richiesta a /dashboard/* e /api/interno/*: rinfresca il cookie
+// di sessione Supabase e, se manca una sessione valida, rimanda a /login.
 //
 // L'email già validata qui viene propagata al layout via header di richiesta:
 // così il layout non deve richiamare getUser() — un altro round-trip a
@@ -56,5 +56,11 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*'],
+  // /api/interno/* sta qui e non fuori per due ragioni, entrambe necessarie:
+  // le rotte interrogate dal pannello (il conteggio dei messaggi non letti)
+  // leggono l'operatore corrente da HEADER_EMAIL, che è il middleware a
+  // scrivere; e senza passare da qui l'header non verrebbe ripulito, quindi
+  // un client potrebbe impostarselo da sé e farsi passare per un altro
+  // operatore. Le rotte pubbliche del pannello restano fuori da /api/interno.
+  matcher: ['/dashboard/:path*', '/api/interno/:path*'],
 }

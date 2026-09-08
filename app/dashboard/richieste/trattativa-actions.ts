@@ -100,6 +100,9 @@ export async function assegnaTrattativa(id: string, a: string | null): Promise<E
 
   revalidatePath('/dashboard/richieste', 'layout')
   revalidatePath('/dashboard/persone', 'layout')
+  // Il Riepilogo elenca le trattative proprie e quelle libere: prendersene
+  // una dalla dashboard deve farla passare da un elenco all'altro subito.
+  revalidatePath('/dashboard')
   return { ok: true }
 }
 
@@ -155,5 +158,8 @@ export async function cambiaStato(
 
   revalidatePath('/dashboard/richieste', 'layout')
   revalidatePath('/dashboard/persone', 'layout')
+  // Il Riepilogo elenca le trattative proprie e quelle libere: prendersene
+  // una dalla dashboard deve farla passare da un elenco all'altro subito.
+  revalidatePath('/dashboard')
   return { ok: true }
 }

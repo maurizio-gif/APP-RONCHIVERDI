@@ -113,6 +113,13 @@ const DISEGNI: Record<string, React.ReactNode> = {
       <path d="M8.8 16.5c.5-1.6 1.7-2.4 3.2-2.4s2.7.8 3.2 2.4" />
     </>
   ),
+  // Messaggi interni: la campanella, come l'avviso che porta.
+  notifiche: (
+    <>
+      <path d="M12 3.2a5.2 5.2 0 0 0-5.2 5.2v3.3c0 .95-.37 1.85-1.04 2.5L5 15.2h14l-.76-1c-.67-.65-1.04-1.55-1.04-2.5V8.4A5.2 5.2 0 0 0 12 3.2z" />
+      <path d="M9.5 18.4a2.5 2.5 0 0 0 5 0" />
+    </>
+  ),
   // Timbra cartellino: l'orologio.
   timbratura: (
     <>

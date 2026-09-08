@@ -91,7 +91,7 @@ export async function GET(request: Request) {
   }
 
   const voci: VoceAgenda[] = [
-    ...(task ?? []).map(voceDaTask),
+    ...(task ?? []).map((riga) => voceDaTask(riga)),
     ...(contatti ?? []).map(voceDaContatto).filter((v): v is VoceAgenda => v !== null),
   ]
 

@@ -124,6 +124,16 @@ const DEFINIZIONI = [
     href: '/dashboard/curriculum',
     gruppo: 'Amministrazione',
   },
+  // I messaggi interni fra operatori, con conferma di lettura e notifica push.
+  // Il permesso è uno solo per scrivere e per ricevere: chi non l'ha non
+  // compare fra i destinatari possibili, perché un messaggio che il
+  // destinatario non potrebbe mai aprire non è un messaggio.
+  {
+    chiave: 'notifiche',
+    label: 'Messaggi interni',
+    href: '/dashboard/notifiche',
+    gruppo: 'Amministrazione',
+  },
   { chiave: 'timbratura', label: 'Timbra cartellino', href: '/dashboard/timbratura', gruppo: 'Amministrazione' },
   { chiave: 'utenti', label: 'Gestione utenti', href: '/dashboard/utenti', gruppo: 'Amministrazione' },
   { chiave: 'log-operatori', label: 'Controllo operatori', href: '/dashboard/log-operatori', gruppo: 'Amministrazione' },

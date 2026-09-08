@@ -5,7 +5,9 @@ import { emailCorrente, getSezioniConsentite } from '@/lib/auth/sezioni-server'
 import { eCommerciale, puoCancellare, puoRiassegnare } from '@/lib/auth/permessi'
 import { canaleDaChiave } from '@/lib/richieste'
 import { ETICHETTE_STATO, STATI, eStatoValido, type StatoTrattativa } from '@/lib/pipeline'
+import { voceDaTask } from '@/lib/agenda'
 import { RigaRichiesta, type ContestoTrattativa, type Richiesta } from '../RigaRichiesta'
+import type { EventoCollegato } from '../EventiTrattativa'
 import type { DatiTrattativa } from '../Trattativa'
 
 export const dynamic = 'force-dynamic'
@@ -153,6 +155,64 @@ export default async function CanalePage({
         precedenteIl: indice > 0 ? elenco[indice - 1].created_at : null,
       })
     })
+  }
+
+  // ── Terza ondata: gli eventi nati dalle richieste di queste persone ────
+  //
+  // Gli eventi di agenda si collegano alla richiesta da cui nascono
+  // (task.entita = 'form_contatti', entita_id = id della richiesta), ma la
+  // trattativa è della persona: si leggono quindi gli eventi di TUTTE le sue
+  // richieste, non solo di quella in riga. Chi ha scritto tre volte ha una
+  // trattativa sola, e il suo seguito è uno — spezzarlo fra tre righe
+  // significherebbe non trovare mai il richiamo fissato la volta prima.
+  //
+  // Serve solo dove esistono le trattative: negli altri canali il
+  // responsabile chiama e chiude, non c'è un seguito da programmare.
+  // Due agganci, non uno: un evento nasce da una richiesta (chiudendola con
+  // esito, o dal pannello Eventi) e allora porta il suo id; oppure è creato a
+  // mano dall'agenda per un contatto, e allora porta l'id della persona.
+  // Cercarne uno solo lasciava fuori metà del seguito — e proprio la metà
+  // fissata a mano, che è quella che si ricorda meno.
+  const idRichiesteDellePersone = (righeStessePersone ?? []).map((riga) => riga.id as string)
+  const COLONNE_EVENTO =
+    'id, titolo, tipo, data, ora, durata_minuti, note, assegnato_a, stato, esito_tipo, esito, entita, entita_id'
+
+  const [{ data: eventiDaRichieste }, { data: eventiDaContatti }] =
+    canale.inAgenda && idRichiesteDellePersone.length
+      ? await Promise.all([
+          supabase
+            .from('task')
+            .select(COLONNE_EVENTO)
+            .eq('entita', 'form_contatti')
+            .in('entita_id', idRichiesteDellePersone),
+          supabase.from('task').select(COLONNE_EVENTO).eq('entita', 'persona').in('entita_id', personaIds),
+        ])
+      : [{ data: [] as Record<string, any>[] }, { data: [] as Record<string, any>[] }]
+
+  // Dalla richiesta d'origine dell'evento alla persona, e da lì a tutti gli
+  // eventi di quella persona: è la mappa con cui ogni riga riceve il seguito
+  // dell'intera trattativa.
+  const personaDiRichiesta = new Map<string, string>()
+  for (const riga of righeStessePersone ?? []) {
+    personaDiRichiesta.set(riga.id as string, riga.persona_id as string)
+  }
+
+  const eventiPerPersona = new Map<string, EventoCollegato[]>()
+  function aggiungi(persona: string | undefined, riga: Record<string, any>, richiestaId: string | null) {
+    if (!persona) return
+    const elenco = eventiPerPersona.get(persona) ?? []
+    elenco.push({ ...voceDaTask(riga), richiestaId })
+    eventiPerPersona.set(persona, elenco)
+  }
+
+  for (const riga of eventiDaRichieste ?? []) {
+    const richiestaId = (riga.entita_id as string) ?? null
+    aggiungi(richiestaId ? personaDiRichiesta.get(richiestaId) : undefined, riga, richiestaId)
+  }
+  for (const riga of eventiDaContatti ?? []) {
+    // Agganciato al contatto e non a una richiesta: nessuna riga da cui
+    // dirlo «nato altrove».
+    aggiungi(riga.entita_id as string, riga, null)
   }
 
   // Le trattative servono solo dove esiste un team che se le prende in
@@ -363,6 +423,7 @@ export default async function CanalePage({
                 operatori={operatori}
                 puoCancellare={possoCancellare}
                 storico={storicoPersona.get(riga.id)}
+                eventi={riga.persona_id ? (eventiPerPersona.get(riga.persona_id) ?? []) : []}
                 key={riga.id}
               />
             ))}

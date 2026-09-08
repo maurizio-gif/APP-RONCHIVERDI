@@ -74,6 +74,175 @@ Una sezione marcata `inArrivo` in `sezioni.ts` è un permesso già assegnabile i
 cui modulo non è ancora costruito: appare nel menu disattivata, così nessuno
 finisce su una pagina che non esiste.
 
+## Dashboard
+
+Il Riepilogo risponde a due domande, non fa da cruscotto:
+
+**Le tue trattative.** Una sezione sola: i quattro riquadri sono i **tuoi**
+numeri — da prendere in carico, che segui tu, vinte da te, perse da te — e gli
+elenchi sotto sono il loro dettaglio, con i comandi per prenderle in carico,
+riassegnarle o cambiarne lo stato (lo stesso componente della sezione Club e
+Family, non una copia). Il totale del club sta in una riga sotto i riquadri.
+
+Prima i riquadri contavano tutto il club e sopra c'era un elenco separato delle
+proprie: con un commerciale solo al lavoro i numeri coincidevano e la pagina
+sembrava ripetersi. «Da prendere in carico» era perfino lo stesso insieme detto
+due volte — prendere in carico sposta lo stato da `nuovo` a `in_gestione`,
+quindi il riquadro e l'elenco erano un numero e la sua lista. Il riquadro conta
+ora le trattative **senza titolare**, che è ciò che si può davvero prendere.
+
+**Gli impegni di oggi**, cioè arretrati e giornata in corso. Le voci future
+stanno in agenda: qui servirebbero solo a far sembrare la giornata più piena di
+com'è. Chi vede cosa non è la stessa regola per tutti:
+
+- gli **appuntamenti** — in sede e telefonici — si vedono **tutti**, anche
+  quelli dei colleghi e quelli prenotati dal sito (che non hanno assegnatario).
+  Il club è uno: chi è al banco deve sapere chi arriva stamattina, o si scopre
+  la persona in portineria;
+- le **cose da fare** solo le proprie: un task è un promemoria personale, e
+  l'elenco di tutti sarebbe illeggibile e per lo più roba d'altri;
+- email e WhatsApp non compaiono mai: si registrano già chiusi, quindi non sono
+  mai «da fare».
+
+Ogni impegno si **gestisce sul posto**: «Gestisci» apre lo stesso pannello di
+chiusura dell'Agenda e delle richieste (eseguita, fallita, riprogrammata,
+annullata) con il collegamento alla scheda del contatto. Prima chiudere una
+telefonata appena fatta costava tre passaggi — aprire l'agenda, ritrovare la
+riga, aprire il pannello — per un gesto che si ripete venti volte al giorno.
+
+## Eventi di agenda: programma o registra
+
+Un evento è una voce della tabella `task`. Due regole lo governano, e valgono
+in tutti i punti in cui se ne crea uno — l'Agenda, il pannello Eventi delle
+richieste, la chiusura con esito. Stanno in
+[`lib/eventi.ts`](lib/eventi.ts), scritte una volta sola: prima erano due
+copie, nella creazione a mano e nella programmazione dei seguiti, e alla
+prima divergenza una avrebbe accettato quello che l'altra rifiutava.
+
+### Il contatto è obbligatorio
+
+Ogni evento è agganciato a qualcosa: `entita` + `entita_id`.
+
+- `form_contatti` — la richiesta dal sito da cui l'evento nasce;
+- `persona` — il contatto in anagrafica, per gli eventi creati a mano.
+
+Un evento senza contatto non compare nella scheda di nessuno e in agenda è un
+titolo senza il perché: si ritrovava solo per caso, scorrendo il giorno
+giusto. Il form dell'Agenda ora chiede il contatto (con un campo di ricerca
+sopra la tendina) e la Server Action rifiuta un evento che non ce l'ha.
+
+Il collegamento è `persona` e non `opportunita` di proposito: la trattativa è
+della persona e si chiude e riapre nel tempo, mentre la persona resta —
+agganciare gli eventi all'opportunità aperta oggi li lascerebbe orfani alla
+prossima.
+
+Un vantaggio che ne segue: l'elenco dell'agenda mostra **per chi** è una voce,
+e il pannello Eventi di una richiesta trova anche gli eventi creati a mano
+dall'agenda per quella persona.
+
+### Programma o registra
+
+- **Programma** — un impegno futuro: nasce «da fare» e qualcuno lo chiuderà.
+  Un momento già passato viene rifiutato, con l'invito a usare *Registra*.
+- **Registra** — qualcosa che è già avvenuto e che si sta solo annotando (una
+  telefonata appena fatta): nasce chiusa, con l'esito (*eseguita* o *fallita*)
+  e la nota obbligatoria di com'è andata.
+
+Prima la differenza la indovinava il sistema dalla data (`eGiaAvvenuto` in
+[`lib/agenda.ts`](lib/agenda.ts)): una telefonata registrata a fine giornata
+restava «da fare» se l'operatore la datava al giorno dopo per sbaglio, e un
+impegno fissato per stamattina alle 9 nasceva già chiuso. Ora lo dice chi
+scrive. La regola implicita sopravvive solo per i seguiti creati chiudendo una
+voce, dove non c'è un interruttore da mostrare.
+
+### Email e WhatsApp si registrano soltanto
+
+Un'email o un messaggio WhatsApp non è un impegno che si prende: lo si scrive
+e lo si manda, dura il tempo di scriverlo. Programmarlo per domani crea una
+voce «da fare» che nessuno chiuderà — l'email la si manda mentre si pensa di
+mandarla, e la voce resta aperta a fare rumore in agenda.
+
+Quindi `email` e `whatsapp` (`TIPI_SOLO_REGISTRATI`) non compaiono nella
+tendina quando si programma, e scegliendoli il modo passa a *Registra* e
+l'altro pulsante sparisce. Il vincolo è anche lato server, così vale per i
+seguiti programmati chiudendo una voce — dove il modo non è nemmeno
+dichiarato.
+
+### Nessun impegno automatico sopra un appuntamento
+
+Il trigger `impegno_per_richiesta_ripetuta` crea un promemoria in agenda
+quando una persona già seguita riscrive: `trova_o_crea_opportunita` riusa la
+trattativa aperta senza cambiare niente, e chi la segue non se ne accorgerebbe.
+
+Ma se quella richiesta prenota un appuntamento o una telefonata, in agenda ci
+finisce da sola (`voceDaContatto`): il promemoria era un secondo evento,
+datato oggi, per una cosa già in calendario alla settimana prossima — due
+righe per un solo fatto, e quella di troppo diceva anche la data sbagliata.
+
+Ora il trigger si ferma su quelle richieste e resta dov'è utile: sui
+«messaggio», che altrimenti non lascerebbero traccia nell'agenda di nessuno.
+Vedi `scripts/sql/2026-09-08-eventi-collegati.sql`.
+
+## Trattative ed eventi (Club e Family)
+
+**Abbonamento Club e Family** (`/dashboard/richieste/richieste-club`) è l'unico
+canale che passa dalla segreteria, e l'unico dove esiste una **trattativa**: la
+richiesta è un modulo compilato, la trattativa è la persona che si sta
+seguendo. La creazione la fa il database (`trova_o_crea_opportunita`, dal
+trigger su `form_contatti`), quindi tre richieste della stessa persona
+confluiscono in una trattativa sola — due commerciali non chiamano lo stesso
+socio e non ci sono due assegnazioni da tenere sincronizzate.
+
+Ogni riga dell'elenco mostra tre cose e apre tre pannelli indipendenti:
+
+- il blocco **Trattativa** sempre in vista: stato (`Da prendere in carico`,
+  `In gestione`, `Vinta`, `Persa`), chi la segue, e i comandi per prenderla in
+  carico, riassegnarla o cambiarne lo stato — chi la chiude come persa deve
+  scrivere il perché;
+- **Dettagli** — i dati del modulo, i recapiti cliccabili, l'esito;
+- **Gestione** — chiudere la richiesta con un esito (lo stesso pannello
+  dell'Agenda: eseguita, fallita, riprogrammata, annullata);
+- **Eventi** — il seguito della trattativa.
+
+### Il pannello Eventi
+
+Gli eventi sono voci di agenda (`task`) collegate alla richiesta da cui
+nascono: `entita = 'form_contatti'`, `entita_id` = id della richiesta. Prima
+vivevano solo in Agenda — si creavano chiudendo una richiesta con esito e poi
+si perdevano di vista: per sapere se il richiamo era stato fatto bisognava
+cercarlo in un calendario di tutti.
+
+Dal pannello si può:
+
+- **vedere** tutti gli eventi della trattativa, prima quelli da fare dal più
+  vicino, poi i chiusi dal più recente. Gli eventi sono quelli di **tutte** le
+  richieste di quella persona, non della sola riga aperta: la trattativa è
+  della persona, e spezzare il suo seguito fra tre righe vorrebbe dire non
+  trovare mai il richiamo fissato la volta prima. Un evento nato da un'altra
+  richiesta lo dice in riga, così non sembra fissato su questa;
+- **programmare** un evento nuovo senza chiudere la richiesta. Prima si poteva
+  solo chiudendo con esito: per aggiungere una seconda telefonata a una
+  trattativa aperta bisognava chiuderla e riaprirla;
+- **modificare** un evento già fissato — titolo, tipo, giorno, ora, durata,
+  assegnatario, note. È diverso da *Riprogrammata*, che sposta e basta
+  chiedendo il perché: qui si corregge una voce sbagliata, e pretendere una
+  nota riempirebbe lo storico di «corretto un errore di battitura». Stato ed
+  esito non si toccano — chiudere passa solo da «Chiudi con esito»;
+- **chiudere con esito** un evento, e **riaprirlo** se la chiusura era
+  sbagliata.
+
+Il conteggio sul pulsante «Eventi» sono quelli **da fare**, non il totale: a
+trattativa chiusa un «3» non chiederebbe niente a nessuno.
+
+Chiudendo un evento si può fissarne il seguito, e quel seguito eredita il
+collegamento dell'evento che lo genera: il seguito di un seguito appartiene
+sempre alla richiesta da cui è partito tutto, o sparirebbe da questo pannello.
+
+I comandi vivono in [`esito-actions.ts`](app/dashboard/agenda/esito-actions.ts)
+e non nelle azioni dell'Agenda perché l'autorizzazione è diversa: là serve la
+sezione `agenda`, qui basta `richieste-club` — chi lavora le trattative
+programma e corregge i propri seguiti anche senza avere l'Agenda.
+
 ## Voucher visita medica (partnership Chiron)
 
 Gli abbonamenti sopra i €1.000 includono la visita medico-sportiva. Il diritto
@@ -131,6 +300,72 @@ Tabella e bucket li crea il repository del sito, che è chi ci scrive:
 `scripts/sql/2026-09-08-candidature.sql` in **Sito-Ronchiverdi**. Qui non c'è
 una copia di quella migration — due copie divergono al primo ritocco.
 
+## Messaggi interni (con conferma di lettura e push)
+
+La sezione **Messaggi interni** (`/dashboard/notifiche`, permesso `notifiche`)
+è la comunicazione di servizio fra operatori del pannello: si scrive a uno o
+più colleghi, con un allegato facoltativo, e ognuno **conferma di aver letto**.
+
+Perché non basta il gruppo WhatsApp: qui resta la conferma con data e ora.
+«Gliel'ho detto» e «l'ha letto alle 9:14» sono due cose diverse, e la seconda è
+l'unica che serve quando una comunicazione di servizio non è stata eseguita.
+
+Come si comporta:
+
+- Chi riceve un messaggio lo trova **in evidenza su qualunque pagina apra** del
+  pannello, anche se era già collegato. L'avviso è **bloccante**: finché non
+  conferma la lettura non c'è modo di chiuderlo — è il punto della sezione, non
+  una svista di usabilità.
+- Il badge accanto alla voce di menu conta quanti restano da confermare. Il
+  conteggio si aggiorna da `/api/interno/notifiche/stato` ogni trenta secondi:
+  una rotta e non una Server Action, perché un'azione è un `POST` alla pagina
+  aperta e finirebbe nella coda del router davanti alle navigazioni.
+- In **Inviati** si vede se e quando ogni messaggio è stato letto.
+- Un messaggio a più persone è **una riga per destinatario** con lo stesso
+  `batch_id`: la conferma è di ciascuno, e chi legge vede a chi altro è andato.
+
+Una riga per destinatario e non per messaggio è la scelta che regge tutto il
+resto: con una riga sola servirebbe una tabella di appoggio per dire chi l'ha
+letto, cioè la stessa cosa scritta in due tabelle.
+
+Gli allegati (JPG, PNG, PDF, Word, Excel, fino a 5 MB) stanno nel bucket
+privato `notifiche-allegati` e si servono con **URL firmate di cinque minuti**,
+generate a ogni caricamento della pagina — come i curriculum.
+
+### Notifiche push
+
+«Attiva notifiche», in fondo al menu laterale, avvisa anche a pannello chiuso
+con una notifica del telefono o del computer. Va attivata **su ogni dispositivo**
+con cui si vogliono ricevere: la sottoscrizione è del browser, non della
+persona (una riga per `endpoint` in `push_subscriptions`), così telefono e
+computer convivono.
+
+Su iPhone e iPad funziona solo dall'app salvata sulla Home (Safari → Condividi
+→ Aggiungi a Home): da Safari normale il pulsante lo dice invece di fallire al
+primo tentativo.
+
+Servono due variabili d'ambiente, una coppia di chiavi VAPID:
+
+```bash
+node -e "console.log(require('web-push').generateVAPIDKeys())"
+```
+
+`NEXT_PUBLIC_VAPID_PUBLIC_KEY` (pubblica, la legge il browser per
+sottoscriversi) e `VAPID_PRIVATE_KEY` (segreta, solo lato server) — più
+`VAPID_SUBJECT`, il contatto tecnico che i servizi push usano per segnalare
+problemi. **La coppia non va rigenerata**: cambiarla invalida tutte le
+sottoscrizioni attive, e ognuno dovrebbe riaccendere le notifiche su ogni suo
+dispositivo.
+
+Senza queste chiavi la sezione funziona comunque — badge, avviso, elenco,
+conferma di lettura — solo non parte la notifica di sistema: le push sono un
+extra e il loro fallimento non fa mai fallire l'invio del messaggio.
+
+Il service worker è `public/sw.js`, minimo di proposito: solo le push, nessuna
+cache offline. Una copia in cache mostrerebbe richieste e appuntamenti vecchi.
+
+Tabelle, indici e bucket: `scripts/sql/2026-09-08-notifiche.sql`.
+
 ## Icona sulla Home
 
 Il pannello si usa dal telefono come app installata ("Aggiungi a Home"), quindi
@@ -169,6 +404,20 @@ Fatto anche: **Curriculum** — le candidature spontanee da *Lavora con noi* sul
 sito, con lettura dei testi liberi, stato della candidatura, nota interna e
 download del CV dal bucket privato. Il permesso `candidature` va assegnato da
 Gestione utenti: nessuno lo ha finché non glielo si dà.
+
+Fatto anche: **Messaggi interni** — comunicazioni fra operatori con conferma
+di lettura, avviso bloccante su qualunque pagina, allegati e notifiche push.
+Come per `candidature`, il permesso `notifiche` va assegnato da Gestione
+utenti: chi non l'ha non compare nemmeno fra i destinatari possibili.
+
+Fatto anche: **Eventi della trattativa** — nella riga di una richiesta Club e
+Family si vedono, si programmano, si modificano, si chiudono e si riaprono le
+voci di agenda che ne sono seguite, senza passare dall'Agenda.
+
+Fatto anche: **eventi sempre agganciati a un contatto**, con la distinzione fra
+*programma* (impegno futuro) e *registra* (già avvenuto, con esito), email e
+WhatsApp registrabili soltanto, e la dashboard che elenca le proprie trattative,
+quelle da prendere in carico e gli impegni del giorno gestibili sul posto.
 
 Da fare: Enquiries, Persone, Agenda con `/api/disponibilita` per gli slot che il
 sito offre nel form contatti, Visite al sito, pagina di Controllo operatori.

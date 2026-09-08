@@ -5,7 +5,10 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { logout } from '@/app/login/actions'
 import { SEZIONI, soloAccessoEsterno } from '@/lib/auth/sezioni'
+import { SEZIONE_NOTIFICHE } from '@/lib/notifiche'
 import { IconaMenu } from './IconeMenu'
+import { useNotifiche } from './NotificheProvider'
+import { PushToggleNavItem } from './PushToggleNavItem'
 
 type VoceMenu = {
   href: string
@@ -52,6 +55,9 @@ export function Sidebar({
 }) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
+  // Il conteggio arriva dallo stesso stato che alimenta l'avviso in evidenza,
+  // così confermare la lettura da là aggiorna subito anche il badge qui.
+  const { nonLette } = useNotifiche()
 
   // La Dashboard è visibile a chiunque sia autenticato e non fa parte delle
   // sezioni assegnabili per utente. Sta nel gruppo Core con le altre due voci
@@ -120,6 +126,11 @@ export function Sidebar({
                 >
                   <IconaMenu chiave={voce.chiave} />
                   {voce.label}
+                  {voce.chiave === SEZIONE_NOTIFICHE && nonLette > 0 && (
+                    <span className="nav-badge" aria-label={`${nonLette} da confermare`}>
+                      {nonLette}
+                    </span>
+                  )}
                 </Link>
               )
             )}
@@ -128,6 +139,10 @@ export function Sidebar({
       </nav>
 
       <div className="sidebar-footer">
+        {/* L'interruttore delle notifiche sta nel menu e non dentro la pagina
+            dei messaggi: va acceso una volta su ogni dispositivo, e in una
+            sezione che si apre di rado nessuno lo troverebbe. */}
+        {sezioniConsentite.includes(SEZIONE_NOTIFICHE) && <PushToggleNavItem />}
         <form action={logout}>
           <button type="submit" className="btn btn-ghost btn-block btn-sm">
             Esci

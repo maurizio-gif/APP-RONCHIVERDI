@@ -137,6 +137,9 @@ function RigaVoce({
 
         <td data-label="Chi">
           <span className="cella-chi-nome">{voce.titolo}</span>
+          {/* Per chi è: una voce della segreteria ha un titolo che dice cosa
+              fare («Richiamare per il preventivo»), non con chi. */}
+          {voce.persona && <span className="cella-chi-dettagli">{voce.persona}</span>}
           {recapiti && <span className="cella-chi-dettagli">{recapiti}</span>}
           {voce.attivita && <span className="cella-chi-dettagli">{voce.attivita}</span>}
           {/* L'oggetto scritto da chi ha prenotato: sapere di cosa si parlerà
@@ -167,6 +170,7 @@ function RigaVoce({
                 <Dato etichetta="Titolo" valore={voce.titolo} />
                 <Dato etichetta="Quando" valore={`${dataBreve(voce.data)} — ${orario ?? 'in giornata'}`} />
                 <Dato etichetta="Durata" valore={`${voce.durataMinuti} min`} />
+                <Dato etichetta="Contatto" valore={voce.persona} />
                 <Dato etichetta="Email" valore={voce.email} />
                 <Dato etichetta="Cellulare" valore={voce.cellulare} />
                 <Dato etichetta="Attività" valore={voce.attivita} />
