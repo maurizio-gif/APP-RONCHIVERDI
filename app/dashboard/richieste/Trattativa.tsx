@@ -57,6 +57,10 @@ export function Trattativa({
 
   return (
     <div className="trattativa">
+      {/* Il badge da solo ("In gestione") non dice di cosa: la riga è una
+          richiesta, questo blocco è l'opportunità della persona, che vale per
+          tutte le sue richieste. */}
+      <span className="trattativa-etichetta">Trattativa</span>
       <span className={`badge ${CLASSE_STATO[t.stato]}`}>{ETICHETTE_STATO[t.stato]}</span>
 
       <span className="trattativa-chi muted">

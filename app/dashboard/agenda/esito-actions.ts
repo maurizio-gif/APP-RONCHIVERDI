@@ -6,15 +6,21 @@ import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { puoCancellare } from '@/lib/auth/permessi'
 import { registraLog } from '@/lib/audit'
 import {
-  DURATA_PREDEFINITA,
   eAppuntamentoVero,
   eEsitoValido,
-  eGiaAvvenuto,
   eTipoValido,
   normalizzaOra,
   type Esito as EsitoLavorazione,
   type TipoVoce,
 } from '@/lib/agenda'
+import {
+  campiEvento,
+  eDataValida,
+  eEntitaValida,
+  rigaEvento,
+  type CollegamentoEvento,
+  type EventoDaProgrammare,
+} from '@/lib/eventi'
 import type { Esito } from './actions'
 
 // Chiudere una voce dicendo com'è andata, e nello stesso gesto fissare quello
@@ -22,17 +28,10 @@ import type { Esito } from './actions'
 // segreteria (task) e le richieste arrivate dal sito (form_contatti) — perché
 // per chi lavora sono la stessa cosa: qualcosa da chiudere con un esito.
 
-/** Un evento da fissare contestualmente alla chiusura. */
-export type EventoDaProgrammare = {
-  titolo: string
-  tipo: string
-  data: string
-  /** Solo per gli appuntamenti veri; per gli altri tipi viene ignorata. */
-  ora?: string | null
-  durataMinuti?: number | null
-  assegnatoA?: string | null
-  note?: string | null
-}
+// EventoDaProgrammare e le regole di normalizzazione stanno in lib/eventi.ts:
+// le usa anche la creazione a mano in agenda (creaVoce), che prima ne aveva
+// una copia propria.
+export type { EventoDaProgrammare } from '@/lib/eventi'
 
 export type OrigineVoce = 'task' | 'form_contatti'
 
@@ -45,10 +44,6 @@ async function autorizzato(): Promise<boolean> {
   return agenda || club
 }
 
-function eDataValida(s: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(s)
-}
-
 // Le pagine che mostrano queste voci: dopo una chiusura vanno tutte rilette,
 // altrimenti l'agenda continua a mostrare come da fare qualcosa che nelle
 // richieste risulta chiusa.
@@ -56,55 +51,6 @@ function rinfresca(): void {
   revalidatePath('/dashboard/agenda')
   revalidatePath('/dashboard/richieste/richieste-club')
   revalidatePath('/dashboard')
-}
-
-/**
- * Normalizza un evento da programmare, applicando le stesse regole della
- * creazione a mano: l'ora solo agli appuntamenti, la durata dal tipo quando
- * non è indicata. Ritorna la riga da inserire, oppure un messaggio d'errore.
- */
-function rigaEvento(
-  evento: EventoDaProgrammare,
-  email: string | null,
-  collegamento: { entita: string | null; entitaId: string | null }
-): { riga: Record<string, unknown> } | { errore: string } {
-  const titolo = (evento.titolo ?? '').trim()
-  if (!titolo) return { errore: 'Ogni evento programmato ha bisogno di un titolo.' }
-  if (!eDataValida(evento.data ?? '')) return { errore: `Data non valida per «${titolo}».` }
-  if (!eTipoValido(evento.tipo)) return { errore: `Tipo non valido per «${titolo}».` }
-
-  const tipo: TipoVoce = evento.tipo
-  const oraGrezza = eAppuntamentoVero(tipo) ? (evento.ora ?? '') : ''
-  const ora = oraGrezza ? normalizzaOra(oraGrezza) : null
-  if (oraGrezza && !ora) return { errore: `Ora non valida per «${titolo}» (formato HH:MM).` }
-
-  const durata = Number(evento.durataMinuti)
-  const durataMinuti =
-    Number.isFinite(durata) && durata > 0 && durata <= 480
-      ? Math.round(durata)
-      : DURATA_PREDEFINITA[tipo]
-
-  // Un evento fissato nel passato è già avvenuto: la stessa regola della
-  // creazione a mano, altrimenti nascerebbe "da fare" e non lo chiuderebbe mai
-  // nessuno.
-  const giaAvvenuto = eGiaAvvenuto(evento.data, ora)
-
-  return {
-    riga: {
-      titolo,
-      tipo,
-      data: evento.data,
-      ora,
-      durata_minuti: durataMinuti,
-      note: (evento.note ?? '').trim() || null,
-      assegnato_a: (evento.assegnatoA ?? '').trim() || email,
-      creato_da: email,
-      stato: giaAvvenuto ? 'completato' : 'aperto',
-      completato_il: giaAvvenuto ? new Date().toISOString() : null,
-      entita: collegamento.entita,
-      entita_id: collegamento.entitaId,
-    },
-  }
 }
 
 /**
@@ -135,10 +81,25 @@ export async function chiudiConEsito(input: {
   // meglio non aver chiuso niente che ritrovarsi la voce chiusa e i suoi
   // seguiti mai creati — senza transazioni, l'unica difesa è l'ordine.
   const eventi = input.eventi ?? []
-  const collegamento =
-    input.origine === 'form_contatti'
-      ? { entita: 'form_contatti', entitaId: input.id }
-      : { entita: 'task', entitaId: input.id }
+
+  // A cosa si agganciano gli eventi che nascono da questa chiusura.
+  //
+  // Chiudendo una richiesta è la richiesta stessa. Chiudendo un evento, si
+  // eredita il collegamento di quell'evento: il seguito di un seguito
+  // appartiene sempre alla richiesta da cui è partito tutto, e legarlo
+  // all'evento intermedio lo farebbe sparire dal pannello Eventi della
+  // trattativa — che cerca gli eventi della richiesta, non le catene.
+  let collegamento: CollegamentoEvento = { entita: input.origine, id: input.id }
+  if (input.origine === 'task' && eventi.length > 0) {
+    const { data: padre } = await supabase
+      .from('task')
+      .select('entita, entita_id')
+      .eq('id', input.id)
+      .maybeSingle()
+    if (eEntitaValida(padre?.entita) && padre?.entita_id) {
+      collegamento = { entita: padre.entita, id: padre.entita_id as string }
+    }
+  }
 
   const righe: Record<string, unknown>[] = []
   for (const evento of eventi) {
@@ -323,6 +284,127 @@ export async function rimuoviVoce(input: {
     console.error('Rimozione non riuscita:', error.message)
     return { ok: false, errore: 'Non siamo riusciti a rimuovere la voce. Riprova.' }
   }
+
+  rinfresca()
+  return { ok: true }
+}
+
+/**
+ * Crea un evento agganciato a una richiesta o a un contatto, senza chiudere
+ * niente.
+ *
+ * Prima si poteva solo chiudendo con esito: per aggiungere una seconda
+ * telefonata a una trattativa aperta bisognava chiuderla e riaprirla, oppure
+ * andare in Agenda — dove però il collegamento non si poteva creare, e
+ * l'evento nasceva orfano.
+ *
+ * Il collegamento è obbligatorio, ed è il parametro stesso a imporlo: un
+ * evento senza contatto non compare nella scheda di nessuno, e in agenda è un
+ * titolo senza il perché.
+ *
+ * Autorizzazione come per la chiusura: chi lavora Club e Family programma e
+ * registra i propri eventi anche senza avere la sezione Agenda.
+ */
+export async function programmaEvento(input: {
+  collegamento: CollegamentoEvento
+  evento: EventoDaProgrammare
+}): Promise<Esito> {
+  if (!(await autorizzato())) return { ok: false, errore: 'Non hai accesso a questa sezione.' }
+
+  if (!eEntitaValida(input.collegamento?.entita) || !input.collegamento?.id) {
+    return { ok: false, errore: 'Scegli il contatto a cui agganciare l’evento.' }
+  }
+
+  const email = emailCorrente()
+  const esitoRiga = rigaEvento(input.evento, email, input.collegamento)
+  if ('errore' in esitoRiga) return { ok: false, errore: esitoRiga.errore }
+
+  const supabase = createSupabaseServiceClient()
+  const { error } = await supabase.from('task').insert(esitoRiga.riga)
+  if (error) {
+    console.error('Evento non creato:', error.message)
+    return { ok: false, errore: 'Non siamo riusciti a salvare l’evento. Riprova.' }
+  }
+
+  await registraLog(
+    email,
+    input.evento.modo === 'registra' ? 'evento_registrato' : 'evento_programmato',
+    {
+      entita: input.collegamento.entita,
+      entitaId: input.collegamento.id,
+      dettagli: { titolo: esitoRiga.riga.titolo, data: esitoRiga.riga.data },
+    }
+  )
+
+  rinfresca()
+  return { ok: true }
+}
+
+/**
+ * Modifica un evento già fissato: titolo, tipo, giorno, ora, durata,
+ * assegnatario e note.
+ *
+ * Distinta da riprogrammaVoce, che sposta e basta chiedendo il perché: qui si
+ * corregge una voce sbagliata (tipo errato, titolo poco chiaro, persona
+ * sbagliata), e chiedere una nota per una correzione riempirebbe lo storico
+ * di "corretto un errore di battitura".
+ *
+ * Stato ed esito non si toccano: chiudere passa solo da "Chiudi con esito",
+ * o esisterebbero due modi di chiudere la stessa voce, uno col perché e uno
+ * senza.
+ */
+export async function modificaEvento(input: {
+  id: string
+  evento: EventoDaProgrammare
+}): Promise<Esito> {
+  if (!(await autorizzato())) return { ok: false, errore: 'Non hai accesso a questa sezione.' }
+
+  const email = emailCorrente()
+  const esito = campiEvento(input.evento, email)
+  if ('errore' in esito) return { ok: false, errore: esito.errore }
+
+  const supabase = createSupabaseServiceClient()
+  const { error } = await supabase.from('task').update(esito.campi).eq('id', input.id)
+  if (error) {
+    console.error('Evento non modificato:', error.message)
+    return { ok: false, errore: 'Non siamo riusciti a salvare le modifiche. Riprova.' }
+  }
+
+  await registraLog(email, 'evento_modificato', {
+    entita: 'task',
+    entitaId: input.id,
+    dettagli: esito.campi,
+  })
+
+  rinfresca()
+  return { ok: true }
+}
+
+/**
+ * Riporta fra quelle da fare un evento già chiuso.
+ *
+ * Esiste già in Agenda (riapriVoce), ma là l'autorizzazione è la sezione
+ * Agenda: chi lavora Club e Family può chiudere un evento con esito e poi non
+ * potrebbe disfare la chiusura sbagliata che ha appena fatto.
+ *
+ * L'esito si azzera insieme allo stato: una voce riaperta che si portasse
+ * dietro il giudizio della lavorazione annullata direbbe il falso.
+ */
+export async function riapriEvento(id: string): Promise<Esito> {
+  if (!(await autorizzato())) return { ok: false, errore: 'Non hai accesso a questa sezione.' }
+
+  const supabase = createSupabaseServiceClient()
+  const { error } = await supabase
+    .from('task')
+    .update({ stato: 'aperto', completato_il: null, esito_tipo: null, esito: null })
+    .eq('id', id)
+
+  if (error) {
+    console.error('Evento non riaperto:', error.message)
+    return { ok: false, errore: 'Non siamo riusciti a riaprire l’evento. Riprova.' }
+  }
+
+  await registraLog(emailCorrente(), 'agenda_voce_riaperta', { entita: 'task', entitaId: id })
 
   rinfresca()
   return { ok: true }

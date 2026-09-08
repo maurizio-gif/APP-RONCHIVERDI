@@ -16,10 +16,11 @@ import {
   type VoceAgenda,
 } from '@/lib/agenda'
 import { ATTIVITA_IN_AGENDA } from '@/lib/richieste'
+import { nomePersona } from '@/lib/persone'
 import { CalendarioAgenda } from '@/components/CalendarioAgenda'
 import { TabellaAgenda } from '@/components/TabellaAgenda'
 import { VistaTabs } from '@/components/VistaTabs'
-import { NuovaVoce } from './NuovaVoce'
+import { NuovaVoce, type ContattoScegliibile } from './NuovaVoce'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,6 +31,15 @@ export const dynamic = 'force-dynamic'
  */
 const GIORNI_AVANTI = 90
 const GIORNI_INDIETRO = 180
+
+/**
+ * Quanti contatti si caricano per la tendina del form. Oggi l'anagrafica ne
+ * ha una manciata; il limite c'è perché il giorno in cui saranno diecimila
+ * questa pagina non deve scaricarli tutti a ogni apertura. Chi cerca un
+ * contatto fuori dall'elenco lo trova scrivendone il nome — e il form dice
+ * che l'elenco è parziale invece di far credere che manchi.
+ */
+const CONTATTI_NEL_FORM = 300
 
 export default async function AgendaPage({
   searchParams,
@@ -55,16 +65,19 @@ export default async function AgendaPage({
   const email = emailCorrente()
 
   const supabase = createSupabaseServiceClient()
-  const [{ data: task }, { data: contatti }, { data: staff }, possoCancellare] = await Promise.all([
+  const [{ data: task }, { data: contatti }, { data: staff }, possoCancellare, { data: persone }] =
+    await Promise.all([
     supabase
       .from('task')
-      .select('id, titolo, tipo, data, ora, durata_minuti, stato, note, assegnato_a, esito_tipo, esito')
+      .select(
+        'id, titolo, tipo, data, ora, durata_minuti, stato, note, assegnato_a, esito_tipo, esito, entita, entita_id'
+      )
       .gte('data', inizio)
       .lte('data', fine),
     supabase
       .from('form_contatti')
       .select(
-        'id, azione, data_scelta, ora_scelta, nome, cognome, email, cellulare, attivita_label, messaggio, gestito, esito_tipo, esito'
+        'id, azione, data_scelta, ora_scelta, nome, cognome, email, cellulare, attivita_label, messaggio, gestito, esito_tipo, esito, persona_id'
       )
       .gte('data_scelta', inizio)
       .lte('data_scelta', fine)
@@ -75,10 +88,50 @@ export default async function AgendaPage({
       .in('attivita', ATTIVITA_IN_AGENDA),
     supabase.from('staff_users').select('email').order('email'),
     puoCancellare(email),
+    // I contatti per la tendina del form: una voce d'agenda è sempre
+    // agganciata a qualcuno (vedi creaVoce). I più mossi per primi — chi si
+    // sta lavorando adesso è quasi sempre chi ha scritto di recente.
+    supabase
+      .from('persone')
+      .select('id, nome, cognome, email, cellulare')
+      .order('ultima_richiesta', { ascending: false, nullsFirst: false })
+      .limit(CONTATTI_NEL_FORM),
   ])
 
+  // I nomi dei contatti agganciati alle voci della segreteria: `task.entita_id`
+  // è un id, e senza il nome in elenco l'obbligo di agganciare una voce a
+  // qualcuno non servirebbe a niente — resterebbe un titolo senza il perché.
+  const idContattiDelleVoci = [
+    ...new Set(
+      (task ?? [])
+        .filter((t) => t.entita === 'persona' && t.entita_id)
+        .map((t) => t.entita_id as string)
+    ),
+  ]
+
+  const { data: contattiDelleVoci } = idContattiDelleVoci.length
+    ? await supabase
+        .from('persone')
+        .select('id, nome, cognome, email, cellulare')
+        .in('id', idContattiDelleVoci)
+    : { data: [] as Record<string, any>[] }
+
+  const perId = new Map(
+    (contattiDelleVoci ?? []).map((p) => [
+      p.id as string,
+      {
+        id: p.id as string,
+        nome: nomePersona(p),
+        email: (p.email as string) ?? null,
+        cellulare: (p.cellulare as string) ?? null,
+      },
+    ])
+  )
+
   let voci: VoceAgenda[] = [
-    ...(task ?? []).map(voceDaTask),
+    ...(task ?? []).map((riga) =>
+      voceDaTask(riga, riga.entita === 'persona' && riga.entita_id ? perId.get(riga.entita_id) : undefined)
+    ),
     ...(contatti ?? []).map(voceDaContatto).filter((v): v is VoceAgenda => v !== null),
   ]
 
@@ -93,6 +146,9 @@ export default async function AgendaPage({
 
   // Per il datalist del form: chi può essere assegnatario di una voce.
   const operatori = (staff ?? []).map((s) => s.email as string)
+
+  const contattiForm = (persone ?? []) as unknown as ContattoScegliibile[]
+  const contattiTroncati = contattiForm.length === CONTATTI_NEL_FORM
 
   // Nella lista il passato conta solo se è ancora aperto: gli arretrati vanno
   // recuperati, le cose già fatte no.
@@ -173,7 +229,12 @@ export default async function AgendaPage({
           linkMesePrecedente={link({ da: mesePiu(mese, -1) })}
           linkMeseSuccessivo={link({ da: mesePiu(mese, 1) })}
           linkOggi={link({ da: oggi })}
-          nuovaVoce={<NuovaVoce giornoPredefinito={oggi} operatori={operatori} />}
+          nuovaVoce={<NuovaVoce
+              giornoPredefinito={oggi}
+              operatori={operatori}
+              contatti={contattiForm}
+              contattiTroncati={contattiTroncati}
+            />}
         />
       ) : (
         <>
@@ -208,7 +269,12 @@ export default async function AgendaPage({
           {vociLista.length === 0 && <p className="vuoto">Niente in agenda con questi filtri.</p>}
 
           <div className="agenda-nuova">
-            <NuovaVoce giornoPredefinito={oggi} operatori={operatori} />
+            <NuovaVoce
+              giornoPredefinito={oggi}
+              operatori={operatori}
+              contatti={contattiForm}
+              contattiTroncati={contattiTroncati}
+            />
           </div>
         </>
       )}

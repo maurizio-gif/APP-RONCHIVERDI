@@ -69,6 +69,32 @@ export function eAppuntamentoVero(tipo: TipoVoce): boolean {
 }
 
 /**
+ * I tipi che si possono soltanto **registrare**, mai programmare.
+ *
+ * Un'email o un messaggio WhatsApp non è un impegno che si prende: lo si
+ * scrive e lo si manda: dura il tempo di scriverlo. Programmarlo per domani
+ * significa creare una voce «da fare» che nessuno chiuderà — l'email la si
+ * manda mentre si pensa di mandarla, e la voce resta aperta a fare rumore in
+ * agenda. Si annota dopo averla mandata, con com'è andata.
+ *
+ * Gli appuntamenti e le cose da fare restano programmabili: quelli sì sono
+ * impegni presi, che esistono prima di essere eseguiti.
+ */
+export const TIPI_SOLO_REGISTRATI = ['email', 'whatsapp'] as const
+
+export function eSoloRegistrato(tipo: TipoVoce): boolean {
+  return (TIPI_SOLO_REGISTRATI as readonly string[]).includes(tipo)
+}
+
+/** I tipi che si possono fissare per il futuro: tutti tranne email e WhatsApp. */
+export const TIPI_PROGRAMMABILI = TIPI.filter((t) => !eSoloRegistrato(t))
+
+export const OPZIONI_TIPO_PROGRAMMABILI = TIPI_PROGRAMMABILI.map((tipo) => ({
+  valore: tipo,
+  etichetta: ETICHETTE_TIPO[tipo],
+}))
+
+/**
  * Quanto occupa in agenda ciascun tipo quando non è indicato diversamente.
  * I 45 e i 20 minuti sono gli stessi passi con cui il form del sito offre gli
  * orari (DISPONIBILITA in src/lib/leadForm.client.js): vanno cambiati nei due
@@ -344,6 +370,17 @@ export type VoceAgenda = {
   cellulare: string | null
   /** L'attività richiesta sul sito ("Tennis", "Nuoto"…), quando c'è. */
   attivita: string | null
+  /**
+   * Il contatto a cui la voce è agganciata, per nome.
+   *
+   * Le voci della segreteria sono sempre agganciate a qualcuno (vedi
+   * lib/eventi.ts): senza mostrarlo in elenco, l'obbligo non servirebbe a
+   * niente — resterebbe un titolo senza il perché, come prima. Sulle
+   * richieste dal sito resta null: il titolo è già il nome di chi ha scritto.
+   */
+  persona: string | null
+  /** L'id del contatto, per il link alla sua scheda. */
+  personaId: string | null
   /** Com'è andata, se è già stata chiusa con un esito. */
   esitoTipo: Esito | null
   /** La nota scritta chiudendo la voce. */
@@ -352,7 +389,14 @@ export type VoceAgenda = {
 
 type Riga = Record<string, any>
 
-export function voceDaTask(riga: Riga): VoceAgenda {
+/**
+ * @param contatto Il contatto agganciato alla voce, quando la pagina l'ha
+ * caricato: `task.entita_id` è un id, e il nome sta in un'altra tabella.
+ */
+export function voceDaTask(
+  riga: Riga,
+  contatto?: { id: string; nome: string | null; email: string | null; cellulare: string | null }
+): VoceAgenda {
   const stato: Stato = eStatoValido(riga.stato) ? riga.stato : 'aperto'
   const tipo: TipoVoce = eTipoValido(riga.tipo) ? riga.tipo : 'task'
   return {
@@ -369,10 +413,17 @@ export function voceDaTask(riga: Riga): VoceAgenda {
     assegnatoA: riga.assegnato_a ?? null,
     stato,
     daFare: stato === 'aperto',
-    ricerca: [riga.titolo, riga.note].filter(Boolean).join(' ').toLowerCase(),
-    email: null,
-    cellulare: null,
+    // Il nome del contatto entra nella ricerca: chi cerca "Rossi" in agenda
+    // cerca le cose di Rossi, non le righe che hanno "Rossi" nel titolo.
+    ricerca: [riga.titolo, riga.note, contatto?.nome, contatto?.email, contatto?.cellulare]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase(),
+    email: contatto?.email ?? null,
+    cellulare: contatto?.cellulare ?? null,
     attivita: null,
+    persona: contatto?.nome ?? null,
+    personaId: contatto?.id ?? null,
     esitoTipo: eEsitoValido(riga.esito_tipo) ? riga.esito_tipo : null,
     esito: riga.esito ?? null,
   }
@@ -427,6 +478,10 @@ export function voceDaContatto(riga: Riga): VoceAgenda | null {
     email: riga.email ?? null,
     cellulare: riga.cellulare ?? null,
     attivita: riga.attivita_label ?? null,
+    // Il titolo è già il nome di chi ha scritto: ripeterlo sotto lo farebbe
+    // comparire due volte nella stessa riga.
+    persona: null,
+    personaId: riga.persona_id ?? null,
     esitoTipo: eEsitoValido(riga.esito_tipo) ? riga.esito_tipo : null,
     esito: riga.esito ?? null,
   }

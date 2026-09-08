@@ -25,6 +25,9 @@ export const AZIONI_LOG: Record<string, string> = {
   // già registrate restano, e senza etichetta mostrerebbero la chiave grezza.
   agenda_voce_completata: 'Agenda: voce segnata fatta',
   agenda_voce_riaperta: 'Agenda: voce riaperta',
+  evento_programmato: 'Evento programmato',
+  evento_registrato: 'Evento registrato (già avvenuto)',
+  evento_modificato: 'Evento modificato',
   agenda_voce_annullata: 'Agenda: voce annullata',
   agenda_voce_eliminata: 'Agenda: voce eliminata',
   esito_eseguita: 'Chiusa con esito: eseguita',
@@ -53,6 +56,8 @@ export const AZIONI_LOG: Record<string, string> = {
   // partner, quindi si vede chi ha bruciato cosa come per ogni altra azione.
   voucher_utilizzato: 'Voucher utilizzato (validazione)',
   voucher_uso_rifiutato: 'Voucher: utilizzo rifiutato',
+  notifica_inviata: 'Messaggio interno inviato',
+  notifica_letta: 'Messaggio interno: lettura confermata',
   timbratura_corretta: 'Timbratura corretta a mano',
   timbratura_eliminata: 'Timbratura eliminata',
 }

@@ -5,14 +5,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { puoCancellare } from '@/lib/auth/permessi'
 import { registraLog } from '@/lib/audit'
-import {
-  DURATA_PREDEFINITA,
-  eAppuntamentoVero,
-  eGiaAvvenuto,
-  eTipoValido,
-  normalizzaOra,
-  type TipoVoce,
-} from '@/lib/agenda'
+import { rigaEvento, type EventoDaProgrammare, type ModoEvento } from '@/lib/eventi'
 
 // Risultato come valore di ritorno, non un throw: in produzione Next.js
 // oscura il messaggio di un errore lanciato da una Server Action.
@@ -22,74 +15,80 @@ async function autorizzato(): Promise<boolean> {
   return utenteHaSezione('agenda')
 }
 
-function eDataValida(s: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(s)
-}
-
+/**
+ * Crea a mano una voce d'agenda.
+ *
+ * Due cose la governano, e nessuna delle due era vera prima:
+ *
+ *  - **il contatto è obbligatorio**. Una voce senza contatto non compariva
+ *    nella scheda di nessuno e in agenda era un titolo senza il perché: si
+ *    ritrovava solo per caso, scorrendo il giorno giusto.
+ *  - **programma o registra**, dichiarato. Prima lo indovinava la data (vedi
+ *    eGiaAvvenuto): una telefonata appena fatta e annotata per domani restava
+ *    «da fare», e un impegno fissato per stamattina nasceva già chiuso.
+ *
+ * Le regole sui campi (l'ora ai soli appuntamenti, la durata dal tipo,
+ * l'assegnatario a chi scrive) stanno in lib/eventi.ts, le stesse che valgono
+ * per i seguiti programmati chiudendo una voce.
+ */
 export async function creaVoce(formData: FormData): Promise<Esito> {
   if (!(await autorizzato())) return { ok: false, errore: 'Non hai accesso all’agenda.' }
 
-  const titolo = String(formData.get('titolo') ?? '').trim()
-  const tipoGrezzo = String(formData.get('tipo') ?? 'task')
-  const data = String(formData.get('data') ?? '').trim()
-  const oraGrezza = String(formData.get('ora') ?? '').trim()
-  const note = String(formData.get('note') ?? '').trim()
-  const assegnatoA = String(formData.get('assegnato_a') ?? '').trim()
-  const durataGrezza = String(formData.get('durata_minuti') ?? '').trim()
+  const personaId = String(formData.get('persona_id') ?? '').trim()
+  if (!personaId) {
+    return { ok: false, errore: 'Scegli il contatto a cui agganciare la voce.' }
+  }
 
-  if (!titolo) return { ok: false, errore: 'Il titolo è obbligatorio.' }
-  if (!eDataValida(data)) return { ok: false, errore: 'La data non è valida.' }
-  if (!eTipoValido(tipoGrezzo)) return { ok: false, errore: 'Tipo non valido.' }
+  const modoGrezzo = String(formData.get('modo') ?? 'programma')
+  const modo: ModoEvento = modoGrezzo === 'registra' ? 'registra' : 'programma'
 
-  const tipo: TipoVoce = tipoGrezzo
-
-  // L'ora la hanno solo gli appuntamenti veri: quelli sì sono un impegno preso
-  // con qualcuno a un'ora precisa, e sono gli unici che togliono uno slot al
-  // sito. Un'email o una cosa da fare valgono per la giornata, e dargli un'ora
-  // significherebbe occupare una fascia che invece resta prenotabile. Il
-  // vincolo sta qui e non solo nel form, così vale anche per le voci create
-  // dalla chiusura di un esito.
-  const oraRichiesta = eAppuntamentoVero(tipo) ? oraGrezza : ''
-  const ora = oraRichiesta ? normalizzaOra(oraRichiesta) : null
-  if (oraRichiesta && !ora) return { ok: false, errore: 'L’ora non è valida (formato HH:MM).' }
-
-  const durata = Number(durataGrezza)
-  const durataMinuti =
-    Number.isFinite(durata) && durata > 0 && durata <= 480 ? Math.round(durata) : DURATA_PREDEFINITA[tipo]
-
-  // Una voce già passata si segna da sé come fatta: vedi eGiaAvvenuto.
-  const giaAvvenuto = eGiaAvvenuto(data, ora)
+  const evento: EventoDaProgrammare = {
+    titolo: String(formData.get('titolo') ?? ''),
+    tipo: String(formData.get('tipo') ?? 'task'),
+    data: String(formData.get('data') ?? '').trim(),
+    ora: String(formData.get('ora') ?? '').trim(),
+    durataMinuti: Number(String(formData.get('durata_minuti') ?? '')) || null,
+    assegnatoA: String(formData.get('assegnato_a') ?? ''),
+    note: String(formData.get('note') ?? ''),
+    modo,
+    esito: String(formData.get('esito') ?? '') || null,
+    notaEsito: String(formData.get('nota_esito') ?? '') || null,
+  }
 
   const email = emailCorrente()
+  const esitoRiga = rigaEvento(evento, email, { entita: 'persona', id: personaId })
+  if ('errore' in esitoRiga) return { ok: false, errore: esitoRiga.errore }
+
+  // Il contatto deve esistere: un id inventato creerebbe una voce agganciata
+  // al nulla, che è il problema da cui siamo partiti.
   const supabase = createSupabaseServiceClient()
-  const { error } = await supabase.from('task').insert({
-    titolo,
-    tipo,
-    data,
-    ora,
-    durata_minuti: durataMinuti,
-    note: note || null,
-    // Chi non indica un assegnatario se la prende in carico: un'agenda con
-    // voci di nessuno non si lavora.
-    assegnato_a: assegnatoA || email,
-    creato_da: email,
-    stato: giaAvvenuto ? 'completato' : 'aperto',
-    completato_il: giaAvvenuto ? new Date().toISOString() : null,
-    entita: String(formData.get('entita') ?? '').trim() || null,
-    entita_id: String(formData.get('entita_id') ?? '').trim() || null,
-  })
+  const { data: persona } = await supabase
+    .from('persone')
+    .select('id')
+    .eq('id', personaId)
+    .maybeSingle()
+  if (!persona) return { ok: false, errore: 'Contatto non trovato: riscegli dall’elenco.' }
+
+  const { error } = await supabase.from('task').insert(esitoRiga.riga)
 
   if (error) {
     console.error('Voce di agenda non creata:', error.message)
     return { ok: false, errore: 'Non siamo riusciti a salvare la voce. Riprova.' }
   }
 
-  await registraLog(email, 'agenda_voce_creata', {
-    entita: 'task',
-    dettagli: { titolo, tipo, data, ora, durata_minuti: durataMinuti },
+  await registraLog(email, modo === 'registra' ? 'evento_registrato' : 'agenda_voce_creata', {
+    entita: 'persona',
+    entitaId: personaId,
+    dettagli: {
+      titolo: esitoRiga.riga.titolo,
+      tipo: esitoRiga.riga.tipo,
+      data: esitoRiga.riga.data,
+      ora: esitoRiga.riga.ora,
+    },
   })
 
   revalidatePath('/dashboard/agenda')
+  revalidatePath('/dashboard/richieste/richieste-club')
   return { ok: true }
 }
 

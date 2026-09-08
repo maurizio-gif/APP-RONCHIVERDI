@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useId, useState, useTransition } from 'react'
 import {
   DURATA_PREDEFINITA,
   OPZIONI_TIPO,
+  OPZIONI_TIPO_PROGRAMMABILI,
   eAppuntamentoVero,
   eTipoValido,
   oggiRoma,
@@ -318,12 +319,6 @@ function RigaProgrammazione({
   onCambia: (campi: Partial<RigaEvento>) => void
   onRimuovi: () => void
 }) {
-  const tipo: TipoVoce = eTipoValido(riga.tipo) ? riga.tipo : 'task'
-  // Solo gli appuntamenti hanno un'ora: gli altri tipi sono impegni della
-  // giornata, e dargli un'orario occuperebbe una fascia che il sito può
-  // ancora offrire a chi prenota.
-  const conOrario = eAppuntamentoVero(tipo)
-
   return (
     <div className="esito-evento">
       <div className="esito-evento-testa">
@@ -333,6 +328,45 @@ function RigaProgrammazione({
         </button>
       </div>
 
+      <CampiEvento riga={riga} operatori={operatori} onCambia={onCambia} />
+    </div>
+  )
+}
+
+/**
+ * I campi di un evento, senza contorno: gli stessi qui, dove si programma un
+ * seguito chiudendo una voce, e nel pannello Eventi di una richiesta Club e
+ * Family, dove si modifica un evento già fissato. Due copie avrebbero preso
+ * strade diverse alla prima aggiunta di un campo.
+ */
+export function CampiEvento({
+  riga,
+  operatori,
+  onCambia,
+  soloProgrammabili = true,
+}: {
+  riga: EventoDaProgrammare
+  operatori: string[]
+  onCambia: (campi: Partial<EventoDaProgrammare>) => void
+  /**
+   * Se la tendina dei tipi deve escludere email e WhatsApp, che non si
+   * programmano (vedi TIPI_SOLO_REGISTRATI). Vero per il programmatore dei
+   * seguiti, che guarda solo avanti; falso quando si sta registrando qualcosa
+   * di già fatto.
+   */
+  soloProgrammabili?: boolean
+}) {
+  // Un id per istanza: più datalist con lo stesso id sono documento invalido,
+  // e il browser non garantisce a quale si agganci l'input.
+  const idOperatori = useId()
+  const tipo: TipoVoce = eTipoValido(riga.tipo) ? riga.tipo : 'task'
+  // Solo gli appuntamenti hanno un'ora: gli altri tipi sono impegni della
+  // giornata, e dargli un'orario occuperebbe una fascia che il sito può
+  // ancora offrire a chi prenota.
+  const conOrario = eAppuntamentoVero(tipo)
+
+  return (
+    <>
       <div className="form-row">
         <div className="field" style={{ flexBasis: '100%' }}>
           <label>Titolo</label>
@@ -356,7 +390,7 @@ function RigaProgrammazione({
               onCambia({ tipo: e.target.value, ora: '', durataMinuti: null })
             }
           >
-            {OPZIONI_TIPO.map((o) => (
+            {(soloProgrammabili ? OPZIONI_TIPO_PROGRAMMABILI : OPZIONI_TIPO).map((o) => (
               <option key={o.valore} value={o.valore}>
                 {o.etichetta}
               </option>
@@ -402,18 +436,28 @@ function RigaProgrammazione({
           <label>Assegnato a</label>
           <input
             type="text"
-            list="elenco-operatori-esito"
+            list={idOperatori}
             value={riga.assegnatoA ?? ''}
             onChange={(e) => onCambia({ assegnatoA: e.target.value })}
             placeholder="lascia vuoto per te"
           />
-          <datalist id="elenco-operatori-esito">
+          <datalist id={idOperatori}>
             {operatori.map((o) => (
               <option key={o} value={o} />
             ))}
           </datalist>
         </div>
+
+        <div className="field" style={{ flexBasis: '100%' }}>
+          <label>Note</label>
+          <input
+            type="text"
+            value={riga.note ?? ''}
+            onChange={(e) => onCambia({ note: e.target.value })}
+            placeholder="Facoltative: cosa ricordarsi prima di chiamare"
+          />
+        </div>
       </div>
-    </div>
+    </>
   )
 }

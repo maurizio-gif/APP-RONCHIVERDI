@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { ETICHETTE_ESITO, eEsitoValido, tipoDaAzione } from '@/lib/agenda'
 import { GestioneEsito } from '@/components/GestioneEsito'
 import { riapriRichiesta } from './actions'
+import { EventiTrattativa, type EventoCollegato } from './EventiTrattativa'
 import { Trattativa, type DatiTrattativa } from './Trattativa'
 
 export type Richiesta = {
@@ -87,6 +88,7 @@ export function RigaRichiesta({
   operatori = [],
   puoCancellare = false,
   storico,
+  eventi = [],
 }: {
   r: Richiesta
   contesto?: ContestoTrattativa
@@ -95,9 +97,16 @@ export function RigaRichiesta({
   puoCancellare?: boolean
   /** Che numero è questa richiesta nella storia della persona. */
   storico?: { ordinale: number; totale: number; precedenteIl: string | null }
+  /**
+   * Gli eventi di agenda nati da questa trattativa. Vuoto dove le trattative
+   * non esistono: negli altri canali il responsabile chiama e chiude, non c'è
+   * un seguito da programmare.
+   */
+  eventi?: EventoCollegato[]
 }) {
   const [aperta, setAperta] = useState(false)
   const [gestioneAperta, setGestioneAperta] = useState(false)
+  const [eventiAperti, setEventiAperti] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
   const [inCorso, startTransition] = useTransition()
 
@@ -113,6 +122,9 @@ export function RigaRichiesta({
   const ripetuta = !!storico && storico.ordinale > 1
   const trattativa = r.opportunita_id ? contesto?.trattative[r.opportunita_id] : undefined
   const giaSeguitaDa = trattativa?.stato === 'in_gestione' ? trattativa.assegnato_a : null
+  // Il pannello esiste solo dove esistono le trattative: è il loro seguito.
+  const conEventi = !!trattativa
+  const eventiDaFare = eventi.filter((e) => e.daFare).length
 
   function esegui(azione: () => Promise<{ ok: true } | { ok: false; errore: string }>) {
     setErrore(null)
@@ -125,7 +137,7 @@ export function RigaRichiesta({
   return (
     <li
       className={`richiesta${r.gestito ? ' is-gestita' : ''}${
-        aperta || gestioneAperta ? ' is-aperta' : ''
+        aperta || gestioneAperta || eventiAperti ? ' is-aperta' : ''
       }`}
     >
       {/* Tutta la testa apre e chiude: è il bersaglio che si colpisce
@@ -209,6 +221,28 @@ export function RigaRichiesta({
               ▾
             </span>
           </button>
+
+          {/* Il seguito della trattativa: quante cose restano da fare si vede
+              dal pulsante, senza aprirlo. Un conteggio muto («3») direbbe
+              quanti eventi ci sono in tutto, che a trattativa chiusa è un
+              numero che non chiede niente a nessuno. */}
+          {conEventi && (
+            <button
+              type="button"
+              className={`btn btn-sm richiesta-espandi${eventiAperti ? '' : ' btn-ghost'}`}
+              aria-expanded={eventiAperti}
+              onClick={(e) => {
+                e.stopPropagation()
+                setEventiAperti((v) => !v)
+              }}
+            >
+              Eventi
+              {eventiDaFare > 0 && <span className="richiesta-conteggio">{eventiDaFare}</span>}
+              <span className="richiesta-caret" aria-hidden="true">
+                ▾
+              </span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -389,6 +423,22 @@ export function RigaRichiesta({
             conOrario={!!tipoDaAzione(r.azione)}
             dataCorrente={r.data_scelta}
             oraCorrente={r.ora_scelta ? String(r.ora_scelta).slice(0, 5) : null}
+          />
+        </div>
+      )}
+
+      {/* Gli eventi hanno un'espansione loro, accanto a dettagli e gestione:
+          seguire una trattativa e chiudere una richiesta sono due lavori
+          diversi, e mettere gli eventi dentro la gestione avrebbe voluto dire
+          aprire il pannello di chiusura per controllare un richiamo. */}
+      {conEventi && eventiAperti && (
+        <div className="richiesta-dettagli">
+          <EventiTrattativa
+            eventi={eventi}
+            richiestaId={r.id}
+            titoloSuggerito={nome}
+            operatori={operatori}
+            puoCancellare={puoCancellare}
           />
         </div>
       )}
