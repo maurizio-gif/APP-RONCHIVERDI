@@ -46,6 +46,17 @@ const DEFINIZIONI = [
     href: '/dashboard/voucher',
     gruppo: 'Segreteria',
   },
+  // Le candidature spontanee raccolte da /lavora-con-noi sul sito: si leggono
+  // e si scarica il curriculum. Sta in Segreteria e non fra le richieste dal
+  // sito perché chi si candida non è un lead — non entra in anagrafica, non
+  // apre una trattativa — e chi lavora le richieste non deve trovarsi i
+  // curriculum in mezzo ai contatti dei soci.
+  {
+    chiave: 'candidature',
+    label: 'Curriculum',
+    href: '/dashboard/curriculum',
+    gruppo: 'Segreteria',
+  },
   {
     chiave: 'richieste-tennis-scuola',
     label: 'Young School Tennis — Scuola',

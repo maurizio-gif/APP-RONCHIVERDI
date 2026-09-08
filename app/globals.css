@@ -2063,3 +2063,128 @@ table.tabella tbody tr:hover {
 	font-family: inherit;
 	font-size: var(--text-2xs);
 }
+
+/* ─────────────────────────────────────────────────── Curriculum (candidature) */
+
+/* Una candidatura è una scheda e non una riga di tabella: i due testi liberi
+   sono il contenuto vero, e in una cella diventerebbero illeggibili. Chiusa
+   mostra chi è e come si raggiunge, aperta si legge tutta. */
+.cand-elenco {
+	display: grid;
+	gap: 0.75rem;
+	margin-top: 1.25rem;
+}
+
+.cand-testa {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+/* Il blocco di sinistra è cliccabile per intero: apre e chiude la scheda. */
+.cand-apri {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+	padding: 0;
+	background: none;
+	border: 0;
+	text-align: left;
+	cursor: pointer;
+	color: inherit;
+	font: inherit;
+}
+
+.cand-nome {
+	font-size: var(--text-md);
+	font-weight: 500;
+	color: var(--text);
+}
+
+.cand-dettagli {
+	font-size: var(--text-2xs);
+	color: var(--text-muted);
+}
+
+.cand-apri:hover .cand-nome {
+	color: var(--accent);
+}
+
+.cand-meta {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 0.35rem;
+	flex: none;
+}
+
+.cand-data {
+	font-size: var(--text-2xs);
+	color: var(--text-muted);
+	white-space: nowrap;
+}
+
+.cand-azioni {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.4rem;
+	margin-top: 0.9rem;
+}
+
+.cand-storia {
+	margin: 0.6rem 0 0;
+	font-size: var(--text-2xs);
+	color: var(--text-muted);
+}
+
+.cand-corpo {
+	margin-top: 1rem;
+	padding-top: 1rem;
+	border-top: 1px solid var(--border);
+	display: grid;
+	gap: 1.25rem;
+}
+
+.cand-corpo h3 {
+	margin: 0 0 0.4rem;
+	font-size: var(--text-2xs);
+	font-weight: 600;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--accent);
+}
+
+/* white-space: pre-wrap perché chi scrive di sé va a capo, e senza questo i
+   paragrafi diventerebbero un blocco unico. */
+.cand-testo {
+	margin: 0;
+	white-space: pre-wrap;
+	font-size: var(--text-sm);
+	line-height: 1.7;
+	color: var(--text);
+}
+
+.cand-nota {
+	width: 100%;
+	padding: 0.6rem 0.7rem;
+	background: var(--surface);
+	border: 1px solid var(--border-strong);
+	border-radius: 8px;
+	color: var(--text);
+	font-family: inherit;
+	font-size: var(--text-sm);
+	line-height: 1.6;
+	resize: vertical;
+}
+
+@media (max-width: 640px) {
+	.cand-testa {
+		flex-direction: column;
+	}
+	.cand-meta {
+		flex-direction: row;
+		align-items: center;
+	}
+}

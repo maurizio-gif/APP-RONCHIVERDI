@@ -111,6 +111,25 @@ La tabella (`scripts/sql/2026-09-05-voucher.sql`) non parla di medicina: la
 colonna `tipo` distingue il benefit, così lo stesso motore serve il prossimo
 — merchandising, ingressi omaggio — senza una tabella nuova.
 
+## Curriculum (candidature dal sito)
+
+La sezione **Curriculum** (`/dashboard/curriculum`, permesso `candidature`)
+mostra le candidature spontanee che arrivano da *Lavora con noi* sul sito.
+
+Sta nel gruppo Segreteria e non fra le richieste dal sito: chi si candida non è
+un lead — non entra in anagrafica, non apre una trattativa — e chi lavora le
+richieste non deve trovarsi i curriculum in mezzo ai contatti dei soci.
+
+Il curriculum non è nel database: sta nel bucket privato `candidature-cv`, e la
+sezione lo scarica con una **URL firmata valida un minuto**, generata al
+momento del click. Il bucket non è raggiungibile da un indirizzo pubblico, e
+ogni download finisce in `audit_log` come ogni altro dato personale toccato dal
+pannello.
+
+Tabella e bucket li crea il repository del sito, che è chi ci scrive:
+`scripts/sql/2026-09-08-candidature.sql` in **Sito-Ronchiverdi**. Qui non c'è
+una copia di quella migration — due copie divergono al primo ritocco.
+
 ## Icona sulla Home
 
 Il pannello si usa dal telefono come app installata ("Aggiungi a Home"), quindi
@@ -144,6 +163,11 @@ accoppiati entrata/uscita, ore del giorno e degli ultimi 14 giorni.
 
 Fatto anche: **Voucher visita medica** — emissione, email al socio via
 SendGrid, pagina di validazione per il partner, annullamento e reinvio.
+
+Fatto anche: **Curriculum** — le candidature spontanee da *Lavora con noi* sul
+sito, con lettura dei testi liberi, stato della candidatura, nota interna e
+download del CV dal bucket privato. Il permesso `candidature` va assegnato da
+Gestione utenti: nessuno lo ha finché non glielo si dà.
 
 Da fare: Enquiries, Persone, Agenda con `/api/disponibilita` per gli slot che il
 sito offre nel form contatti, Visite al sito, pagina di Controllo operatori.
