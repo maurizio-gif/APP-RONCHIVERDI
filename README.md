@@ -37,16 +37,23 @@ amministratore va inserito a mano — vedi la coda di
 in Supabase Auth (Authentication → Users). Da lì in avanti gli inviti si fanno
 da **Gestione utenti**, che manda l'email con il link per scegliere la password.
 
-Perché l'invito funzioni, `NEXT_PUBLIC_SITE_URL` deve essere configurata su
-Vercel **e** comparire fra i Redirect URLs in Supabase Auth → URL
-Configuration: altrimenti l'email parte con un link che non porta al pannello.
-L'URL di produzione **non** è `app-ronchiverdi.vercel.app`: quel dominio
-risponde 404 e non appartiene a questo progetto. Il progetto vive sul team
-Vercel R2D e l'alias generato porta il suffisso del team:
-`https://app-ronchiverdi-r2d.vercel.app`. Nella allowlist di Supabase va quindi
-`https://app-ronchiverdi-r2d.vercel.app/auth/callback` (più
-`http://localhost:3000/auth/callback` per provare gli inviti in locale), e le
-due voci vanno aggiornate quando arriva il dominio personalizzato.
+Perché l'invito e il recupero password funzionino, `NEXT_PUBLIC_SITE_URL` deve
+essere configurata su Vercel **e** comparire fra i Redirect URLs in Supabase
+Auth → URL Configuration: altrimenti l'email parte con un link che non porta al
+pannello.
+
+Il pannello in produzione vive su **`https://crm.ronchiverdi.it`**, il dominio
+personalizzato — non sull'alias `*.vercel.app`, che essendo coperto dalla
+Vercel Authentication chiederebbe prima il login a Vercel (vedi «Accesso
+dall'esterno»). Nella allowlist di Supabase va quindi
+`https://crm.ronchiverdi.it/auth/callback`, più
+`http://localhost:3000/auth/callback` per provare invito e recupero in locale.
+
+Che sia già configurato così si vede dai log di Supabase (Auth logs): le
+chiamate a `/verify` — l'endpoint che i link nelle email colpiscono — hanno
+come referer `https://crm.ronchiverdi.it/auth/callback`. Se quell'indirizzo non
+fosse in allowlist, GoTrue scarterebbe il `redirect_to` e manderebbe al Site
+URL, cioè alla radice: il percorso `/auth/callback` non comparirebbe.
 
 ## Password dimenticata
 
@@ -85,13 +92,14 @@ già nome e cognome in `staff_users` — legge «Scegli una password nuova».
 
 Il progetto ha la Vercel Authentication attiva in modalità
 `all_except_custom_domains`: **ogni** indirizzo `*.vercel.app` chiede prima il
-login a Vercel, quindi oggi il pannello è raggiungibile solo da chi è nel team
-R2D — la segreteria no, nemmeno con le credenziali giuste. Un dominio
-personalizzato è escluso dalla protezione, quindi collegarne uno (es.
-`app.ronchiverdi.it`) risolve; l'alternativa è disattivare la Vercel
-Authentication e lasciare che il login del pannello faccia da solo la guardia.
-Sono due decisioni diverse: la prima tiene fuori i motori di ricerca e i
-curiosi dagli indirizzi di preview, la seconda espone anche quelli.
+login a Vercel, quindi da lì il pannello è raggiungibile solo da chi è nel team
+R2D — la segreteria no, nemmeno con le credenziali giuste.
+
+Il dominio personalizzato è escluso dalla protezione, ed è la strada che è
+stata presa: la segreteria entra da **`https://crm.ronchiverdi.it`**, dove fa
+da guardia il login del pannello. Gli indirizzi `*.vercel.app` restano
+protetti, e va bene così: tengono fuori i motori di ricerca e i curiosi dai
+deploy di anteprima.
 
 ## Permessi
 
