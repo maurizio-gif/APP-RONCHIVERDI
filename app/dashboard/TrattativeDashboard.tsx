@@ -11,8 +11,6 @@ export type TrattativaConPersona = DatiTrattativa & {
   cognome: string | null
   email: string | null
   cellulare: string | null
-  /** Quando è arrivata l'ultima richiesta di questa persona. */
-  ultimaRichiesta: string | null
 }
 
 // Le trattative in dashboard: quelle intestate a chi guarda, e quelle libere

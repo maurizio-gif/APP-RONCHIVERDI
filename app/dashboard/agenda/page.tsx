@@ -109,12 +109,16 @@ export default async function AgendaPage({
     ),
   ]
 
-  const { data: contattiDelleVoci } = idContattiDelleVoci.length
+  const { data: contattiDelleVoci, error: erroreContatti } = idContattiDelleVoci.length
     ? await supabase
         .from('persone')
         .select('id, nome, cognome, email, cellulare')
         .in('id', idContattiDelleVoci)
-    : { data: [] as Record<string, any>[] }
+    : { data: [] as Record<string, any>[], error: null }
+
+  if (erroreContatti) {
+    console.error('Nomi dei contatti delle voci non letti:', erroreContatti.message)
+  }
 
   const perId = new Map(
     (contattiDelleVoci ?? []).map((p) => [

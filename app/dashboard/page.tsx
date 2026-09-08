@@ -197,9 +197,13 @@ async function impegniDelGiorno(email: string | null) {
     ),
   ]
 
-  const { data: contatti } = idContatti.length
+  const { data: contatti, error: erroreContatti } = idContatti.length
     ? await supabase.from('persone').select('id, nome, cognome, email, cellulare').in('id', idContatti)
-    : { data: [] as Record<string, any>[] }
+    : { data: [] as Record<string, any>[], error: null }
+
+  if (erroreContatti) {
+    console.error('Nomi dei contatti degli impegni non letti:', erroreContatti.message)
+  }
 
   const perId = new Map(
     (contatti ?? []).map((p) => [
@@ -261,12 +265,22 @@ async function trattativeDaLavorare(email: string | null) {
   const scelte = [...mie, ...libere].slice(0, TRATTATIVE_IN_ELENCO * 2)
   const personaIds = [...new Set(scelte.map((t) => t.persona_id).filter(Boolean))] as string[]
 
-  const { data: persone } = personaIds.length
+  // Solo le colonne che `persone` ha davvero: `ultima_richiesta` sta sulla
+  // vista persone_con_richieste, e chiederla qui faceva fallire la lettura —
+  // con l'errore ignorato, ogni trattativa finiva intestata a «Senza nome».
+  const { data: persone, error: errorePersone } = personaIds.length
     ? await supabase
         .from('persone')
-        .select('id, nome, cognome, email, cellulare, ultima_richiesta')
+        .select('id, nome, cognome, email, cellulare')
         .in('id', personaIds)
-    : { data: [] as Record<string, any>[] }
+    : { data: [] as Record<string, any>[], error: null }
+
+  // Un errore qui non svuota la pagina — le trattative si vedono comunque —
+  // ma senza i nomi non si capisce di chi siano: va detto nei log invece di
+  // lasciare un elenco di «Senza nome» che sembra un problema dei dati.
+  if (errorePersone) {
+    console.error('Nomi delle trattative non letti:', errorePersone.message)
+  }
 
   const perId = new Map((persone ?? []).map((p) => [p.id as string, p]))
 
@@ -282,7 +296,6 @@ async function trattativeDaLavorare(email: string | null) {
       cognome: (p?.cognome as string) ?? null,
       email: (p?.email as string) ?? null,
       cellulare: (p?.cellulare as string) ?? null,
-      ultimaRichiesta: (p?.ultima_richiesta as string) ?? null,
     }
   }
 
