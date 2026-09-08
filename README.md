@@ -110,6 +110,48 @@ annullata) con il collegamento alla scheda del contatto. Prima chiudere una
 telefonata appena fatta costava tre passaggi — aprire l'agenda, ritrovare la
 riga, aprire il pannello — per un gesto che si ripete venti volte al giorno.
 
+## Avviso di una trattativa da prendere in carico
+
+Una richiesta Club o Family che arriva alle 15 crea una trattativa **senza
+titolare**, e finché qualcuno non riapre il Riepilogo nessuno se ne accorge: il
+numero nel riquadro c'era già, quello che mancava era che si facesse sentire.
+
+Su qualunque pagina del pannello compare un riquadro in basso a destra con
+nome, attività, recapiti e la frase che la persona ha scritto — che è ciò che
+decide come si apre la telefonata — più **Prendi in carico** e **Apri la
+scheda**. Insieme al riquadro suona un avviso di due note.
+
+**Solo per i commerciali**, e solo con la sezione Club e Family: prendere in
+carico richiede il diritto commerciale (`puoAssegnare` in
+[`lib/pipeline.ts`](lib/pipeline.ts)), e avvisare chi non può agire sarebbe
+rumore. Il filtro è lato server, in `puoRicevereAvvisoOpportunita`.
+
+Tre scelte che vale la pena conoscere:
+
+- **Non è bloccante**, al contrario dell'avviso dei messaggi interni: quello è
+  una comunicazione da confermare, questo un'occasione da cogliere — e chi è al
+  telefono con un socio non deve trovarsi la pagina murata.
+- **Il primo giro di polling è muto.** Stabilisce il punto di partenza: senza,
+  aprire il pannello con sei trattative libere da ieri suonerebbe come se
+  fossero appena arrivate, e un avviso che urla per cose vecchie è il modo più
+  rapido di farlo spegnere per sempre. Suonano solo quelle comparse dopo.
+- **Una liberata di nuovo suona di nuovo.** Gli id noti si riscrivono a ogni
+  giro sull'elenco corrente, quindi una trattativa presa in carico e poi
+  lasciata torna a essere una novità legittima.
+
+Il suono è generato con WebAudio in [`useAvvisoSonoro.ts`](app/dashboard/useAvvisoSonoro.ts),
+non è un file audio: non c'è un asset binario da versionare, e un tono
+costruito lì si tiene breve e discreto — in segreteria ci sono i soci davanti
+al banco. I browser bloccano l'audio finché non c'è stata un'interazione, così
+l'`AudioContext` si crea al primo clic o tasto premuto; se non è pronto il
+riquadro compare comunque, perché il suono è l'accessorio e l'avviso visivo è
+la sostanza.
+
+L'interruttore del suono sta **dentro il riquadro** (con un «prova»), non nelle
+impostazioni: chi vuole zittirlo lo vuole zittire nel momento in cui gli ha
+dato fastidio, non dopo aver cercato dove si fa. La scelta resta su quel
+browser.
+
 ## Eventi di agenda: programma o registra
 
 Un evento è una voce della tabella `task`. Due regole lo governano, e valgono
@@ -418,6 +460,9 @@ Fatto anche: **eventi sempre agganciati a un contatto**, con la distinzione fra
 *programma* (impegno futuro) e *registra* (già avvenuto, con esito), email e
 WhatsApp registrabili soltanto, e la dashboard che elenca le proprie trattative,
 quelle da prendere in carico e gli impegni del giorno gestibili sul posto.
+
+Fatto anche: **avviso sonoro e riquadro** per le trattative da prendere in
+carico, solo per i commerciali.
 
 Da fare: Enquiries, Persone, Agenda con `/api/disponibilita` per gli slot che il
 sito offre nel form contatti, Visite al sito, pagina di Controllo operatori.

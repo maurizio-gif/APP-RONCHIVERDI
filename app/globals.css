@@ -2868,3 +2868,161 @@ table.tabella tbody tr:hover {
 	margin: 0.75rem 0 1rem;
 	font-size: var(--text-xs);
 }
+
+/* ──────────────────── avviso: nuova trattativa da prendere in carico
+ *
+ * Non è bloccante, al contrario dell'avviso dei messaggi interni: quello è una
+ * comunicazione da confermare, questo è un'occasione da cogliere — e chi è al
+ * telefono con un socio non deve trovarsi la pagina murata. Quindi un
+ * riquadro in un angolo, non un overlay.
+ */
+.avviso-opportunita {
+	position: fixed;
+	right: 1.25rem;
+	bottom: 1.25rem;
+	z-index: 190;
+	width: min(22rem, calc(100vw - 2.5rem));
+	padding: 1rem 1.15rem;
+	background: var(--surface);
+	border: 1px solid var(--border-strong);
+	border-left: 4px solid var(--accent);
+	border-radius: var(--radius);
+	box-shadow: 0 18px 44px rgba(28, 28, 24, 0.24);
+	animation: avviso-entra 0.22s ease-out;
+}
+
+/* Entra dal basso: fermo com'era, in una pagina già piena non si notava
+   comparire — che per un avviso è il difetto peggiore. */
+@keyframes avviso-entra {
+	from {
+		opacity: 0;
+		transform: translateY(0.75rem);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.avviso-opportunita {
+		animation: none;
+	}
+}
+
+.avviso-testa {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 0.5rem;
+}
+
+.avviso-testa .eyebrow {
+	margin: 0;
+}
+
+/* Quante ne aspettano dietro questa: senza, chiudendo l'avviso si crederebbe
+   di aver finito. */
+.avviso-coda {
+	margin-left: 0.4rem;
+	padding: 0.05rem 0.35rem;
+	background: var(--accent-tint);
+	border-radius: 999px;
+	color: var(--accent);
+	font-size: var(--text-2xs);
+	letter-spacing: 0;
+	text-transform: none;
+}
+
+.avviso-chiudi {
+	flex-shrink: 0;
+	width: 1.5rem;
+	height: 1.5rem;
+	background: transparent;
+	border: none;
+	border-radius: 50%;
+	color: var(--text-muted);
+	font-size: var(--text-md);
+	line-height: 1;
+	cursor: pointer;
+}
+
+.avviso-chiudi:hover {
+	background: var(--bg-alt);
+	color: var(--text);
+}
+
+.avviso-nome {
+	margin: 0.35rem 0 0.1rem;
+	font-family: var(--font-serif);
+	font-size: var(--text-md);
+}
+
+.avviso-recapiti {
+	margin: 0;
+	font-size: var(--text-2xs);
+}
+
+/* La frase che ha scritto: è quella che decide come si apre la telefonata.
+   Al massimo tre righe, il resto sta nella scheda. */
+.avviso-messaggio {
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	margin: 0.6rem 0 0;
+	font-size: var(--text-sm);
+	line-height: 1.5;
+}
+
+.avviso-azioni {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-top: 0.9rem;
+}
+
+.avviso-suono {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin-top: 0.75rem;
+	padding-top: 0.6rem;
+	border-top: 1px solid var(--border);
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+}
+
+.avviso-suono label {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	cursor: pointer;
+}
+
+.avviso-suono input {
+	width: 0.9rem;
+	height: 0.9rem;
+	accent-color: var(--accent);
+	cursor: pointer;
+}
+
+.btn-prova-suono {
+	padding: 0;
+	background: none;
+	border: none;
+	color: var(--accent);
+	font-family: inherit;
+	font-size: inherit;
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+@media (max-width: 640px) {
+	.avviso-opportunita {
+		right: 0.75rem;
+		left: 0.75rem;
+		bottom: 0.75rem;
+		width: auto;
+	}
+}

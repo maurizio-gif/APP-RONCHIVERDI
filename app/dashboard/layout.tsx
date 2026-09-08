@@ -3,6 +3,8 @@ import { isStaffEmail } from '@/lib/auth/allowlist'
 import { emailCorrente, getNomeUtente, getSezioniConsentite } from '@/lib/auth/sezioni-server'
 import { SEZIONE_NOTIFICHE } from '@/lib/notifiche'
 import { contaNonLette } from './notifiche/actions'
+import { puoRicevereAvvisoOpportunita } from './opportunita-actions'
+import { AvvisoOpportunita } from './AvvisoOpportunita'
 import { NotificheProvider } from './NotificheProvider'
 import { NotificheBanner } from './NotificheBanner'
 import { Sidebar } from './Sidebar'
@@ -38,10 +40,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // indicizzata su una tabella piccola, e aspettare di sapere se ha il
   // permesso per poterla chiedere costerebbe più della lettura stessa. Il
   // permesso decide cosa si mostra, non cosa si chiede.
-  const [sezioniConsentite, nomeUtente, nonLette] = await Promise.all([
+  const [sezioniConsentite, nomeUtente, nonLette, avvisoOpportunita] = await Promise.all([
     getSezioniConsentite(email),
     getNomeUtente(email),
     contaNonLette(),
+    // Legge la stessa riga di staff_users delle altre tre, che
+    // rigaStaffCorrente tiene in cache per la durata della richiesta: non è
+    // un round trip in più.
+    puoRicevereAvvisoOpportunita(),
   ])
 
   // Chi non ha il permesso non riceve niente: nessun badge, nessun avviso,
@@ -54,6 +60,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <Sidebar email={email} nomeUtente={nomeUtente} sezioniConsentite={sezioniConsentite} />
         <main className="main-content">
           <NotificheBanner />
+          {/* Solo per i commerciali con la sezione Club e Family: prendere in
+              carico è un loro diritto, e avvisare chi non può agire sarebbe
+              rumore. */}
+          <AvvisoOpportunita abilitato={avvisoOpportunita} />
           {children}
         </main>
       </div>
