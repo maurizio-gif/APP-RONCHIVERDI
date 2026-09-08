@@ -46,17 +46,6 @@ const DEFINIZIONI = [
     href: '/dashboard/voucher',
     gruppo: 'Segreteria',
   },
-  // Le candidature spontanee raccolte da /lavora-con-noi sul sito: si leggono
-  // e si scarica il curriculum. Sta in Segreteria e non fra le richieste dal
-  // sito perché chi si candida non è un lead — non entra in anagrafica, non
-  // apre una trattativa — e chi lavora le richieste non deve trovarsi i
-  // curriculum in mezzo ai contatti dei soci.
-  {
-    chiave: 'candidature',
-    label: 'Curriculum',
-    href: '/dashboard/curriculum',
-    gruppo: 'Segreteria',
-  },
   {
     chiave: 'richieste-tennis-scuola',
     label: 'Young School Tennis — Scuola',
@@ -124,6 +113,17 @@ const DEFINIZIONI = [
   // Sessioni e campagne raccolte da /api/track sul sito.
   { chiave: 'analytics', label: 'Analytics', href: '/dashboard/analytics', gruppo: 'Amministrazione' },
   { chiave: 'visite-sito', label: 'Visite al sito', href: '/dashboard/visite', gruppo: 'Amministrazione' },
+  // Le candidature spontanee raccolte da /lavora-con-noi sul sito: si leggono
+  // e si scarica il curriculum. Non è una richiesta dal sito — chi si candida
+  // non è un lead, non entra in anagrafica e non apre una trattativa — e non è
+  // un'operazione di banco: le assunzioni le decide la direzione, che è anche
+  // l'unica che deve avere in mano i curriculum.
+  {
+    chiave: 'candidature',
+    label: 'Curriculum',
+    href: '/dashboard/curriculum',
+    gruppo: 'Amministrazione',
+  },
   { chiave: 'timbratura', label: 'Timbra cartellino', href: '/dashboard/timbratura', gruppo: 'Amministrazione' },
   { chiave: 'utenti', label: 'Gestione utenti', href: '/dashboard/utenti', gruppo: 'Amministrazione' },
   { chiave: 'log-operatori', label: 'Controllo operatori', href: '/dashboard/log-operatori', gruppo: 'Amministrazione' },

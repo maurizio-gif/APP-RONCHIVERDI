@@ -116,9 +116,10 @@ colonna `tipo` distingue il benefit, così lo stesso motore serve il prossimo
 La sezione **Curriculum** (`/dashboard/curriculum`, permesso `candidature`)
 mostra le candidature spontanee che arrivano da *Lavora con noi* sul sito.
 
-Sta nel gruppo Segreteria e non fra le richieste dal sito: chi si candida non è
-un lead — non entra in anagrafica, non apre una trattativa — e chi lavora le
-richieste non deve trovarsi i curriculum in mezzo ai contatti dei soci.
+Sta nel gruppo Amministrazione: le assunzioni le decide la direzione, che è
+anche l'unica che deve avere in mano i curriculum. Non è una richiesta dal sito
+— chi si candida non è un lead, non entra in anagrafica e non apre una
+trattativa — né un'operazione che il banco esegue per il socio.
 
 Il curriculum non è nel database: sta nel bucket privato `candidature-cv`, e la
 sezione lo scarica con una **URL firmata valida un minuto**, generata al
