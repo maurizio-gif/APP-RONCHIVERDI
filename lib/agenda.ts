@@ -453,7 +453,15 @@ export function voceDaContatto(riga: Riga): VoceAgenda | null {
   // Le richieste dal sito non hanno uno stato di lavorazione proprio in
   // agenda: `gestito` è il segno che la segreteria le ha già lavorate, ed è
   // quello che qui vale come "fatto".
-  const stato: Stato = riga.gestito ? 'completato' : 'aperto'
+  //
+  // L'annullamento fatto dal cliente (dal link nell'email di conferma) vince
+  // su tutto: la voce resta visibile — la segreteria deve poter vedere che
+  // quel posto si è liberato, e quando — ma non è più né da fare né occupata.
+  const stato: Stato = riga.appuntamento_annullato_il
+    ? 'annullato'
+    : riga.gestito
+      ? 'completato'
+      : 'aperto'
 
   return {
     chiave: `contatto-${riga.id}`,

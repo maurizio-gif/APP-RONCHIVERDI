@@ -73,7 +73,7 @@ export async function GET(request: Request) {
         .lte('data', a),
       supabase
         .from('form_contatti')
-        .select('id, azione, data_scelta, ora_scelta, nome, cognome, email, cellulare, attivita_label, messaggio, gestito')
+        .select('id, azione, data_scelta, ora_scelta, nome, cognome, email, cellulare, attivita_label, messaggio, gestito, appuntamento_annullato_il')
         .gte('data_scelta', da)
         .lte('data_scelta', a)
         // Solo le attività che prenotano un orario dalla segreteria: gli

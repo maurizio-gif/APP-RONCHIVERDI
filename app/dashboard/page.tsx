@@ -172,7 +172,7 @@ async function impegniDelGiorno(email: string | null) {
     supabase
       .from('form_contatti')
       .select(
-        'id, azione, data_scelta, ora_scelta, nome, cognome, email, cellulare, attivita_label, messaggio, gestito, esito_tipo, esito, persona_id'
+        'id, azione, data_scelta, ora_scelta, nome, cognome, email, cellulare, attivita_label, messaggio, gestito, esito_tipo, esito, persona_id, appuntamento_annullato_il'
       )
       .in('attivita', ATTIVITA_IN_AGENDA)
       .eq('gestito', false)

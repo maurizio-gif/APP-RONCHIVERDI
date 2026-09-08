@@ -77,7 +77,7 @@ export default async function AgendaPage({
     supabase
       .from('form_contatti')
       .select(
-        'id, azione, data_scelta, ora_scelta, nome, cognome, email, cellulare, attivita_label, messaggio, gestito, esito_tipo, esito, persona_id'
+        'id, azione, data_scelta, ora_scelta, nome, cognome, email, cellulare, attivita_label, messaggio, gestito, esito_tipo, esito, persona_id, appuntamento_annullato_il'
       )
       .gte('data_scelta', inizio)
       .lte('data_scelta', fine)
