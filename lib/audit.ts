@@ -12,6 +12,12 @@ export const AZIONI_LOG: Record<string, string> = {
   login_fallito: 'Accesso rifiutato',
   logout: 'Uscita',
   password_impostata: 'Password impostata',
+  recupero_richiesto: 'Recupero password richiesto',
+  recupero_fallito: 'Recupero password non inviato',
+  // Un tentativo su un indirizzo che non è nel pannello: la pagina risponde
+  // come se fosse andato a buon fine (per non rivelare chi c'è), quindi
+  // questa riga è l'unico posto in cui si vede.
+  recupero_non_autorizzato: 'Recupero password su indirizzo non abilitato',
   utente_invitato: 'Utente invitato',
   utente_rimosso: 'Utente rimosso',
   permesso_invitare_modificato: 'Permesso "Può invitare" modificato',

@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { login } from './actions'
 import { LoginButton } from './LoginButton'
 
@@ -43,6 +44,14 @@ export default function LoginPage({ searchParams }: { searchParams: { error?: st
           </div>
           <LoginButton />
         </form>
+
+        {/* Sotto il pulsante e non accanto al campo password: chi entra
+            normalmente non deve leggerlo, chi è in difficoltà lo cerca qui. */}
+        <p className="login-recupero">
+          <Link href="/recupera-password" className="link">
+            Password dimenticata?
+          </Link>
+        </p>
       </div>
     </main>
   )

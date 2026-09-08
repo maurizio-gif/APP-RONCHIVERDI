@@ -48,6 +48,39 @@ Vercel R2D e l'alias generato porta il suffisso del team:
 `http://localhost:3000/auth/callback` per provare gli inviti in locale), e le
 due voci vanno aggiornate quando arriva il dominio personalizzato.
 
+## Password dimenticata
+
+Dalla pagina di login, sotto il pulsante Accedi, **«Password dimenticata?»**
+porta a `/recupera-password`: si scrive l'indirizzo e arriva un'email col link
+per sceglierne una nuova. Il link passa da `/auth/callback` e finisce su
+`/imposta-password`, la stessa strada dell'invito — perché è la stessa cosa:
+una sessione temporanea che serve solo a scrivere una password.
+
+Due scelte che non si vedono ma contano:
+
+- **La risposta è la stessa se l'indirizzo esiste e se non esiste.** Dire
+  «questo indirizzo non è abilitato» trasformerebbe la pagina in uno strumento
+  per scoprire chi lavora al club: la si interroga con una lista di indirizzi e
+  si guarda quale risponde diverso. L'email parte solo a chi è davvero in
+  `staff_users`, ma la pagina mostra «Controlla la posta» in ogni caso — anche
+  quando Supabase restituisce un errore.
+- **Il tentativo resta nel registro** anche quando l'indirizzo non è abilitato
+  (`recupero_non_autorizzato` in Controllo operatori): la pagina non lo dice a
+  chi ha provato, ma è esattamente il segnale che si vuole poter vedere.
+
+Il limite di invio di Supabase è l'unico errore distinto («aspetta qualche
+minuto»): senza spiegarlo si finisce per premere il pulsante cinque volte, che
+è proprio ciò che lo fa scattare.
+
+Come l'invito, richiede `NEXT_PUBLIC_SITE_URL` configurata **e** presente fra i
+Redirect URLs in Supabase Auth → URL Configuration. Se manca, la pagina lo dice
+e non manda niente: meglio nessuna email che un link che non porta al pannello,
+a una persona che è già in difficoltà.
+
+`/imposta-password` è il capolinea di entrambe le strade e adatta il testo: chi
+arriva dall'invito legge «Imposta la password», chi arriva dal recupero — e ha
+già nome e cognome in `staff_users` — legge «Scegli una password nuova».
+
 ## Accesso dall'esterno
 
 Il progetto ha la Vercel Authentication attiva in modalità
@@ -463,6 +496,9 @@ quelle da prendere in carico e gli impegni del giorno gestibili sul posto.
 
 Fatto anche: **avviso sonoro e riquadro** per le trattative da prendere in
 carico, solo per i commerciali.
+
+Fatto anche: **recupero password** dal login, senza rivelare quali indirizzi
+sono abilitati.
 
 Da fare: Enquiries, Persone, Agenda con `/api/disponibilita` per gli slot che il
 sito offre nel form contatti, Visite al sito, pagina di Controllo operatori.

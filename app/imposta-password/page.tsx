@@ -27,13 +27,21 @@ export default async function ImpostaPasswordPage({
     .eq('email', user.email ?? '')
     .maybeSingle()
 
+  // Questa pagina è il capolinea di due strade: il link dell'invito e quello
+  // del recupero password (vedi /recupera-password). Chi arriva dal recupero
+  // ha già nome e cognome in staff_users, e leggere «indicati da chi ti ha
+  // invitato» lo farebbe dubitare di essere nel posto giusto.
+  const primoAccesso = !(staffRow?.nome && staffRow?.cognome)
+
   return (
     <main className="login-shell">
       <div className="login-card">
-        <h1>Imposta la password</h1>
+        <h1>{primoAccesso ? 'Imposta la password' : 'Scegli una password nuova'}</h1>
         <p className="muted" style={{ marginBottom: '1.25rem' }}>
-          Ciao {user.email}, scegli una password per accedere al pannello. Nome e cognome sono già
-          compilati con quelli indicati da chi ti ha invitato: correggili se serve.
+          Ciao {user.email},{' '}
+          {primoAccesso
+            ? 'scegli una password per accedere al pannello. Nome e cognome sono già compilati con quelli indicati da chi ti ha invitato: correggili se serve.'
+            : 'scrivi la password nuova. Nome e cognome sono quelli che risultano al pannello: correggili se serve.'}
         </p>
 
         {searchParams.error && <p className="error-banner">{searchParams.error}</p>}
