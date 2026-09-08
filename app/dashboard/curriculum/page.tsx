@@ -57,7 +57,7 @@ export default async function CurriculumPage({
   return (
     <>
       <div className="page-head">
-        <p className="eyebrow">Segreteria</p>
+        <p className="eyebrow">Amministrazione</p>
         <h1>Curriculum</h1>
         <p className="muted">
           Le candidature spontanee arrivate da <strong>Lavora con noi</strong> sul sito. Il
