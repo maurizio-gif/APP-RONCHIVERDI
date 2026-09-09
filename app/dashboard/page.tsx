@@ -5,7 +5,13 @@ import { emailCorrente, getNomeUtente, getSezioniConsentite } from '@/lib/auth/s
 import { eCommerciale, puoAmministrare, puoCancellare, puoRiassegnare } from '@/lib/auth/permessi'
 import { SEZIONI, soloAccessoEsterno } from '@/lib/auth/sezioni'
 import { ATTIVITA_IN_AGENDA, canaleDiRichiesta } from '@/lib/richieste'
-import { STATI, ETICHETTE_STATO, eChiusa, type StatoTrattativa } from '@/lib/pipeline'
+import {
+  STATI,
+  ETICHETTE_STATO,
+  PUNTO_STATO,
+  eChiusa,
+  type StatoTrattativa,
+} from '@/lib/pipeline'
 import {
   TIPI_APPUNTAMENTO,
   oggiRoma,
@@ -45,12 +51,50 @@ const RIQUADRI_STATO: {
   classe: string
   /** Etichetta propria quando quella dello stato, al personale, direbbe altro. */
   etichetta?: string
+  /**
+   * Cosa vuol dire quel numero, sotto la cifra. Senza, «Le segui tu: 3» è un
+   * numero da interpretare — e chi è nuovo al pannello lo interpreta male.
+   */
+  nota: string
+  /**
+   * true se un numero maggiore di zero è lavoro da fare: quei riquadri si
+   * accendono (fondo velato, pallino che pulsa), gli altri restano una
+   * fotografia. «Vinte: 12» non è una cosa da fare, e accendere anche quello
+   * vorrebbe dire non accendere niente.
+   */
+  chiedeAzione?: boolean
   filtro: string
 }[] = [
-  { stato: 'nuovo', classe: 'stat-nuovo', etichetta: 'Da prendere in carico', filtro: 'stato=nuovo' },
-  { stato: 'in_gestione', classe: 'stat-gestione', etichetta: 'Le segui tu', filtro: 'mostra=tutte&mie=1' },
-  { stato: 'vinto', classe: 'stat-vinto', etichetta: 'Vinte da te', filtro: 'stato=vinto&mie=1' },
-  { stato: 'perso', classe: 'stat-perso', etichetta: 'Perse da te', filtro: 'stato=perso&mie=1' },
+  {
+    stato: 'nuovo',
+    classe: 'stat-nuovo',
+    etichetta: 'Da prendere in carico',
+    nota: 'Nessuno le segue: sono di chi se le prende',
+    chiedeAzione: true,
+    filtro: 'stato=nuovo',
+  },
+  {
+    stato: 'in_gestione',
+    classe: 'stat-gestione',
+    etichetta: 'Le segui tu',
+    nota: 'Aperte e assegnate a te: hanno un seguito da portare avanti',
+    chiedeAzione: true,
+    filtro: 'mostra=tutte&mie=1',
+  },
+  {
+    stato: 'vinto',
+    classe: 'stat-vinto',
+    etichetta: 'Vinte da te',
+    nota: 'Chiuse bene: sono diventate socio',
+    filtro: 'stato=vinto&mie=1',
+  },
+  {
+    stato: 'perso',
+    classe: 'stat-perso',
+    etichetta: 'Perse da te',
+    nota: 'Chiuse senza esito, col motivo registrato',
+    filtro: 'stato=perso&mie=1',
+  },
 ]
 
 /**
@@ -233,7 +277,11 @@ async function impegniDelGiorno(email: string | null) {
   }
   const tutte = [...perGiorno.keys()].flatMap((g) => ordinaVoci(perGiorno.get(g)!))
 
-  return { voci: tutte.slice(0, IMPEGNI_IN_ELENCO), totaleAperti: tutte.length }
+  // Quanti sono di giorni passati: è il numero che va in testa alla sezione.
+  // «12 voci aperte» non dice che tre sono di ieri, ed è quello che conta.
+  const arretrati = tutte.filter((v) => v.data < oggi).length
+
+  return { voci: tutte.slice(0, IMPEGNI_IN_ELENCO), totaleAperti: tutte.length, arretrati }
 }
 
 /**
@@ -292,6 +340,10 @@ async function trattativeDaLavorare(email: string | null) {
       assegnato_a: (t.assegnato_a as string) ?? null,
       motivo_perso: (t.motivo_perso as string) ?? null,
       personaId: (t.persona_id as string) ?? null,
+      // Da quanto è aperta: in elenco una trattativa di stamattina e una
+      // ferma da tre settimane avevano lo stesso aspetto, e la seconda è
+      // quella da chiamare.
+      creatoIl: (t.creato_il as string) ?? null,
       nome: (p?.nome as string) ?? null,
       cognome: (p?.cognome as string) ?? null,
       email: (p?.email as string) ?? null,
@@ -367,6 +419,12 @@ export default async function RiepilogoPage() {
 
   const inArrivo = SEZIONI.filter((s) => s.inArrivo && sezioniConsentite.includes(s.chiave))
 
+  // Quante trattative chiedono qualcosa a chi guarda: le libere da prendere
+  // più le sue in gestione. Va in testa alla sezione, perché aprendo la
+  // pagina la prima domanda è «quante cose ho da fare», non «quante ce ne
+  // sono in tutto».
+  const daFareTrattative = trattative ? trattative.libere + trattative.mie.in_gestione : 0
+
   return (
     <>
       <div className="page-head">
@@ -388,71 +446,91 @@ export default async function RiepilogoPage() {
           periodo e il confronto. */}
       {trattative && (
         <section className="riepilogo-sezione">
-          <h2 className="riepilogo-titolo">Le tue trattative</h2>
+          {/* Il capitolo si vede: nome pieno, cosa risponde, e a destra quante
+              cose chiedono qualcosa. Prima era un'etichettina grigia della
+              misura dei metadati, e la pagina risultava un nastro continuo di
+              riquadri senza capitoli. */}
+          <div className="riepilogo-testa">
+            <h2 className="riepilogo-titolo">Le tue trattative</h2>
+            <p className="riepilogo-sottotitolo muted">Abbonamento Club e Family</p>
+            {daFareTrattative > 0 && (
+              <span className="badge badge-warn badge-punto">
+                {daFareTrattative} da lavorare
+              </span>
+            )}
+          </div>
 
           <div className="griglia-stat">
-            {RIQUADRI_STATO.map(({ stato, classe, etichetta, filtro }) => (
-              <Link
-                key={stato}
-                className={`stat ${classe}`}
-                href={`/dashboard/richieste/richieste-club?${filtro}`}
-              >
-                <span className="stat-freccia" aria-hidden="true">
-                  →
-                </span>
-                <span className="stat-valore">
-                  {stato === 'nuovo' ? trattative.libere : trattative.mie[stato]}
-                </span>
-                <span className="stat-label">{etichetta ?? ETICHETTE_STATO[stato]}</span>
-              </Link>
-            ))}
+            {RIQUADRI_STATO.map(({ stato, classe, etichetta, nota, chiedeAzione, filtro }) => {
+              const valore = stato === 'nuovo' ? trattative.libere : trattative.mie[stato]
+              // Tre condizioni, tre aspetti: c'è lavoro (accesa), non c'è
+              // lavoro ma il numero conta (normale), è zero (spenta). Senza
+              // la terza, quattro zeri in fila pesano come quattro numeri.
+              const accesa = chiedeAzione && valore > 0
+              return (
+                <Link
+                  key={stato}
+                  className={`stat ${classe}${accesa ? ' is-azione' : ''}${valore === 0 ? ' is-vuoto' : ''}`}
+                  href={`/dashboard/richieste/richieste-club?${filtro}`}
+                >
+                  <span className="stat-testa">
+                    <span className="stat-label">
+                      {accesa && <span className="stat-punto" aria-hidden="true" />}
+                      {etichetta ?? ETICHETTE_STATO[stato]}
+                    </span>
+                    <span className="stat-freccia" aria-hidden="true">
+                      →
+                    </span>
+                  </span>
+                  <span className="stat-valore">{valore}</span>
+                  <span className="stat-nota">{valore === 0 ? 'Nessuna, per ora' : nota}</span>
+                </Link>
+              )
+            })}
           </div>
 
           {/* La fotografia del club, in una riga: serve a sapere se sei tu a
               essere carico o è carico il club, e non merita quattro riquadri
               accanto ai tuoi. */}
-          <p className="muted riepilogo-club">
-            Nel club:{' '}
-            {STATI.map((x, i) => (
-              <span key={x}>
-                {i > 0 && ' · '}
-                {trattative.club[x]} {ETICHETTE_STATO[x].toLowerCase()}
-              </span>
-            ))}
-            {'. '}
+          {/* Gli stessi quattro numeri, ma di tutto il club: serve a sapere se
+              sei tu a essere carico o è carico il club. In fila con il
+              pallino del proprio stato, gli stessi colori dei riquadri qui
+              sopra e delle righe qui sotto — prima era una frase di testo
+              corrente, che a colpo d'occhio non diceva niente. */}
+          <div className="riepilogo-club">
+            <ul className="canale-conti muted">
+              <li className="muted">Nel club:</li>
+              {STATI.map((x) => (
+                <li key={x}>
+                  <span className={`chip-punto ${PUNTO_STATO[x]}`} aria-hidden="true" />
+                  <b>{trattative.club[x]}</b> {ETICHETTE_STATO[x].toLowerCase()}
+                </li>
+              ))}
+            </ul>
             <Link className="link" href="/dashboard/richieste/richieste-club?mostra=tutte">
-              Apri Club e Family
+              Apri Abbonamento Club e Family →
             </Link>
-          </p>
+          </div>
 
-          {mieTrattative && mieTrattative.mie.length > 0 && (
-            <div className="card">
-              <div className="card-head">
-                <h2 className="agenda-giorno-titolo">Quelle che segui tu</h2>
-              </div>
-              <TrattativeDashboard
-                trattative={mieTrattative.mie}
-                io={email}
-                sonoCommerciale={sonoCommerciale}
-                possoRiassegnare={possoRiassegnare}
-                commerciali={commerciali}
-              />
-              {mieTrattative.mieTotale > mieTrattative.mie.length && (
-                <Link
-                  className="btn btn-ghost btn-sm"
-                  href="/dashboard/richieste/richieste-club?mostra=tutte&mie=1"
-                >
-                  Vedi tutte le tue ({mieTrattative.mieTotale})
-                </Link>
-              )}
-            </div>
-          )}
-
+          {/* Le libere prima delle proprie, come nell'ordine dei riquadri: una
+              trattativa che nessuno segue è la sola che rischia di non essere
+              chiamata da nessuno, e chi apre la pagina deve trovarla in cima —
+              non sotto l'elenco del lavoro che ha già in mano. */}
           {mieTrattative && mieTrattative.libere.length > 0 && (
-            <div className="card">
+            <div className="card card-azione">
               <div className="card-head">
-                <h2 className="agenda-giorno-titolo">Libere, puoi prenderle</h2>
+                <h3 className="card-titolo">
+                  <span className="chip-punto punto-nuovo" aria-hidden="true" />
+                  Libere: le prende chi vuole
+                </h3>
+                <span className="badge badge-warn badge-punto">
+                  {mieTrattative.libereTotale}{' '}
+                  {mieTrattative.libereTotale === 1 ? 'senza titolare' : 'senza titolare'}
+                </span>
               </div>
+              <p className="card-nota muted">
+                Nessuno le ha in carico. «Prendi in carico» te le assegna e le sposta in gestione.
+              </p>
               {/* Prendere in carico richiede il diritto commerciale: senza,
                   l'elenco si vede — è lavoro del club, non un segreto — ma i
                   comandi non compaiono (vedi puoAssegnare in lib/pipeline.ts). */}
@@ -474,11 +552,51 @@ export default async function RiepilogoPage() {
             </div>
           )}
 
+          {mieTrattative && mieTrattative.mie.length > 0 && (
+            <div className="card">
+              <div className="card-head">
+                <h3 className="card-titolo">
+                  <span className="chip-punto punto-gestione" aria-hidden="true" />
+                  Quelle che segui tu
+                </h3>
+                <span className="badge badge-info badge-punto">
+                  {mieTrattative.mieTotale} in gestione
+                </span>
+              </div>
+              <p className="card-nota muted">
+                Aperte e assegnate a te: da portare a vinta o a persa, col motivo.
+              </p>
+              <TrattativeDashboard
+                trattative={mieTrattative.mie}
+                io={email}
+                sonoCommerciale={sonoCommerciale}
+                possoRiassegnare={possoRiassegnare}
+                commerciali={commerciali}
+              />
+              {mieTrattative.mieTotale > mieTrattative.mie.length && (
+                <Link
+                  className="btn btn-ghost btn-sm"
+                  href="/dashboard/richieste/richieste-club?mostra=tutte&mie=1"
+                >
+                  Vedi tutte le tue ({mieTrattative.mieTotale})
+                </Link>
+              )}
+            </div>
+          )}
+
           {mieTrattative && mieTrattative.mie.length === 0 && mieTrattative.libere.length === 0 && (
             <div className="card">
-              <p className="vuoto" style={{ padding: '1rem' }}>
-                Non hai trattative in mano e non ce ne sono libere da prendere.
-              </p>
+              {/* Un elenco vuoto centrato in grigio si legge come un errore:
+                  qui è una buona notizia, e va detto come tale. */}
+              <div className="vuoto-buono">
+                <span className="vuoto-glifo" aria-hidden="true">
+                  ✓
+                </span>
+                <p className="vuoto-titolo">Nessuna trattativa da lavorare</p>
+                <p className="vuoto-nota">
+                  Non ne hai in mano e non ce ne sono libere da prendere.
+                </p>
+              </div>
             </div>
           )}
         </section>
@@ -486,20 +604,38 @@ export default async function RiepilogoPage() {
 
       {impegni && (
         <section className="riepilogo-sezione">
-          <h2 className="riepilogo-titolo">Impegni di oggi</h2>
+          <div className="riepilogo-testa">
+            <h2 className="riepilogo-titolo">Impegni di oggi</h2>
+            <p className="riepilogo-sottotitolo muted">Appuntamenti, telefonate e cose da fare</p>
+            {/* Gli arretrati staccati dal totale: «12 voci aperte» non dice
+                che tre sono di ieri, ed è quello che conta. */}
+            {impegni.arretrati > 0 ? (
+              <span className="badge badge-ko badge-punto">
+                {impegni.arretrati} {impegni.arretrati === 1 ? 'arretrato' : 'arretrati'}
+              </span>
+            ) : (
+              impegni.totaleAperti > 0 && (
+                <span className="badge badge-punto">{impegni.totaleAperti} da fare</span>
+              )
+            )}
+          </div>
           {impegni.voci.length > 0 ? (
-            <div className="card">
+            <div className={`card${impegni.arretrati > 0 ? ' card-azione' : ''}`}>
               <div className="card-head">
-                <h2 className="agenda-giorno-titolo">Da fare adesso</h2>
+                <h3 className="card-titolo">Da fare adesso</h3>
                 <span className="muted">
                   {impegni.totaleAperti}{' '}
                   {impegni.totaleAperti === 1 ? 'voce aperta' : 'voci aperte'}
                 </span>
               </div>
 
-              <p className="muted" style={{ marginTop: 0 }}>
-                Gli appuntamenti — in sede e telefonici — sono quelli di tutti: al banco serve
-                sapere chi arriva. Le cose da fare sono solo le tue.
+              {/* La legenda dei colori, non solo la regola di chi vede cosa:
+                  in elenco la banda rossa e quella blu vanno capite al primo
+                  sguardo, e una riga qui costa meno di un badge per riga. */}
+              <p className="card-nota muted">
+                Banda rossa: <strong>arretrato</strong>, è di un giorno passato. Banda blu: è di
+                oggi. Gli appuntamenti — in sede e telefonici — sono quelli di tutti, perché al
+                banco serve sapere chi arriva; le cose da fare sono solo le tue.
               </p>
 
               {/* Gestibili qui: chiudere una telefonata appena fatta non deve
@@ -521,25 +657,33 @@ export default async function RiepilogoPage() {
             </div>
           ) : (
             <div className="card">
-              <p className="vuoto" style={{ padding: '1rem' }}>
-                Nessun appuntamento e nessuna cosa da fare, né arretrata né per oggi.{' '}
-                <Link className="link" href="/dashboard/agenda">
-                  Vedi tutta l&apos;agenda
-                </Link>
-                .
-              </p>
+              <div className="vuoto-buono">
+                <span className="vuoto-glifo" aria-hidden="true">
+                  ✓
+                </span>
+                <p className="vuoto-titolo">Giornata pulita</p>
+                <p className="vuoto-nota">
+                  Nessun appuntamento e nessuna cosa da fare, né arretrata né per oggi.{' '}
+                  <Link className="link" href="/dashboard/agenda">
+                    Vedi tutta l&apos;agenda
+                  </Link>
+                  .
+                </p>
+              </div>
             </div>
           )}
         </section>
       )}
 
       {nonInstradate.totale > 0 && (
-        <div className="card" style={{ borderColor: 'rgba(138, 100, 16, 0.35)' }}>
+        <div className="card card-avviso">
           <div className="card-head">
-            <h2>Richieste senza sezione</h2>
-            <span className="badge badge-warn">{nonInstradate.totale} da instradare</span>
+            <h3 className="card-titolo">Richieste senza sezione</h3>
+            <span className="badge badge-warn badge-punto">
+              {nonInstradate.totale} da instradare
+            </span>
           </div>
-          <p className="muted" style={{ marginTop: 0 }}>
+          <p className="card-nota muted">
             Queste richieste non compaiono nella sezione di nessun responsabile: va aggiunto il
             canale corrispondente in <code>lib/richieste.ts</code>.
           </p>
@@ -556,9 +700,9 @@ export default async function RiepilogoPage() {
       {inArrivo.length > 0 && (
         <div className="card">
           <div className="card-head">
-            <h2>Moduli in arrivo</h2>
+            <h3 className="card-titolo">Moduli in arrivo</h3>
           </div>
-          <p className="muted" style={{ marginTop: 0 }}>
+          <p className="card-nota muted">
             Hai già il permesso per queste sezioni: appariranno nel menu appena il modulo è pronto.
           </p>
           <ul style={{ margin: '0.75rem 0 0', paddingLeft: '1.1rem' }}>

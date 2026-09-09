@@ -43,8 +43,17 @@ export function ImpegniDashboard({
         const mio = voce.assegnatoA === io
         const inGestione = aperta === voce.chiave
 
+        // La banda a sinistra dice il peso della voce prima di leggerla: rossa
+        // se è di un giorno passato, blu se è di oggi. Prima l'arretrato si
+        // riconosceva solo da un badge ambra in mezzo alla riga, che in un
+        // elenco di dodici voci si trova rileggendo.
         return (
-          <li className="impegno impegno-gestibile" key={voce.chiave}>
+          <li
+            className={`impegno impegno-gestibile riga-stato ${
+              arretrato ? 'is-arretrato' : 'is-oggi'
+            }`}
+            key={voce.chiave}
+          >
             <div className="impegno-riga">
               <span className={`badge-tipo ${CLASSE_TIPO[voce.tipo]}`}>
                 {ETICHETTE_TIPO_BREVI[voce.tipo]}
@@ -58,7 +67,9 @@ export function ImpegniDashboard({
                 {intervalloOrario(voce.ora, voce.durataMinuti) ?? 'in giornata'}
               </span>
 
-              {arretrato && <span className="badge badge-warn">arretrato</span>}
+              {arretrato && (
+                <span className="badge badge-ko badge-punto badge-stato">arretrato</span>
+              )}
 
               {/* Di chi è: gli appuntamenti si vedono tutti, anche quelli dei
                   colleghi (in sede o al telefono, il club è uno). Dirlo evita

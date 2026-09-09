@@ -2,9 +2,12 @@
 
 import { useState, useTransition } from 'react'
 import {
-  CLASSE_STATO,
+  AZIONE_STATO,
+  CLASSE_BADGE_STATO,
+  CLASSE_RIGA_STATO,
   ETICHETTE_STATO,
   OPZIONI_STATO,
+  PASSI_AVANZAMENTO,
   eChiusa,
   puoAssegnare,
   type StatoTrattativa,
@@ -55,13 +58,38 @@ export function Trattativa({
     })
   }
 
+  // Dove si trova nel percorso buono: da prendere → in gestione → vinta.
+  // Persa è un'uscita laterale e non ha un passo, quindi non ha nemmeno la
+  // barra: al suo posto si legge il motivo.
+  const passo = PASSI_AVANZAMENTO.indexOf(t.stato)
+
   return (
-    <div className="trattativa">
+    <div className={`trattativa ${CLASSE_RIGA_STATO[t.stato]}`}>
       {/* Il badge da solo ("In gestione") non dice di cosa: la riga è una
           richiesta, questo blocco è l'opportunità della persona, che vale per
           tutte le sue richieste. */}
       <span className="trattativa-etichetta">Trattativa</span>
-      <span className={`badge ${CLASSE_STATO[t.stato]}`}>{ETICHETTE_STATO[t.stato]}</span>
+      <span className={`badge badge-stato badge-punto ${CLASSE_BADGE_STATO[t.stato]}`}>
+        {ETICHETTE_STATO[t.stato]}
+      </span>
+
+      {/* Tre trattini: quanti passi sono fatti e quale è quello di adesso. Un
+          badge dice dove sei; questo dice anche quanto manca, che su una
+          pipeline è metà dell'informazione — e si legge senza parole. */}
+      {passo >= 0 && (
+        <span
+          className="pipeline-passi"
+          role="img"
+          aria-label={`Passo ${passo + 1} di ${PASSI_AVANZAMENTO.length}: ${ETICHETTE_STATO[t.stato]}`}
+        >
+          {PASSI_AVANZAMENTO.map((x, i) => (
+            <span
+              key={x}
+              className={`pipeline-passo${i < passo ? ' is-fatto' : ''}${i === passo ? ' is-adesso' : ''}`}
+            />
+          ))}
+        </span>
+      )}
 
       <span className="trattativa-chi muted">
         {t.assegnato_a
@@ -153,6 +181,13 @@ export function Trattativa({
 
       {eChiusa(t.stato) && !modificabile && (
         <span className="trattativa-chi muted">chiusa</span>
+      )}
+
+      {/* Cosa chiede lo stato (AZIONE_STATO in lib/pipeline.ts): il badge dice
+          dov'è la trattativa, questa riga dice cosa farne. Su una persa il
+          motivo qui sopra è già la spiegazione, e ripeterlo sarebbe rumore. */}
+      {!(t.stato === 'perso' && t.motivo_perso) && (
+        <p className="trattativa-azione">{AZIONE_STATO[t.stato]}</p>
       )}
 
       {errore && (
