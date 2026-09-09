@@ -218,7 +218,7 @@ export function NuovaVoce({
           </div>
           <p className="field-hint">
             {contattoNuovo
-              ? 'Entra in anagrafica adesso, segnato come inserito a mano. Se ci fosse già — stessa email o stesso numero — la voce va sulla scheda che c’è, senza doppioni.'
+              ? 'Basta il nome: entra in anagrafica adesso, segnato come inserito a mano. Se ci fosse già — stessa email o stesso numero — la voce va sulla scheda che c’è, senza doppioni.'
               : 'Il contatto a cui agganciare la voce. Se non è in elenco, creane uno nuovo.'}
           </p>
         </div>
@@ -271,13 +271,21 @@ export function NuovaVoce({
                 onChange={(e) => setNuovo({ ...nuovo, cellulare: e.target.value })}
                 autoComplete="off"
               />
-              {/* Una delle due chiavi serve davvero: sono quelle con cui il
-                  database riconosce la persona quando torna (vedi
-                  validaNuovoContatto). E un appuntamento con qualcuno che non
-                  si può né chiamare né avvisare è un appuntamento a metà. */}
-              <p className="field-hint">
-                Serve l&apos;email o il cellulare: è così che lo ritroviamo quando torna.
-              </p>
+              {/* Facoltativi entrambi, e il perché di chiederli comunque
+                  detto una volta: sono le chiavi con cui il database
+                  riconosce la persona quando torna (vedi
+                  validaNuovoContatto). Pretenderne una vorrebbe dire non
+                  poter fissare niente a chi si presenta al banco senza
+                  lasciare un numero. */}
+              {/* L'avvertenza solo finché sono vuoti tutti e due: appena
+                  ce n'è uno non c'è più niente da avvertire, e una nota che
+                  resta lì si smette di leggerla. */}
+              {!nuovo.email.trim() && !nuovo.cellulare.trim() && (
+                <p className="field-hint">
+                  Facoltativi. Ma se ne lasci uno lo ritroviamo quando torna: senza, una sua
+                  richiesta dal sito creerà un secondo contatto da unire a mano.
+                </p>
+              )}
             </div>
           </div>
         ) : (

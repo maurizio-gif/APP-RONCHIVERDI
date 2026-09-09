@@ -4,11 +4,18 @@
 -- (upoiasekisojikbzsymq), dopo 2026-09-08-eventi-collegati.sql.
 --
 -- Non cambia niente di strutturale, ed è di proposito: l'anagrafica ha già
--- tutto quello che serve. Chi crea un contatto dall'agenda passa da
--- `trova_o_crea_persona` — la stessa funzione che usa il trigger delle
--- richieste dal sito — con `p_fonte = 'inserimento_manuale'`, e la
--- deduplicazione continua a farla il database: stessa email o stesso numero,
--- stessa riga, anche scritti in modo diverso.
+-- tutto quello che serve. Chi crea un contatto dall'agenda lasciando un
+-- recapito passa da `trova_o_crea_persona` — la stessa funzione che usa il
+-- trigger delle richieste dal sito — con `p_fonte = 'inserimento_manuale'`, e
+-- la deduplicazione continua a farla il database: stessa email o stesso
+-- numero, stessa riga, anche scritti in modo diverso.
+--
+-- Un contatto senza né email né cellulare, invece, l'applicazione lo inserisce
+-- diretto in `persone`: trova_o_crea_persona senza chiavi non crea niente, di
+-- proposito, perché per una richiesta dal sito quella riga sarebbe un
+-- duplicato garantito. Al banco il caso è diverso, e la riga entra con la
+-- fonte che dice com'è entrata — è da quella che si ritrovano le righe da
+-- ricontrollare, con la query in fondo a questo file.
 --
 -- Questo file serve a due cose:
 --
@@ -31,3 +38,14 @@ select coalesce(fonte, '(non indicata)') as fonte, count(*) as quante
 from public.persone
 group by 1
 order by 2 desc;
+
+-- I contatti inseriti a mano su cui il database non ha nessuna chiave: sono
+-- quelli che un domani possono sdoppiarsi, se quella persona scrive dal sito.
+-- Da rileggere ogni tanto per unire i doppioni, che è il prezzo dichiarato di
+-- poter fissare un appuntamento a chi non lascia un recapito.
+select id, nome, cognome, creato_il
+from public.persone
+where fonte = 'inserimento_manuale'
+	and email is null
+	and cellulare_norm is null
+order by creato_il desc;

@@ -231,10 +231,24 @@ l'anagrafica si popolava solo dalle richieste del sito — l'unico modo era
 mandare quella persona sul sito a scrivere una richiesta per farsi esistere.
 
 Nel form dell'Agenda il contatto ha due strade dichiarate, *Dall'elenco* e
-*Nuovo contatto*. Il contatto nuovo chiede il nome e almeno un recapito —
-email o cellulare, che sono le chiavi con cui il database riconosce la persona
-quando torna — e quello che era stato scritto nella ricerca si porta dietro
-nei campi: chi ha cercato «Mario Rossi» senza trovarlo non lo riscrive.
+*Nuovo contatto*. Il contatto nuovo chiede **solo il nome**, e quello che era
+stato scritto nella ricerca si porta dietro nei campi: chi ha cercato «Mario
+Rossi» senza trovarlo non lo riscrive.
+
+Email e cellulare sono **facoltativi tutti e due**. Sono le chiavi con cui il
+database riconosce la persona quando torna, e averne una è meglio — il form lo
+dice finché sono vuote — ma pretenderla vorrebbe dire non poter fissare niente
+a chi si presenta al banco senza lasciare un numero, che è la ragione per cui
+questo form esiste.
+
+Senza nessuna delle due la riga si scrive diretta in `persone`, ed è l'unico
+punto in cui non passa da `trova_o_crea_persona`: quella funzione, senza
+chiavi, di proposito non crea niente — per una richiesta arrivata dal sito una
+riga così sarebbe un duplicato garantito. Qui il caso è diverso: c'è una
+persona vera davanti a qualcuno che la sta scrivendo, e meglio una riga da
+ricontrollare che un appuntamento che non si può prendere. Il prezzo si dice
+invece di nasconderlo: se in anagrafica c'è già lo stesso nome, il form
+avvisa che senza un recapito non si può sapere se è la stessa persona.
 
 Chi si crea così nasce con `fonte = 'inserimento_manuale'` e in anagrafica
 porta la targhetta **Inserito a mano** (`FONTE_MANUALE` e `eInseritoAMano` in

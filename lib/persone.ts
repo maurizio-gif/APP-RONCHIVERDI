@@ -114,26 +114,40 @@ export type NuovoContatto = {
   cellulare?: string | null
 }
 
+/** Un contatto nuovo con i campi puliti, pronto per l'anagrafica. */
+export type ContattoDaCreare = {
+  nome: string
+  cognome: string | null
+  email: string | null
+  cellulare: string | null
+}
+
 /**
  * Cosa serve per creare un contatto a mano, e perché.
  *
- * **Un nome**: un contatto senza nome, creato a mano, è indistinguibile dal
- * prossimo — in elenco resterebbe «Senza nome» accanto agli altri «Senza
- * nome». Chi ha davanti la persona o ce l'ha al telefono il nome lo sa.
+ * **Solo il nome.** Un contatto senza nome, creato a mano, è indistinguibile
+ * dal prossimo: in elenco resterebbe «Senza nome» accanto agli altri «Senza
+ * nome». Chi ha davanti la persona, o ce l'ha al telefono, il nome lo sa.
  *
- * **Almeno un recapito**, email o cellulare: sono le due chiavi con cui il
- * database riconosce la persona (vedi trova_o_crea_persona, che senza
- * nessuna delle due non crea niente e ritorna null). Senza recapito la riga
- * sarebbe un duplicato garantito alla prima richiesta dal sito della stessa
- * persona — e comunque un appuntamento con qualcuno che non si può né
- * chiamare né avvisare.
+ * **I recapiti sono facoltativi, tutti e due.** Email e cellulare sono le
+ * chiavi con cui il database riconosce la persona (vedi
+ * trova_o_crea_persona), e averne almeno una è meglio — ma pretenderla
+ * significherebbe non poter fissare niente a chi si presenta al banco senza
+ * lasciare un numero, che è la ragione per cui questo form esiste. Chi non
+ * ne ha nessuna entra comunque, e si accetta il rischio che ne dice il nome:
+ * la sua riga non si può deduplicare, quindi se un domani quella persona
+ * scrive dal sito nasce un secondo contatto, e i due si uniscono a mano.
  *
- * La stessa regola vale nel form e nella Server Action: il form la annuncia
- * prima di scrivere, il server la fa rispettare.
+ * Per questo la targhetta «Inserito a mano» conta: è da lì che si riconoscono
+ * le righe da ricontrollare.
+ *
+ * La stessa funzione la usano il form e la Server Action: il form la chiama
+ * prima di partire, il server prima di scrivere, e le due risposte non
+ * possono divergere.
  */
 export function validaNuovoContatto(
   c: NuovoContatto
-): { contatto: { nome: string; cognome: string | null; email: string | null; cellulare: string | null } } | { errore: string } {
+): { contatto: ContattoDaCreare } | { errore: string } {
   const pulito = (v: string | null | undefined) => (v ?? '').trim()
   const nome = pulito(c.nome)
   const cognome = pulito(c.cognome)
@@ -141,12 +155,6 @@ export function validaNuovoContatto(
   const cellulare = pulito(c.cellulare)
 
   if (!nome) return { errore: 'Per creare un contatto serve almeno il nome.' }
-  if (!email && !cellulare) {
-    return {
-      errore:
-        'Per creare un contatto serve l’email o il cellulare: sono le chiavi con cui lo ritroviamo quando torna.',
-    }
-  }
   // Nessuna validazione fine dell'email: qui il rischio non è un indirizzo
   // storto — quello si corregge — ma una riga che non si riesce a
   // riconoscere. Una chiocciola basta a distinguere un indirizzo da un nome
@@ -163,6 +171,15 @@ export function validaNuovoContatto(
       cellulare: cellulare || null,
     },
   }
+}
+
+/**
+ * Vero se questo contatto non porta nessuna delle due chiavi di
+ * deduplicazione: il database non potrà riconoscerlo, e la sua riga va
+ * scritta sapendolo (vedi creaContattoAMano).
+ */
+export function senzaRecapiti(c: ContattoDaCreare): boolean {
+  return !c.email && !c.cellulare
 }
 
 export function dataBreve(iso: string | null): string {
