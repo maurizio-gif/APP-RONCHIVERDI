@@ -223,6 +223,44 @@ Un vantaggio che ne segue: l'elenco dell'agenda mostra **per chi** è una voce,
 e il pannello Eventi di una richiesta trova anche gli eventi creati a mano
 dall'agenda per quella persona.
 
+### Se il contatto non c'è, si crea dall'agenda
+
+Al telefono o al banco arriva qualcuno che non ha mai compilato un form.
+Prima l'appuntamento non si poteva fissare: il contatto era obbligatorio, e
+l'anagrafica si popolava solo dalle richieste del sito — l'unico modo era
+mandare quella persona sul sito a scrivere una richiesta per farsi esistere.
+
+Nel form dell'Agenda il contatto ha due strade dichiarate, *Dall'elenco* e
+*Nuovo contatto*. Il contatto nuovo chiede il nome e almeno un recapito —
+email o cellulare, che sono le chiavi con cui il database riconosce la persona
+quando torna — e quello che era stato scritto nella ricerca si porta dietro
+nei campi: chi ha cercato «Mario Rossi» senza trovarlo non lo riscrive.
+
+Chi si crea così nasce con `fonte = 'inserimento_manuale'` e in anagrafica
+porta la targhetta **Inserito a mano** (`FONTE_MANUALE` e `eInseritoAMano` in
+[`lib/persone.ts`](lib/persone.ts)). Non è un dettaglio da archivio: è quello
+che spiega una scheda con zero richieste in un elenco che si popola dalle
+richieste del sito — altrimenti si legge come una riga rotta — e distingue chi
+è arrivato per telefono da chi ha scritto.
+
+La riga la scrive `trova_o_crea_persona`, la stessa funzione che usa il
+trigger delle richieste dal sito: la deduplicazione resta del database, e non
+c'è una seconda regola che al primo numero scritto in modo diverso
+divergerebbe da quella. Ne segue che un contatto «nuovo» che in anagrafica
+c'era già — stessa email, stesso numero anche scritto in un altro modo — non
+crea un doppione: la voce va sulla riga che c'era, e il form lo dice invece di
+farlo di nascosto. La fonte in quel caso non cambia: chi è nato da una
+richiesta dal sito non diventa «inserito a mano» perché lo si è ritrovato
+scrivendone l'email qui.
+
+L'evento si valida **prima** di toccare l'anagrafica (`preparaEvento` in
+[`lib/eventi.ts`](lib/eventi.ts)): un titolo dimenticato deve far fallire il
+salvataggio senza lasciare dietro di sé un contatto che nessuno ha chiesto.
+
+Vedi [`scripts/sql/2026-09-09-contatto-inserito-a-mano.sql`](scripts/sql/2026-09-09-contatto-inserito-a-mano.sql),
+che non cambia lo schema: scrive nel commento della colonna il vocabolario
+completo di `fonte`.
+
 ### Programma o registra
 
 - **Programma** — un impegno futuro: nasce «da fare» e qualcuno lo chiuderà.

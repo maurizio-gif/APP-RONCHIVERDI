@@ -191,6 +191,35 @@ export function rigaEvento(
   email: string | null,
   collegamento: CollegamentoEvento
 ): { riga: Record<string, unknown> } | { errore: string } {
+  const preparato = preparaEvento(evento, email)
+  if ('errore' in preparato) return preparato
+
+  return {
+    riga: {
+      ...preparato.riga,
+      entita: collegamento.entita,
+      entita_id: collegamento.id,
+    },
+  }
+}
+
+/**
+ * Tutto l'evento tranne a chi è agganciato: i campi normalizzati, lo stato
+ * che deriva dal modo, l'esito quando è registrato.
+ *
+ * Sta separato da rigaEvento perché il collegamento a volte non c'è ancora
+ * quando l'evento si può già validare: l'agenda che crea il contatto sul
+ * momento deve poter rifiutare un evento sbagliato **prima** di scrivere una
+ * persona nuova in anagrafica — altrimenti un titolo dimenticato lascerebbe
+ * dietro di sé un contatto che nessuno ha chiesto.
+ *
+ * La riga che ritorna non è inseribile da sola: `entita` ed `entita_id` sono
+ * obbligatori (vedi ENTITA_COLLEGAMENTO), e li mette rigaEvento.
+ */
+export function preparaEvento(
+  evento: EventoDaProgrammare,
+  email: string | null
+): { riga: Record<string, unknown> } | { errore: string } {
   const base = campiEvento(evento, email)
   if ('errore' in base) return base
 
@@ -223,8 +252,6 @@ export function rigaEvento(
         completato_il: new Date().toISOString(),
         esito_tipo: esito,
         esito: nota,
-        entita: collegamento.entita,
-        entita_id: collegamento.id,
       },
     }
   }
@@ -249,8 +276,6 @@ export function rigaEvento(
       creato_da: email,
       stato: giaAvvenuto ? 'completato' : 'aperto',
       completato_il: giaAvvenuto ? new Date().toISOString() : null,
-      entita: collegamento.entita,
-      entita_id: collegamento.id,
     },
   }
 }

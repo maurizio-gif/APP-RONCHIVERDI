@@ -10,7 +10,8 @@ import {
   eTipoValido,
 } from '@/lib/agenda'
 import { ETICHETTE_MODO, MODI, SPIEGAZIONI_MODO, type ModoEvento } from '@/lib/eventi'
-import { nomePersona, testoRicerca } from '@/lib/persone'
+import { nomePersona, testoRicerca, validaNuovoContatto } from '@/lib/persone'
+import { dividiTestoContatto } from './nuovo-contatto'
 import { useGiornoSelezionato } from '@/components/CalendarioAgenda'
 import { creaVoce } from './actions'
 
@@ -47,7 +48,13 @@ export function NuovaVoce({
   const [tipo, setTipo] = useState('appuntamento_in_sede')
   const [filtro, setFiltro] = useState('')
   const [personaId, setPersonaId] = useState('')
+  // Elenco o contatto nuovo: due strade dichiarate, non un campo che cambia
+  // significato. Chi arriva qui sta quasi sempre scegliendo dall'elenco — il
+  // contatto nuovo è l'eccezione, e si chiede.
+  const [contattoNuovo, setContattoNuovo] = useState(false)
+  const [nuovo, setNuovo] = useState({ nome: '', cognome: '', email: '', cellulare: '' })
   const [errore, setErrore] = useState<string | null>(null)
+  const [avviso, setAvviso] = useState<string | null>(null)
   const [inCorso, startTransition] = useTransition()
 
   const durataSuggerita = eTipoValido(tipo) ? DURATA_PREDEFINITA[tipo] : 10
@@ -72,8 +79,40 @@ export function NuovaVoce({
     return elenco
   }, [contatti, filtro])
 
+  /**
+   * Passa a «Nuovo contatto» portandosi dietro quello che era stato scritto
+   * nella ricerca: chi ha appena cercato «Mario Rossi» o un numero, e non lo
+   * ha trovato, non deve riscriverlo nel campo accanto.
+   */
+  function passaANuovo() {
+    setContattoNuovo(true)
+    setPersonaId('')
+    setErrore(null)
+    setNuovo((precedente) =>
+      // Solo sui campi ancora vuoti: se si torna indietro e si riparte, non
+      // si sovrascrive quello che era già stato scritto a mano.
+      precedente.nome || precedente.cognome || precedente.email || precedente.cellulare
+        ? precedente
+        : { ...precedente, ...dividiTestoContatto(filtro) }
+    )
+  }
+
   function invia(formData: FormData) {
     setErrore(null)
+    setAvviso(null)
+
+    // La stessa regola del server, chiesta prima di partire: «serve l'email o
+    // il cellulare» detto subito costa un colpo d'occhio, detto dopo il giro
+    // costa un form che si è già svuotato a metà. La funzione è una sola
+    // (lib/persone.ts), quindi le due risposte non possono divergere.
+    if (contattoNuovo) {
+      const validato = validaNuovoContatto(nuovo)
+      if ('errore' in validato) {
+        setErrore(validato.errore)
+        return
+      }
+    }
+
     startTransition(async () => {
       const esito = await creaVoce(formData)
       if (esito.ok) {
@@ -81,6 +120,11 @@ export function NuovaVoce({
         setPersonaId('')
         setFiltro('')
         setModo('programma')
+        setContattoNuovo(false)
+        setNuovo({ nome: '', cognome: '', email: '', cellulare: '' })
+        // Un contatto «nuovo» che in anagrafica c'era già va detto: la voce è
+        // salvata, ma sulla scheda di quella persona lì.
+        setAvviso(esito.avviso ?? null)
       } else {
         setErrore(esito.errore)
       }
@@ -89,9 +133,22 @@ export function NuovaVoce({
 
   if (!aperto) {
     return (
-      <button type="button" className="btn" onClick={() => setAperto(true)}>
-        Aggiungi in agenda
-      </button>
+      <>
+        {/* L'avviso sopravvive alla chiusura del form: è la sola traccia di
+            un contatto «nuovo» finito su una scheda che esisteva già, e
+            sparendo col form non lo leggerebbe nessuno. */}
+        {avviso && (
+          <p className="info-banner" role="status">
+            {avviso}{' '}
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setAvviso(null)}>
+              Ho capito
+            </button>
+          </p>
+        )}
+        <button type="button" className="btn" onClick={() => setAperto(true)}>
+          Aggiungi in agenda
+        </button>
+      </>
     )
   }
 
@@ -131,50 +188,151 @@ export function NuovaVoce({
 
         {/* Il contatto è obbligatorio: una voce senza contatto non compare
             nella scheda di nessuno, e in agenda è un titolo senza il perché.
-            Si ritrovava solo per caso, scorrendo il giorno giusto. */}
-        <div className="form-row">
-          <div className="field">
-            <label htmlFor="cerca-contatto">Cerca il contatto</label>
-            <input
-              id="cerca-contatto"
-              type="search"
-              value={filtro}
-              onChange={(e) => setFiltro(e.target.value)}
-              placeholder="Nome, email o cellulare"
-              autoComplete="off"
-            />
-            {contattiTroncati && !filtro.trim() && (
-              <p className="field-hint">
-                Elenco parziale: sono i contatti più recenti. Cerca per nome per trovare gli altri.
-              </p>
-            )}
-          </div>
-          <div className="field">
-            <label htmlFor="persona_id">
-              Contatto <span aria-hidden="true">*</span>
-            </label>
-            <select
-              id="persona_id"
-              name="persona_id"
-              required
-              value={personaId}
-              onChange={(e) => setPersonaId(e.target.value)}
+            Si ritrovava solo per caso, scorrendo il giorno giusto.
+
+            E se non c'è si crea qui: al telefono o al banco arriva gente che
+            non ha mai compilato un form, e prima l'unico modo di fissarle un
+            appuntamento era mandarla sul sito a scrivere una richiesta. */}
+        <input type="hidden" name="contatto_modo" value={contattoNuovo ? 'nuovo' : 'elenco'} />
+        <div className="modo-evento">
+          <div className="esito-gruppi" role="group" aria-label="Contatto in elenco o nuovo">
+            <button
+              type="button"
+              className={`btn btn-sm${contattoNuovo ? ' btn-ghost' : ''}`}
+              aria-pressed={!contattoNuovo}
+              onClick={() => {
+                setContattoNuovo(false)
+                setErrore(null)
+              }}
             >
-              <option value="">— scegli —</option>
-              {contattiFiltrati.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {nomePersona(c)}
-                  {c.email ? ` · ${c.email}` : c.cellulare ? ` · ${c.cellulare}` : ''}
-                </option>
-              ))}
-            </select>
-            {contattiFiltrati.length === 0 && (
-              <p className="field-hint">
-                Nessun contatto con questo testo. I contatti nascono dalle richieste del sito.
-              </p>
-            )}
+              Dall&apos;elenco
+            </button>
+            <button
+              type="button"
+              className={`btn btn-sm${contattoNuovo ? '' : ' btn-ghost'}`}
+              aria-pressed={contattoNuovo}
+              onClick={passaANuovo}
+            >
+              Nuovo contatto
+            </button>
           </div>
+          <p className="field-hint">
+            {contattoNuovo
+              ? 'Entra in anagrafica adesso, segnato come inserito a mano. Se ci fosse già — stessa email o stesso numero — la voce va sulla scheda che c’è, senza doppioni.'
+              : 'Il contatto a cui agganciare la voce. Se non è in elenco, creane uno nuovo.'}
+          </p>
         </div>
+
+        {contattoNuovo ? (
+          <div className="form-row">
+            <div className="field">
+              <label htmlFor="nuovo_nome">
+                Nome <span aria-hidden="true">*</span>
+              </label>
+              <input
+                id="nuovo_nome"
+                name="nuovo_nome"
+                type="text"
+                required
+                value={nuovo.nome}
+                onChange={(e) => setNuovo({ ...nuovo, nome: e.target.value })}
+                autoComplete="off"
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="nuovo_cognome">Cognome</label>
+              <input
+                id="nuovo_cognome"
+                name="nuovo_cognome"
+                type="text"
+                value={nuovo.cognome}
+                onChange={(e) => setNuovo({ ...nuovo, cognome: e.target.value })}
+                autoComplete="off"
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="nuovo_email">Email</label>
+              <input
+                id="nuovo_email"
+                name="nuovo_email"
+                type="email"
+                value={nuovo.email}
+                onChange={(e) => setNuovo({ ...nuovo, email: e.target.value })}
+                autoComplete="off"
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="nuovo_cellulare">Cellulare</label>
+              <input
+                id="nuovo_cellulare"
+                name="nuovo_cellulare"
+                type="tel"
+                value={nuovo.cellulare}
+                onChange={(e) => setNuovo({ ...nuovo, cellulare: e.target.value })}
+                autoComplete="off"
+              />
+              {/* Una delle due chiavi serve davvero: sono quelle con cui il
+                  database riconosce la persona quando torna (vedi
+                  validaNuovoContatto). E un appuntamento con qualcuno che non
+                  si può né chiamare né avvisare è un appuntamento a metà. */}
+              <p className="field-hint">
+                Serve l&apos;email o il cellulare: è così che lo ritroviamo quando torna.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="form-row">
+            <div className="field">
+              <label htmlFor="cerca-contatto">Cerca il contatto</label>
+              <input
+                id="cerca-contatto"
+                type="search"
+                value={filtro}
+                onChange={(e) => setFiltro(e.target.value)}
+                placeholder="Nome, email o cellulare"
+                autoComplete="off"
+              />
+              {contattiTroncati && !filtro.trim() && (
+                <p className="field-hint">
+                  Elenco parziale: sono i contatti più recenti. Cerca per nome per trovare gli
+                  altri.
+                </p>
+              )}
+            </div>
+            <div className="field">
+              <label htmlFor="persona_id">
+                Contatto <span aria-hidden="true">*</span>
+              </label>
+              <select
+                id="persona_id"
+                name="persona_id"
+                required
+                value={personaId}
+                onChange={(e) => setPersonaId(e.target.value)}
+              >
+                <option value="">— scegli —</option>
+                {contattiFiltrati.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {nomePersona(c)}
+                    {c.email ? ` · ${c.email}` : c.cellulare ? ` · ${c.cellulare}` : ''}
+                  </option>
+                ))}
+              </select>
+              {/* La ricerca a vuoto era un vicolo cieco: diceva che i
+                  contatti nascono dalle richieste del sito, e chi aveva la
+                  persona al telefono restava lì. Adesso da qui si crea. */}
+              {contattiFiltrati.length === 0 && (
+                <p className="field-hint">
+                  Nessun contatto con questo testo.{' '}
+                  <button type="button" className="link-testo" onClick={passaANuovo}>
+                    Crealo adesso
+                  </button>
+                  .
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="form-row">
           <div className="field" style={{ flexBasis: '100%' }}>
