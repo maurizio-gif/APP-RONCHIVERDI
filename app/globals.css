@@ -758,6 +758,14 @@ table.tabella tbody tr:hover {
 	color: var(--text-muted);
 }
 
+/* Walk-in: la persona era in sede, non ha scritto dal sito. È il badge
+   nell'oro del club perché è un'informazione buona — qualcuno è venuto a
+   trovarci — e va distinta a colpo d'occhio dagli avvisi. */
+.badge-walkin {
+	background: var(--accent-tint);
+	color: var(--accent);
+}
+
 /* Una voce chiusa male non deve leggersi come una chiusa bene: "Fallita" in
    verde accanto a "Eseguita" in verde renderebbe i due esiti indistinguibili
    scorrendo l'elenco. */

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { CHIAVI_SEZIONI } from '@/lib/auth/sezioni'
 import {
   impostaCommerciale,
+  impostaOperatoreSegreteria,
   impostaPuoCancellare,
   impostaPuoInvitare,
   impostaPuoRiassegnare,
@@ -21,6 +22,7 @@ export type DatiUtente = {
   puo_cancellare: boolean
   commerciale: boolean
   puo_riassegnare: boolean
+  operatore_segreteria: boolean
 }
 
 // Una riga per persona: chiusa dice chi è e cosa può fare, aperta si modifica.
@@ -51,6 +53,7 @@ export function RigaUtente({
     u.commerciale && 'Commerciale',
     u.puo_riassegnare && 'Riassegna',
     u.puo_cancellare && 'Cancella',
+    u.operatore_segreteria && 'Segreteria',
   ].filter(Boolean) as string[]
 
   const etichettaSezioni =
@@ -141,6 +144,14 @@ export function RigaUtente({
               valoreIniziale={u.puo_riassegnare}
               etichetta="Può riassegnare le trattative"
               azione={impostaPuoRiassegnare}
+              disabilitato={!amministra}
+              motivoDisabilitato="Serve il permesso di amministrare"
+            />
+            <TogglePermesso
+              email={u.email}
+              valoreIniziale={u.operatore_segreteria}
+              etichetta="Operatore di segreteria (guest register)"
+              azione={impostaOperatoreSegreteria}
               disabilitato={!amministra}
               motivoDisabilitato="Serve il permesso di amministrare"
             />

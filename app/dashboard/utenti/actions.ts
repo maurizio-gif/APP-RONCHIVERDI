@@ -193,6 +193,35 @@ export async function impostaCommerciale(email: string, valore: boolean): Promis
   return { ok: true }
 }
 
+// Operatore di segreteria: chi sta al banco e registra le persone che si
+// presentano in sede. Non è un permesso sull'app — non apre nessuna sezione —
+// ma è ciò che fa comparire una persona nel menu "operatore" della pagina
+// guest register del sito.
+export async function impostaOperatoreSegreteria(
+  email: string,
+  valore: boolean
+): Promise<Risultato> {
+  if (!(await chiamanteAmministra())) {
+    return { ok: false, errore: 'Non hai il permesso di modificare i permessi degli altri utenti.' }
+  }
+
+  const supabase = createSupabaseServiceClient()
+  const { error } = await supabase
+    .from('staff_users')
+    .update({ operatore_segreteria: valore })
+    .eq('email', email)
+  if (error) return { ok: false, errore: error.message }
+
+  await registraLog(emailCorrente(), 'operatore_segreteria_modificato', {
+    entita: 'staff_users',
+    entitaId: email,
+    dettagli: { email_target: email, valore },
+  })
+
+  revalidatePath('/dashboard/utenti')
+  return { ok: true }
+}
+
 export async function impostaPuoRiassegnare(email: string, valore: boolean): Promise<Risultato> {
   if (!(await chiamanteAmministra())) {
     return { ok: false, errore: 'Non hai il permesso di modificare i permessi degli altri utenti.' }

@@ -29,7 +29,7 @@ export default async function UtentiPage({
   const supabase = createSupabaseServiceClient()
   const { data } = await supabase
     .from('staff_users')
-    .select('email, nome, cognome, sezioni_consentite, puo_invitare, puo_cancellare, commerciale, puo_riassegnare, created_at')
+    .select('email, nome, cognome, sezioni_consentite, puo_invitare, puo_cancellare, commerciale, puo_riassegnare, operatore_segreteria, created_at')
     .order('created_at', { ascending: true })
 
   const utenti = (data ?? []) as RigaStaff[]

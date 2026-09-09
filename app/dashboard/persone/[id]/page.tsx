@@ -35,7 +35,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
     // diverse per la stessa cosa.
     supabase
       .from('opportunita')
-      .select('id, stato, assegnato_a, creato_il, chiuso_il, motivo_perso')
+      .select('id, stato, assegnato_a, creato_il, chiuso_il, motivo_perso, origine')
       .eq('persona_id', params.id)
       .order('creato_il', { ascending: false }),
   ])
@@ -109,6 +109,14 @@ export default async function PersonaPage({ params }: { params: { id: string } }
                     <span className={`badge ${CLASSE_STATO[t.stato as StatoTrattativa]}`}>
                       {ETICHETTE_STATO[t.stato as StatoTrattativa]}
                     </span>
+                    {/* Nata al banco, non dal sito: cambia come ci si
+                        presenta a chi si richiama, e va detto qui perché in
+                        pipeline la trattativa si legge da sola. */}
+                    {t.origine === 'walk-in' && (
+                      <span className="badge badge-walkin" style={{ marginLeft: '0.5rem' }}>
+                        Walk-in
+                      </span>
+                    )}
                     <span className="muted" style={{ marginLeft: '0.5rem', fontSize: 'var(--text-sm)' }}>
                       {t.assegnato_a ? `la segue ${t.assegnato_a}` : 'nessun assegnatario'}
                     </span>
