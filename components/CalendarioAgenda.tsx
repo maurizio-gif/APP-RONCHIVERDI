@@ -78,9 +78,17 @@ export function CalendarioAgenda({
         </div>
       </div>
 
+      {/* Tre pallini, non due. Prima ogni giornata con qualcosa di aperto era
+          rossa — anche un appuntamento fra tre settimane — e col mese quasi
+          tutto rosso non risaltava più niente, che per un segnale d'allarme è
+          il difetto peggiore. Ora il rosso vuol dire una cosa sola: è passata
+          e non è stata fatta. */}
       <div className="cal-legenda">
         <span>
-          <span className="puntino rosso" /> c&apos;è ancora qualcosa da fare
+          <span className="puntino rosso" /> passata e non fatta
+        </span>
+        <span>
+          <span className="puntino ambra" /> c&apos;è da fare
         </span>
         <span>
           <span className="puntino verde" /> tutto gestito
@@ -100,9 +108,14 @@ export function CalendarioAgenda({
 
         {giorni.map((giorno) => {
           const lista = perGiornata.get(giorno) ?? []
-          const stato = lista.length === 0 ? null : lista.some((v) => v.daFare) ? 'rosso' : 'verde'
+          const daFare = lista.some((v) => v.daFare)
+          const arretrata = daFare && giorno < oggi
+          const stato = lista.length === 0 ? null : arretrata ? 'rosso' : daFare ? 'ambra' : 'verde'
           const classi = ['cal-cella']
           if (giorno === oggi) classi.push('is-oggi')
+          // La giornata passata con qualcosa di aperto si vela di rosso: nel
+          // mese si trova senza contare i pallini uno per uno.
+          if (arretrata) classi.push('is-arretrata')
           if (giorno === selezionato) classi.push('is-selezionata')
 
           return (
@@ -126,16 +139,31 @@ export function CalendarioAgenda({
       </div>
 
       {selezionato && (
-        <div className="card agenda-giorno">
+        <div
+          className={`card agenda-giorno${
+            selezionato === oggi
+              ? ' is-oggi'
+              : delGiorno.some((v) => v.daFare) && selezionato < oggi
+                ? ' is-arretrato'
+                : ''
+          }`}
+        >
           <div className="card-head">
-            <h2 className="agenda-giorno-titolo">{dataLunga(selezionato)}</h2>
-            <span className="muted">
+            <h2 className="agenda-giorno-titolo">
+              {dataLunga(selezionato)}
+              {selezionato === oggi && <span className="badge badge-info badge-punto">oggi</span>}
+              {selezionato < oggi && delGiorno.some((v) => v.daFare) && (
+                <span className="badge badge-ko badge-punto badge-stato">arretrato</span>
+              )}
+            </h2>
+            <span className="muted agenda-giorno-conti">
               {delGiorno.length} {delGiorno.length === 1 ? 'voce' : 'voci'}
             </span>
           </div>
           {delGiorno.length > 0 ? (
             <TabellaAgenda
               voci={delGiorno}
+              oggi={oggi}
               emailCorrente={emailCorrente}
               operatori={operatori}
               puoCancellare={puoCancellare}

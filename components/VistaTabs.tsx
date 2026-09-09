@@ -31,16 +31,25 @@ export function VistaTabs({
     return `${base}?${params.toString()}`
   }
 
+  // Un segmentato, non due pulsanti: erano oro pieno e fantasma, identici ai
+  // comandi che agiscono sui dati, e «Calendario» sembrava una cosa da fare
+  // invece di un modo di guardare. `aria-current` dice quale vista è quella
+  // aperta anche a chi non vede il fondo pieno.
   return (
-    <div className="agenda-nav" style={{ marginBottom: '1.5rem' }}>
+    <div className="vista-tabs">
       {tabs.map((t) => (
         <Link
           key={t.chiave}
-          className={`btn btn-sm ${t.chiave === vista ? '' : 'btn-ghost'}`}
+          className={`vista-tab${t.chiave === vista ? ' is-attivo' : ''}`}
+          aria-current={t.chiave === vista ? 'page' : undefined}
           href={href(t.chiave)}
         >
           {t.etichetta}
-          {!!t.contatore && <span className="vista-tab-contatore">{t.contatore}</span>}
+          {!!t.contatore && (
+            <span className="vista-tab-contatore" title="Ancora da fare">
+              {t.contatore}
+            </span>
+          )}
         </Link>
       ))}
     </div>

@@ -24,13 +24,6 @@ export const ETICHETTE_STATO: Record<StatoTrattativa, string> = {
   perso: 'Persa',
 }
 
-export const CLASSE_STATO: Record<StatoTrattativa, string> = {
-  nuovo: 'badge-warn',
-  in_gestione: 'badge',
-  vinto: 'badge-ok',
-  perso: 'badge-off',
-}
-
 /**
  * Stati finali: la trattativa è chiusa e valorizza chiuso_il. "Finale" dice
  * com'è andata, non che sia scolpito — chi risponde al telefono può sempre
@@ -91,4 +84,58 @@ export function puoAssegnare({
   if (possoRiassegnare) return true
   if (!assegnatoA) return sonoCommerciale
   return !!io && assegnatoA === io
+}
+
+// ─────────────────────────────────────────── come si riconosce uno stato
+//
+// In un pannello di lavoro lo stato va riconosciuto prima di essere letto:
+// quattro righe identiche con quattro parole diverse obbligano a leggere ogni
+// riga per capire quale chiede qualcosa. Da qui escono la banda di colore
+// della riga e il pallino del badge, così la stessa trattativa ha lo stesso
+// colore in dashboard, in elenco e dentro il suo blocco.
+
+export const CLASSE_RIGA_STATO: Record<StatoTrattativa, string> = {
+  nuovo: 'stato-nuovo',
+  in_gestione: 'stato-gestione',
+  vinto: 'stato-vinto',
+  perso: 'stato-perso',
+}
+
+/** Il pallino del colore dello stato: sui chip dei filtri e nei conteggi. */
+export const PUNTO_STATO: Record<StatoTrattativa, string> = {
+  nuovo: 'punto-nuovo',
+  in_gestione: 'punto-gestione',
+  vinto: 'punto-vinto',
+  perso: 'punto-perso',
+}
+
+/**
+ * La classe del badge di stato. «In gestione» stava sull'oro dell'accento —
+ * lo stesso colore dei pulsanti e dell'etichetta «Trattativa» accanto: il
+ * badge si perdeva nel suo blocco. Ora ha il blu ardesia, e «Persa» il rosso
+ * invece del grigio spento: una persa senza motivo registrato è una cosa da
+ * sistemare, non un dettaglio da archiviare.
+ */
+export const CLASSE_BADGE_STATO: Record<StatoTrattativa, string> = {
+  nuovo: 'badge-warn',
+  in_gestione: 'badge-info',
+  vinto: 'badge-ok',
+  perso: 'badge-ko',
+}
+
+/**
+ * Cosa chiede lo stato, in poche parole. L'etichetta dice *dov'è* la
+ * trattativa; questa dice *cosa fare*, che è la domanda di chi apre la
+ * pagina — e senza risposta ogni stato sembra ugualmente urgente.
+ */
+export const AZIONE_STATO: Record<StatoTrattativa, string> = {
+  nuovo: 'nessuno la segue: prendila in carico',
+  in_gestione: 'in corso: continua il seguito',
+  vinto: 'chiusa: è diventata socio',
+  perso: 'chiusa: non è andata',
+}
+
+/** Una trattativa senza titolare è lavoro disponibile, non lavoro di altri. */
+export function eDaPrendere(t: { stato: StatoTrattativa; assegnato_a: string | null }): boolean {
+  return !t.assegnato_a && !eChiusa(t.stato)
 }
