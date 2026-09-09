@@ -5,11 +5,22 @@ import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { puoCancellare } from '@/lib/auth/permessi'
 import { registraLog } from '@/lib/audit'
-import { rigaEvento, type EventoDaProgrammare, type ModoEvento } from '@/lib/eventi'
+import { preparaEvento, type EventoDaProgrammare, type ModoEvento } from '@/lib/eventi'
+import {
+  FONTE_MANUALE,
+  nomePersona,
+  senzaRecapiti,
+  validaNuovoContatto,
+  type ContattoDaCreare,
+} from '@/lib/persone'
 
 // Risultato come valore di ritorno, non un throw: in produzione Next.js
 // oscura il messaggio di un errore lanciato da una Server Action.
-export type Esito = { ok: true } | { ok: false; errore: string }
+//
+// `avviso` è un successo che va comunque detto: la voce è salvata, ma non
+// esattamente come chi scriveva se l'aspettava — il caso vero è il contatto
+// «nuovo» che in anagrafica c'era già.
+export type Esito = { ok: true; avviso?: string } | { ok: false; errore: string }
 
 async function autorizzato(): Promise<boolean> {
   return utenteHaSezione('agenda')
@@ -18,11 +29,17 @@ async function autorizzato(): Promise<boolean> {
 /**
  * Crea a mano una voce d'agenda.
  *
- * Due cose la governano, e nessuna delle due era vera prima:
+ * Tre cose la governano:
  *
  *  - **il contatto è obbligatorio**. Una voce senza contatto non compariva
  *    nella scheda di nessuno e in agenda era un titolo senza il perché: si
  *    ritrovava solo per caso, scorrendo il giorno giusto.
+ *  - **se il contatto non c'è, si crea qui**. Al telefono o al banco arriva
+ *    qualcuno che non ha mai compilato un form: prima l'appuntamento non si
+ *    poteva fissare — l'unico modo era mandare quella persona sul sito a
+ *    scrivere una richiesta per farsi esistere in anagrafica. Il contatto
+ *    creato così nasce con fonte `inserimento_manuale`, che è il segno che
+ *    lo distingue da chi è arrivato dal sito (vedi lib/persone.ts).
  *  - **programma o registra**, dichiarato. Prima lo indovinava la data (vedi
  *    eGiaAvvenuto): una telefonata appena fatta e annotata per domani restava
  *    «da fare», e un impegno fissato per stamattina nasceva già chiuso.
@@ -34,9 +51,10 @@ async function autorizzato(): Promise<boolean> {
 export async function creaVoce(formData: FormData): Promise<Esito> {
   if (!(await autorizzato())) return { ok: false, errore: 'Non hai accesso all’agenda.' }
 
-  const personaId = String(formData.get('persona_id') ?? '').trim()
-  if (!personaId) {
-    return { ok: false, errore: 'Scegli il contatto a cui agganciare la voce.' }
+  const contattoNuovo = String(formData.get('contatto_modo') ?? 'elenco') === 'nuovo'
+  const personaScelta = String(formData.get('persona_id') ?? '').trim()
+  if (!contattoNuovo && !personaScelta) {
+    return { ok: false, errore: 'Scegli il contatto a cui agganciare la voce, o creane uno nuovo.' }
   }
 
   const modoGrezzo = String(formData.get('modo') ?? 'programma')
@@ -56,20 +74,25 @@ export async function creaVoce(formData: FormData): Promise<Esito> {
   }
 
   const email = emailCorrente()
-  const esitoRiga = rigaEvento(evento, email, { entita: 'persona', id: personaId })
-  if ('errore' in esitoRiga) return { ok: false, errore: esitoRiga.errore }
 
-  // Il contatto deve esistere: un id inventato creerebbe una voce agganciata
-  // al nulla, che è il problema da cui siamo partiti.
+  // L'evento si valida **prima** di toccare l'anagrafica: se il titolo manca
+  // o la data è nel passato, un contatto nuovo scritto qui resterebbe in
+  // anagrafica senza la voce per cui era stato creato.
+  const preparato = preparaEvento(evento, email)
+  if ('errore' in preparato) return { ok: false, errore: preparato.errore }
+
   const supabase = createSupabaseServiceClient()
-  const { data: persona } = await supabase
-    .from('persone')
-    .select('id')
-    .eq('id', personaId)
-    .maybeSingle()
-  if (!persona) return { ok: false, errore: 'Contatto non trovato: riscegli dall’elenco.' }
 
-  const { error } = await supabase.from('task').insert(esitoRiga.riga)
+  const contatto = contattoNuovo
+    ? await creaContattoAMano(formData, email)
+    : await contattoDallElenco(personaScelta)
+  if ('errore' in contatto) return { ok: false, errore: contatto.errore }
+
+  const { error } = await supabase.from('task').insert({
+    ...preparato.riga,
+    entita: 'persona',
+    entita_id: contatto.id,
+  })
 
   if (error) {
     console.error('Voce di agenda non creata:', error.message)
@@ -78,18 +101,252 @@ export async function creaVoce(formData: FormData): Promise<Esito> {
 
   await registraLog(email, modo === 'registra' ? 'evento_registrato' : 'agenda_voce_creata', {
     entita: 'persona',
-    entitaId: personaId,
+    entitaId: contatto.id,
     dettagli: {
-      titolo: esitoRiga.riga.titolo,
-      tipo: esitoRiga.riga.tipo,
-      data: esitoRiga.riga.data,
-      ora: esitoRiga.riga.ora,
+      titolo: preparato.riga.titolo,
+      tipo: preparato.riga.tipo,
+      data: preparato.riga.data,
+      ora: preparato.riga.ora,
+      contatto_creato: contatto.creato,
     },
   })
 
   revalidatePath('/dashboard/agenda')
   revalidatePath('/dashboard/richieste/richieste-club')
-  return { ok: true }
+  // Un contatto nuovo compare in anagrafica solo se la si ricalcola: la
+  // pagina è dinamica, ma la scheda della persona resta in cache per la
+  // navigazione.
+  if (contatto.creato) revalidatePath('/dashboard/persone', 'layout')
+  return contatto.avviso ? { ok: true, avviso: contatto.avviso } : { ok: true }
+}
+
+type ContattoRisolto = {
+  id: string
+  /** Vero se questa riga d'anagrafica è nata adesso. */
+  creato: boolean
+  /** Da dire a chi ha scritto, quando il risultato non è quello che chiedeva. */
+  avviso?: string
+}
+
+/**
+ * Il contatto scelto dalla tendina. Deve esistere: un id inventato creerebbe
+ * una voce agganciata al nulla, che è il problema da cui siamo partiti.
+ */
+async function contattoDallElenco(id: string): Promise<ContattoRisolto | { errore: string }> {
+  const supabase = createSupabaseServiceClient()
+  const { data: persona } = await supabase.from('persone').select('id').eq('id', id).maybeSingle()
+  if (!persona) return { errore: 'Contatto non trovato: riscegli dall’elenco.' }
+  return { id, creato: false }
+}
+
+/**
+ * Scrive in anagrafica il contatto che la segreteria ha davanti.
+ *
+ * Con un recapito passa da `trova_o_crea_persona`, la stessa funzione che usa
+ * il trigger delle richieste dal sito: la deduplicazione la fa il database, e
+ * rifarla qui — cercando per email e poi inserendo — vorrebbe dire una
+ * seconda regola che al primo numero scritto in modo diverso divergerebbe da
+ * quella.
+ *
+ * Ne segue una cosa buona e una da dire: se quella persona in anagrafica
+ * c'era già (l'email o il cellulare corrispondono, anche scritti in modo
+ * diverso) non nasce un duplicato — la voce va sulla riga che c'era. Ma chi
+ * scriveva credeva di creare un contatto nuovo, e va avvisato: la sua nota,
+ * fra un mese, sarà nella scheda di quella persona lì.
+ *
+ * Senza nessun recapito la riga si scrive diretta (vedi
+ * inserisciContattoNuovo): non c'è niente su cui deduplicare, e
+ * trova_o_crea_persona in quel caso non crea nulla — ritorna null di
+ * proposito, perché per una richiesta dal sito una riga senza chiavi sarebbe
+ * un duplicato garantito. Qui il caso è diverso: non è un form arrivato da
+ * solo, è la segreteria che ha davanti una persona e la sta scrivendo.
+ * Meglio una riga da ricontrollare che un appuntamento che non si può
+ * prendere.
+ */
+async function creaContattoAMano(
+  formData: FormData,
+  email: string | null
+): Promise<ContattoRisolto | { errore: string }> {
+  const validato = validaNuovoContatto({
+    nome: String(formData.get('nuovo_nome') ?? ''),
+    cognome: String(formData.get('nuovo_cognome') ?? ''),
+    email: String(formData.get('nuovo_email') ?? ''),
+    cellulare: String(formData.get('nuovo_cellulare') ?? ''),
+  })
+  if ('errore' in validato) return validato
+
+  const dati = validato.contatto
+  const supabase = createSupabaseServiceClient()
+
+  // Niente email e niente cellulare: non c'è nessuna chiave, e la riga si
+  // scrive diretta. Chi si presenta al banco senza lasciare un numero deve
+  // poter avere un appuntamento.
+  if (senzaRecapiti(dati)) return inserisciContattoNuovo(dati, email)
+
+  // Chi c'era già, guardato **prima** di chiamare la funzione: è l'unico modo
+  // di sapere dopo se la riga è nata adesso o se è stata riconosciuta —
+  // trova_o_crea_persona ritorna l'id nei due casi e non dice quale dei due
+  // è.
+  //
+  // Il confronto qui è quello letterale, sul recapito come è stato scritto;
+  // quello vero lo fa il database sulle cifre normalizzate del numero (vedi
+  // normalizza_cellulare). Se ci sfugge, l'avviso non compare: la voce
+  // finisce comunque sulla riga giusta, che è la cosa che conta.
+  const vuoto = { data: null }
+  const [{ data: perEmail }, { data: perCellulare }] = await Promise.all([
+    dati.email
+      ? supabase
+          .from('persone')
+          .select('id, nome, cognome, email, cellulare')
+          .eq('email', dati.email)
+          .maybeSingle()
+      : Promise.resolve(vuoto),
+    dati.cellulare
+      ? supabase
+          .from('persone')
+          .select('id, nome, cognome, email, cellulare')
+          .eq('cellulare', dati.cellulare)
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve(vuoto),
+  ])
+  // L'email ha precedenza sul telefono, come nella deduplicazione del
+  // database: è il dato che le persone scrivono in modo più stabile.
+  const esistente = perEmail ?? perCellulare
+
+  const { data: id, error } = await supabase.rpc('trova_o_crea_persona', {
+    p_nome: dati.nome,
+    p_cognome: dati.cognome,
+    p_email: dati.email,
+    p_cellulare: dati.cellulare,
+    p_fonte: FONTE_MANUALE,
+  })
+
+  if (error) {
+    console.error('Contatto non creato dall’agenda:', error.message)
+    return {
+      errore:
+        'Non siamo riusciti a creare il contatto. Controlla email e cellulare, o cercalo in elenco: potrebbe esserci già.',
+    }
+  }
+
+  // Nessun id senza errore vuol dire una cosa sola: il recapito scritto non
+  // è servito da chiave — un numero troppo corto per essere un telefono
+  // (vedi normalizza_cellulare). Il contatto entra comunque, come quelli
+  // senza recapiti: il numero resta scritto dov'è, per chiamarlo, ma non
+  // riconosce nessuno. Il conto di cosa vale come chiave lo fa il database e
+  // non lo rifacciamo qui, dove divergerebbe alla prima modifica.
+  if (!id) return inserisciContattoNuovo(dati, email)
+
+  const contattoId = String(id)
+  // La riga che c'era già, se è proprio quella che la funzione ha restituito.
+  const riconosciuta = esistente && esistente.id === contattoId ? esistente : null
+
+  if (!riconosciuta) {
+    await registraLog(email, 'persona_creata_a_mano', {
+      entita: 'persone',
+      entitaId: contattoId,
+      dettagli: {
+        nome: dati.nome,
+        cognome: dati.cognome,
+        email: dati.email,
+        cellulare: dati.cellulare,
+      },
+    })
+  }
+
+  return {
+    id: contattoId,
+    creato: !riconosciuta,
+    avviso: riconosciuta
+      ? `${nomePersona(riconosciuta)} era già in anagrafica: la voce è andata sulla sua scheda, senza creare un doppione.`
+      : undefined,
+  }
+}
+
+/**
+ * La riga in anagrafica per un contatto su cui non c'è niente da
+ * deduplicare: senza recapiti, o con un recapito che non fa da chiave.
+ *
+ * È l'unico punto in cui si scrive in `persone` senza passare da
+ * trova_o_crea_persona, e ha una ragione precisa: quella funzione, senza
+ * email né cellulare normalizzabile, non crea niente — per una richiesta
+ * arrivata dal sito una riga senza chiavi sarebbe un duplicato garantito.
+ * Qui invece c'è una persona vera davanti a qualcuno che la sta scrivendo.
+ *
+ * Il prezzo lo si dice a chi scrive, invece di nasconderlo: se in anagrafica
+ * esiste già lo stesso nome, l'avviso lo segnala — sono quasi sempre due
+ * righe della stessa persona, da unire.
+ */
+async function inserisciContattoNuovo(
+  dati: ContattoDaCreare,
+  email: string | null
+): Promise<ContattoRisolto | { errore: string }> {
+  const supabase = createSupabaseServiceClient()
+
+  // Gli omonimi già in anagrafica: non impediscono niente — due Mario Rossi
+  // esistono — ma senza un recapito nessuno potrà dire dopo se erano la
+  // stessa persona, e va detto adesso, quando si ha ancora davanti.
+  const query = supabase
+    .from('persone')
+    .select('id, nome, cognome, email, cellulare')
+    .ilike('nome', dati.nome)
+  const { data: omonimi } = await (dati.cognome
+    ? query.ilike('cognome', dati.cognome)
+    : query.is('cognome', null))
+
+  const { data: creata, error } = await supabase
+    .from('persone')
+    .insert({
+      nome: dati.nome,
+      cognome: dati.cognome,
+      // Quello che è stato scritto si scrive, anche se non fa da chiave: un
+      // numero troppo corto serve comunque a chiamare, e `cellulare_norm`
+      // resta nullo — il calcolo di cosa è una chiave è del database
+      // (normalizza_cellulare), non di questo file. L'email qui è sempre
+      // vuota (un indirizzo qualsiasi è già una chiave, e quel giro è
+      // finito prima), ma non la si butta via per principio.
+      email: dati.email,
+      cellulare: dati.cellulare,
+      fonte: FONTE_MANUALE,
+      // Non è uno «storico»: quello è chi è stato importato e mai
+      // manifestatosi. Questa persona si è manifestata — è al banco.
+      storico: false,
+    })
+    .select('id')
+    .single()
+
+  if (error || !creata) {
+    console.error('Contatto senza recapiti non creato:', error?.message ?? 'nessun id')
+    return { errore: 'Non siamo riusciti a creare il contatto. Riprova.' }
+  }
+
+  const id = String(creata.id)
+  await registraLog(email, 'persona_creata_a_mano', {
+    entita: 'persone',
+    entitaId: id,
+    dettagli: {
+      nome: dati.nome,
+      cognome: dati.cognome,
+      cellulare: dati.cellulare,
+      senza_chiavi: true,
+      omonimi: (omonimi ?? []).length,
+    },
+  })
+
+  const quanti = (omonimi ?? []).length
+  // Il messaggio non dice «senza email né cellulare» ma «senza un recapito
+  // che li distingua»: vale anche per chi ha lasciato un numero che non fa
+  // da chiave, dove la prima frase sarebbe falsa.
+  const quali =
+    quanti === 1 ? 'c’era già un contatto con questo nome' : `c’erano già ${quanti} contatti con questo nome`
+  return {
+    id,
+    creato: true,
+    avviso: quanti
+      ? `Contatto creato. In anagrafica ${quali}, e non abbiamo un recapito con cui distinguerli: controlla in Contatti che non sia la stessa persona.`
+      : undefined,
+  }
 }
 
 export async function riapriVoce(id: string): Promise<Esito> {

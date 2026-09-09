@@ -538,6 +538,24 @@ a:hover {
 	font-size: var(--text-2xs);
 }
 
+/* Un comando dentro una frase: «Nessun contatto con questo testo. Crealo
+   adesso.» È un <button> perché non porta da nessuna parte — apre i campi
+   qui accanto — ma dentro il testo deve leggersi come un link, non come un
+   pulsante di sistema in mezzo alla riga. */
+.link-testo {
+	padding: 0;
+	background: none;
+	border: 0;
+	color: var(--accent);
+	font: inherit;
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.link-testo:hover {
+	text-decoration: none;
+}
+
 .form-row {
 	display: flex;
 	flex-wrap: wrap;
@@ -946,6 +964,24 @@ table.tabella tbody tr:hover {
 	border: 1px solid rgba(74, 107, 58, 0.3);
 	border-radius: var(--radius);
 	color: var(--ok);
+	font-size: var(--text-sm);
+}
+
+/* Non un errore e non un successo pieno: è andata, ma non come chi ha
+   scritto se l'aspettava — il contatto «nuovo» che in anagrafica c'era già.
+   In verde si leggerebbe come una conferma da ignorare, in rosso come un
+   guasto. */
+.info-banner {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	align-items: center;
+	margin-bottom: 1.25rem;
+	padding: 0.75rem 1rem;
+	background: var(--info-tint);
+	border: 1px solid var(--info-border);
+	border-radius: var(--radius);
+	color: var(--info);
 	font-size: var(--text-sm);
 }
 

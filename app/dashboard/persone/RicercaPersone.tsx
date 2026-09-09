@@ -2,7 +2,15 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { dataBreve, inizialiPersona, nomePersona, testoRicerca, type Persona } from '@/lib/persone'
+import {
+  ETICHETTA_MANUALE,
+  dataBreve,
+  eInseritoAMano,
+  inizialiPersona,
+  nomePersona,
+  testoRicerca,
+  type Persona,
+} from '@/lib/persone'
 
 // La ricerca filtra in memoria invece di rifare il giro sul server: l'elenco
 // è di qualche centinaio di righe e si vuole che si stringa mentre si digita,
@@ -69,7 +77,7 @@ export function RicercaPersone({ persone }: { persone: Persona[] }) {
         {filtrate.length === 0 ? (
           <p className="vuoto">
             {persone.length === 0
-              ? 'Nessuna persona in anagrafica: si popola da sé con le richieste dal sito.'
+              ? 'Nessuna persona in anagrafica: si popola da sé con le richieste dal sito, o a mano dall’agenda.'
               : 'Nessuna persona corrisponde alla ricerca.'}
           </p>
         ) : (
@@ -86,6 +94,15 @@ export function RicercaPersone({ persone }: { persone: Persona[] }) {
                       {p.richieste_da_lavorare > 0 && (
                         <span className="badge badge-warn" style={{ marginLeft: '0.5rem' }}>
                           {p.richieste_da_lavorare} da lavorare
+                        </span>
+                      )}
+                      {/* Inserito a mano dalla segreteria: è la riga con zero
+                          richieste e nessuna «ultima», che in un elenco che
+                          si popola dalle richieste del sito sembrerebbe
+                          rotta. */}
+                      {eInseritoAMano(p.fonte) && (
+                        <span className="tag" style={{ marginLeft: '0.5rem' }}>
+                          {ETICHETTA_MANUALE}
                         </span>
                       )}
                     </span>

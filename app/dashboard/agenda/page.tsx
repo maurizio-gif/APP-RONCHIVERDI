@@ -65,8 +65,13 @@ export default async function AgendaPage({
   const email = emailCorrente()
 
   const supabase = createSupabaseServiceClient()
-  const [{ data: task }, { data: contatti }, { data: staff }, possoCancellare, { data: persone }] =
-    await Promise.all([
+  const [
+    { data: task },
+    { data: contatti },
+    { data: staff },
+    possoCancellare,
+    { data: persone, error: errorePersone },
+  ] = await Promise.all([
     supabase
       .from('task')
       .select(
@@ -91,12 +96,28 @@ export default async function AgendaPage({
     // I contatti per la tendina del form: una voce d'agenda è sempre
     // agganciata a qualcuno (vedi creaVoce). I più mossi per primi — chi si
     // sta lavorando adesso è quasi sempre chi ha scritto di recente.
+    //
+    // Dalla vista e non dalla tabella: `ultima_richiesta` è un conto sulle
+    // richieste e sta lì. Chiesta a `persone` faceva fallire la lettura, e
+    // con l'errore ignorato la tendina dei contatti restava vuota — l'unico
+    // modo di aggiungere qualcosa in agenda era non averne bisogno. Lo stesso
+    // inciampo era già stato corretto in dashboard/page.tsx.
+    //
+    // nullsFirst: false tiene in fondo chi non ha richieste — i contatti
+    // inseriti a mano ci restano finché non scrivono, ed è giusto: si
+    // trovano cercandoli per nome, che è come li si è appena creati.
     supabase
-      .from('persone')
+      .from('persone_con_richieste')
       .select('id, nome, cognome, email, cellulare')
       .order('ultima_richiesta', { ascending: false, nullsFirst: false })
       .limit(CONTATTI_NEL_FORM),
   ])
+
+  // Senza i contatti il form non si può usare: va detto nei log, invece di
+  // lasciare una tendina vuota che sembra un'anagrafica vuota.
+  if (errorePersone) {
+    console.error('Contatti per il form dell’agenda non letti:', errorePersone.message)
+  }
 
   // I nomi dei contatti agganciati alle voci della segreteria: `task.entita_id`
   // è un id, e senza il nome in elenco l'obbligo di agganciare una voce a

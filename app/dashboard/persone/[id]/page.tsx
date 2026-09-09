@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
-import { dataOra, nomePersona } from '@/lib/persone'
+import { ETICHETTA_MANUALE, dataOra, eInseritoAMano, nomePersona } from '@/lib/persone'
 import { canaleDiRichiesta } from '@/lib/richieste'
 import { CLASSE_BADGE_STATO, ETICHETTE_STATO, type StatoTrattativa } from '@/lib/pipeline'
 import { SchedaPersona } from '../SchedaPersona'
@@ -22,7 +22,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
   const [{ data: persona }, { data: richieste }, { data: trattative }] = await Promise.all([
     supabase
       .from('persone')
-      .select('id, nome, cognome, email, cellulare, note, creato_il')
+      .select('id, nome, cognome, email, cellulare, note, creato_il, fonte')
       .eq('id', params.id)
       .maybeSingle(),
     supabase
@@ -51,7 +51,19 @@ export default async function PersonaPage({ params }: { params: { id: string } }
         <p className="eyebrow">
           <Link href="/dashboard/persone">← Anagrafica</Link>
         </p>
-        <h1>{nomePersona(persona)}</h1>
+        <h1>
+          {nomePersona(persona)}
+          {/* Inserito a mano: non ha mai scritto dal sito, l'ha creato la
+              segreteria fissandogli qualcosa in agenda. Va detto qui, perché
+              spiega i numeri qui sotto — zero richieste e nessuna «prima
+              volta che ha scritto» — che altrimenti si leggono come un
+              guasto. */}
+          {eInseritoAMano(persona.fonte) && (
+            <span className="badge badge-off" style={{ marginLeft: '0.6rem' }}>
+              {ETICHETTA_MANUALE}
+            </span>
+          )}
+        </h1>
         <p className="muted">
           {[persona.email, persona.cellulare].filter(Boolean).join(' · ') || 'nessun contatto'}
         </p>
@@ -90,7 +102,11 @@ export default async function PersonaPage({ params }: { params: { id: string } }
         </div>
         <div className="stat">
           <span className="stat-valore">{dataOra(persona.creato_il)}</span>
-          <span className="stat-label">Prima volta che ha scritto</span>
+          {/* Chi è stato inserito a mano non ha «scritto» niente: quella data
+              è il giorno in cui la segreteria l'ha messo in anagrafica. */}
+          <span className="stat-label">
+            {eInseritoAMano(persona.fonte) ? 'In anagrafica da' : 'Prima volta che ha scritto'}
+          </span>
         </div>
       </div>
 

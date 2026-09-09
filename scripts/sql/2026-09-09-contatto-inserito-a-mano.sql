@@ -1,0 +1,51 @@
+-- Il contatto creato a mano dalla segreteria.
+--
+-- Da eseguire nel SQL Editor del progetto Supabase Ronchiverdi
+-- (upoiasekisojikbzsymq), dopo 2026-09-08-eventi-collegati.sql.
+--
+-- Non cambia niente di strutturale, ed è di proposito: l'anagrafica ha già
+-- tutto quello che serve. Chi crea un contatto dall'agenda lasciando un
+-- recapito passa da `trova_o_crea_persona` — la stessa funzione che usa il
+-- trigger delle richieste dal sito — con `p_fonte = 'inserimento_manuale'`, e
+-- la deduplicazione continua a farla il database: stessa email o stesso
+-- numero, stessa riga, anche scritti in modo diverso.
+--
+-- Un contatto senza né email né cellulare, invece, l'applicazione lo inserisce
+-- diretto in `persone`: trova_o_crea_persona senza chiavi non crea niente, di
+-- proposito, perché per una richiesta dal sito quella riga sarebbe un
+-- duplicato garantito. Al banco il caso è diverso, e la riga entra con la
+-- fonte che dice com'è entrata — è da quella che si ritrovano le righe da
+-- ricontrollare, con la query in fondo a questo file.
+--
+-- Questo file serve a due cose:
+--
+--   1. scrivere nello schema il terzo valore di `persone.fonte`, che finora
+--      il commento della colonna non conosceva: chi legge la tabella dal SQL
+--      Editor deve trovarci il vocabolario completo, non due valori su tre;
+--   2. dare il conto di quante righe sono nate così, per rileggerlo dopo.
+--
+-- I valori di `fonte`, e cosa vuol dire ciascuno, stanno anche in
+-- lib/persone.ts (FONTE_FORM, FONTE_MIGRAZIONE, FONTE_MANUALE).
+
+comment on column public.persone.fonte is
+	'Da dove viene la riga: ''form_contatti'' se la persona ha scritto dal sito (la scrive il trigger su form_contatti), ''migrazione'' se è stata importata da un elenco preesistente (nasce storico), ''inserimento_manuale'' se l''ha creata la segreteria dal form dell''agenda, per fissare qualcosa a chi non ha mai compilato un form. La fonte si scrive alla creazione e non si sovrascrive: trova_o_crea_persona la completa solo se manca.';
+
+-- Quante righe per fonte, per sapere da dove viene l'anagrafica. Le vecchie
+-- righe possono avere fonte nulla: sono di prima che la colonna esistesse, e
+-- restano tali — riscriverle adesso vorrebbe dire inventarsi da dove
+-- venivano.
+select coalesce(fonte, '(non indicata)') as fonte, count(*) as quante
+from public.persone
+group by 1
+order by 2 desc;
+
+-- I contatti inseriti a mano su cui il database non ha nessuna chiave: sono
+-- quelli che un domani possono sdoppiarsi, se quella persona scrive dal sito.
+-- Da rileggere ogni tanto per unire i doppioni, che è il prezzo dichiarato di
+-- poter fissare un appuntamento a chi non lascia un recapito.
+select id, nome, cognome, creato_il
+from public.persone
+where fonte = 'inserimento_manuale'
+	and email is null
+	and cellulare_norm is null
+order by creato_il desc;
