@@ -12,6 +12,7 @@ export type Richiesta = {
   created_at: string
   /** Da quale form del sito arriva: distingue i moduli inline di pagina. */
   origine: string | null
+  operatore: string | null
   nome: string | null
   cognome: string | null
   email: string | null
@@ -112,6 +113,10 @@ export function RigaRichiesta({
 
   const nome = [r.nome, r.cognome].filter(Boolean).join(' ') || '—'
   const eQuestionario = r.origine === 'fitness-manager-inline'
+  // Chi è passato dal banco (guest register) va riconosciuto prima di
+  // chiamare: non ha scritto dal sito, era qui, e probabilmente ha già
+  // parlato con qualcuno della segreteria.
+  const walkIn = r.origine === 'walk-in'
   const minore = [r.minore_nome, r.minore_cognome].filter(Boolean).join(' ')
 
   // Una richiesta ripetuta va detta prima di chiamare: il database riusa la
@@ -147,6 +152,11 @@ export function RigaRichiesta({
         <div>
           <strong>{nome}</strong>
           {minore && <span className="muted"> · per {minore}</span>}
+          {walkIn && (
+            <span className="badge badge-walkin" style={{ marginLeft: '0.5rem' }}>
+              Walk-in
+            </span>
+          )}
           {ripetuta && (
             <span className="badge badge-warn" style={{ marginLeft: '0.5rem' }}>
               {storico!.ordinale}ª richiesta
@@ -156,6 +166,7 @@ export function RigaRichiesta({
             {dataOra(r.created_at)}
             {r.attivita_label && ` · ${r.attivita_label}`}
             {r.settore && ` · settore ${r.settore}`}
+            {walkIn && ` · registrata in sede${r.operatore ? ` da ${r.operatore}` : ''}`}
             {r.utm_campaign && ` · campagna ${r.utm_campaign}`}
           </div>
           {ripetuta && (
