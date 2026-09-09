@@ -12,6 +12,7 @@ import {
   type VoceAgenda,
 } from '@/lib/agenda'
 import { AzioniVoce } from '@/app/dashboard/agenda/AzioniVoce'
+import { ContattiRapidi } from '@/app/dashboard/ContattiRapidi'
 import { GestioneEsito } from './GestioneEsito'
 
 // L'elenco delle voci di agenda, uguale nelle due viste: il calendario lo
@@ -22,12 +23,20 @@ const COLONNE = ['Data', 'Tipologia', 'Chi', 'Assegnato a', 'Stato'] as const
 
 export function TabellaAgenda({
   voci,
+  oggi,
   emailCorrente,
   operatori,
   puoCancellare,
   mostraData = true,
 }: {
   voci: VoceAgenda[]
+  /**
+   * Oggi a Roma. Serve a distinguere «da fare» da «in ritardo», che è la
+   * differenza che decide cosa si guarda per primo: prima ogni voce aperta
+   * era rossa, anche un appuntamento fra tre settimane, e col rosso su tutto
+   * non risaltava più niente.
+   */
+  oggi: string
   emailCorrente: string | null
   /** Chi può essere assegnatario di un evento programmato. */
   operatori: string[]
@@ -55,6 +64,7 @@ export function TabellaAgenda({
             <RigaVoce
               key={voce.chiave}
               voce={voce}
+              oggi={oggi}
               emailCorrente={emailCorrente}
               operatori={operatori}
               puoCancellare={puoCancellare}
@@ -71,6 +81,7 @@ export function TabellaAgenda({
 
 function RigaVoce({
   voce,
+  oggi,
   emailCorrente,
   operatori,
   puoCancellare,
@@ -79,6 +90,7 @@ function RigaVoce({
   onApri,
 }: {
   voce: VoceAgenda
+  oggi: string
   emailCorrente: string | null
   operatori: string[]
   puoCancellare: boolean
@@ -87,21 +99,24 @@ function RigaVoce({
   onApri: () => void
 }) {
   const orario = intervalloOrario(voce.ora, voce.durataMinuti)
-  const assegnatario = voce.assegnatoA
-    ? voce.assegnatoA === emailCorrente
-      ? 'Te'
-      : voce.assegnatoA
-    : voce.origine === 'form_contatti'
-      ? 'Dal sito'
-      : '—'
+  // Senza assegnatario la cella mostra una targhetta (vedi sotto): «dal sito»
+  // e «di nessuno» non sono nomi di persone e non vanno letti come tali.
+  const assegnatario = voce.assegnatoA === emailCorrente ? 'Te' : voce.assegnatoA
 
-  // I recapiti stanno sotto il nome, separati da un punto medio: su una riga
-  // sola email e cellulare diventano illeggibili appena il nome è lungo.
-  const recapiti = [voce.email, voce.cellulare].filter(Boolean).join(' · ')
+  // Tre stati, non due. «Da fare» e «in ritardo» sono la stessa cosa solo per
+  // il database: per chi lavora il richiamo mancato ieri è la cosa che scotta
+  // e l'appuntamento di giovedì è programmato. Prima erano entrambi rossi, e
+  // col rosso su tutto non risaltava più niente.
+  const arretrata = voce.daFare && voce.data < oggi
+  const classeRiga = arretrata ? 'is-arretrata' : voce.daFare ? 'is-dafare' : 'is-fatta'
+  const puntino = arretrata ? 'rosso' : voce.daFare ? 'ambra' : 'verde'
 
   return (
     <>
-      <tr className={`riga-agenda${aperta ? ' is-aperta' : ''}`} onClick={onApri}>
+      <tr
+        className={`riga-agenda ${classeRiga}${aperta ? ' is-aperta' : ''}`}
+        onClick={onApri}
+      >
         {/* Il click sta anche sulla riga intera, perché è il bersaglio che si
             colpisce naturalmente col mouse. Ma un <tr> non si raggiunge da
             tastiera: il pulsante qui dentro è quello che rende la riga
@@ -123,7 +138,7 @@ function RigaVoce({
 
         <td data-label="Data" className="cella-data">
           <span className="puntino-riga">
-            <span className={`puntino ${voce.daFare ? 'rosso' : 'verde'}`} />
+            <span className={`puntino ${puntino}`} />
             <span>
               {mostraData && <span className="cella-data-giorno">{dataBreve(voce.data)}</span>}
               <span className="cella-data-ora">{orario ?? 'in giornata'}</span>
@@ -140,24 +155,50 @@ function RigaVoce({
           {/* Per chi è: una voce della segreteria ha un titolo che dice cosa
               fare («Richiamare per il preventivo»), non con chi. */}
           {voce.persona && <span className="cella-chi-dettagli">{voce.persona}</span>}
-          {recapiti && <span className="cella-chi-dettagli">{recapiti}</span>}
-          {voce.attivita && <span className="cella-chi-dettagli">{voce.attivita}</span>}
+          {/* L'attività richiesta sul sito è una classificazione, non un
+              dettaglio in grigio: è la stessa targhetta di Club e Family. */}
+          {voce.attivita && (
+            <span className="tag-fila">
+              <span className="tag tag-canale">{voce.attivita}</span>
+            </span>
+          )}
           {/* L'oggetto scritto da chi ha prenotato: sapere di cosa si parlerà
               serve scorrendo la giornata, non dopo aver aperto la riga. Una
               riga sola con i puntini, perché il testo può essere lungo — per
               intero sta nel dettaglio. */}
           {voce.note && <span className="cella-chi-oggetto">{voce.note}</span>}
+          {/* Erano testo grigio sotto il nome, da ricopiare a mano per
+              telefonare a chi si sta per chiamare: due passaggi per il gesto
+              che l'agenda esiste per fare. */}
+          <ContattiRapidi email={voce.email} cellulare={voce.cellulare} />
         </td>
 
-        <td data-label="Assegnato a">{assegnatario}</td>
+        <td data-label="Assegnato a">
+          {/* «Dal sito» non è un collega: nessuno ha quella voce in mano, e
+              distinguerlo evita che due persone diano per fatto che ci pensi
+              l'altra. */}
+          {voce.assegnatoA ? (
+            assegnatario
+          ) : voce.origine === 'form_contatti' ? (
+            <span className="tag cella-chi-targa">dal sito</span>
+          ) : (
+            <span className="tag tag-avviso cella-chi-targa">di nessuno</span>
+          )}
+        </td>
 
         <td data-label="Stato">
           <span
-            className={`badge ${
-              voce.daFare ? 'badge-warn' : voce.esitoTipo === 'fallita' ? 'badge-ko' : 'badge-ok'
+            className={`badge badge-punto badge-stato ${
+              arretrata
+                ? 'badge-ko'
+                : voce.daFare
+                  ? 'badge-warn'
+                  : voce.esitoTipo === 'fallita'
+                    ? 'badge-ko'
+                    : 'badge-ok'
             }`}
           >
-            {etichettaStato(voce.stato, voce.esitoTipo)}
+            {arretrata ? 'In ritardo' : etichettaStato(voce.stato, voce.esitoTipo)}
           </span>
         </td>
       </tr>

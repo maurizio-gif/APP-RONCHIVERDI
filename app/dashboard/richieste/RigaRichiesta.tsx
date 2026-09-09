@@ -1,8 +1,18 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { ETICHETTE_ESITO, eEsitoValido, tipoDaAzione } from '@/lib/agenda'
+import {
+  ETICHETTE_ESITO,
+  ETICHETTE_TIPO_BREVI,
+  dataBreve,
+  eEsitoValido,
+  tipoDaAzione,
+} from '@/lib/agenda'
+import { CLASSE_RIGA_STATO } from '@/lib/pipeline'
+import { CLASSE_URGENZA, fraseAttesa, giorniDa, urgenzaAttesa } from '@/lib/attesa'
+import { inizialiPersona } from '@/lib/persone'
 import { GestioneEsito } from '@/components/GestioneEsito'
+import { ContattiRapidi } from '../ContattiRapidi'
 import { riapriRichiesta } from './actions'
 import { EventiTrattativa, type EventoCollegato } from './EventiTrattativa'
 import { Trattativa, type DatiTrattativa } from './Trattativa'
@@ -78,11 +88,6 @@ function ordinaRisposte(risposte: string[]): string[] {
   return [...risposte].sort((a, b) => posizione(a) - posizione(b))
 }
 
-/** Numero pronto per wa.me: solo cifre, senza + né spazi. */
-function soloCifre(numero: string): string {
-  return numero.replace(/[^0-9]/g, '')
-}
-
 export function RigaRichiesta({
   r,
   contesto,
@@ -131,6 +136,35 @@ export function RigaRichiesta({
   const conEventi = !!trattativa
   const eventiDaFare = eventi.filter((e) => e.daFare).length
 
+  // ── Cosa deve dire la riga prima di essere aperta ─────────────────────
+  //
+  // Le righe erano tutte uguali: nome in nero, tre metadati in grigio
+  // separati da puntini, e due pulsanti. Per sapere se una richiesta era da
+  // lavorare, se aveva un appuntamento preso, se era Club o Family o da
+  // quanto aspettava bisognava aprirla — su venti righe, venti aperture.
+  //
+  // Ora la riga porta quattro classificazioni, e ognuna ha una forma sua:
+  // la banda di colore a sinistra (stato della trattativa), il badge di
+  // lavorazione, le targhette di contenuto, e l'attesa colorata.
+
+  /** L'appuntamento preso dal sito: il dato che cambia la giornata di chi è al banco. */
+  const tipoAppuntamento = tipoDaAzione(r.azione)
+  const oraScelta = r.ora_scelta ? String(r.ora_scelta).slice(0, 5) : null
+
+  // Da quanto aspetta. Su una richiesta chiusa non vuol dire niente: è
+  // storia, non una cosa che sta aspettando qualcuno.
+  const giorni = giorniDa(r.created_at)
+  const giorniAttesa = giorni !== null && !r.gestito ? giorni : null
+
+  // La banda di colore. Dove le trattative non esistono (tutti i canali
+  // tranne Club e Family) la riga si colora con la propria lavorazione: da
+  // lavorare o chiusa, che lì è tutto il ciclo di vita.
+  const classeBanda = trattativa
+    ? CLASSE_RIGA_STATO[trattativa.stato]
+    : r.gestito
+      ? 'stato-chiuso'
+      : 'stato-nuovo'
+
   function esegui(azione: () => Promise<{ ok: true } | { ok: false; errore: string }>) {
     setErrore(null)
     startTransition(async () => {
@@ -141,7 +175,7 @@ export function RigaRichiesta({
 
   return (
     <li
-      className={`richiesta${r.gestito ? ' is-gestita' : ''}${
+      className={`richiesta riga-stato ${classeBanda}${r.gestito ? ' is-gestita' : ''}${
         aperta || gestioneAperta || eventiAperti ? ' is-aperta' : ''
       }`}
     >
@@ -149,33 +183,98 @@ export function RigaRichiesta({
           naturalmente col mouse. Il pulsante in fondo è quello che la rende
           raggiungibile da tastiera e che annuncia se è aperta. */}
       <div className="richiesta-testa" onClick={() => setAperta((v) => !v)}>
-        <div>
-          <strong>{nome}</strong>
-          {minore && <span className="muted"> · per {minore}</span>}
-          {walkIn && (
-            <span className="badge badge-walkin" style={{ marginLeft: '0.5rem' }}>
-              Walk-in
-            </span>
-          )}
-          {ripetuta && (
-            <span className="badge badge-warn" style={{ marginLeft: '0.5rem' }}>
-              {storico!.ordinale}ª richiesta
-            </span>
-          )}
-          <div className="richiesta-meta muted">
-            {dataOra(r.created_at)}
-            {r.attivita_label && ` · ${r.attivita_label}`}
-            {r.settore && ` · settore ${r.settore}`}
-            {walkIn && ` · registrata in sede${r.operatore ? ` da ${r.operatore}` : ''}`}
-            {r.utm_campaign && ` · campagna ${r.utm_campaign}`}
-          </div>
-          {ripetuta && (
-            <div className="richiesta-meta richiesta-ripetuta">
-              Ha già scritto {storico!.totale === 2 ? 'una volta' : `${storico!.totale - 1} volte`}
-              {storico!.precedenteIl && ` · la precedente il ${dataOra(storico!.precedenteIl)}`}
-              {giaSeguitaDa && ` · trattativa già seguita da ${giaSeguitaDa}`}
+        <div className="richiesta-identita">
+          {/* Le iniziali: un punto d'appoggio per l'occhio quando si scorre un
+              elenco lungo, lo stesso pallino dell'anagrafica. */}
+          <span className="richiesta-iniziali" aria-hidden="true">
+            {inizialiPersona(r) || '·'}
+          </span>
+
+          <div className="richiesta-corpo">
+            <strong className="richiesta-nome">{nome}</strong>
+            {minore && <span className="muted"> · per {minore}</span>}
+
+            {/* Quando è arrivata e da quanto aspetta, insieme: la data da sola
+                va sottratta a mente, riga per riga. */}
+            <div className="richiesta-quando muted">
+              <span>{dataOra(r.created_at)}</span>
+              {giorniAttesa !== null && (
+                <span className={`attesa ${CLASSE_URGENZA[urgenzaAttesa(giorniAttesa)]}`}>
+                  · {fraseAttesa(giorniAttesa)}
+                </span>
+              )}
             </div>
-          )}
+
+            {/* Le targhette: cosa è questa richiesta. Tonde e in tondo
+                minuscolo, per non somigliare ai comandi — che sono
+                rettangolari, maiuscoli e si cliccano. */}
+            <div className="tag-fila">
+              {/* La lavorazione della richiesta è cosa diversa dallo stato
+                  della trattativa: una persona in gestione può avere una
+                  richiesta nuova ancora da chiudere, ed è quella la cosa da
+                  fare adesso. */}
+              {r.gestito ? (
+                <span className="badge badge-off badge-punto">chiusa</span>
+              ) : (
+                <span className="badge badge-warn badge-punto badge-stato">da lavorare</span>
+              )}
+
+              {eEsitoValido(r.esito_tipo) && (
+                <span
+                  className={`badge badge-punto ${
+                    r.esito_tipo === 'eseguita' ? 'badge-ok' : 'badge-ko'
+                  }`}
+                >
+                  {ETICHETTE_ESITO[r.esito_tipo]}
+                </span>
+              )}
+
+              {/* Club o Family, scuola o competizione: la classificazione
+                  principale, e prima era un pezzo di riga grigia fra due
+                  puntini. */}
+              {r.attivita_label && <span className="tag tag-canale">{r.attivita_label}</span>}
+              {r.settore && <span className="tag">settore {r.settore}</span>}
+
+              {/* L'appuntamento preso: giorno e ora sulla riga, senza aprire
+                  niente. Per chi sta al banco è l'informazione più utile
+                  dell'elenco. */}
+              {tipoAppuntamento && r.data_scelta && (
+                <span className="tag tag-appuntamento">
+                  {ETICHETTE_TIPO_BREVI[tipoAppuntamento]} · {dataBreve(r.data_scelta)}
+                  {oraScelta && ` ore ${oraScelta}`}
+                </span>
+              )}
+              {r.azione && !tipoAppuntamento && <span className="tag">{r.azione}</span>}
+
+              {/* Era in reception, non ha scritto dal sito: cambia come ci
+                  si presenta a chi si richiama, e va visto senza aprire
+                  niente. */}
+              {walkIn && <span className="tag tag-walkin">Walk-in</span>}
+
+              {ripetuta && (
+                <span className="tag tag-avviso">{storico!.ordinale}ª richiesta</span>
+              )}
+
+              {r.utm_campaign && <span className="tag">campagna {r.utm_campaign}</span>}
+            </div>
+
+            {ripetuta && (
+              <div className="richiesta-meta richiesta-ripetuta">
+                Ha già scritto {storico!.totale === 2 ? 'una volta' : `${storico!.totale - 1} volte`}
+                {storico!.precedenteIl && ` · la precedente il ${dataOra(storico!.precedenteIl)}`}
+                {giaSeguitaDa && ` · trattativa già seguita da ${giaSeguitaDa}`}
+              </div>
+            )}
+
+            {walkIn && r.operatore && (
+              <div className="richiesta-meta muted">Registrata in sede da {r.operatore}</div>
+            )}
+
+            {/* Chiama, WhatsApp, Email: erano dentro «Dettagli», cioè due
+                passaggi per il gesto che in segreteria si ripete venti volte
+                al giorno. */}
+            <ContattiRapidi email={r.email} cellulare={r.cellulare} spiegaSeVuoto />
+          </div>
         </div>
 
         <div className="richiesta-azioni">
@@ -283,9 +382,10 @@ export function RigaRichiesta({
       {aperta && (
         <div className="richiesta-dettagli">
           <dl className="dettagli-lista">
-            {/* Recapiti cliccabili: i pulsanti Chiama, WhatsApp ed Email non
-                stanno più in riga, e un numero da ricopiare a mano sarebbe un
-                passo indietro. Qui sono un tocco, ma senza occupare l'elenco. */}
+            {/* I recapiti per intero. I comandi Chiama/WhatsApp/Email stanno
+                sulla riga (ContattiRapidi), ma qui serve il valore scritto:
+                per leggerlo al telefono, per copiarlo, per accorgersi di un
+                numero sbagliato. */}
             {r.email && (
               <>
                 <dt>Email</dt>
@@ -297,17 +397,7 @@ export function RigaRichiesta({
             {r.cellulare && (
               <>
                 <dt>Cellulare</dt>
-                <dd>
-                  <a href={`tel:${soloCifre(r.cellulare)}`}>{r.cellulare}</a>
-                  {' · '}
-                  <a
-                    href={`https://wa.me/${soloCifre(r.cellulare)}`}
-                    target="_blank"
-                    rel="noopener"
-                  >
-                    WhatsApp
-                  </a>
-                </dd>
+                <dd>{r.cellulare}</dd>
               </>
             )}
             {r.data_nascita && (
@@ -380,7 +470,13 @@ export function RigaRichiesta({
               </>
             )}
             <dt>Marketing</dt>
-            <dd>{r.marketing ? 'acconsente' : 'no'}</dd>
+            <dd>
+              {r.marketing ? (
+                <span className="tag tag-ok">acconsente</span>
+              ) : (
+                <span className="tag tag-avviso">nessun consenso</span>
+              )}
+            </dd>
             {r.utm_source && (
               <>
                 <dt>Provenienza</dt>

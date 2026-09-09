@@ -4,7 +4,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { dataOra, nomePersona } from '@/lib/persone'
 import { canaleDiRichiesta } from '@/lib/richieste'
-import { CLASSE_STATO, ETICHETTE_STATO, type StatoTrattativa } from '@/lib/pipeline'
+import { CLASSE_BADGE_STATO, ETICHETTE_STATO, type StatoTrattativa } from '@/lib/pipeline'
 import { SchedaPersona } from '../SchedaPersona'
 
 export const dynamic = 'force-dynamic'
@@ -106,7 +106,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
                 <span className="voce-ora">{dataOra(t.creato_il as string)}</span>
                 <span className="voce-corpo">
                   <span className="voce-titolo">
-                    <span className={`badge ${CLASSE_STATO[t.stato as StatoTrattativa]}`}>
+                    <span className={`badge badge-stato badge-punto ${CLASSE_BADGE_STATO[t.stato as StatoTrattativa]}`}>
                       {ETICHETTE_STATO[t.stato as StatoTrattativa]}
                     </span>
                     {/* Nata al banco, non dal sito: cambia come ci si
