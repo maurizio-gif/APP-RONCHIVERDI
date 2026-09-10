@@ -1604,6 +1604,18 @@ table.tabella tbody tr:hover {
 	color: var(--warn);
 }
 
+/* Il messaggio è l'unico tipo che **arriva** invece di essere fissato: gli
+   altri cinque sono impegni che qualcuno ha preso. Un sesto colore pieno
+   accanto agli altri l'avrebbe fatto leggere come un sesto tipo di impegno;
+   il contorno senza fondo lo mette in un'altra famiglia a colpo d'occhio,
+   senza inventare una tinta che la tavolozza non ha. */
+.badge-tipo.tipo-messaggio {
+	background: transparent;
+	border-color: var(--border-strong);
+	border-style: dashed;
+	color: var(--text);
+}
+
 /* Sotto i 700px la tabella diventa una pila di schede: sei colonne su un
    telefono si leggono solo scorrendo in orizzontale, e l'intestazione resta
    fuori schermo proprio quando serve. */
@@ -1800,6 +1812,125 @@ table.tabella tbody tr:hover {
 
 /* ────────────────────────────────────────────────── barra dei filtri */
 
+/* ── Guida: come funzionano trattative ed eventi ──────────────────────────
+   Sta sopra i filtri e sotto il titolo, chiusa. Volutamente più sobria di
+   una card: è una cosa da leggere una volta, non un pannello di lavoro, e
+   se pesasse come i riquadri dei numeri se ne prenderebbe l'attenzione ogni
+   volta che si apre la pagina. */
+.guida {
+	margin-bottom: 1.25rem;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+}
+
+.guida-testa {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	padding: 0.75rem 1rem;
+	cursor: pointer;
+	list-style: none;
+}
+
+/* Il triangolino di default di Safari e Chrome: tolto, perché la freccia la
+   disegniamo noi a destra — con entrambi si vedrebbero due indicatori che
+   dicono la stessa cosa in due punti diversi. */
+.guida-testa::-webkit-details-marker {
+	display: none;
+}
+
+.guida-testa:hover .guida-titolo {
+	color: var(--accent);
+}
+
+/* Il focus da tastiera sta sulla testa, non sul dettaglio intero: aprendo la
+   guida l'anello avvolgerebbe tutto il testo invece della cosa che si è
+   appena premuta. */
+.guida-testa:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+	border-radius: var(--radius);
+}
+
+.guida-titolo {
+	color: var(--text-muted);
+	font-family: var(--font-sans);
+	font-size: var(--text-2xs);
+	font-weight: 500;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+}
+
+.guida-apri {
+	flex: none;
+	width: 0.5rem;
+	height: 0.5rem;
+	border-right: 1.5px solid var(--text-muted);
+	border-bottom: 1.5px solid var(--text-muted);
+	transform: rotate(45deg) translate(-2px, -2px);
+	transition: transform 0.15s ease;
+}
+
+.guida[open] .guida-apri {
+	transform: rotate(-135deg) translate(-2px, -2px);
+}
+
+.guida[open] .guida-titolo {
+	color: var(--accent);
+}
+
+/* Il filo che separa la testa dal testo è dentro il corpo e non sul bordo
+   del `<details>`: così esiste solo quando la guida è aperta, e la riga
+   chiusa resta una riga sola. */
+.guida-corpo {
+	max-width: 62ch;
+	margin: 0 1rem;
+	padding: 1.15rem 0;
+	border-top: 1px solid var(--border);
+}
+
+.guida-passo + .guida-passo {
+	margin-top: 1.15rem;
+}
+
+.guida-passo h3 {
+	margin: 0 0 0.35rem;
+	color: var(--text);
+	font-family: var(--font-serif);
+	font-size: var(--text-md);
+	font-weight: 500;
+}
+
+.guida-passo p {
+	margin: 0 0 0.5rem;
+	color: var(--text-muted);
+	font-size: var(--text-sm);
+	line-height: 1.6;
+}
+
+.guida-passo p:last-child {
+	margin-bottom: 0;
+}
+
+.guida-passo strong {
+	color: var(--text);
+	font-weight: 500;
+}
+
+.guida-dove {
+	margin: 0;
+	padding-left: 1.1rem;
+	color: var(--text-muted);
+	font-size: var(--text-sm);
+	line-height: 1.6;
+}
+
+.guida-dove li + li {
+	margin-top: 0.4rem;
+}
+
 .filtri {
 	margin-bottom: 1.25rem;
 	padding: 0.9rem 1rem 1rem;
@@ -1964,6 +2095,15 @@ table.tabella tbody tr:hover {
 	font-size: var(--text-2xs);
 	letter-spacing: 0.1em;
 	text-transform: uppercase;
+}
+
+/* Com'è andata, chi l'ha scritto e quando: la prima riga del pannello su una
+   voce già chiusa. Non è un campo del modulo — è quello che c'è — e sta
+   staccata dai pulsanti perché si legge prima di decidere se correggere. */
+.esito-firma {
+	margin: -0.35rem 0 0.75rem;
+	color: var(--text-muted);
+	font-size: var(--text-xs);
 }
 
 .esito-gruppi {
@@ -3359,9 +3499,43 @@ table.tabella tbody tr:hover {
 }
 
 .impegno-quando,
-.impegno-chi {
+/* Chi ha in mano l'impegno. Era testo grigio, e per giunta solo sulle righe
+   altrui: l'assenza del nome era essa stessa l'informazione, il che la
+   rendeva leggibile solo a chi la sapeva già. Ora è un tag su ogni riga, e i
+   tre casi hanno tre colori — tuo, di una collega, di nessuno — perché in un
+   elenco di dodici impegni la prima domanda è «quali sono i miei». */
+.tag-assegnato {
+	flex: none;
+	padding: 0.12rem 0.5rem;
+	border: 1px solid transparent;
+	border-radius: 999px;
 	font-size: var(--text-2xs);
+	font-weight: 500;
 	white-space: nowrap;
+}
+
+/* Il tuo: l'oro dell'accento, lo stesso colore che nel pannello vuol dire
+   «questo ti riguarda». */
+.tag-assegnato.e-mio {
+	background: var(--accent-tint);
+	border-color: var(--accent-border);
+	color: var(--accent);
+}
+
+/* Di una collega: blu ardesia. Non è un allarme — è lavoro che c'è e che sta
+   in mano a qualcuno — quindi non prende né il rosso né l'ambra. */
+.tag-assegnato.e-altrui {
+	background: var(--info-tint);
+	border-color: var(--info-border);
+	color: var(--info);
+}
+
+/* Di nessuno, o prenotato dal sito e non ancora preso: ambra, perché è
+   l'unico dei tre casi che chiede qualcosa a chi sta leggendo. */
+.tag-assegnato.e-nessuno {
+	background: var(--warn-tint);
+	border-color: var(--warn-border);
+	color: var(--warn);
 }
 
 .impegno-dettagli {

@@ -19,8 +19,12 @@ import { salvaGestione } from './actions'
 // chiusura, non si poteva né scrivere prima né correggere dopo.
 //
 // Restano due cose, e sono le uniche due che qualcuno guarda davvero:
-// **gestito o no**, e una **nota** libera. La nota si scrive quando si vuole
-// — prima di gestire, insieme, o un mese dopo — e si riscrive sempre.
+// **gestito o no**, e una **nota**. La nota è obbligatoria come ovunque si
+// dica che qualcosa è stato lavorato — una richiesta segnata gestita e muta,
+// fra un mese, non dice se la persona si è iscritta o se il numero era
+// sbagliato — ma resta sempre modificabile: si scrive prima di gestire,
+// insieme, o un mese dopo, e si riscrive quante volte serve. È lì la
+// differenza con GestioneEsito, non nell'obbligo.
 
 function dataOra(iso: string): string {
   return new Date(iso).toLocaleString('it-IT', {
@@ -38,12 +42,22 @@ export function GestioneSemplice({
   nota: notaSalvata,
   gestitoDa,
   gestitoIl,
+  notaDa,
+  notaIl,
 }: {
   id: string
   gestito: boolean
   nota: string | null
+  /** Chi ha segnato il gestito e quando, già come nome e cognome. */
   gestitoDa: string | null
   gestitoIl: string | null
+  /**
+   * Chi ha scritto l'ultima versione della nota, e quando. Distinta dal
+   * gestito: la nota si corregge senza riaprire la richiesta, e dopo una
+   * correzione le due firme sono di due persone diverse.
+   */
+  notaDa?: string | null
+  notaIl?: string | null
 }) {
   const [nota, setNota] = useState(notaSalvata ?? '')
   const [gestitoLocale, setGestitoLocale] = useState(gestito)
@@ -66,6 +80,16 @@ export function GestioneSemplice({
   const daSalvare = nota.trim() !== (notaSalvata ?? '').trim() || gestitoLocale !== gestito
 
   function salva() {
+    // Detto qui prima che parta la richiesta: il server rifiuta comunque, ma
+    // farglielo scoprire dopo un giro di rete su un campo vuoto che si ha
+    // davanti è tempo perso e sembra un guasto.
+    if (!nota.trim()) {
+      return setErrore(
+        gestitoLocale
+          ? 'La nota è obbligatoria: scrivi com’è andata.'
+          : 'La nota è obbligatoria: scrivi perché la rimetti fra quelle da fare.'
+      )
+    }
     setErrore(null)
     startTransition(async () => {
       const esito = await salvaGestione({ id, gestito: gestitoLocale, nota })
@@ -105,19 +129,31 @@ export function GestioneSemplice({
       </button>
 
       <div className="field">
-        <label htmlFor={`nota-gestione-${id}`}>Nota</label>
+        <label htmlFor={`nota-gestione-${id}`}>
+          Nota <span aria-hidden="true">*</span>
+        </label>
         <textarea
           id={`nota-gestione-${id}`}
           rows={3}
           value={nota}
           onChange={(e) => setNota(e.target.value)}
-          placeholder="Cosa è stato detto, cosa ricordarsi. Facoltativa."
+          placeholder="Cosa è stato detto, cosa ricordarsi."
         />
-        {/* Che si possa tornarci sopra va detto: una nota che sembra
-            definitiva si scrive con più esitazione, o non si scrive. */}
+        {/* Obbligatoria ma non definitiva, e le due cose vanno dette insieme:
+            una nota che sembra incisa nella pietra si scrive con esitazione, e
+            un obbligo senza via d'uscita si aggira scrivendo «ok». */}
         <p className="field-hint">
-          Facoltativa, e sempre modificabile: si può scrivere adesso o fra un mese.
+          Obbligatoria, e sempre modificabile: si può correggere e completare quando serve.
         </p>
+        {/* Chi l'ha scritta: la nota che si sta per riscrivere può essere di
+            un collega, e sovrascrivere il suo appunto senza saperlo è il modo
+            di perdere l'unica traccia di una telefonata. */}
+        {notaSalvata && notaDa && (
+          <p className="field-hint">
+            Scritta da {notaDa}
+            {notaIl && ` il ${dataOra(notaIl)}`}.
+          </p>
+        )}
       </div>
 
       <div className="gestione-azioni">

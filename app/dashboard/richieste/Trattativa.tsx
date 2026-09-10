@@ -12,6 +12,7 @@ import {
   puoAssegnare,
   type StatoTrattativa,
 } from '@/lib/pipeline'
+import { nomeDiEmail } from '@/lib/staff'
 import { assegnaTrattativa, cambiaStato, prendiInCarico } from './trattativa-actions'
 
 export type DatiTrattativa = {
@@ -30,12 +31,20 @@ export function Trattativa({
   sonoCommerciale,
   possoRiassegnare,
   commerciali,
+  nomiStaff = {},
 }: {
   t: DatiTrattativa
   io: string | null
   sonoCommerciale: boolean
   possoRiassegnare: boolean
   commerciali: string[]
+  /**
+   * Email → "Nome Cognome". L'email resta il valore che si salva — è la
+   * chiave di staff_users — ma non è il modo in cui si chiama un collega: in
+   * una tendina di sei indirizzi @ronchiverdi.it la parte che li distingue è
+   * anche quella che si legge peggio.
+   */
+  nomiStaff?: Record<string, string>
 }) {
   const [errore, setErrore] = useState<string | null>(null)
   const [chiedoMotivo, setChiedoMotivo] = useState(false)
@@ -95,7 +104,7 @@ export function Trattativa({
         {t.assegnato_a
           ? t.assegnato_a === io
             ? 'la segui tu'
-            : `la segue ${t.assegnato_a}`
+            : `la segue ${nomeDiEmail(t.assegnato_a, nomiStaff)}`
           : 'nessun assegnatario'}
       </span>
 
@@ -125,7 +134,7 @@ export function Trattativa({
             <option value="">— nessuno —</option>
             {commerciali.map((c) => (
               <option key={c} value={c}>
-                {c === io ? `${c} (tu)` : c}
+                {c === io ? `${nomeDiEmail(c, nomiStaff)} (tu)` : nomeDiEmail(c, nomiStaff)}
               </option>
             ))}
           </select>

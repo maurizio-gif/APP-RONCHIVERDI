@@ -21,6 +21,8 @@ import {
   type VoceAgenda,
 } from '@/lib/agenda'
 import { nomePersona } from '@/lib/persone'
+import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
+import { GuidaDashboard } from '@/components/GuidaDashboard'
 import { ImpegniDashboard } from './ImpegniDashboard'
 import { TrattativeDashboard, type TrattativaConPersona } from './TrattativeDashboard'
 
@@ -189,7 +191,7 @@ async function impegniDelGiorno(email: string | null) {
   const oggi = oggiRoma()
 
   const COLONNE_TASK =
-    'id, titolo, tipo, data, ora, durata_minuti, stato, note, assegnato_a, esito_tipo, esito, entita, entita_id'
+    'id, titolo, tipo, data, ora, durata_minuti, stato, note, assegnato_a, esito_tipo, esito, esito_da, esito_il, entita, entita_id'
 
   // Due letture invece di un filtro `or`: le email contengono @ e punti, che
   // in un `or` di PostgREST vanno protetti a mano — e una query che si legge
@@ -408,12 +410,17 @@ export default async function RiepilogoPage() {
       // chi può prendersi una trattativa.
       createSupabaseServiceClient()
         .from('staff_users')
-        .select('email, commerciale')
-        .order('email'),
+        .select('email, nome, cognome, commerciale'),
     ])
 
-  const operatori = (staff ?? []).map((x) => x.email as string)
-  const commerciali = (staff ?? []).filter((x) => x.commerciale).map((x) => x.email as string)
+  // Ordinati per cognome, come in Gestione utenti: una tendina di colleghi
+  // ordinata per email li mette in un ordine che nessuno ha in testa.
+  const staffOrdinato = ordinaPerCognome((staff ?? []) as (RigaStaff & { commerciale?: boolean })[])
+  const operatori = staffOrdinato.map((x) => x.email)
+  const commerciali = staffOrdinato.filter((x) => x.commerciale).map((x) => x.email)
+  // Email → "Nome Cognome": negli impegni si legge chi ha in mano una riga,
+  // non il suo indirizzo.
+  const nomiStaff = mappaNomiStaff(staffOrdinato)
 
   const oggi = oggiRoma()
 
@@ -432,6 +439,11 @@ export default async function RiepilogoPage() {
         <h1>{nomeUtente ? `Ciao ${nomeUtente.split(' ')[0]}` : 'Dashboard'}</h1>
         <p className="muted">Le trattative in corso e cosa ti aspetta oggi.</p>
       </div>
+
+      {/* La legenda: le due sezioni di questa pagina hanno perimetri diversi
+          — sopra le trattative **tue**, sotto gli impegni di **tutti** — e
+          quella differenza non si vede guardando. */}
+      <GuidaDashboard />
 
       {/* Una sezione sola, non due: i riquadri sono i tuoi numeri e gli
           elenchi qui sotto sono il loro dettaglio. Prima i riquadri contavano
@@ -646,6 +658,7 @@ export default async function RiepilogoPage() {
                 io={email}
                 operatori={operatori}
                 puoCancellare={possoCancellare}
+                nomiStaff={nomiStaff}
               />
 
               {/* Il link porta all'agenda già filtrata sulle proprie: è la

@@ -5,12 +5,15 @@ import {
   ETICHETTE_ESITO,
   ETICHETTE_TIPO_BREVI,
   dataBreve,
+  eAppuntamentoVero,
   eEsitoValido,
   tipoDaAzione,
+  voceDaContatto,
 } from '@/lib/agenda'
 import { CLASSE_RIGA_STATO } from '@/lib/pipeline'
 import { CLASSE_URGENZA, fraseAttesa, giorniDa, urgenzaAttesa } from '@/lib/attesa'
 import { inizialiPersona } from '@/lib/persone'
+import { nomeDiEmail } from '@/lib/staff'
 import { GestioneEsito } from '@/components/GestioneEsito'
 import { ContattiRapidi } from '../ContattiRapidi'
 import { riapriRichiesta } from './actions'
@@ -45,8 +48,14 @@ export type Richiesta = {
   gestito_da: string | null
   gestito_il: string | null
   note: string | null
+  /** Chi ha scritto l'ultima versione di `note`, e quando: la firma della nota. */
+  note_da: string | null
+  note_il: string | null
   esito_tipo: string | null
   esito: string | null
+  /** Chi ha scritto la nota di chiusura, e quando. Distinta da gestito_da. */
+  esito_da: string | null
+  esito_il: string | null
   utm_source: string | null
   utm_campaign: string | null
   opportunita_id: string | null
@@ -92,6 +101,7 @@ function ordinaRisposte(risposte: string[]): string[] {
 export function RigaRichiesta({
   r,
   contesto,
+  nomiStaff = {},
   operatori = [],
   puoCancellare = false,
   storico,
@@ -100,6 +110,16 @@ export function RigaRichiesta({
 }: {
   r: Richiesta
   contesto?: ContestoTrattativa
+  /**
+   * Email → "Nome Cognome" dello staff. Sul database le lavorazioni sono
+   * firmate con l'email, che è la chiave e sopravvive alla persona; a schermo
+   * si legge il nome — su un pannello dove tutti sono @ronchiverdi.it
+   * l'indirizzo è la forma meno riconoscibile di una persona.
+   *
+   * Fuori da `contesto` perché serve a tutti i canali: le trattative sono di
+   * Club e Family, le firme delle note sono di chiunque lavori una richiesta.
+   */
+  nomiStaff?: Record<string, string>
   /** Chi può essere assegnatario di un evento programmato chiudendo la richiesta. */
   operatori?: string[]
   puoCancellare?: boolean
@@ -144,6 +164,23 @@ export function RigaRichiesta({
   const giaSeguitaDa = trattativa?.stato === 'in_gestione' ? trattativa.assegnato_a : null
   // Il pannello esiste solo dove esistono le trattative: è il loro seguito.
   const conEventi = !!trattativa
+
+  /**
+   * La cronologia della trattativa, con **la richiesta stessa in testa**.
+   *
+   * La richiesta non è il contorno degli eventi: è il primo di essi. È il
+   * momento in cui questa persona si è fatta viva, ed è ciò che ha aperto la
+   * trattativa. Tenerla fuori dalla cronologia lasciava un elenco di
+   * richiami che cominciavano dal nulla — si vedeva «Richiamato il 12» senza
+   * vedere perché.
+   *
+   * Proiettata da `form_contatti`, non copiata in `task`: nessuna riga
+   * duplicata da tenere allineata, e quello che è arrivato dal sito resta
+   * scritto in un posto solo. È la stessa proiezione che usa l'agenda
+   * (voceDaContatto), quindi le due viste non possono divergere.
+   */
+  const eventoDArrivo: EventoCollegato = { ...voceDaContatto(r), richiestaId: r.id }
+  const cronologia = [...eventi, eventoDArrivo]
   const eventiDaFare = eventi.filter((e) => e.daFare).length
 
   // ── Cosa deve dire la riga prima di essere aperta ─────────────────────
@@ -157,8 +194,37 @@ export function RigaRichiesta({
   // la banda di colore a sinistra (stato della trattativa), il badge di
   // lavorazione, le targhette di contenuto, e l'attesa colorata.
 
-  /** L'appuntamento preso dal sito: il dato che cambia la giornata di chi è al banco. */
-  const tipoAppuntamento = tipoDaAzione(r.azione)
+  /**
+   * L'appuntamento preso dal sito: il dato che cambia la giornata di chi è al
+   * banco. Null se la persona ha solo lasciato un messaggio — `tipoDaAzione`
+   * ne dà comunque un tipo d'agenda (`messaggio`), ma qui serve sapere se c'è
+   * uno slot da tenere, non che tipo di voce è.
+   */
+  const tipo = tipoDaAzione(r.azione)
+  const tipoAppuntamento = eAppuntamentoVero(tipo) ? tipo : null
+
+  /**
+   * Se questa richiesta si lavora con l'**interruttore** invece che con
+   * l'esito. Vero sui canali senza trattativa, e vero anche sui **messaggi**
+   * di Club e Family.
+   *
+   * Un messaggio dal sito aveva un esito suo — «eseguita», «fallita» — che
+   * però non faceva avanzare la trattativa di un millimetro: due chiusure
+   * scollegate sulla stessa telefonata, e la richiesta finiva per sembrare
+   * essa stessa l'opportunità. Ma un messaggio non si esegue e non
+   * fallisce: o l'hai visto o no. Com'è andata lo dicono gli eventi che ne
+   * seguono, e come è finita lo dice la trattativa.
+   *
+   * Gli appuntamenti prenotati dal sito restano con l'esito: quelli sono
+   * impegni presi per un giorno e un'ora, e un impegno si chiude dicendo
+   * com'è andato. La stessa regola sta lato server in conInterruttore
+   * (app/dashboard/richieste/actions.ts): qui decide cosa si disegna, là cosa
+   * si può salvare.
+   */
+  const conInterruttore = gestioneSemplice || !tipoAppuntamento
+
+  /** Chi ha firmato la nota di chiusura, col nome per esteso. */
+  const firmaEsito = nomeDiEmail(r.esito_da, nomiStaff)
   const oraScelta = r.ora_scelta ? String(r.ora_scelta).slice(0, 5) : null
 
   // Da quanto aspetta. Su una richiesta chiusa non vuol dire niente: è
@@ -231,11 +297,11 @@ export function RigaRichiesta({
                   che non c'è. */}
               {r.gestito ? (
                 <span className="badge badge-off badge-punto">
-                  {gestioneSemplice ? 'gestita' : 'chiusa'}
+                  {conInterruttore ? 'gestita' : 'chiusa'}
                 </span>
               ) : (
                 <span className="badge badge-warn badge-punto badge-stato">
-                  {gestioneSemplice ? 'da gestire' : 'da lavorare'}
+                  {conInterruttore ? 'da gestire' : 'da lavorare'}
                 </span>
               )}
 
@@ -278,7 +344,7 @@ export function RigaRichiesta({
               {/* Che ci sia una nota va visto senza aprire: dove la nota è
                   l'unica cosa che si scrive, una riga muta e una riga con
                   dentro «richiama dopo le 18» si somigliano troppo. */}
-              {gestioneSemplice && r.note && <span className="tag tag-nota">con nota</span>}
+              {conInterruttore && r.note && <span className="tag tag-nota">con nota</span>}
 
               {r.utm_campaign && <span className="tag">campagna {r.utm_campaign}</span>}
             </div>
@@ -314,7 +380,7 @@ export function RigaRichiesta({
           {/* Nella gestione semplice non c'è: l'interruttore dentro Gestione
               va nei due sensi, e un secondo comando che fa la stessa cosa
               lascia chiedersi in cosa differiscano. */}
-          {r.gestito && !gestioneSemplice && (
+          {r.gestito && !conInterruttore && (
             <button
               type="button"
               className="btn btn-ghost btn-sm"
@@ -393,6 +459,7 @@ export function RigaRichiesta({
           sonoCommerciale={contesto.sonoCommerciale}
           possoRiassegnare={contesto.possoRiassegnare}
           commerciali={contesto.commerciali}
+          nomiStaff={nomiStaff}
         />
       )}
 
@@ -402,8 +469,8 @@ export function RigaRichiesta({
           sugli altri canali l'interruttore della gestione semplice. */}
       {r.gestito && (
         <p className="richiesta-meta muted" style={{ margin: '0.35rem 0 0' }}>
-          {gestioneSemplice ? 'Gestita' : 'Chiusa'}
-          {r.gestito_da && ` da ${r.gestito_da}`}
+          {conInterruttore ? 'Gestita' : 'Chiusa'}
+          {r.gestito_da && ` da ${nomeDiEmail(r.gestito_da, nomiStaff)}`}
           {r.gestito_il && ` il ${dataOra(r.gestito_il)}`}
         </p>
       )}
@@ -525,16 +592,25 @@ export function RigaRichiesta({
               <>
                 <dt>Nota di chiusura</dt>
                 <dd>{r.esito}</dd>
+                {/* Chi l'ha scritta. Le note chiuse prima che la firma
+                    esistesse lo dicono, invece di attribuirsi a qualcuno. */}
+                <dt>Scritta da</dt>
+                <dd>
+                  {firmaEsito
+                    ? `${firmaEsito}${r.esito_il ? ` — ${dataOra(r.esito_il)}` : ''}`
+                    : 'Firma non registrata'}
+                </dd>
               </>
             )}
-            {/* Su Club e Family è la nota del vecchio riquadro "Note", che
-                non esiste più: là la nota ora è una sola e si scrive
-                chiudendo l'esito, e le vecchie restano leggibili invece di
-                sparire col riquadro. Sugli altri canali è *la* nota, quella
-                che si scrive e si corregge dalla gestione. */}
+            {/* «Nota precedente» solo sugli appuntamenti prenotati di Club e
+                Family: là la nota che conta è quella della chiusura con
+                esito, e questa è la vecchia nota libera — leggibile, non più
+                scrivibile. Ovunque ci sia l'interruttore (i corsi, e i
+                messaggi di Club) è *la* nota: quella che si scrive e si
+                corregge dalla gestione. */}
             {r.note && (
               <>
-                <dt>{gestioneSemplice ? 'Nota' : 'Nota precedente'}</dt>
+                <dt>{conInterruttore ? 'Nota' : 'Nota precedente'}</dt>
                 <dd>{r.note}</dd>
               </>
             )}
@@ -547,17 +623,20 @@ export function RigaRichiesta({
           sotto i dati costava un clic in più ogni volta. */}
       {gestioneAperta && (
         <div className="richiesta-dettagli">
-          {gestioneSemplice ? (
-            // Young School, Summer Camp, Chinesis, corsi padel, Fitness
-            // Manager: un interruttore e una nota. Non c'è una trattativa da
-            // far avanzare né un seguito da fissare in agenda, quindi non c'è
-            // niente da chiudere con un esito.
+          {conInterruttore ? (
+            // Un interruttore e una nota. Vale sui canali senza trattativa
+            // (Young School, Summer Camp, Chinesis, padel, Fitness Manager) e
+            // sui **messaggi** di Club e Family: un messaggio non si esegue e
+            // non fallisce — o l'hai visto o no. Quello che ne segue sono gli
+            // eventi della trattativa, e come finisce lo dice la trattativa.
             <GestioneSemplice
               id={r.id}
               gestito={r.gestito}
               nota={r.note}
-              gestitoDa={r.gestito_da}
+              gestitoDa={nomeDiEmail(r.gestito_da, nomiStaff)}
               gestitoIl={r.gestito_il}
+              notaDa={nomeDiEmail(r.note_da, nomiStaff)}
+              notaIl={r.note_il}
             />
           ) : (
             // Club e Family: lo stesso pannello dell'agenda. Una richiesta dal
@@ -571,9 +650,18 @@ export function RigaRichiesta({
               puoCancellare={puoCancellare}
               // Appuntamento e telefonata sono gli unici che hanno un orario:
               // un messaggio non si sposta di ora perché non ne ha una.
-              conOrario={!!tipoDaAzione(r.azione)}
+              conOrario={!!tipoAppuntamento}
               dataCorrente={r.data_scelta}
               oraCorrente={r.ora_scelta ? String(r.ora_scelta).slice(0, 5) : null}
+              // Già chiusa: il pannello passa da «chiudi» a «correggi», e
+              // rivedere una nota non costa più una riapertura — che la
+              // rimetterebbe fra quelle da lavorare mentre qualcuno guarda
+              // l'elenco.
+              chiusa={r.gestito}
+              esitoCorrente={eEsitoValido(r.esito_tipo) ? r.esito_tipo : null}
+              notaCorrente={r.esito}
+              firma={firmaEsito}
+              firmaIl={r.esito_il}
             />
           )}
         </div>
@@ -586,11 +674,12 @@ export function RigaRichiesta({
       {conEventi && eventiAperti && (
         <div className="richiesta-dettagli">
           <EventiTrattativa
-            eventi={eventi}
+            eventi={cronologia}
             richiestaId={r.id}
             titoloSuggerito={nome}
             operatori={operatori}
             puoCancellare={puoCancellare}
+            nomiStaff={nomiStaff}
           />
         </div>
       )}

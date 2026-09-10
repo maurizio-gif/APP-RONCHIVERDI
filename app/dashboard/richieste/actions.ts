@@ -5,6 +5,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, getSezioniConsentite } from '@/lib/auth/sezioni-server'
 import { registraLog } from '@/lib/audit'
 import { canaleDiRichiesta, eGestioneSemplice, type Canale } from '@/lib/richieste'
+import { eAppuntamentoVero, tipoDaAzione } from '@/lib/agenda'
 
 export type Esito = { ok: true } | { ok: false; errore: string }
 
@@ -20,11 +21,13 @@ export type Esito = { ok: true } | { ok: false; errore: string }
  * eGestioneSemplice) hanno azioni diverse, e ognuna deve rifiutare le righe
  * dell'altra.
  */
-async function canaleAutorizzato(idRichiesta: string): Promise<Canale | null> {
+async function canaleAutorizzato(
+  idRichiesta: string
+): Promise<{ canale: Canale; azione: string | null } | null> {
   const supabase = createSupabaseServiceClient()
   const { data } = await supabase
     .from('form_contatti')
-    .select('attivita, settore, origine')
+    .select('attivita, settore, origine, azione')
     .eq('id', idRichiesta)
     .maybeSingle()
   if (!data) return null
@@ -33,11 +36,41 @@ async function canaleAutorizzato(idRichiesta: string): Promise<Canale | null> {
   if (!canale) return null
 
   const sezioni = await getSezioniConsentite(emailCorrente())
-  return sezioni.includes(canale.chiave) ? canale : null
+  if (!sezioni.includes(canale.chiave)) return null
+
+  // L'azione serve a distinguere un messaggio da un appuntamento prenotato:
+  // su Club e Family i due si lavorano in modi diversi (vedi salvaGestione).
+  return { canale, azione: (data.azione as string) ?? null }
 }
 
 async function puoLavorare(idRichiesta: string): Promise<boolean> {
   return !!(await canaleAutorizzato(idRichiesta))
+}
+
+/**
+ * Se questa richiesta si lavora con l'**interruttore** invece che con l'esito.
+ *
+ * Due casi, che sembrano diversi e sono la stessa cosa:
+ *
+ *  - i canali a gestione semplice (Young School, Summer Camp, Chinesis,
+ *    padel, Fitness Manager), dove non esiste una trattativa;
+ *  - i **messaggi** di Club e Family, dove la trattativa esiste ma il
+ *    messaggio non è il lavoro: è il fatto che l'ha aperta.
+ *
+ * Il secondo caso è la correzione di un equivoco. Un messaggio dal sito aveva
+ * un esito suo — «eseguita», «fallita» — che però non faceva avanzare la
+ * trattativa di un millimetro: due chiusure scollegate sulla stessa
+ * telefonata, e la richiesta finiva per sembrare essa stessa l'opportunità.
+ * Un messaggio non si esegue e non fallisce: o l'hai visto o no. Com'è andata
+ * lo dicono gli eventi che ne seguono, e come è finita lo dice la trattativa.
+ *
+ * Gli appuntamenti e le telefonate prenotati dal sito restano fuori: quelli
+ * sono impegni veri, presi per un giorno e un'ora, e un impegno si chiude
+ * dicendo com'è andato.
+ */
+function conInterruttore(canale: Canale, azione: string | null): boolean {
+  if (eGestioneSemplice(canale)) return true
+  return !eAppuntamentoVero(tipoDaAzione(azione))
 }
 
 /**
@@ -101,10 +134,17 @@ export async function riapriRichiesta(id: string): Promise<Esito> {
  * esiti da scegliere né eventi da programmare — e chiederglieli voleva dire
  * far compilare un modulo di vendita per dire «l'ho chiamata».
  *
- * La nota **non è obbligatoria** e non è legata al momento della chiusura: si
- * può scrivere prima di gestire, insieme al gestito, o correggere un mese
- * dopo. È la differenza che chiudiConEsito non poteva dare, perché là la nota
- * è il verbale di una chiusura e senza non si chiude.
+ * La nota **è obbligatoria**, come lo è ovunque si dica che qualcosa è stato
+ * lavorato: una richiesta segnata gestita e muta, fra un mese, non dice se la
+ * persona si è iscritta, se ci ripensa, o se il numero era sbagliato — e chi
+ * la ritrova deve richiamarla per scoprirlo. Resta però **sempre
+ * modificabile**, e questa è la differenza con chiudiConEsito: là la nota è
+ * il verbale di una chiusura, qui è la nota della richiesta, e si corregge
+ * senza riaprire niente.
+ *
+ * Porta anche la firma di chi l'ha scritta (`note_da`, `note_il`), distinta
+ * da `gestito_da`: la nota si corregge senza toccare il gestito, e dopo una
+ * correzione le due firme sono davvero di due persone diverse.
  *
  * Autorizza il canale della richiesta, non le sezioni agenda/club come fa
  * chiudiConEsito: il responsabile del padel ha solo la propria sezione, e con
@@ -115,32 +155,43 @@ export async function salvaGestione(input: {
   gestito: boolean
   nota: string
 }): Promise<Esito> {
-  const canale = await canaleAutorizzato(input.id)
-  if (!canale) return { ok: false, errore: 'Questa richiesta non è nelle tue sezioni.' }
-  if (!eGestioneSemplice(canale)) {
-    // Club e Family passa da chiudiConEsito, che scrive anche l'esito e tiene
-    // insieme trattativa e agenda: da qui la riga risulterebbe lavorata senza
-    // che nessuno abbia detto com'è andata.
-    return { ok: false, errore: 'Questa richiesta si chiude con un esito, non con il gestito.' }
+  const autorizzato = await canaleAutorizzato(input.id)
+  if (!autorizzato) return { ok: false, errore: 'Questa richiesta non è nelle tue sezioni.' }
+  const { canale, azione } = autorizzato
+  if (!conInterruttore(canale, azione)) {
+    // Un appuntamento o una telefonata prenotati dal sito sono impegni presi
+    // per un giorno e un'ora: si chiudono dicendo com'è andata (chiudiConEsito),
+    // o da qui risulterebbero lavorati senza che nessuno l'abbia detto.
+    return { ok: false, errore: 'Questo appuntamento si chiude con un esito, non con il gestito.' }
+  }
+
+  const nota = (input.nota ?? '').trim()
+  if (!nota) {
+    return {
+      ok: false,
+      errore: input.gestito
+        ? 'La nota è obbligatoria: scrivi com’è andata.'
+        : 'La nota è obbligatoria: scrivi perché la rimetti fra quelle da fare.',
+    }
   }
 
   const email = emailCorrente()
   const supabase = createSupabaseServiceClient()
-
-  // Vuota vuol dire nessuna nota, non una nota di spazi: `null` è ciò che
-  // legge chi mostra la riga per decidere se c'è qualcosa da leggere.
-  const nota = (input.nota ?? '').trim() || null
+  const adesso = new Date().toISOString()
 
   // Togliendo il gestito si toglie anche chi e quando: lasciarli scritti
   // direbbe che la richiesta è stata gestita da qualcuno, mentre l'elenco la
-  // rimette fra quelle da fare.
+  // rimette fra quelle da fare. La firma della nota invece resta e si
+  // aggiorna: quella nota l'ha scritta qualcuno, gestita o no.
   const { error } = await supabase
     .from('form_contatti')
     .update({
       note: nota,
+      note_da: email,
+      note_il: adesso,
       gestito: input.gestito,
       gestito_da: input.gestito ? email : null,
-      gestito_il: input.gestito ? new Date().toISOString() : null,
+      gestito_il: input.gestito ? adesso : null,
     })
     .eq('id', input.id)
 
@@ -152,7 +203,7 @@ export async function salvaGestione(input: {
   await registraLog(email, input.gestito ? 'contatto_gestito' : 'contatto_riaperto', {
     entita: 'form_contatti',
     entitaId: input.id,
-    dettagli: { canale: canale.chiave, con_nota: !!nota },
+    dettagli: { canale: canale.chiave, nota },
   })
 
   revalidatePath('/dashboard/richieste', 'layout')

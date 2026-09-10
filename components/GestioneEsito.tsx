@@ -3,6 +3,7 @@
 import { useId, useState, useTransition } from 'react'
 import {
   DURATA_PREDEFINITA,
+  ETICHETTE_ESITO,
   OPZIONI_TIPO,
   OPZIONI_TIPO_PROGRAMMABILI,
   eAppuntamentoVero,
@@ -12,6 +13,7 @@ import {
 } from '@/lib/agenda'
 import {
   chiudiConEsito,
+  correggiEsito,
   rimuoviVoce,
   riprogrammaVoce,
   type EventoDaProgrammare,
@@ -19,9 +21,16 @@ import {
 } from '@/app/dashboard/agenda/esito-actions'
 
 // La chiusura di una voce, uguale in agenda e nelle richieste dal sito: si
-// scrive com'è andata e, se serve, si fissa subito il seguito. Il pannello è
-// uno solo perché il gesto è lo stesso — due copie avrebbero preso strade
-// diverse alla prima modifica.
+// dice com'è andata e si scrive il perché. Il pannello è uno solo perché il
+// gesto è lo stesso — due copie avrebbero preso strade diverse alla prima
+// modifica.
+//
+// Il programmatore di seguiti non è più qui. Chiudere e creare l'evento
+// successivo erano due cose nello stesso riquadro, e l'evento si poteva
+// creare da due posti — questo e il pannello Eventi della trattativa — che
+// facevano esattamente la stessa insert. Adesso gli eventi nascono in un
+// posto solo: il pannello Eventi se c'è una trattativa, «Aggiungi in agenda»
+// se si è in agenda.
 
 type Gruppo = 'eseguita' | 'fallita' | 'riprogrammata' | 'annullata'
 
@@ -36,20 +45,15 @@ const GRUPPI: { chiave: Gruppo; etichetta: string }[] = [
   { chiave: 'annullata', etichetta: 'Annullata' },
 ]
 
-/** Una riga del programmatore, con un id locale per poterla togliere. */
-type RigaEvento = EventoDaProgrammare & { chiaveLocale: number }
-
-function rigaVuota(chiaveLocale: number): RigaEvento {
-  return {
-    chiaveLocale,
-    titolo: '',
-    tipo: 'appuntamento_telefonico',
-    data: oggiRoma(),
-    ora: '',
-    durataMinuti: null,
-    assegnatoA: '',
-    note: '',
-  }
+/** "3 set 14:20" — quando una nota è stata scritta, accanto a chi l'ha scritta. */
+function dataOraBreve(iso: string): string {
+  return new Date(iso).toLocaleString('it-IT', {
+    timeZone: 'Europe/Rome',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 }
 
 export function GestioneEsito({
@@ -61,6 +65,11 @@ export function GestioneEsito({
   conOrario = false,
   dataCorrente,
   oraCorrente,
+  chiusa = false,
+  esitoCorrente = null,
+  notaCorrente = null,
+  firma = null,
+  firmaIl = null,
 }: {
   origine: OrigineVoce
   id: string
@@ -73,12 +82,37 @@ export function GestioneEsito({
   /** Giorno e ora attuali, come punto di partenza della riprogrammazione. */
   dataCorrente?: string | null
   oraCorrente?: string | null
+  /**
+   * Se la voce è già stata chiusa. Cambia il verbo del pannello: su una voce
+   * aperta si chiude, su una chiusa si **corregge** — e correggere non deve
+   * costare una riapertura, che la rimetterebbe fra le cose da fare e negli
+   * arretrati mentre qualcuno guarda l'agenda.
+   */
+  chiusa?: boolean
+  /** L'esito già scelto: la correzione parte da lì, non da un pannello vuoto. */
+  esitoCorrente?: 'eseguita' | 'fallita' | null
+  /** La nota già scritta, da rileggere e correggere invece che riscrivere. */
+  notaCorrente?: string | null
+  /** Chi ha scritto quella nota, già come nome e cognome, e quando. */
+  firma?: string | null
+  firmaIl?: string | null
 }) {
   const [gruppo, setGruppo] = useState<Gruppo | null>(null)
-  const [nota, setNota] = useState('')
-  const [eventi, setEventi] = useState<RigaEvento[]>([])
+  // Su una voce chiusa il campo parte da quello che c'è scritto: una
+  // correzione è quasi sempre un'aggiunta, e ridigitare la nota da capo per
+  // cambiarne una riga la fa riscrivere più corta di com'era.
+  const [nota, setNota] = useState(chiusa ? (notaCorrente ?? '') : '')
   const [errore, setErrore] = useState<string | null>(null)
   const [inCorso, startTransition] = useTransition()
+
+  // Salvata la correzione, il server rilegge la riga e rimanda le prop nuove;
+  // lo stato locale resterebbe quello di prima e il pannello continuerebbe a
+  // mostrare la nota vecchia sopra un dato già cambiato.
+  const [ultimaNota, setUltimaNota] = useState(notaCorrente)
+  if (ultimaNota !== notaCorrente) {
+    setUltimaNota(notaCorrente)
+    setNota(chiusa ? (notaCorrente ?? '') : '')
+  }
 
   // Si parte da dov'è adesso: chi rinvia sposta di qualche giorno, e
   // ridigitare la data da zero è lavoro in più per arrivare vicino a quella
@@ -86,27 +120,16 @@ export function GestioneEsito({
   const [nuovaData, setNuovaData] = useState(dataCorrente || oggiRoma())
   const [nuovaOra, setNuovaOra] = useState(oraCorrente ?? '')
 
-  // Il contatore non torna indietro: riusare l'indice come chiave farebbe
-  // ereditare a una riga i valori di quella cancellata sopra di lei.
-  const [prossimaChiave, setProssimaChiave] = useState(1)
-
-  function aggiungiEvento() {
-    setEventi((e) => [...e, rigaVuota(prossimaChiave)])
-    setProssimaChiave((n) => n + 1)
-  }
-
-  function aggiorna(chiaveLocale: number, campi: Partial<RigaEvento>) {
-    setEventi((e) => e.map((r) => (r.chiaveLocale === chiaveLocale ? { ...r, ...campi } : r)))
-  }
-
   function esegui(azione: () => Promise<{ ok: true } | { ok: false; errore: string }>) {
     setErrore(null)
     startTransition(async () => {
       const esito = await azione()
       if (esito.ok) {
         setGruppo(null)
-        setNota('')
-        setEventi([])
+        // Su una voce chiusa la nota non si svuota: resta quella corretta, che
+        // è ciò che si rilegge riaprendo il pannello. Le prop la riallineano
+        // al valore appena salvato non appena il server rilegge la riga.
+        if (!chiusa) setNota('')
       } else {
         setErrore(esito.errore)
       }
@@ -121,21 +144,17 @@ export function GestioneEsito({
     )
   }
 
-  function chiudi(conEventi: boolean) {
+  function chiudi() {
     if (!gruppo || gruppo === 'annullata' || gruppo === 'riprogrammata') return
     if (!nota.trim()) return setErrore('La nota è obbligatoria: scrivi com’è andata.')
-    if (conEventi && eventi.length === 0) {
-      return setErrore('Aggiungi almeno un evento, oppure chiudi senza programmare.')
-    }
-    esegui(() =>
-      chiudiConEsito({
-        origine,
-        id,
-        esito: gruppo,
-        nota,
-        eventi: conEventi ? eventi.map(({ chiaveLocale, ...resto }) => resto) : [],
-      })
-    )
+    esegui(() => chiudiConEsito({ origine, id, esito: gruppo, nota }))
+  }
+
+  /** Riscrive esito e nota su una voce già chiusa, senza riaprirla. */
+  function correggi() {
+    if (!gruppo || gruppo === 'annullata' || gruppo === 'riprogrammata') return
+    if (!nota.trim()) return setErrore('La nota è obbligatoria: scrivi com’è andata.')
+    esegui(() => correggiEsito({ origine, id, esito: gruppo, nota }))
   }
 
   function rimuovi() {
@@ -146,7 +165,19 @@ export function GestioneEsito({
 
   return (
     <div className="esito">
-      <div className="esito-titolo">Chiudi con esito</div>
+      <div className="esito-titolo">{chiusa ? 'Esito' : 'Chiudi con esito'}</div>
+
+      {/* Su una voce chiusa: com'è andata, chi l'ha scritto e quando — prima
+          dei pulsanti, perché è quello che si viene a leggere. Chi vuole
+          correggere lo fa dopo aver visto cosa c'era. */}
+      {chiusa && (
+        <p className="esito-firma">
+          {esitoCorrente ? ETICHETTE_ESITO[esitoCorrente] : 'Chiusa senza esito'}
+          {firma ? ` da ${firma}` : ''}
+          {firmaIl ? ` il ${dataOraBreve(firmaIl)}` : ''}
+          {!firma && !firmaIl && ' — firma non registrata'}
+        </p>
+      )}
 
       <div className="esito-gruppi" role="group" aria-label="Esito della lavorazione">
         {GRUPPI.map((g) => (
@@ -160,6 +191,14 @@ export function GestioneEsito({
               setGruppo(gruppo === g.chiave ? null : g.chiave)
             }}
           >
+            {/* Su una voce chiusa la scelta che c'è già si riconosce prima di
+                cliccarla: senza la spunta si rischia di «correggere» in
+                eseguita qualcosa che era già eseguita, credendo di cambiarla. */}
+            {chiusa && esitoCorrente === g.chiave && (
+              <span aria-hidden="true" style={{ marginRight: '0.35em' }}>
+                ✓
+              </span>
+            )}
             {g.etichetta}
           </button>
         ))}
@@ -248,48 +287,25 @@ export function GestioneEsito({
             </div>
           ) : (
             <>
-              {eventi.length > 0 && (
-                <div className="esito-eventi">
-                  {eventi.map((riga, indice) => (
-                    <RigaProgrammazione
-                      key={riga.chiaveLocale}
-                      riga={riga}
-                      indice={indice}
-                      operatori={operatori}
-                      onCambia={(campi) => aggiorna(riga.chiaveLocale, campi)}
-                      onRimuovi={() =>
-                        setEventi((e) => e.filter((r) => r.chiaveLocale !== riga.chiaveLocale))
-                      }
-                    />
-                  ))}
-                </div>
-              )}
-
               <div className="esito-azioni">
                 <button
                   type="button"
                   className="btn btn-sm"
                   disabled={inCorso}
-                  onClick={() => chiudi(false)}
+                  onClick={() => (chiusa ? correggi() : chiudi())}
                 >
-                  {inCorso ? 'Salvataggio…' : `Chiudi ${gruppo}`}
+                  {inCorso
+                    ? 'Salvataggio…'
+                    : chiusa
+                      ? `Salva: ${gruppo}`
+                      : `Chiudi ${gruppo}`}
                 </button>
 
-                <button type="button" className="btn btn-ghost btn-sm" onClick={aggiungiEvento}>
-                  + Programma evento
-                </button>
-
-                {eventi.length > 0 && (
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    disabled={inCorso}
-                    onClick={() => chiudi(true)}
-                  >
-                    {inCorso
-                      ? 'Salvataggio…'
-                      : `Chiudi ${gruppo} e programma ${eventi.length} ${eventi.length === 1 ? 'evento' : 'eventi'}`}
-                  </button>
+                {chiusa && (
+                  <p className="field-hint">
+                    La voce resta chiusa e non torna fra quelle da fare: cambiano solo l’esito e la
+                    nota, con la tua firma.
+                  </p>
                 )}
               </div>
             </>
@@ -302,33 +318,6 @@ export function GestioneEsito({
           )}
         </>
       )}
-    </div>
-  )
-}
-
-function RigaProgrammazione({
-  riga,
-  indice,
-  operatori,
-  onCambia,
-  onRimuovi,
-}: {
-  riga: RigaEvento
-  indice: number
-  operatori: string[]
-  onCambia: (campi: Partial<RigaEvento>) => void
-  onRimuovi: () => void
-}) {
-  return (
-    <div className="esito-evento">
-      <div className="esito-evento-testa">
-        <span className="esito-evento-numero">Evento {indice + 1}</span>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={onRimuovi}>
-          Togli
-        </button>
-      </div>
-
-      <CampiEvento riga={riga} operatori={operatori} onCambia={onCambia} />
     </div>
   )
 }

@@ -12,6 +12,8 @@ import {
   type StatoTrattativa,
 } from '@/lib/pipeline'
 import { voceDaTask } from '@/lib/agenda'
+import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
+import { GuidaModello } from '@/components/GuidaModello'
 import { RigaRichiesta, type ContestoTrattativa, type Richiesta } from '../RigaRichiesta'
 import type { EventoCollegato } from '../EventiTrattativa'
 import type { DatiTrattativa } from '../Trattativa'
@@ -63,7 +65,7 @@ export default async function CanalePage({
   let query = supabase
     .from('form_contatti')
     .select(
-      'id, created_at, origine, operatore, nome, cognome, email, cellulare, data_nascita, attivita_label, settore, azione, data_scelta, ora_scelta, messaggio, dettagli, minore_nome, minore_cognome, minore_data_nascita, marketing, gestito, gestito_da, gestito_il, note, utm_source, utm_campaign, opportunita_id, esito_tipo, esito, persona_id'
+      'id, created_at, origine, operatore, nome, cognome, email, cellulare, data_nascita, attivita_label, settore, azione, data_scelta, ora_scelta, messaggio, dettagli, minore_nome, minore_cognome, minore_data_nascita, marketing, gestito, gestito_da, gestito_il, note, note_da, note_il, utm_source, utm_campaign, opportunita_id, esito_tipo, esito, esito_da, esito_il, persona_id'
     )
     .order('created_at', { ascending: false })
     .limit(200)
@@ -139,7 +141,9 @@ export default async function CanalePage({
     canale.inAgenda
       ? supabase.from('opportunita').select('id, stato, assegnato_a, motivo_perso')
       : Promise.resolve({ data: [] as Record<string, any>[] }),
-    supabase.from('staff_users').select('email').order('email'),
+    // Nome e cognome oltre all'email: le lavorazioni si firmano con l'email,
+    // ma a schermo si legge il nome (vedi lib/staff.ts).
+    supabase.from('staff_users').select('email, nome, cognome'),
     puoCancellare(emailCorrente()),
     eCommerciale(emailCorrente()),
     puoRiassegnare(emailCorrente()),
@@ -155,7 +159,11 @@ export default async function CanalePage({
   }
 
   const richieste = (data ?? []) as unknown as Richiesta[]
-  const operatori = (tuttoLoStaff ?? []).map((x) => x.email as string)
+  // Ordinati per cognome, come Gestione utenti: una tendina di colleghi
+  // ordinata per email li mette in un ordine che nessuno ha in testa.
+  const staffOrdinato = ordinaPerCognome((tuttoLoStaff ?? []) as RigaStaff[])
+  const operatori = staffOrdinato.map((x) => x.email)
+  const nomiStaff = mappaNomiStaff(staffOrdinato)
 
   // Chi ha già scritto prima. Il database riconosce la persona e riusa la
   // trattativa aperta (trova_o_crea_opportunita), ma non lascia alcun segno:
@@ -214,7 +222,7 @@ export default async function CanalePage({
   // fissata a mano, che è quella che si ricorda meno.
   const idRichiesteDellePersone = (righeStessePersone ?? []).map((riga) => riga.id as string)
   const COLONNE_EVENTO =
-    'id, titolo, tipo, data, ora, durata_minuti, note, assegnato_a, stato, esito_tipo, esito, entita, entita_id'
+    'id, titolo, tipo, data, ora, durata_minuti, note, assegnato_a, stato, esito_tipo, esito, esito_da, esito_il, entita, entita_id'
 
   const [{ data: eventiDaRichieste }, { data: eventiDaContatti }] =
     canale.inAgenda && idRichiesteDellePersone.length
@@ -426,6 +434,15 @@ export default async function CanalePage({
         </p>
       </div>
 
+      {/* La guida solo qui. Il modello che spiega — evento scatenante,
+          trattativa da prendere in carico, eventi che la fanno avanzare fino
+          a vinta o persa — esiste soltanto su Club e Family: sugli altri
+          canali non ci sono trattative, il responsabile chiama e chiude, e
+          spiegargli una pipeline che non ha lo confonderebbe invece di
+          aiutarlo. `inAgenda` è lo stesso discrimine che decide se le
+          trattative esistono (vedi lib/richieste.ts). */}
+      {canale.inAgenda && <GuidaModello />}
+
       {/* I filtri erano pulsanti: maiuscoli, oro pieno quello attivo, identici
           ai comandi che agiscono sui dati — e muti su quante cose avrebbero
           trovato. Ora sono chip: tondi, in tondo minuscolo, ognuno col suo
@@ -552,6 +569,7 @@ export default async function CanalePage({
               <RigaRichiesta
                 r={riga}
                 contesto={contesto}
+                nomiStaff={nomiStaff}
                 operatori={operatori}
                 puoCancellare={possoCancellare}
                 storico={storicoPersona.get(riga.id)}

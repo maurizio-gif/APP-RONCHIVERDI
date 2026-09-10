@@ -10,6 +10,7 @@ import {
   intervalloOrario,
   type VoceAgenda,
 } from '@/lib/agenda'
+import { nomeDiEmail } from '@/lib/staff'
 import { GestioneEsito } from '@/components/GestioneEsito'
 
 // Gli impegni del giorno, gestibili qui.
@@ -26,6 +27,7 @@ export function ImpegniDashboard({
   io,
   operatori,
   puoCancellare,
+  nomiStaff = {},
 }: {
   voci: VoceAgenda[]
   /** Oggi a Roma: serve a marcare gli arretrati. */
@@ -33,6 +35,8 @@ export function ImpegniDashboard({
   io: string | null
   operatori: string[]
   puoCancellare: boolean
+  /** Email → "Nome Cognome": nel tag si legge la persona, non il suo indirizzo. */
+  nomiStaff?: Record<string, string>
 }) {
   const [aperta, setAperta] = useState<string | null>(null)
 
@@ -71,18 +75,32 @@ export function ImpegniDashboard({
                 <span className="badge badge-ko badge-punto badge-stato">arretrato</span>
               )}
 
-              {/* Di chi è: gli appuntamenti si vedono tutti, anche quelli dei
-                  colleghi (in sede o al telefono, il club è uno). Dirlo evita
-                  che due persone si presentino alla stessa telefonata. */}
-              {!mio && (
-                <span className="muted impegno-chi">
-                  {voce.assegnatoA
-                    ? voce.assegnatoA
+              {/* Di chi è. Questo elenco mostra gli impegni di **tutto il
+                  club**, non solo i propri: senza dire di chi è ogni riga, si
+                  legge come una lista di cose proprie — e o ci si presenta in
+                  due alla stessa telefonata, o si dà per scontato che ci pensi
+                  qualcun altro.
+
+                  Un tag e non più testo grigio, e su **ogni** riga e non solo
+                  su quelle altrui: prima il proprietario compariva soltanto
+                  quando non eri tu, quindi l'assenza del nome era essa stessa
+                  l'informazione — la si capiva solo sapendola già. E il nome
+                  per esteso al posto dell'email: «c.porcella@ronchiverdi.it»
+                  si legge lettera per lettera, «Carola Porcella» si riconosce
+                  in un colpo d'occhio. */}
+              <span
+                className={`tag-assegnato${
+                  mio ? ' e-mio' : voce.assegnatoA ? ' e-altrui' : ' e-nessuno'
+                }`}
+              >
+                {mio
+                  ? 'Tuo'
+                  : voce.assegnatoA
+                    ? nomeDiEmail(voce.assegnatoA, nomiStaff)
                     : voce.origine === 'form_contatti'
-                      ? 'prenotato dal sito'
-                      : 'di nessuno'}
-                </span>
-              )}
+                      ? 'Dal sito'
+                      : 'Di nessuno'}
+              </span>
 
               <button
                 type="button"

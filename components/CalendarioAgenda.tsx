@@ -32,6 +32,7 @@ export function CalendarioAgenda({
   emailCorrente,
   operatori,
   puoCancellare,
+  nomiStaff,
   linkMesePrecedente,
   linkMeseSuccessivo,
   linkOggi,
@@ -44,6 +45,8 @@ export function CalendarioAgenda({
   emailCorrente: string | null
   operatori: string[]
   puoCancellare: boolean
+  /** Email → "Nome Cognome" dello staff, per firmare le note di chiusura. */
+  nomiStaff: Record<string, string>
   linkMesePrecedente: string
   linkMeseSuccessivo: string
   linkOggi: string
@@ -167,6 +170,7 @@ export function CalendarioAgenda({
               emailCorrente={emailCorrente}
               operatori={operatori}
               puoCancellare={puoCancellare}
+              nomiStaff={nomiStaff}
               mostraData={false}
             />
           ) : (

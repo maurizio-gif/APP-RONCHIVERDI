@@ -10,6 +10,7 @@ import {
   eEsitoValido,
   eTipoValido,
   normalizzaOra,
+  tipoDaAzione,
   type Esito as EsitoLavorazione,
   type TipoVoce,
 } from '@/lib/agenda'
@@ -23,10 +24,16 @@ import {
 } from '@/lib/eventi'
 import type { Esito } from './actions'
 
-// Chiudere una voce dicendo com'è andata, e nello stesso gesto fissare quello
-// che ne consegue. Vale per le due sorgenti dell'agenda — le voci della
-// segreteria (task) e le richieste arrivate dal sito (form_contatti) — perché
-// per chi lavora sono la stessa cosa: qualcosa da chiudere con un esito.
+// Chiudere una voce dicendo com'è andata, correggerla dopo, spostarla,
+// rimuoverla. Vale per le due sorgenti dell'agenda — le voci della segreteria
+// (task) e le richieste arrivate dal sito (form_contatti) — perché per chi
+// lavora sono la stessa cosa: qualcosa da chiudere con un esito.
+//
+// Con un'eccezione, che è la ragione per cui questo file non copre tutto: un
+// **messaggio** arrivato dal sito non si chiude con un esito. Non si esegue e
+// non fallisce — o l'hai visto o no — e la sua gestione è l'interruttore di
+// salvaGestione (app/dashboard/richieste/actions.ts). Com'è andata lo dicono
+// gli eventi che ne seguono; come è finita lo dice la trattativa.
 
 // EventoDaProgrammare e le regole di normalizzazione stanno in lib/eventi.ts:
 // le usa anche la creazione a mano in agenda (creaVoce), che prima ne aveva
@@ -34,6 +41,23 @@ import type { Esito } from './actions'
 export type { EventoDaProgrammare } from '@/lib/eventi'
 
 export type OrigineVoce = 'task' | 'form_contatti'
+
+/**
+ * Se questa richiesta è un appuntamento o una telefonata davvero prenotati.
+ *
+ * Solo quelli sono impegni presi per un giorno e un'ora, e solo quelli si
+ * chiudono dicendo com'è andata. Un messaggio è il fatto che ha aperto la
+ * trattativa: si segna gestito (salvaGestione) e il seguito sono gli eventi.
+ */
+async function eAppuntamentoPrenotato(id: string): Promise<boolean> {
+  const supabase = createSupabaseServiceClient()
+  const { data } = await supabase
+    .from('form_contatti')
+    .select('azione')
+    .eq('id', id)
+    .maybeSingle()
+  return eAppuntamentoVero(tipoDaAzione(data?.azione as string | null))
+}
 
 /** Le sezioni che vedono queste voci: chi non ha nemmeno una non può chiudere nulla. */
 async function autorizzato(): Promise<boolean> {
@@ -54,17 +78,22 @@ function rinfresca(): void {
 }
 
 /**
- * Chiude una voce con un esito e, se richiesto, fissa gli eventi che ne
- * seguono. La nota è obbligatoria: un esito senza il perché non si rilegge —
- * fra un mese "fallita" da solo non dice se non ha risposto, se ha rifiutato o
- * se era il numero sbagliato.
+ * Chiude una voce dicendo com'è andata. La nota è obbligatoria: un esito senza
+ * il perché non si rilegge — fra un mese "fallita" da solo non dice se non ha
+ * risposto, se ha rifiutato o se era il numero sbagliato.
+ *
+ * Chiudere e basta: il seguito, se c'è, si fissa dal pannello Eventi della
+ * trattativa o da «Aggiungi in agenda». Prima si poteva programmare anche da
+ * qui, e lo stesso evento nasceva da due porte diverse che facevano la
+ * medesima insert — con in più, qui, il rischio di lasciare la voce chiusa e i
+ * suoi seguiti mai creati, perché senza transazioni le due scritture non
+ * potevano riuscire o fallire insieme.
  */
 export async function chiudiConEsito(input: {
   origine: OrigineVoce
   id: string
   esito: string
   nota: string
-  eventi?: EventoDaProgrammare[]
 }): Promise<Esito> {
   if (!(await autorizzato())) return { ok: false, errore: 'Non hai accesso a questa sezione.' }
 
@@ -77,41 +106,32 @@ export async function chiudiConEsito(input: {
   const supabase = createSupabaseServiceClient()
   const adesso = new Date().toISOString()
 
-  // Gli eventi si validano prima di toccare il database: se uno è sbagliato,
-  // meglio non aver chiuso niente che ritrovarsi la voce chiusa e i suoi
-  // seguiti mai creati — senza transazioni, l'unica difesa è l'ordine.
-  const eventi = input.eventi ?? []
-
-  // A cosa si agganciano gli eventi che nascono da questa chiusura.
-  //
-  // Chiudendo una richiesta è la richiesta stessa. Chiudendo un evento, si
-  // eredita il collegamento di quell'evento: il seguito di un seguito
-  // appartiene sempre alla richiesta da cui è partito tutto, e legarlo
-  // all'evento intermedio lo farebbe sparire dal pannello Eventi della
-  // trattativa — che cerca gli eventi della richiesta, non le catene.
-  let collegamento: CollegamentoEvento = { entita: input.origine, id: input.id }
-  if (input.origine === 'task' && eventi.length > 0) {
-    const { data: padre } = await supabase
-      .from('task')
-      .select('entita, entita_id')
-      .eq('id', input.id)
-      .maybeSingle()
-    if (eEntitaValida(padre?.entita) && padre?.entita_id) {
-      collegamento = { entita: padre.entita, id: padre.entita_id as string }
+  // Un messaggio arrivato dal sito non si chiude con un esito: non si esegue
+  // e non fallisce. Il controllo è qui e non solo nell'interfaccia perché la
+  // regola è del modello — senza, una chiamata diretta rimetterebbe sulla
+  // richiesta l'esito che abbiamo tolto, e l'ambiguità tornerebbe dalla
+  // porta di servizio.
+  if (input.origine === 'form_contatti' && !(await eAppuntamentoPrenotato(input.id))) {
+    return {
+      ok: false,
+      errore:
+        'Un messaggio dal sito non si chiude con un esito: segnalo gestito, e programma il seguito dalla trattativa.',
     }
-  }
-
-  const righe: Record<string, unknown>[] = []
-  for (const evento of eventi) {
-    const esitoRiga = rigaEvento(evento, email, collegamento)
-    if ('errore' in esitoRiga) return { ok: false, errore: esitoRiga.errore }
-    righe.push(esitoRiga.riga)
   }
 
   if (input.origine === 'task') {
     const { error } = await supabase
       .from('task')
-      .update({ stato: 'completato', completato_il: adesso, esito_tipo: esito, esito: nota })
+      .update({
+        stato: 'completato',
+        completato_il: adesso,
+        esito_tipo: esito,
+        esito: nota,
+        // Chi ha scritto la nota, sulla riga: senza, l'unico modo di saperlo
+        // era cercare nel registro operatori l'azione con l'orario giusto.
+        esito_da: email,
+        esito_il: adesso,
+      })
       .eq('id', input.id)
     if (error) {
       console.error('Chiusura voce non riuscita:', error.message)
@@ -123,6 +143,11 @@ export async function chiudiConEsito(input: {
       .update({
         esito_tipo: esito,
         esito: nota,
+        // La firma della nota è sua e non si confonde con quella del gestito:
+        // correggendo la nota dopo (vedi correggiEsito) cambia questa, mentre
+        // gestito_da continua a dire chi aveva chiuso la richiesta.
+        esito_da: email,
+        esito_il: adesso,
         // `gestito` resta il segno che la richiesta è stata lavorata: è quello
         // che leggono l'agenda e i contatori delle richieste, e una richiesta
         // chiusa con un esito è lavorata per definizione.
@@ -137,24 +162,90 @@ export async function chiudiConEsito(input: {
     }
   }
 
-  if (righe.length) {
-    const { error } = await supabase.from('task').insert(righe)
-    if (error) {
-      console.error('Eventi programmati non creati:', error.message)
-      // La voce è già chiusa: dirlo, invece di far credere che non sia
-      // successo niente e far ripetere la chiusura.
-      return {
-        ok: false,
-        errore:
-          'La voce è stata chiusa, ma gli eventi programmati non sono stati salvati. Riprova ad aggiungerli.',
-      }
-    }
-  }
-
   await registraLog(email, esito === 'eseguita' ? 'esito_eseguita' : 'esito_fallita', {
     entita: input.origine,
     entitaId: input.id,
-    dettagli: { nota, eventi_programmati: righe.length },
+    dettagli: { nota },
+  })
+
+  rinfresca()
+  return { ok: true }
+}
+
+/**
+ * Corregge l'esito e la nota di una voce **già chiusa**, senza riaprirla.
+ *
+ * Serve perché una chiusura non è l'ultima parola. Si segna «eseguita» dopo
+ * la telefonata, e il giorno dopo si scopre che la persona non aveva capito e
+ * bisogna richiamarla; oppure la nota era di corsa e va completata con quello
+ * che è stato detto davvero. Prima l'unica strada era riaprire la voce — che
+ * azzera l'esito, la rimette fra quelle da fare e la fa ricomparire negli
+ * arretrati — e poi richiuderla: tre gesti, e nel mezzo la voce dice il falso
+ * a chiunque guardi l'agenda.
+ *
+ * Non riapre e non tocca `completato_il`: quando è stata chiusa resta quello.
+ * Cambia la nota, chi l'ha scritta e quando — perché è la nota che si sta
+ * leggendo, e attribuirla a chi aveva chiuso per primo sarebbe falso.
+ *
+ * La nota resta obbligatoria: correggere una chiusura cancellandone il perché
+ * lascerebbe una voce chiusa e muta, che è esattamente ciò che l'obbligo
+ * serve a evitare.
+ */
+export async function correggiEsito(input: {
+  origine: OrigineVoce
+  id: string
+  esito: string
+  nota: string
+}): Promise<Esito> {
+  if (!(await autorizzato())) return { ok: false, errore: 'Non hai accesso a questa sezione.' }
+
+  const nota = (input.nota ?? '').trim()
+  if (!nota) return { ok: false, errore: 'La nota è obbligatoria: scrivi com’è andata.' }
+  if (!eEsitoValido(input.esito)) return { ok: false, errore: 'Esito non valido.' }
+
+  const esito: EsitoLavorazione = input.esito
+  const email = emailCorrente()
+  const supabase = createSupabaseServiceClient()
+  const adesso = new Date().toISOString()
+
+  // Solo su una voce già chiusa: su una aperta questo sarebbe un secondo modo
+  // di chiudere, senza la traccia della chiusura (`completato_il`, `gestito`)
+  // che tutto il resto del pannello legge per sapere cosa è finito.
+  const { data: riga, error: erroreLettura } = await supabase
+    .from(input.origine)
+    .select(input.origine === 'task' ? 'stato, esito_tipo' : 'gestito, esito_tipo')
+    .eq('id', input.id)
+    .maybeSingle()
+
+  if (erroreLettura || !riga) {
+    console.error('Voce da correggere non letta:', erroreLettura?.message)
+    return { ok: false, errore: 'Non abbiamo trovato la voce da correggere.' }
+  }
+
+  const dati = riga as Record<string, unknown>
+  const chiusa = input.origine === 'task' ? dati.stato === 'completato' : dati.gestito === true
+  if (!chiusa) {
+    return { ok: false, errore: 'Questa voce non è chiusa: usa «Chiudi con esito».' }
+  }
+
+  const esitoPrima = eEsitoValido(dati.esito_tipo as string) ? (dati.esito_tipo as string) : null
+
+  const { error } = await supabase
+    .from(input.origine)
+    .update({ esito_tipo: esito, esito: nota, esito_da: email, esito_il: adesso })
+    .eq('id', input.id)
+
+  if (error) {
+    console.error('Correzione dell’esito non riuscita:', error.message)
+    return { ok: false, errore: 'Non siamo riusciti a salvare la correzione. Riprova.' }
+  }
+
+  // La correzione è un'azione sua nel registro: «esito_eseguita» due volte
+  // sulla stessa voce non direbbe che la seconda ha riscritto la prima.
+  await registraLog(email, 'esito_corretto', {
+    entita: input.origine,
+    entitaId: input.id,
+    dettagli: { da: esitoPrima, a: esito, nota },
   })
 
   rinfresca()

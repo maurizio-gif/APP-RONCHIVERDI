@@ -38,6 +38,10 @@ export const AZIONI_LOG: Record<string, string> = {
   agenda_voce_eliminata: 'Agenda: voce eliminata',
   esito_eseguita: 'Chiusa con esito: eseguita',
   esito_fallita: 'Chiusa con esito: fallita',
+  // Distinta dalle due qui sopra: una voce corretta ha due righe nel registro
+  // e la seconda deve dire che ha riscritto la prima, non che è stata chiusa
+  // di nuovo. I dettagli portano l'esito di prima e quello di adesso.
+  esito_corretto: 'Esito corretto dopo la chiusura',
   voce_rimossa: 'Rimossa (errore o prova)',
   voce_riprogrammata: 'Riprogrammata',
   // Su Club e Family la presa in carico a mano non esiste più — si chiude solo

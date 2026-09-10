@@ -13,6 +13,7 @@ import {
   oggiRoma,
   type VoceAgenda,
 } from '@/lib/agenda'
+import { nomeDiEmail } from '@/lib/staff'
 import { CampiEvento, GestioneEsito } from '@/components/GestioneEsito'
 import { ETICHETTE_MODO, MODI, SPIEGAZIONI_MODO, type EventoDaProgrammare, type ModoEvento } from '@/lib/eventi'
 import { modificaEvento, programmaEvento, riapriEvento } from '@/app/dashboard/agenda/esito-actions'
@@ -38,6 +39,7 @@ export function EventiTrattativa({
   titoloSuggerito,
   operatori,
   puoCancellare,
+  nomiStaff = {},
 }: {
   eventi: EventoCollegato[]
   /** La richiesta a cui si aggancia un evento nuovo creato da qui. */
@@ -46,6 +48,8 @@ export function EventiTrattativa({
   titoloSuggerito: string
   operatori: string[]
   puoCancellare: boolean
+  /** Email → "Nome Cognome" dello staff, per firmare le note di chiusura. */
+  nomiStaff?: Record<string, string>
 }) {
   // Prima quelli da fare, dal più vicino: è il prossimo passo della
   // trattativa, ed è la ragione per cui si apre il pannello. I chiusi
@@ -110,7 +114,15 @@ export function EventiTrattativa({
 
       {eventi.length > 0 && (
         <ul className="eventi-elenco">
-          {ordinati.map((evento) => (
+          {ordinati.map((evento) => {
+            // La richiesta arrivata dal sito è il primo evento della
+            // cronologia, ma non è un evento nostro: non l'abbiamo fissata noi.
+            const daSito = evento.origine === 'form_contatti'
+            // Sulla chiave e non sull'id: mescolando `task` e `form_contatti`
+            // due righe di tabelle diverse possono avere lo stesso id, e
+            // aprire la modifica di una aprirebbe anche quella dell'altra.
+            const aperto = evento.chiave
+            return (
             <li key={evento.chiave} className={`evento${evento.daFare ? '' : ' is-chiuso'}`}>
               <div className="evento-riga">
                 <span className={`badge-tipo ${CLASSE_TIPO[evento.tipo]}`}>
@@ -132,7 +144,11 @@ export function EventiTrattativa({
               </div>
 
               <div className="evento-meta muted">
-                {evento.assegnatoA ? `assegnato a ${evento.assegnatoA}` : 'nessun assegnatario'}
+                {daSito
+                  ? 'arrivata dal sito'
+                  : evento.assegnatoA
+                    ? `assegnato a ${nomeDiEmail(evento.assegnatoA, nomiStaff)}`
+                    : 'nessun assegnatario'}
                 {/* L'evento nato da un'altra richiesta della stessa persona: senza
                     dirlo sembrerebbe fissato su questa. */}
                 {evento.richiestaId && evento.richiestaId !== richiestaId && ' · da una richiesta precedente'}
@@ -145,34 +161,44 @@ export function EventiTrattativa({
                 </p>
               )}
 
+              {/* I comandi valgono sugli eventi **nostri**. Quello che è
+                  arrivato dal sito non si modifica (non l'abbiamo scritto noi)
+                  e non si riapre da qui: è la richiesta stessa, e si gestisce
+                  dal suo pannello, sopra. Resta la chiusura con esito, ma solo
+                  se è un appuntamento davvero preso — un messaggio non si
+                  esegue e non fallisce. */}
               <div className="evento-azioni">
-                <button
-                  type="button"
-                  className={`btn btn-sm${inModifica === evento.id ? '' : ' btn-ghost'}`}
-                  aria-expanded={inModifica === evento.id}
-                  onClick={() => {
-                    setErrore(null)
-                    setInGestione(null)
-                    setInModifica(inModifica === evento.id ? null : evento.id)
-                  }}
-                >
-                  Modifica
-                </button>
-
-                {evento.daFare ? (
+                {!daSito && (
                   <button
                     type="button"
-                    className={`btn btn-sm${inGestione === evento.id ? '' : ' btn-ghost'}`}
-                    aria-expanded={inGestione === evento.id}
+                    className={`btn btn-sm${inModifica === aperto ? '' : ' btn-ghost'}`}
+                    aria-expanded={inModifica === aperto}
                     onClick={() => {
                       setErrore(null)
-                      setInModifica(null)
-                      setInGestione(inGestione === evento.id ? null : evento.id)
+                      setInGestione(null)
+                      setInModifica(inModifica === aperto ? null : evento.id)
                     }}
                   >
-                    Chiudi con esito
+                    Modifica
                   </button>
-                ) : (
+                )}
+
+                {evento.daFare ? (
+                  (!daSito || eAppuntamentoVero(evento.tipo)) && (
+                    <button
+                      type="button"
+                      className={`btn btn-sm${inGestione === aperto ? '' : ' btn-ghost'}`}
+                      aria-expanded={inGestione === aperto}
+                      onClick={() => {
+                        setErrore(null)
+                        setInModifica(null)
+                        setInGestione(inGestione === aperto ? null : evento.id)
+                      }}
+                    >
+                      Chiudi con esito
+                    </button>
+                  )
+                ) : daSito ? null : (
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm"
@@ -184,7 +210,7 @@ export function EventiTrattativa({
                 )}
               </div>
 
-              {inModifica === evento.id && (
+              {inModifica === aperto && (
                 <ModuloEvento
                   valori={{
                     titolo: evento.titolo,
@@ -207,9 +233,9 @@ export function EventiTrattativa({
                 />
               )}
 
-              {inGestione === evento.id && (
+              {inGestione === aperto && (
                 <GestioneEsito
-                  origine="task"
+                  origine={evento.origine}
                   id={evento.id}
                   titolo={evento.titolo}
                   operatori={operatori}
@@ -217,10 +243,20 @@ export function EventiTrattativa({
                   conOrario={eAppuntamentoVero(evento.tipo)}
                   dataCorrente={evento.data}
                   oraCorrente={evento.ora}
+                  // Un evento già chiuso si corregge, non si richiude: la
+                  // strada di prima passava da «Riapri», che lo rimetteva fra
+                  // quelli da fare e lo faceva ricomparire negli arretrati
+                  // dell'agenda solo per cambiare una nota.
+                  chiusa={!evento.daFare && evento.stato !== 'annullato'}
+                  esitoCorrente={evento.esitoTipo}
+                  notaCorrente={evento.esito}
+                  firma={nomeDiEmail(evento.esitoDa, nomiStaff)}
+                  firmaIl={evento.esitoIl}
                 />
               )}
             </li>
-          ))}
+            )
+          })}
         </ul>
       )}
 

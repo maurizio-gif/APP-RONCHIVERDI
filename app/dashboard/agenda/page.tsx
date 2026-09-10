@@ -17,6 +17,7 @@ import {
 } from '@/lib/agenda'
 import { ATTIVITA_IN_AGENDA } from '@/lib/richieste'
 import { nomePersona } from '@/lib/persone'
+import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import { CalendarioAgenda } from '@/components/CalendarioAgenda'
 import { TabellaAgenda } from '@/components/TabellaAgenda'
 import { VistaTabs } from '@/components/VistaTabs'
@@ -44,7 +45,7 @@ const CONTATTI_NEL_FORM = 300
 export default async function AgendaPage({
   searchParams,
 }: {
-  searchParams: { vista?: string; da?: string; solo?: string }
+  searchParams: { vista?: string; da?: string; solo?: string; chi?: string }
 }) {
   if (!(await utenteHaSezione('agenda'))) {
     redirect('/dashboard')
@@ -61,13 +62,18 @@ export default async function AgendaPage({
   const fine = vista === 'calendario' ? ultimoDelMese(mese) : giornoPiu(oggi, GIORNI_AVANTI)
 
   const soloAppuntamenti = searchParams.solo === 'appuntamenti'
-  const soloMie = searchParams.solo === 'mie'
+  // Di chi è l'agenda che si sta guardando. È un asse suo, indipendente da
+  // «cosa mostrare»: prima era uno dei tre valori dello stesso parametro, e
+  // scegliere «le mie» spegneva «solo con orario» — le due domande («di chi?»
+  // e «cosa?») si escludevano a vicenda senza motivo, e non si poteva vedere
+  // *i miei appuntamenti di oggi*, che è la domanda con cui si apre l'agenda.
+  const soloMie = searchParams.chi === 'mie'
   const email = emailCorrente()
 
   const supabase = createSupabaseServiceClient()
   const [
-    { data: task },
-    { data: contatti },
+    { data: task, error: erroreTask },
+    { data: contatti, error: erroreRichieste },
     { data: staff },
     possoCancellare,
     { data: persone, error: errorePersone },
@@ -75,23 +81,35 @@ export default async function AgendaPage({
     supabase
       .from('task')
       .select(
-        'id, titolo, tipo, data, ora, durata_minuti, stato, note, assegnato_a, esito_tipo, esito, entita, entita_id'
+        'id, titolo, tipo, data, ora, durata_minuti, stato, note, assegnato_a, esito_tipo, esito, esito_da, esito_il, entita, entita_id'
       )
       .gte('data', inizio)
       .lte('data', fine),
     supabase
       .from('form_contatti')
       .select(
-        'id, azione, data_scelta, ora_scelta, nome, cognome, email, cellulare, attivita_label, messaggio, gestito, esito_tipo, esito, persona_id, appuntamento_annullato_il'
+        'id, created_at, azione, data_scelta, ora_scelta, nome, cognome, email, cellulare, attivita_label, messaggio, gestito, esito_tipo, esito, esito_da, esito_il, persona_id, appuntamento_annullato_il'
       )
-      .gte('data_scelta', inizio)
-      .lte('data_scelta', fine)
-      // Solo Club e Family: sono le richieste che passano dalla segreteria e
-      // che hanno un appuntamento da tenere. Le altre vanno diritte al
-      // responsabile del corso e vivono nella sua sezione (lib/richieste.ts),
-      // non in questo calendario.
+      // Due finestre, non una: le richieste che hanno preso un appuntamento
+      // si cercano sul giorno scelto, i messaggi — che una data non ce
+      // l'hanno — sul giorno in cui sono arrivati. Con il solo confronto su
+      // `data_scelta` i messaggi sparivano tutti: su una colonna nulla `gte`
+      // non è vero, e quelle righe non tornavano mai indietro.
+      //
+      // Il limite alto su created_at è esclusivo e sul giorno dopo:
+      // `created_at` è un timestamp, e `lte` sulla data secca taglierebbe via
+      // tutto quello che è arrivato dopo la mezzanotte dell'ultimo giorno.
+      .or(
+        `and(data_scelta.gte.${inizio},data_scelta.lte.${fine}),` +
+          `and(data_scelta.is.null,created_at.gte.${inizio},created_at.lt.${giornoPiu(fine, 1)})`
+      )
+      // Solo Club e Family: sono le richieste che passano dalla segreteria.
+      // Le altre vanno diritte al responsabile del corso e vivono nella sua
+      // sezione (lib/richieste.ts), non in questo calendario.
       .in('attivita', ATTIVITA_IN_AGENDA),
-    supabase.from('staff_users').select('email').order('email'),
+    // Nome e cognome oltre all'email: l'email è la firma scritta sulle righe,
+    // il nome è quello che si legge. La traduzione sta in lib/staff.ts.
+    supabase.from('staff_users').select('email, nome, cognome'),
     puoCancellare(email),
     // I contatti per la tendina del form: una voce d'agenda è sempre
     // agganciata a qualcuno (vedi creaVoce). I più mossi per primi — chi si
@@ -118,6 +136,18 @@ export default async function AgendaPage({
   if (errorePersone) {
     console.error('Contatti per il form dell’agenda non letti:', errorePersone.message)
   }
+
+  // Le due letture che *sono* l'agenda. Erano le uniche due senza controllo
+  // dell'errore, e con l'errore ignorato una query fallita disegnava
+  // un'agenda vuota — indistinguibile da una giornata libera, e senza una
+  // riga nei log da cui accorgersene. Una colonna aggiunta al codice e non
+  // ancora al database è bastata a far sparire tutto in silenzio.
+  //
+  // Il banner in pagina, non solo il log: chi sta guardando deve sapere che
+  // quello che vede non è l'agenda, ma un guasto.
+  const guasto = erroreTask ?? erroreRichieste
+  if (erroreTask) console.error('Voci di agenda non lette:', erroreTask.message)
+  if (erroreRichieste) console.error('Richieste in agenda non lette:', erroreRichieste.message)
 
   // I nomi dei contatti agganciati alle voci della segreteria: `task.entita_id`
   // è un id, e senza il nome in elenco l'obbligo di agganciare una voce a
@@ -157,26 +187,45 @@ export default async function AgendaPage({
     ...(task ?? []).map((riga) =>
       voceDaTask(riga, riga.entita === 'persona' && riga.entita_id ? perId.get(riga.entita_id) : undefined)
     ),
-    ...(contatti ?? []).map(voceDaContatto).filter((v): v is VoceAgenda => v !== null),
+    // Tutte le richieste, non solo quelle che hanno prenotato uno slot: i
+    // messaggi e gli appuntamenti senza data si collocano nel giorno in cui
+    // sono arrivati (vedi voceDaContatto). Prima sparivano, e chi apriva
+    // l'agenda per sapere cosa c'era da fare non li vedeva.
+    ...(contatti ?? []).map(voceDaContatto),
   ]
 
   // Le voci annullate restano fuori dalla vista normale: sono lì per storia,
   // non per lavorarle.
   voci = voci.filter((v) => v.stato !== 'annullato')
 
+  /**
+   * Le voci che sono in mano a chi sta guardando: quelle assegnate a lui.
+   *
+   * Le richieste dal sito non ci sono: non sono assegnate a nessuno — in
+   * elenco portano la targhetta «dal sito» proprio per dirlo — e contarle come
+   * proprie faceva sì che «le mie» mostrasse a tutti le stesse righe. Chi le
+   * vuole vedere guarda l'agenda di tutti, che è dove stanno finché qualcuno
+   * non se le prende.
+   */
+  const eMia = (v: VoceAgenda) => v.assegnatoA === email
+
   // Quante ne troverebbe ogni filtro, prima di applicarne uno. Un filtro che
   // non dice quante cose troverà si prova a caso — e provarlo qui vuol dire
-  // ricaricare la pagina per scoprire che era vuoto. I tre filtri si
-  // escludono a vicenda (un solo parametro `solo`), quindi ogni conteggio è
-  // indipendente dagli altri e non c'è nulla da incrociare.
+  // ricaricare la pagina per scoprire che era vuoto.
+  //
+  // I due assi si incrociano, quindi ogni conteggio tiene conto dell'altro:
+  // «solo con orario» dice quanti ne troverà *nell'agenda che stai
+  // guardando*, non nel club intero.
+  const diChi = soloMie ? voci.filter(eMia) : voci
   const contiFiltri = {
-    tutto: voci.length,
-    appuntamenti: voci.filter((v) => v.ora !== null).length,
-    mie: voci.filter((v) => v.assegnatoA === email || v.origine === 'form_contatti').length,
+    tutti: voci.length,
+    mie: voci.filter(eMia).length,
+    tutto: diChi.length,
+    appuntamenti: diChi.filter((v) => v.ora !== null).length,
   }
 
+  voci = diChi
   if (soloAppuntamenti) voci = voci.filter((v) => v.ora !== null)
-  if (soloMie) voci = voci.filter((v) => v.assegnatoA === email || v.origine === 'form_contatti')
 
   const daFare = voci.filter((v) => v.daFare).length
   const appuntamenti = voci.filter((v) => v.ora !== null).length
@@ -186,7 +235,11 @@ export default async function AgendaPage({
   const arretrati = voci.filter((v) => v.daFare && v.data < oggi).length
 
   // Per il datalist del form: chi può essere assegnatario di una voce.
-  const operatori = (staff ?? []).map((s) => s.email as string)
+  // Ordinati per cognome, come in Gestione utenti: una tendina di colleghi
+  // ordinata per email li mette in un ordine che nessuno ha in testa.
+  const staffOrdinato = ordinaPerCognome((staff ?? []) as RigaStaff[])
+  const operatori = staffOrdinato.map((s) => s.email)
+  const nomiStaff = mappaNomiStaff(staffOrdinato)
 
   const contattiForm = (persone ?? []) as unknown as ContattoScegliibile[]
   const contattiTroncati = contattiForm.length === CONTATTI_NEL_FORM
@@ -197,12 +250,22 @@ export default async function AgendaPage({
   const giorniLista = [...new Set(vociLista.map((v) => v.data))].sort()
   const perGiornata = perGiorno(vociLista)
 
-  function link(parametri: { vista?: string; da?: string; solo?: string | null }) {
+  // Un parametro non nominato resta com'è: cambiare «di chi» non deve
+  // spegnere «solo con orario», che è quello che succedeva quando i due assi
+  // erano lo stesso parametro.
+  function link(parametri: {
+    vista?: string
+    da?: string
+    solo?: string | null
+    chi?: string | null
+  }) {
     const params = new URLSearchParams()
     params.set('vista', parametri.vista ?? vista)
     if (parametri.da) params.set('da', parametri.da)
     const filtro = parametri.solo === undefined ? searchParams.solo : parametri.solo
     if (filtro) params.set('solo', filtro)
+    const chi = parametri.chi === undefined ? searchParams.chi : parametri.chi
+    if (chi) params.set('chi', chi)
     return `/dashboard/agenda?${params.toString()}`
   }
 
@@ -214,9 +277,17 @@ export default async function AgendaPage({
         <p className="eyebrow">Segreteria</p>
         <h1>Agenda</h1>
         <p className="muted">
-          Appuntamenti prenotati dal sito e cose da fare della segreteria, nello stesso calendario.
+          Tutto quello che passa dalla segreteria in un calendario solo: appuntamenti e telefonate
+          prenotati dal sito, i messaggi arrivati senza appuntamento — collocati nel giorno in cui
+          sono arrivati — e le cose da fare della segreteria.
         </p>
       </div>
+
+      {guasto && (
+        <p className="error-banner">
+          L’agenda non è stata letta: quello che vedi qui sotto è incompleto. {guasto.message}
+        </p>
+      )}
 
       <VistaTabs
         vista={vista}
@@ -225,7 +296,11 @@ export default async function AgendaPage({
           { chiave: 'calendario', etichetta: 'Calendario' },
           { chiave: 'lista', etichetta: 'Lista', contatore: daFare },
         ]}
-        altriParametri={{ da: vista === 'calendario' ? searchParams.da : undefined, solo: searchParams.solo }}
+        altriParametri={{
+          da: vista === 'calendario' ? searchParams.da : undefined,
+          solo: searchParams.solo,
+          chi: searchParams.chi,
+        }}
       />
 
       {/* Erano tre pulsanti oro/fantasma, identici ai comandi che agiscono sui
@@ -237,6 +312,29 @@ export default async function AgendaPage({
           <span className="filtri-titolo">Filtra l&apos;agenda</span>
         </div>
         <div className="filtri-gruppi">
+          {/* Due domande diverse, due gruppi. «Di chi» prima, perché è quella
+              che si sceglie una volta e resta: l'agenda del club o la propria.
+              Prima erano tre chip in fila e «Le mie» spegneva «Solo con
+              orario» — i miei appuntamenti di oggi, che è la cosa che si
+              guarda per prima al mattino, non si potevano chiedere. */}
+          <fieldset className="filtro-gruppo">
+            <legend>Di chi</legend>
+            <ChipAgenda
+              attivo={!soloMie}
+              quante={contiFiltri.tutti}
+              href={link({ da: daRichiesto, chi: null })}
+            >
+              Di tutti
+            </ChipAgenda>
+            <ChipAgenda
+              attivo={soloMie}
+              quante={contiFiltri.mie}
+              href={link({ da: daRichiesto, chi: 'mie' })}
+            >
+              La mia
+            </ChipAgenda>
+          </fieldset>
+
           <fieldset className="filtro-gruppo">
             <legend>Cosa mostrare</legend>
             <ChipAgenda
@@ -252,13 +350,6 @@ export default async function AgendaPage({
               href={link({ da: daRichiesto, solo: 'appuntamenti' })}
             >
               Solo con orario
-            </ChipAgenda>
-            <ChipAgenda
-              attivo={soloMie}
-              quante={contiFiltri.mie}
-              href={link({ da: daRichiesto, solo: 'mie' })}
-            >
-              Le mie
             </ChipAgenda>
           </fieldset>
         </div>
@@ -318,6 +409,7 @@ export default async function AgendaPage({
           emailCorrente={email}
           operatori={operatori}
           puoCancellare={possoCancellare}
+          nomiStaff={nomiStaff}
           linkMesePrecedente={link({ da: mesePiu(mese, -1) })}
           linkMeseSuccessivo={link({ da: mesePiu(mese, 1) })}
           linkOggi={link({ da: oggi })}
@@ -374,6 +466,7 @@ export default async function AgendaPage({
                   emailCorrente={email}
                   operatori={operatori}
                   puoCancellare={possoCancellare}
+                  nomiStaff={nomiStaff}
                 />
               </div>
             )
@@ -387,16 +480,20 @@ export default async function AgendaPage({
                   notizia. */}
               <div className="vuoto-buono">
                 <span className="vuoto-glifo" aria-hidden="true">
-                  {searchParams.solo ? '⌕' : '✓'}
+                  {searchParams.solo || soloMie ? '⌕' : '✓'}
                 </span>
                 <p className="vuoto-titolo">
-                  {searchParams.solo ? 'Niente con questo filtro' : 'Agenda libera'}
+                  {searchParams.solo || soloMie
+                    ? soloMie && !searchParams.solo
+                      ? 'La tua agenda è libera'
+                      : 'Niente con questo filtro'
+                    : 'Agenda libera'}
                 </p>
                 <p className="vuoto-nota">
-                  {searchParams.solo ? (
+                  {searchParams.solo || soloMie ? (
                     <>
                       Nessuna voce corrisponde.{' '}
-                      <Link className="link" href={link({ da: daRichiesto, solo: null })}>
+                      <Link className="link" href={link({ da: daRichiesto, solo: null, chi: null })}>
                         Guarda tutta l&apos;agenda
                       </Link>
                     </>

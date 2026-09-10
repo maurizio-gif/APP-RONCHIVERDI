@@ -17,8 +17,23 @@ export const TIPI = [
   'task',
   'email',
   'whatsapp',
+  'messaggio',
 ] as const
 export type TipoVoce = (typeof TIPI)[number]
+
+/**
+ * I tipi che la segreteria può creare. Tutti tranne `messaggio`: quello non
+ * si fissa e non si registra: **arriva**. È la richiesta che una persona
+ * scrive dal sito senza prendere un appuntamento, e l'unica cosa che la fa
+ * esistere è che qualcuno l'abbia mandata.
+ *
+ * La distinzione serve alle tendine: offrire «Messaggio» fra i tipi di una
+ * voce nuova vorrebbe dire poter inventare in agenda un messaggio che nessuno
+ * ha scritto — e la colonna `task.tipo` non lo accetta comunque (vedi il
+ * check in scripts/sql/2026-09-02-agenda.sql), quindi il salvataggio
+ * fallirebbe dopo aver fatto compilare il form.
+ */
+export const TIPI_INSERIBILI = TIPI.filter((t) => t !== 'messaggio')
 
 // Il tipo si chiama "Task", non "Da fare": "Da fare" è lo stato di una voce
 // (vedi ETICHETTE_STATO), e usare la stessa parola per il tipo e per lo stato
@@ -30,6 +45,7 @@ export const ETICHETTE_TIPO: Record<TipoVoce, string> = {
   task: 'Task',
   email: 'Email',
   whatsapp: 'WhatsApp',
+  messaggio: 'Messaggio',
 }
 
 export const ETICHETTE_TIPO_BREVI: Record<TipoVoce, string> = {
@@ -38,9 +54,13 @@ export const ETICHETTE_TIPO_BREVI: Record<TipoVoce, string> = {
   task: 'Task',
   email: 'Email',
   whatsapp: 'WhatsApp',
+  messaggio: 'Messaggio',
 }
 
-export const OPZIONI_TIPO = TIPI.map((tipo) => ({ valore: tipo, etichetta: ETICHETTE_TIPO[tipo] }))
+export const OPZIONI_TIPO = TIPI_INSERIBILI.map((tipo) => ({
+  valore: tipo,
+  etichetta: ETICHETTE_TIPO[tipo],
+}))
 
 /**
  * Una classe di colore per tipologia. In elenco il tipo si riconosce dal
@@ -53,6 +73,7 @@ export const CLASSE_TIPO: Record<TipoVoce, string> = {
   task: 'tipo-task',
   email: 'tipo-email',
   whatsapp: 'tipo-whatsapp',
+  messaggio: 'tipo-messaggio',
 }
 
 /**
@@ -87,7 +108,7 @@ export function eSoloRegistrato(tipo: TipoVoce): boolean {
 }
 
 /** I tipi che si possono fissare per il futuro: tutti tranne email e WhatsApp. */
-export const TIPI_PROGRAMMABILI = TIPI.filter((t) => !eSoloRegistrato(t))
+export const TIPI_PROGRAMMABILI = TIPI_INSERIBILI.filter((t) => !eSoloRegistrato(t))
 
 export const OPZIONI_TIPO_PROGRAMMABILI = TIPI_PROGRAMMABILI.map((tipo) => ({
   valore: tipo,
@@ -107,6 +128,10 @@ export const DURATA_PREDEFINITA: Record<TipoVoce, number> = {
   task: 10,
   email: 5,
   whatsapp: 5,
+  // Un messaggio non dura: è arrivato. I minuti servono solo a non lasciare
+  // il campo a zero — non occupa slot (vedi slotOccupati) e in elenco si
+  // mostra come "in giornata", senza un intervallo orario.
+  messaggio: 5,
 }
 
 export const STATI = ['aperto', 'completato', 'annullato'] as const
@@ -351,6 +376,16 @@ export type VoceAgenda = {
   titolo: string
   /** 'YYYY-MM-DD' */
   data: string
+  /**
+   * Vero quando quel giorno non è stato scelto da nessuno: è il giorno in cui
+   * la richiesta è arrivata, usato per collocarla in calendario perché una
+   * voce senza data non si può mostrare da nessuna parte.
+   *
+   * L'elenco lo dice invece di lasciarlo credere una data concordata: «arrivato
+   * il 3 settembre» e «appuntamento il 3 settembre» sono due cose diverse, e
+   * confonderle fa aspettare qualcuno che non ha preso appuntamento.
+   */
+  dataDArrivo: boolean
   /** 'HH:MM', oppure null = entro la giornata, senza slot. */
   ora: string | null
   durataMinuti: number
@@ -385,6 +420,17 @@ export type VoceAgenda = {
   esitoTipo: Esito | null
   /** La nota scritta chiudendo la voce. */
   esito: string | null
+  /**
+   * Chi ha scritto quella nota, per email. Il nome per esteso lo mette chi
+   * disegna la riga (vedi lib/staff.ts): qui resta l'email, che è la chiave
+   * scritta sul database e sopravvive a chi lascia il club.
+   *
+   * Null sulle voci chiuse prima che la firma esistesse: non si attribuisce a
+   * qualcuno una nota che potrebbe non aver scritto.
+   */
+  esitoDa: string | null
+  /** Quando la nota è stata scritta o corretta l'ultima volta, in ISO. */
+  esitoIl: string | null
 }
 
 type Riga = Record<string, any>
@@ -406,6 +452,8 @@ export function voceDaTask(
     tipo,
     titolo: riga.titolo || ETICHETTE_TIPO[tipo],
     data: String(riga.data).slice(0, 10),
+    // Una voce della segreteria la data ce l'ha sempre: `task.data` è not null.
+    dataDArrivo: false,
     ora: normalizzaOra(riga.ora),
     durataMinuti:
       Number(riga.durata_minuti) > 0 ? Number(riga.durata_minuti) : DURATA_PREDEFINITA[tipo],
@@ -426,28 +474,49 @@ export function voceDaTask(
     personaId: contatto?.id ?? null,
     esitoTipo: eEsitoValido(riga.esito_tipo) ? riga.esito_tipo : null,
     esito: riga.esito ?? null,
+    esitoDa: riga.esito_da ?? null,
+    esitoIl: riga.esito_il ?? null,
   }
 }
 
 /**
- * L'azione scelta nel form del sito diventa un tipo di agenda. 'messaggio'
- * non è un appuntamento: chi lascia un messaggio non ha preso un orario, e
- * infatti data_scelta e ora_scelta restano vuote.
+ * L'azione scelta nel form del sito diventa un tipo di agenda. Chi non ha
+ * scelto né l'appuntamento né la telefonata ha lasciato un messaggio: non ha
+ * preso un orario, e infatti data_scelta e ora_scelta restano vuote.
  */
-export function tipoDaAzione(azione: string | null | undefined): TipoVoce | null {
+export function tipoDaAzione(azione: string | null | undefined): TipoVoce {
   if (azione === 'appuntamento') return 'appuntamento_in_sede'
   if (azione === 'telefonata') return 'appuntamento_telefonico'
-  return null
+  return 'messaggio'
 }
 
 /**
- * Voce di agenda da una richiesta prenotata sul sito. Ritorna null se quella
- * richiesta non è un appuntamento con data: un messaggio non occupa il
- * calendario.
+ * Voce di agenda da una richiesta arrivata dal sito — **qualunque** richiesta,
+ * non solo quelle che hanno prenotato uno slot.
+ *
+ * Prima ritornava null per i messaggi e per gli appuntamenti senza data, con
+ * l'idea che il calendario fosse solo degli impegni con un orario. L'effetto
+ * era che chi scriveva senza prendere appuntamento spariva dall'agenda: la
+ * sua richiesta esisteva solo nella sezione delle richieste, e chi apriva
+ * l'agenda per sapere cosa c'era da fare oggi non la vedeva. Sono lavoro
+ * anche quelle, e sono la parte che si dimentica più facilmente proprio
+ * perché nessuno ha fissato un'ora.
+ *
+ * Una voce senza data si colloca nel giorno in cui è arrivata (`created_at`),
+ * segnata `dataDArrivo`: senza una data non si potrebbe mostrare da nessuna
+ * parte, e il giorno d'arrivo è il solo che dica qualcosa di vero — da quando
+ * quella persona sta aspettando.
  */
-export function voceDaContatto(riga: Riga): VoceAgenda | null {
+export function voceDaContatto(riga: Riga): VoceAgenda {
   const tipo = tipoDaAzione(riga.azione)
-  if (!tipo || !riga.data_scelta) return null
+
+  // La data scelta quando c'è; altrimenti il giorno in cui la richiesta è
+  // arrivata. `created_at` è not null sul database, ma il ripiego su oggi
+  // evita che una riga importata senza timestamp finisca al 1970 — in cima a
+  // ogni elenco ordinato, per sempre.
+  const dataScelta = riga.data_scelta ? String(riga.data_scelta).slice(0, 10) : null
+  const dataArrivo = riga.created_at ? String(riga.created_at).slice(0, 10) : null
+  const data = dataScelta ?? dataArrivo ?? oggiRoma()
 
   const nome = [riga.nome, riga.cognome].filter(Boolean).join(' ').trim()
   // Le richieste dal sito non hanno uno stato di lavorazione proprio in
@@ -469,7 +538,8 @@ export function voceDaContatto(riga: Riga): VoceAgenda | null {
     id: String(riga.id),
     tipo,
     titolo: nome || 'Richiesta dal sito',
-    data: String(riga.data_scelta).slice(0, 10),
+    data,
+    dataDArrivo: !dataScelta,
     ora: normalizzaOra(riga.ora_scelta),
     durataMinuti: DURATA_PREDEFINITA[tipo],
     // Solo il testo scritto dalla persona: l'attività ha una voce sua
@@ -492,6 +562,8 @@ export function voceDaContatto(riga: Riga): VoceAgenda | null {
     personaId: riga.persona_id ?? null,
     esitoTipo: eEsitoValido(riga.esito_tipo) ? riga.esito_tipo : null,
     esito: riga.esito ?? null,
+    esitoDa: riga.esito_da ?? null,
+    esitoIl: riga.esito_il ?? null,
   }
 }
 

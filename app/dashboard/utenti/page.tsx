@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { puoAmministrare } from '@/lib/auth/permessi'
+import { ordinaPerCognome } from '@/lib/staff'
 import { invitaStaff } from './actions'
 import { RigaUtente, type DatiUtente } from './RigaUtente'
 
@@ -30,9 +31,18 @@ export default async function UtentiPage({
   const { data } = await supabase
     .from('staff_users')
     .select('email, nome, cognome, sezioni_consentite, puo_invitare, puo_cancellare, commerciale, puo_riassegnare, operatore_segreteria, created_at')
-    .order('created_at', { ascending: true })
 
-  const utenti = (data ?? []) as RigaStaff[]
+  // In ordine alfabetico di cognome, non di iscrizione. L'ordine di
+  // inserimento è la storia di come è cresciuto il pannello: dice qualcosa a
+  // chi c'era, e niente a chi cerca una persona — che la cerca dove la
+  // cercherebbe su qualunque elenco, alla sua lettera. Con venti righe
+  // scorrerle tutte per trovarne una costava più della riga stessa.
+  //
+  // L'ordinamento è in TypeScript e non `.order('cognome')`: Postgres ordina
+  // per byte, quindi "D'Auria" e "de Rossi" finirebbero lontani da dove si
+  // cercano. La regola sta in lib/staff.ts, la stessa che ordina le tendine
+  // dei colleghi altrove.
+  const utenti = ordinaPerCognome((data ?? []) as RigaStaff[])
 
   return (
     <>
