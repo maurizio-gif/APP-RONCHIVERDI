@@ -40,9 +40,12 @@ export const AZIONI_LOG: Record<string, string> = {
   esito_fallita: 'Chiusa con esito: fallita',
   voce_rimossa: 'Rimossa (errore o prova)',
   voce_riprogrammata: 'Riprogrammata',
-  // Come agenda_voce_completata: la presa in carico a mano non esiste più —
-  // si chiude solo con esito — ma le righe già registrate restano.
-  contatto_gestito: 'Richiesta dal sito: stato gestione modificato',
+  // Su Club e Family la presa in carico a mano non esiste più — si chiude solo
+  // con esito — ma le righe già registrate restano. Sugli altri canali
+  // (Young School, Summer Camp, Chinesis, padel, Fitness Manager) queste due
+  // chiavi sono tornate in uso: là si gestisce con l'interruttore, e ogni
+  // scatto in un senso o nell'altro passa da salvaGestione.
+  contatto_gestito: 'Richiesta dal sito: segnata gestita',
   contatto_riaperto: 'Richiesta dal sito: riaperta',
   contatto_nota_salvata: 'Richiesta dal sito: nota salvata',
   persona_nota_salvata: 'Anagrafica: nota salvata',

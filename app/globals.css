@@ -2022,6 +2022,135 @@ table.tabella tbody tr:hover {
 	margin-bottom: 0;
 }
 
+/* ────────────────────────────── gestione semplice: gestito e una nota
+
+   Il pannello delle Young School e degli altri corsi. Somiglia a .esito —
+   stesso riquadro, stessa barra d'accento a sinistra: è lo stesso posto della
+   pagina, e cambiargli forma farebbe sembrare due sezioni due prodotti — ma
+   dentro ha due cose sole, l'interruttore e la nota. */
+
+.gestione {
+	margin-top: 1rem;
+	padding: 1rem 1.25rem;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-left: 3px solid var(--accent);
+	border-radius: var(--radius);
+}
+
+.gestione-titolo {
+	margin-bottom: 0.75rem;
+	color: var(--accent);
+	font-family: var(--font-sans);
+	font-size: var(--text-2xs);
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+}
+
+/* Binario e pallino, non una casella da spuntare: lo stato si vede da lontano
+   e da acceso/spento, che è esattamente cosa dice. La parola resta accanto —
+   il solo binario è muto per chi non ha imparato da che parte è "sì". */
+.gestione-toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.6rem;
+	margin-bottom: 1rem;
+	padding: 0.35rem 0.8rem 0.35rem 0.45rem;
+	background: var(--bg);
+	border: 1px solid var(--border-strong);
+	border-radius: 999px;
+	color: var(--text-muted);
+	font-family: var(--font-sans);
+	font-size: var(--text-sm);
+	cursor: pointer;
+	transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.gestione-toggle:hover:not(:disabled) {
+	border-color: var(--accent-border);
+}
+
+.gestione-toggle:disabled {
+	cursor: not-allowed;
+	opacity: 0.6;
+}
+
+.gestione-toggle.is-attivo {
+	background: var(--ok-tint);
+	border-color: var(--ok-border);
+	color: var(--ok);
+}
+
+.gestione-toggle-pista {
+	position: relative;
+	flex-shrink: 0;
+	width: 38px;
+	height: 20px;
+	background: var(--fill-strong);
+	border-radius: 999px;
+	transition: background 0.2s ease;
+}
+
+.gestione-toggle.is-attivo .gestione-toggle-pista {
+	background: var(--ok);
+}
+
+.gestione-toggle-pallino {
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 16px;
+	height: 16px;
+	background: var(--surface);
+	border-radius: 50%;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+	transition: transform 0.2s ease;
+}
+
+.gestione-toggle.is-attivo .gestione-toggle-pallino {
+	transform: translateX(18px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.gestione-toggle,
+	.gestione-toggle-pista,
+	.gestione-toggle-pallino {
+		transition: none;
+	}
+}
+
+.gestione-toggle-testo {
+	font-weight: 500;
+	letter-spacing: 0.02em;
+}
+
+/* «da salvare» accanto al titolo del pannello: lo scatto dell'interruttore
+   non scrive niente da solo, e chi lo scatta e chiude il pannello crederebbe
+   di aver segnato la richiesta. */
+.gestione-da-salvare {
+	margin-left: 0.5rem;
+	padding: 0.05rem 0.45rem;
+	background: var(--warn-tint);
+	border: 1px solid var(--warn-border);
+	border-radius: 999px;
+	color: var(--warn);
+	font-size: var(--text-2xs);
+	letter-spacing: 0.04em;
+	text-transform: none;
+}
+
+.gestione-azioni {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem 0.85rem;
+	margin-top: 0.75rem;
+}
+
+.gestione-azioni .field-hint {
+	margin: 0;
+}
+
 /* ──────────────────────────────────────────────── richieste dal sito */
 
 .richieste {
@@ -3642,6 +3771,15 @@ table.tabella tbody tr:hover {
 	background: var(--ok-tint);
 	border-color: var(--ok-border);
 	color: var(--ok);
+}
+
+/* C'è una nota scritta. Non è uno stato né un allarme — è un «qui dentro
+   c'è scritto qualcosa» — quindi resta smorzata come le targhette neutre e
+   si distingue solo per il glifo. */
+.tag-nota::before {
+	content: '✎';
+	font-size: 0.9em;
+	line-height: 1;
 }
 
 /* Una fila di targhette va a capo per intero, non spezzata dentro la

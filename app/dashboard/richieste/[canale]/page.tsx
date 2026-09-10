@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, getSezioniConsentite } from '@/lib/auth/sezioni-server'
 import { eCommerciale, puoCancellare, puoRiassegnare } from '@/lib/auth/permessi'
-import { canaleDaChiave } from '@/lib/richieste'
+import { canaleDaChiave, eGestioneSemplice } from '@/lib/richieste'
 import {
   ETICHETTE_STATO,
   PUNTO_STATO,
@@ -35,6 +35,13 @@ export default async function CanalePage({
   // tennis nemmeno scrivendo l'indirizzo a mano.
   const sezioni = await getSezioniConsentite(emailCorrente())
   if (!sezioni.includes(canale.chiave)) redirect('/dashboard')
+
+  // Come si lavora questo canale (vedi eGestioneSemplice in lib/richieste.ts).
+  // Cambia il pannello di ogni riga — interruttore e nota invece di esito,
+  // motivo e programmatore di eventi — e con esso le parole della pagina:
+  // dove non si chiude niente con un esito, «da lavorare» prometteva una
+  // lavorazione che non esiste.
+  const semplice = eGestioneSemplice(canale)
 
   // Lo stato arriva dai riquadri del riepilogo. Si accetta solo un valore
   // della pipeline: un parametro inventato non deve svuotare l'elenco senza
@@ -389,8 +396,10 @@ export default async function CanalePage({
           <span className="canale-numero">{daLavorare ?? 0}</span>
           <span className="canale-frase">
             {daLavorare
-              ? `${daLavorare === 1 ? 'richiesta' : 'richieste'} da lavorare`
-              : 'richieste da lavorare: tutto chiuso'}
+              ? `${daLavorare === 1 ? 'richiesta' : 'richieste'} da ${semplice ? 'gestire' : 'lavorare'}`
+              : semplice
+                ? 'richieste da gestire: tutto gestito'
+                : 'richieste da lavorare: tutto chiuso'}
           </span>
         </div>
 
@@ -435,13 +444,13 @@ export default async function CanalePage({
 
         <div className="filtri-gruppi">
           <fieldset className="filtro-gruppo">
-            <legend>Lavorazione</legend>
+            <legend>{semplice ? 'Gestione' : 'Lavorazione'}</legend>
             <Chip
               attivo={soloDaLavorare}
               quante={conti.daLavorare}
               href={link({ mostra: null, stato: null })}
             >
-              Da lavorare
+              {semplice ? 'Da gestire' : 'Da lavorare'}
             </Chip>
             <Chip attivo={!soloDaLavorare} quante={conti.tutte} href={link({ mostra: 'tutte' })}>
               Tutte
@@ -514,14 +523,18 @@ export default async function CanalePage({
               {filtriAttivi > 0
                 ? 'Nessuna richiesta con questi filtri'
                 : soloDaLavorare
-                  ? 'Niente da lavorare'
+                  ? semplice
+                    ? 'Niente da gestire'
+                    : 'Niente da lavorare'
                   : 'Nessuna richiesta in questa sezione'}
             </p>
             <p className="vuoto-nota">
               {filtriAttivi > 0
                 ? 'Allarga la ricerca togliendo un filtro.'
                 : soloDaLavorare
-                  ? 'Tutte le richieste arrivate sono state chiuse con un esito.'
+                  ? semplice
+                    ? 'Tutte le richieste arrivate sono state segnate gestite.'
+                    : 'Tutte le richieste arrivate sono state chiuse con un esito.'
                   : 'Le richieste compariranno qui appena arrivano dal sito.'}
               {(soloDaLavorare || filtriAttivi > 0) && (
                 <>
@@ -543,6 +556,7 @@ export default async function CanalePage({
                 puoCancellare={possoCancellare}
                 storico={storicoPersona.get(riga.id)}
                 eventi={riga.persona_id ? (eventiPerPersona.get(riga.persona_id) ?? []) : []}
+                gestioneSemplice={semplice}
                 key={riga.id}
               />
             ))}
