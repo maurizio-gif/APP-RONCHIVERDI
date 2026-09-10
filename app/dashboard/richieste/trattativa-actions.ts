@@ -5,7 +5,13 @@ import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente } from '@/lib/auth/sezioni-server'
 import { rigaStaffCorrente } from '@/lib/auth/staff-server'
 import { registraLog } from '@/lib/audit'
-import { eChiusa, eStatoValido, puoAssegnare, type StatoTrattativa } from '@/lib/pipeline'
+import {
+  eChiusa,
+  eStatoValido,
+  puoAnnullare,
+  puoAssegnare,
+  type StatoTrattativa,
+} from '@/lib/pipeline'
 
 export type Esito = { ok: true } | { ok: false; errore: string }
 
@@ -140,21 +146,34 @@ export async function cambiaStato(
   const t = await trattativa(id)
   if (!t) return { ok: false, errore: 'Trattativa non trovata.' }
 
-  // Lo stato lo cambia chi la segue, e chi può riassegnare. Una trattativa
-  // libera la può muovere un commerciale — che così se la prende di fatto.
-  // Vale anche per annullare: chi ha il diritto di prendersi una trattativa
-  // ha quello di dire che non andava creata.
-  if (!puoAssegnare({ assegnatoA: t.assegnato_a, io: email, sonoCommerciale, possoRiassegnare })) {
-    return { ok: false, errore: `La segue ${t.assegnato_a}: solo chi la ha in mano può aggiornarla.` }
-  }
-
   const stato = nuovo as StatoTrattativa
   const adesso = new Date().toISOString()
   const perche = (motivo ?? '').trim() || null
+  const diritti = { assegnatoA: t.assegnato_a, io: email, sonoCommerciale, possoRiassegnare }
+
+  // Annullare è l'unico passaggio che sfugge alla regola dell'assegnazione:
+  // lo può fare qualsiasi commerciale, anche su una trattativa che segue un
+  // collega (vedi puoAnnullare). Gli altri stati sono giudizi sul lavoro di
+  // chi la ha in mano; annullare dice che quella riga non è mai stata una
+  // trattativa, ed è una correzione dei dati — chi si accorge di un doppione
+  // deve poterlo togliere quando lo vede.
+  const permesso =
+    stato === 'annullato' ? puoAnnullare(diritti) : puoAssegnare(diritti)
+
+  if (!permesso) {
+    return {
+      ok: false,
+      errore:
+        stato === 'annullato'
+          ? 'Serve il diritto commerciale per annullare una trattativa.'
+          : `La segue ${t.assegnato_a}: solo chi la ha in mano può aggiornarla.`,
+    }
+  }
 
   // Il controllo sta qui e non solo nel pannello: una Server Action resta
   // chiamabile a mano, e un'annullata senza spiegazione è esattamente la
-  // riga che fra un mese nessuno sa più perché è sparita dalla pipeline.
+  // riga che fra un mese nessuno sa più perché è sparita dalla pipeline —
+  // tanto più adesso che si può annullare la trattativa di un collega.
   if (stato === 'annullato' && !perche) {
     return { ok: false, errore: 'Scrivi perché la annulli: doppione, errore di inserimento, prova…' }
   }

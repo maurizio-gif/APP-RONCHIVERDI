@@ -142,6 +142,32 @@ export function puoAssegnare({
   return !!io && assegnatoA === io
 }
 
+/**
+ * Chi può **annullare** una trattativa: qualsiasi commerciale, anche su una
+ * che segue un collega.
+ *
+ * È più largo di puoAssegnare di proposito, ed è l'unico stato che sfugge a
+ * quella regola. Gli altri passaggi sono giudizi sul lavoro di qualcuno —
+ * dire che la trattativa di un collega è persa vuol dire archiviare la sua
+ * telefonata — e restano di chi la ha in mano. Annullare invece dice che
+ * quella riga non è mai stata una trattativa: è una correzione dei dati, e
+ * chi si accorge di un doppione deve poterlo togliere quando lo vede, non
+ * scrivere a chi ce l'ha in carico e aspettare.
+ *
+ * Il prezzo è che si può togliere dalla pipeline il lavoro di un altro, e per
+ * questo la motivazione è obbligatoria (vedi cambiaStato): l'annullamento si
+ * disfa rimettendo la trattativa In gestione, resta nel registro operatori
+ * con chi l'ha fatto, e il perché è scritto accanto allo stato.
+ */
+export function puoAnnullare(diritti: {
+  assegnatoA: string | null
+  io: string | null
+  sonoCommerciale: boolean
+  possoRiassegnare: boolean
+}): boolean {
+  return diritti.sonoCommerciale || puoAssegnare(diritti)
+}
+
 // ─────────────────────────────────────────── come si riconosce uno stato
 //
 // In un pannello di lavoro lo stato va riconosciuto prima di essere letto:

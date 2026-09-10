@@ -414,12 +414,28 @@ successiva — ma **non è un esito**: dice che quella riga non andava creata.
 
 Come si annulla: nel blocco Trattativa si sceglie `Annullata` dalla tendina
 dello stato, si scrive il perché (doppione, persona sbagliata, prova) e si
-conferma. Il motivo è **obbligatorio**, come per la persa,
-e sta in una colonna sua (`motivo_annullato`, non `motivo_perso`): sono due
-domande diverse, e mescolarle vorrebbe dire non poter più rileggere i motivi
-di perdita senza prima filtrare via gli sbagli. Serve lo stesso diritto che
-serve a prendersi la trattativa — chi la può avere in mano può dire che non
-andava creata — e l'operazione **si disfa**: basta riportarla `In gestione`.
+conferma. Il motivo è **obbligatorio**, di là e di qua dalla rete — il
+pannello non lascia confermare a campo vuoto e `cambiaStato` rifiuta comunque,
+perché una Server Action resta chiamabile a mano. E sta in una colonna sua
+(`motivo_annullato`, non `motivo_perso`): sono due domande diverse, e
+mescolarle vorrebbe dire non poter più rileggere i motivi di perdita senza
+prima filtrare via gli sbagli.
+
+**Annullare lo può fare qualsiasi commerciale, anche su una trattativa che
+segue un collega**, ed è l'unico passaggio che sfugge alla regola
+dell'assegnazione (`puoAnnullare` invece di `puoAssegnare`). Gli altri stati
+sono giudizi sul lavoro di chi la ha in mano — dire che la trattativa di un
+collega è persa vuol dire archiviare la sua telefonata — e restano suoi.
+Annullare invece dice che quella riga non è mai stata una trattativa: è una
+correzione dei dati, e chi si accorge di un doppione deve poterlo togliere
+quando lo vede, non scrivere al titolare e aspettare.
+
+Il contrappeso a quella libertà sono tre cose, non una: il motivo
+obbligatorio, la riga nel registro operatori con chi l'ha annullata
+(`trattativa_annullata`), e il fatto che **si disfa** — basta riportarla `In
+gestione`. Chi non ha la tendina degli stati (non la segue e non può
+riassegnare) trova un comando suo, «Annulla la trattativa», tenuto discreto
+in fondo al blocco: è una correzione, non un passo della pipeline.
 
 Tre effetti che vale la pena conoscere:
 

@@ -9,6 +9,7 @@ import {
   OPZIONI_STATO,
   PASSI_AVANZAMENTO,
   eChiusa,
+  puoAnnullare,
   puoAssegnare,
   type StatoTrattativa,
 } from '@/lib/pipeline'
@@ -56,12 +57,16 @@ export function Trattativa({
   const [motivo, setMotivo] = useState('')
   const [inCorso, startTransition] = useTransition()
 
-  const modificabile = puoAssegnare({
-    assegnatoA: t.assegnato_a,
-    io,
-    sonoCommerciale,
-    possoRiassegnare,
-  })
+  const diritti = { assegnatoA: t.assegnato_a, io, sonoCommerciale, possoRiassegnare }
+  const modificabile = puoAssegnare(diritti)
+
+  // Annullare si può sempre, da commerciale, anche sulla trattativa di un
+  // collega (vedi puoAnnullare): non è un giudizio sul suo lavoro, è dire
+  // che quella riga non è mai stata una trattativa. Chi ha già la tendina
+  // degli stati ce l'ha lì dentro; a chi non ce l'ha serve un comando suo,
+  // o si accorgerebbe del doppione senza poterlo togliere.
+  const possoAnnullare = puoAnnullare(diritti)
+  const annullaAParte = possoAnnullare && !modificabile && t.stato !== 'annullato'
 
   function esegui(azione: () => Promise<{ ok: true } | { ok: false; errore: string }>) {
     setErrore(null)
@@ -172,6 +177,24 @@ export function Trattativa({
             ))}
           </select>
         </>
+      )}
+
+      {/* Discreto e in fondo: è una correzione dei dati, non un passo della
+          pipeline, e su una trattativa che sta lavorando un collega non deve
+          somigliare a un comando da usare per abitudine. */}
+      {annullaAParte && !chiedoMotivo && (
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          disabled={inCorso}
+          onClick={() => {
+            setErrore(null)
+            setMotivo('')
+            setChiedoMotivo('annullato')
+          }}
+        >
+          Annulla la trattativa
+        </button>
       )}
 
       {chiedoMotivo && (
