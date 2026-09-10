@@ -41,15 +41,18 @@ export function eChiusa(stato: StatoTrattativa): boolean {
  * Gli stati che sono un **esito**: ci abbiamo provato, ed è finita così.
  *
  * `annullato` è finale ma non è qui, ed è tutta la differenza. Una
- * trattativa può nascere per sbaglio — il registro ospiti al banco spunta
- * un'attività, la prima diventa quella su cui il CRM instrada, e se è Club o
- * Family il database crea la trattativa da sé. Nessuno ha mai provato a
- * vendere niente a quella persona.
+ * trattativa può nascere per sbaglio: un doppione, una riga finita sulla
+ * persona sbagliata, una prova rimasta in giro.
  *
- * Chiuderla come «persa» costava tre bugie: una sconfitta nei conti di chi la
- * teneva, un `motivo_perso` da inventare, e nella scheda della persona la
- * traccia che con lei era andata male. «Annullata» dice l'unica cosa vera:
- * questa riga non andava creata.
+ * Da non confondere con le trattative che nascono da sole ed è giusto che
+ * nascano — l'interesse per Club o Family spuntato al banco, l'evento messo
+ * in agenda da un commerciale. Quelle sono volute: si lavorano, non si
+ * annullano.
+ *
+ * Chiudere uno sbaglio come «persa» costava tre bugie: una sconfitta nei
+ * conti di chi la teneva, un `motivo_perso` da inventare, e nella scheda
+ * della persona la traccia che con lei era andata male. «Annullata» dice
+ * l'unica cosa vera: questa riga non andava creata.
  *
  * Chi conta vinte e perse deve escludere le annullate, o rimette in
  * classifica proprio quello che si è tolto.

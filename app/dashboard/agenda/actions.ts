@@ -6,6 +6,7 @@ import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { puoCancellare } from '@/lib/auth/permessi'
 import { registraLog } from '@/lib/audit'
 import { preparaEvento, type EventoDaProgrammare, type ModoEvento } from '@/lib/eventi'
+import { AVVISO_TRATTATIVA, trattativaPerEvento } from '@/lib/trattative-server'
 import {
   FONTE_MANUALE,
   nomePersona,
@@ -43,6 +44,11 @@ async function autorizzato(): Promise<boolean> {
  *  - **programma o registra**, dichiarato. Prima lo indovinava la data (vedi
  *    eGiaAvvenuto): una telefonata appena fatta e annotata per domani restava
  *    «da fare», e un impegno fissato per stamattina nasceva già chiuso.
+ *  - **l'evento apre la trattativa**. L'agenda la tiene il settore core, cioè
+ *    gli adulti: se un commerciale scrive un evento su una persona, quella
+ *    persona è una trattativa in corso, senza bisogno che l'abbia dichiarato
+ *    scegliendo un'attività di interesse. Se non ne ha una aperta la apre
+ *    l'evento, in gestione a chi l'ha scritto (vedi lib/trattative-server.ts).
  *
  * Le regole sui campi (l'ora ai soli appuntamenti, la durata dal tipo,
  * l'assegnatario a chi scrive) stanno in lib/eventi.ts, le stesse che valgono
@@ -99,6 +105,12 @@ export async function creaVoce(formData: FormData): Promise<Esito> {
     return { ok: false, errore: 'Non siamo riusciti a salvare la voce. Riprova.' }
   }
 
+  // Dopo l'insert e non prima: la trattativa segue l'evento, e aprirla per
+  // un evento che poi non si salva lascerebbe in pipeline una persona che
+  // nessuno ha messo in agenda. Non blocca il salvataggio se fallisce — vedi
+  // trattativaPerEvento.
+  const azioneTrattativa = await trattativaPerEvento(contatto.id, email)
+
   await registraLog(email, modo === 'registra' ? 'evento_registrato' : 'agenda_voce_creata', {
     entita: 'persona',
     entitaId: contatto.id,
@@ -108,16 +120,28 @@ export async function creaVoce(formData: FormData): Promise<Esito> {
       data: preparato.riga.data,
       ora: preparato.riga.ora,
       contatto_creato: contatto.creato,
+      trattativa: azioneTrattativa,
     },
   })
 
   revalidatePath('/dashboard/agenda')
   revalidatePath('/dashboard/richieste/richieste-club')
+  // La trattativa appena aperta compare fra le proprie nel Riepilogo: senza
+  // questa, chi torna in dashboard non la trova finché non ricarica.
+  revalidatePath('/dashboard')
   // Un contatto nuovo compare in anagrafica solo se la si ricalcola: la
   // pagina è dinamica, ma la scheda della persona resta in cache per la
   // navigazione.
   if (contatto.creato) revalidatePath('/dashboard/persone', 'layout')
-  return contatto.avviso ? { ok: true, avviso: contatto.avviso } : { ok: true }
+
+  // Due cose da dire e un solo banner: il contatto «nuovo» che c'era già, e
+  // la trattativa aperta dall'evento. Separate da uno spazio invece che
+  // scegliendone una — sono due sorprese diverse, e tacerne una perché ce
+  // n'è un'altra è il modo di non farla scoprire a nessuno.
+  const avvisi = [contatto.avviso, azioneTrattativa && AVVISO_TRATTATIVA[azioneTrattativa]]
+    .filter(Boolean)
+    .join(' ')
+  return avvisi ? { ok: true, avviso: avvisi } : { ok: true }
 }
 
 type ContattoRisolto = {

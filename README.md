@@ -343,27 +343,78 @@ Tutto questo vale **solo qui**: sugli altri canali non c'è nessuna trattativa,
 e la gestione è un interruttore più una nota — vedi «Young School e gli altri
 corsi» più sotto.
 
+### L'evento in agenda apre la trattativa
+
+L'agenda la tiene il **settore core**, cioè gli adulti: se un commerciale
+scrive un evento su una persona, quella persona è una trattativa in corso.
+Non serve che l'abbia dichiarato scegliendo un'attività di interesse — è il
+gesto stesso a dirlo.
+
+Prima non era così, e il buco si vedeva dove fa più male: l'agenda accetta
+contatti che in anagrafica non esistono ancora (li crea al volo, vedi «Se il
+contatto non c'è, si crea dall'agenda»), quindi si poteva fissare un
+appuntamento a qualcuno che non compariva in nessuna pipeline. È il caso di
+adesso, con le trattative in corso da ricopiare dall'agenda di carta: senza
+questa regola si ricostruirebbe il calendario e non il lavoro che rappresenta.
+
+La regola sta nel database
+([`trattativa_per_evento`](scripts/sql/2026-09-10-evento-apre-trattativa.sql)),
+chiamata per RPC da [`lib/trattative-server.ts`](lib/trattative-server.ts) —
+come `trova_o_crea_persona`, e per la stessa ragione: «esiste già o va
+creata?» va deciso in un colpo solo, o due eventi scritti nello stesso istante
+aprono due trattative sulla stessa persona. Un lock sulla persona lo
+garantisce.
+
+Cosa fa, e cosa non fa mai:
+
+| Situazione della persona | Cosa succede |
+|---|---|
+| Nessuna trattativa aperta | ne apre una, **In gestione**, assegnata a chi ha scritto l'evento |
+| Una trattativa **libera** | se la prende chi ha scritto l'evento — è lo stesso gesto del pulsante «Prendi in carico» |
+| Una assegnata ma ferma in «Da prendere in carico» | passa **In gestione**; l'assegnatario **non** si tocca |
+| Una che segue già un collega | **niente**: un evento non porta via la trattativa a nessuno |
+| Solo trattative chiuse (vinte, perse, annullate) | ne apre una nuova |
+
+Vale per gli eventi agganciati a una **persona**: quelli creati dall'agenda
+(`creaVoce`) e dal comando `programmaEvento`. Non per quelli agganciati a una
+richiesta, che arrivano dal pannello Eventi di Club e Family — lì la
+trattativa c'è già per definizione, è lei a fare esistere quel pannello.
+
+Chi salva l'evento se lo vede detto nel banner: «Aperta anche la trattativa di
+questo contatto, in gestione a te». Quando non è cambiato niente non compare
+niente. Se la trattativa non si riesce ad aprire l'evento **resta salvato lo
+stesso** e il difetto finisce nei log: l'evento è il dato che non si può
+perdere, e un errore rosso su un salvataggio riuscito porterebbe a riprovare,
+cioè a scrivere l'evento due volte.
+
+La migration è
+[`2026-09-10-evento-apre-trattativa.sql`](scripts/sql/2026-09-10-evento-apre-trattativa.sql),
+va dopo quella dell'annullata e **prima del deploy**: senza la funzione, ogni
+evento salvato lascerebbe la trattativa non aperta.
+
 ### La trattativa annullata: né vinta né persa
 
-Un'opportunità può **nascere per sbaglio**. Il caso vero è il registro degli
-ospiti al banco (`guest-register.astro` nel repo del sito): l'operatore spunta
-le attività di interesse, la prima diventa `attivita` — è su quella che il CRM
-instrada — e se capita che sia `club-adulti` o `family` il trigger su
-`form_contatti` chiama `trova_o_crea_opportunita` e la trattativa nasce da
-sola. Nessuno ha mai voluto vendere niente a quella persona.
+Una trattativa può **nascere per sbaglio**: un doppione, una riga finita sulla
+persona sbagliata, una prova rimasta in giro.
 
-Finora l'unica uscita era **Persa**, e costava tre bugie: il riquadro «Perse
-da te» in dashboard contava una sconfitta che non c'è stata, `motivo_perso`
-chiedeva il perché di una trattativa che non è mai stata una trattativa, e
-nella scheda della persona restava scritto che con lei era andata male.
+Da non confondere con le trattative che **nascono da sole ed è giusto che
+nascano** — l'interesse per Club o Family spuntato al banco, l'evento messo in
+agenda da un commerciale (vedi le due sezioni qui sopra e qui sotto). Quelle
+sono volute: si lavorano, non si annullano.
+
+Per gli sbagli veri, invece, l'unica uscita era **Persa**, e costava tre
+bugie: il riquadro «Perse da te» in dashboard contava una sconfitta che non
+c'è stata, `motivo_perso` chiedeva il perché di una trattativa che non è mai
+stata una trattativa, e nella scheda della persona restava scritto che con lei
+era andata male.
 
 Da qui il quinto stato, **Annullata**. È finale come vinta e persa — valorizza
 `chiuso_il`, esce dagli elenchi del lavoro da fare, non blocca la richiesta
 successiva — ma **non è un esito**: dice che quella riga non andava creata.
 
 Come si annulla: nel blocco Trattativa si sceglie `Annullata` dalla tendina
-dello stato, si scrive il perché (doppione, attività spuntata per sbaglio al
-banco, prova) e si conferma. Il motivo è **obbligatorio**, come per la persa,
+dello stato, si scrive il perché (doppione, persona sbagliata, prova) e si
+conferma. Il motivo è **obbligatorio**, come per la persa,
 e sta in una colonna sua (`motivo_annullato`, non `motivo_perso`): sono due
 domande diverse, e mescolarle vorrebbe dire non poter più rileggere i motivi
 di perdita senza prima filtrare via gli sbagli. Serve lo stesso diritto che

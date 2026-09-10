@@ -10,19 +10,20 @@
 --
 -- ─────────────────────────────────────────────────────────────── il perché
 --
--- Un'opportunità può nascere per sbaglio. Il caso vero è il registro degli
--- ospiti al banco (guest-register.astro nel repo del sito): l'operatore
--- spunta le attività di interesse, la prima diventa `attivita` — è su quella
--- che il CRM instrada — e se capita che sia 'club-adulti' o 'family' il
--- trigger su form_contatti chiama trova_o_crea_opportunita e la trattativa
--- nasce. Nessuno ha mai voluto vendere niente a quella persona.
+-- Una trattativa può nascere per sbaglio: un doppione, una riga finita sulla
+-- persona sbagliata, una prova rimasta in giro.
 --
--- Finora l'unica uscita era «Persa». Ma persa vuol dire una cosa precisa —
--- ci abbiamo provato e non è andata — e usarla per una riga nata per errore
--- costa tre bugie: il riquadro «Perse da te» in dashboard conta una sconfitta
--- che non c'è stata, `motivo_perso` chiede il perché di una trattativa che
--- non è mai stata una trattativa, e nella scheda della persona resta scritto
--- che con lei è andata male.
+-- Da non confondere con le trattative che nascono da sole ed è GIUSTO che
+-- nascano: se al banco si spunta un interesse per il Club o per il Family, o
+-- se un commerciale mette un evento in agenda, la trattativa deve esserci —
+-- è il modello, non un incidente. Quelle non si annullano: si lavorano.
+--
+-- Per gli sbagli veri, invece, finora l'unica uscita era «Persa». Ma persa
+-- vuol dire una cosa precisa — ci abbiamo provato e non è andata — e usarla
+-- per una riga nata per errore costa tre bugie: il riquadro «Perse da te» in
+-- dashboard conta una sconfitta che non c'è stata, `motivo_perso` chiede il
+-- perché di una trattativa che non è mai stata una trattativa, e nella scheda
+-- della persona resta scritto che con lei è andata male.
 --
 -- Da qui il quinto stato. È finale come vinto e perso — valorizza chiuso_il,
 -- esce dagli elenchi del lavoro da fare, non blocca la prossima richiesta —
@@ -57,7 +58,7 @@ alter table public.opportunita
 	check (stato in ('nuovo', 'in_gestione', 'vinto', 'perso', 'annullato'));
 
 comment on column public.opportunita.stato is
-	'Dov''è la trattativa: nuovo (nessuno la segue) | in_gestione | vinto | perso | annullato. I primi due sono aperti; gli altri tre sono finali e valorizzano chiuso_il. ''annullato'' è finale ma NON è un esito: dice che la trattativa non andava creata (tipicamente una riga nata dal registro ospiti su un''attività spuntata per sbaglio), e per questo non entra nei conti di vinte e perse.';
+	'Dov''è la trattativa: nuovo (nessuno la segue) | in_gestione | vinto | perso | annullato. I primi due sono aperti; gli altri tre sono finali e valorizzano chiuso_il. ''annullato'' è finale ma NON è un esito: dice che la trattativa non andava creata (un doppione, una riga finita sulla persona sbagliata, una prova), e per questo non entra nei conti di vinte e perse. Non si usa per le trattative nate da sole dal banco o da un evento di agenda: quelle sono volute e si lavorano.';
 
 -- ────────────────────────────────────────────────── 2. il perché si annulla
 
@@ -70,7 +71,7 @@ alter table public.opportunita
 	add column if not exists motivo_annullato text;
 
 comment on column public.opportunita.motivo_annullato is
-	'Compilato solo quando lo stato è ''annullato'': perché questa trattativa non andava creata (doppione, attività spuntata per sbaglio al banco, prova). Distinto da motivo_perso, che è il motivo commerciale di una trattativa vera andata male.';
+	'Compilato solo quando lo stato è ''annullato'': perché questa trattativa non andava creata (doppione, persona sbagliata, prova). Distinto da motivo_perso, che è il motivo commerciale di una trattativa vera andata male.';
 
 comment on column public.opportunita.motivo_perso is
 	'Compilato solo quando lo stato è ''perso'': il motivo commerciale per cui non è andata. Per una trattativa nata per errore non si usa questo campo ma motivo_annullato, con lo stato ''annullato''.';
@@ -199,8 +200,8 @@ group by stato
 order by 2 desc;
 
 -- Le persone che hanno una trattativa annullata e nessun'altra: sono quelle
--- entrate in pipeline solo per errore. Utile per capire da dove arrivano gli
--- sbagli — quasi sempre il registro ospiti con l'attività spuntata a caso.
+-- entrate in pipeline solo per errore. Da rileggere ogni tanto per capire da
+-- dove arrivano gli sbagli e toglierli alla fonte.
 select p.id, p.nome, p.cognome, o.motivo_annullato, o.chiuso_il
 from public.opportunita o
 	join public.persone p on p.id = o.persona_id

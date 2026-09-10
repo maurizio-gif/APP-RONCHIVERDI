@@ -22,6 +22,7 @@ import {
   type CollegamentoEvento,
   type EventoDaProgrammare,
 } from '@/lib/eventi'
+import { trattativaPerEvento } from '@/lib/trattative-server'
 import type { Esito } from './actions'
 
 // Chiudere una voce dicendo com'è andata, correggerla dopo, spostarla,
@@ -415,6 +416,15 @@ export async function programmaEvento(input: {
   if (error) {
     console.error('Evento non creato:', error.message)
     return { ok: false, errore: 'Non siamo riusciti a salvare l’evento. Riprova.' }
+  }
+
+  // Come in creaVoce: un evento su una persona è una trattativa in corso, e
+  // se non ce n'è una aperta la apre l'evento (vedi lib/trattative-server.ts).
+  // Solo per il collegamento a una persona: quello a una richiesta arriva dal
+  // pannello Eventi di Club e Family, dove la trattativa c'è già per
+  // definizione — è lei a fare esistere quel pannello.
+  if (input.collegamento.entita === 'persona') {
+    await trattativaPerEvento(input.collegamento.id, email)
   }
 
   await registraLog(
