@@ -331,9 +331,9 @@ socio e non ci sono due assegnazioni da tenere sincronizzate.
 Ogni riga dell'elenco mostra tre cose e apre tre pannelli indipendenti:
 
 - il blocco **Trattativa** sempre in vista: stato (`Da prendere in carico`,
-  `In gestione`, `Vinta`, `Persa`), chi la segue, e i comandi per prenderla in
-  carico, riassegnarla o cambiarne lo stato — chi la chiude come persa deve
-  scrivere il perché;
+  `In gestione`, `Vinta`, `Persa`, `Annullata`), chi la segue, e i comandi per
+  prenderla in carico, riassegnarla o cambiarne lo stato — chi la chiude come
+  persa o annullata deve scrivere il perché;
 - **Dettagli** — i dati del modulo, i recapiti cliccabili, l'esito;
 - **Gestione** — chiudere la richiesta con un esito (lo stesso pannello
   dell'Agenda: eseguita, fallita, riprogrammata, annullata);
@@ -342,6 +342,60 @@ Ogni riga dell'elenco mostra tre cose e apre tre pannelli indipendenti:
 Tutto questo vale **solo qui**: sugli altri canali non c'è nessuna trattativa,
 e la gestione è un interruttore più una nota — vedi «Young School e gli altri
 corsi» più sotto.
+
+### La trattativa annullata: né vinta né persa
+
+Un'opportunità può **nascere per sbaglio**. Il caso vero è il registro degli
+ospiti al banco (`guest-register.astro` nel repo del sito): l'operatore spunta
+le attività di interesse, la prima diventa `attivita` — è su quella che il CRM
+instrada — e se capita che sia `club-adulti` o `family` il trigger su
+`form_contatti` chiama `trova_o_crea_opportunita` e la trattativa nasce da
+sola. Nessuno ha mai voluto vendere niente a quella persona.
+
+Finora l'unica uscita era **Persa**, e costava tre bugie: il riquadro «Perse
+da te» in dashboard contava una sconfitta che non c'è stata, `motivo_perso`
+chiedeva il perché di una trattativa che non è mai stata una trattativa, e
+nella scheda della persona restava scritto che con lei era andata male.
+
+Da qui il quinto stato, **Annullata**. È finale come vinta e persa — valorizza
+`chiuso_il`, esce dagli elenchi del lavoro da fare, non blocca la richiesta
+successiva — ma **non è un esito**: dice che quella riga non andava creata.
+
+Come si annulla: nel blocco Trattativa si sceglie `Annullata` dalla tendina
+dello stato, si scrive il perché (doppione, attività spuntata per sbaglio al
+banco, prova) e si conferma. Il motivo è **obbligatorio**, come per la persa,
+e sta in una colonna sua (`motivo_annullato`, non `motivo_perso`): sono due
+domande diverse, e mescolarle vorrebbe dire non poter più rileggere i motivi
+di perdita senza prima filtrare via gli sbagli. Serve lo stesso diritto che
+serve a prendersi la trattativa — chi la può avere in mano può dire che non
+andava creata — e l'operazione **si disfa**: basta riportarla `In gestione`.
+
+Tre effetti che vale la pena conoscere:
+
+- **la prossima richiesta di quella persona apre una trattativa nuova.**
+  `trova_o_crea_opportunita` considera chiusa anche l'annullata, altrimenti
+  resterebbe «quella aperta» e l'errore tornerebbe indietro da solo. La stessa
+  funzione salta le annullate anche quando cerca l'assegnatario da ereditare:
+  su una riga nata per sbaglio non la seguiva nessuno, e prendere quel valore
+  vorrebbe dire perdere il commerciale vero che c'era prima;
+- **non entra nella fotografia.** La riga «Nel club: …» in dashboard e quella
+  in cima al canale mostrano `STATI_IN_SINTESI`, cioè i quattro stati che sono
+  lavoro o risultato. `annullato` resta invece fra i **chip dei filtri**, che
+  usano `STATI` per intero: lì la domanda è «fammele vedere», e una riga che
+  non si può ritrovare è una riga persa;
+- **la richiesta sotto non si chiude da sé.** Annullare la trattativa e
+  chiudere la richiesta che l'ha generata sono due gesti su due oggetti
+  diversi: dopo l'annullamento quel modulo resta «da lavorare» finché non lo
+  si segna gestito con il suo interruttore. È voluto — un comando che ne
+  esegue due di nascosto è quello che poi nessuno sa disfare.
+
+La migration è
+[`2026-09-10-trattativa-annullata.sql`](scripts/sql/2026-09-10-trattativa-annullata.sql)
+e, a differenza delle due precedenti, **va eseguita prima del deploy**: senza
+il vincolo aggiornato su `stato` il database rifiuta `'annullato'`. Ricrea
+anche l'indice parziale delle aperte, la funzione e la vista `trattative`, e
+in coda ha due query per rileggere quanti errori di inserimento stavano
+finendo fra le perse.
 
 ### Il pannello Eventi
 

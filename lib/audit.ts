@@ -57,6 +57,10 @@ export const AZIONI_LOG: Record<string, string> = {
   trattativa_assegnata: 'Trattativa assegnata',
   trattativa_liberata: 'Trattativa liberata',
   trattativa_stato_cambiato: 'Trattativa: stato cambiato',
+  // Distinta dal cambio di stato generico: annullare vuol dire togliere una
+  // trattativa dalla pipeline dicendo che non andava creata, ed è la riga che
+  // si va a cercare quando i conti di un mese non tornano.
+  trattativa_annullata: 'Trattativa annullata (non andava creata)',
   permesso_commerciale_modificato: 'Permesso "Commerciale" modificato',
   permesso_riassegnare_modificato: 'Permesso "Può riassegnare" modificato',
   candidatura_stato: 'Curriculum: stato della candidatura cambiato',

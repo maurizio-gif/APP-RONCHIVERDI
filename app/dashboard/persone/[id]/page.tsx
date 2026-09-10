@@ -35,7 +35,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
     // diverse per la stessa cosa.
     supabase
       .from('opportunita')
-      .select('id, stato, assegnato_a, creato_il, chiuso_il, motivo_perso, origine')
+      .select('id, stato, assegnato_a, creato_il, chiuso_il, motivo_perso, motivo_annullato, origine')
       .eq('persona_id', params.id)
       .order('creato_il', { ascending: false }),
   ])
@@ -138,6 +138,12 @@ export default async function PersonaPage({ params }: { params: { id: string } }
                     </span>
                   </span>
                   {t.motivo_perso && <span className="voce-note muted">Motivo: {t.motivo_perso}</span>}
+                  {/* Un'annullata nella storia di una persona va spiegata più
+                      di una persa: «Persa» si capisce da sé, una trattativa
+                      sparita senza dire perché sembra un buco nei dati. */}
+                  {t.motivo_annullato && (
+                    <span className="voce-note muted">Annullata: {t.motivo_annullato}</span>
+                  )}
                 </span>
                 <span className="voce-azioni">
                   <Link className="btn btn-ghost btn-sm" href="/dashboard/richieste/richieste-club?mostra=tutte">

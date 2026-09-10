@@ -7,6 +7,7 @@ import { SEZIONI, soloAccessoEsterno } from '@/lib/auth/sezioni'
 import { ATTIVITA_IN_AGENDA, canaleDiRichiesta } from '@/lib/richieste'
 import {
   STATI,
+  STATI_IN_SINTESI,
   ETICHETTE_STATO,
   PUNTO_STATO,
   eChiusa,
@@ -301,7 +302,7 @@ async function trattativeDaLavorare(email: string | null) {
   // dalla sezione, filtrando per stato.
   const { data } = await supabase
     .from('opportunita')
-    .select('id, stato, assegnato_a, motivo_perso, persona_id, creato_il')
+    .select('id, stato, assegnato_a, motivo_perso, motivo_annullato, persona_id, creato_il')
     .in('stato', ['nuovo', 'in_gestione'])
     .order('creato_il', { ascending: false })
 
@@ -341,6 +342,10 @@ async function trattativeDaLavorare(email: string | null) {
       stato: t.stato,
       assegnato_a: (t.assegnato_a as string) ?? null,
       motivo_perso: (t.motivo_perso as string) ?? null,
+      // Sempre nullo qui, come motivo_perso: l'elenco carica solo le aperte.
+      // Si legge lo stesso invece di scrivere `null`, così resta giusto se un
+      // domani il filtro sopra cambia.
+      motivo_annullato: (t.motivo_annullato as string) ?? null,
       personaId: (t.persona_id as string) ?? null,
       // Da quanto è aperta: in elenco una trattativa di stamattina e una
       // ferma da tre settimane avevano lo stesso aspetto, e la seconda è
@@ -512,7 +517,7 @@ export default async function RiepilogoPage() {
           <div className="riepilogo-club">
             <ul className="canale-conti muted">
               <li className="muted">Nel club:</li>
-              {STATI.map((x) => (
+              {STATI_IN_SINTESI.map((x) => (
                 <li key={x}>
                   <span className={`chip-punto ${PUNTO_STATO[x]}`} aria-hidden="true" />
                   <b>{trattative.club[x]}</b> {ETICHETTE_STATO[x].toLowerCase()}
