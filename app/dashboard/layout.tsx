@@ -57,7 +57,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <NotificheProvider abilitato={riceveMessaggi} nonLetteIniziali={riceveMessaggi ? nonLette : 0}>
       <div className="app-shell">
-        <Sidebar email={email} nomeUtente={nomeUtente} sezioniConsentite={sezioniConsentite} />
+        <Sidebar
+          email={email}
+          nomeUtente={nomeUtente}
+          sezioniConsentite={sezioniConsentite}
+          riceveAvvisoSonoro={avvisoOpportunita}
+        />
         <main className="main-content">
           <NotificheBanner />
           {/* Solo per i commerciali con la sezione Club e Family: prendere in

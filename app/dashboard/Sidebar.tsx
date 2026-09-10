@@ -9,6 +9,8 @@ import { SEZIONE_NOTIFICHE } from '@/lib/notifiche'
 import { IconaMenu } from './IconeMenu'
 import { useNotifiche } from './NotificheProvider'
 import { PushToggleNavItem } from './PushToggleNavItem'
+import { CampanelloToggle } from './CampanelloToggle'
+import { TemaToggle } from './TemaToggle'
 
 type VoceMenu = {
   href: string
@@ -48,10 +50,12 @@ export function Sidebar({
   email,
   nomeUtente,
   sezioniConsentite,
+  riceveAvvisoSonoro,
 }: {
   email: string
   nomeUtente: string | null
   sezioniConsentite: string[]
+  riceveAvvisoSonoro: boolean
 }) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
@@ -106,6 +110,21 @@ export function Sidebar({
       </div>
 
       <nav className="nav">
+        {/* I tre interruttori del dispositivo stanno in cima e non nel piede:
+            si toccano una volta sola per dispositivo, ma si toccano il primo
+            giorno — e in fondo a un menu di quindici voci il primo giorno non
+            li trova nessuno. Le push da sole su una riga, campanello e tema
+            affiancati: le prime riguardano il telefono a pannello chiuso, gli
+            altri due come si vede e come suona questo schermo adesso. */}
+        {sezioniConsentite.includes(SEZIONE_NOTIFICHE) && <PushToggleNavItem />}
+        <div className="riga-strumenti">
+          {/* Il campanello solo a chi qualcosa può sentirlo: l'avviso suona
+              per le trattative da prendere in carico, e un interruttore che
+              governa un suono che non arriverà mai è una domanda senza
+              risposta. */}
+          {riceveAvvisoSonoro && <CampanelloToggle />}
+          <TemaToggle />
+        </div>
         {gruppiMenu.map((gruppo) => (
           <div className="nav-gruppo" key={gruppo.chiave || 'principale'}>
             {gruppo.chiave && <p className="nav-gruppo-label">{gruppo.chiave}</p>}
@@ -139,10 +158,6 @@ export function Sidebar({
       </nav>
 
       <div className="sidebar-footer">
-        {/* L'interruttore delle notifiche sta nel menu e non dentro la pagina
-            dei messaggi: va acceso una volta su ogni dispositivo, e in una
-            sezione che si apre di rado nessuno lo troverebbe. */}
-        {sezioniConsentite.includes(SEZIONE_NOTIFICHE) && <PushToggleNavItem />}
         <form action={logout}>
           <button type="submit" className="btn btn-ghost btn-block btn-sm">
             Esci

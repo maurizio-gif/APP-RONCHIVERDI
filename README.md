@@ -523,6 +523,74 @@ la scritta "CRM".
 Per cambiare icona si sostituisce il master e si rilancia lo script: i file di
 `public/` non si ritoccano a mano, o la prossima rigenerazione li sovrascrive.
 
+## I tre interruttori in cima al menu
+
+Notifiche push, campanello e tema stanno **in cima al menu**, sopra le voci di
+navigazione e separati da un filetto, come nel pannello Athlon. Non sono
+navigazione — non portano da nessuna parte — e stavano nel piede: si toccano
+una volta sola per dispositivo, ma si toccano il *primo giorno*, e in fondo a
+un menu di quindici voci il primo giorno non li trova nessuno.
+
+Le push da sole su una riga, campanello e tema affiancati: le prime riguardano
+il telefono a pannello chiuso, gli altri due come si vede e come suona questo
+schermo adesso.
+
+**Il campanello compare solo a chi qualcosa può sentirlo.** L'avviso sonoro
+suona per le trattative da prendere in carico, che è un diritto dei
+commerciali (`puoRicevereAvvisoOpportunita`): un interruttore che governa un
+suono che non arriverà mai è una domanda senza risposta.
+
+**Gli interruttori del campanello sono due, e leggono la stessa preferenza.**
+Quello dentro il popup dell'avviso c'era già ed è giusto che resti — chi vuole
+zittire il suono lo vuole zittire nel momento in cui gli ha dato fastidio, non
+dopo aver cercato dove si fa — ma da solo era una porta a senso unico: il
+popup compare quando arriva una trattativa, cioè esattamente quello che non
+succede più dopo averlo spento. La preferenza vive quindi in un modulo
+(`useAvvisoSonoro.ts`, con `useSyncExternalStore`) e non in uno `useState` per
+componente: con uno stato per istanza, spegnere dal popup lasciava il menu
+acceso fino al ricaricamento, e due interruttori che dicono cose diverse sulla
+stessa preferenza sono peggio di un interruttore solo nel posto sbagliato.
+
+### Tema chiaro e scuro
+
+È la stessa cosa del pannello Athlon portata qui. La scelta vive nel
+**browser** (`localStorage`, chiave `ronchiverdi-tema`) e non nel database,
+come le push e come il campanello: è una preferenza del *dispositivo*, non
+della persona — il telefono con cui si timbra la sera vuole lo scuro, il
+portatile in reception di giorno vuole il chiaro, e sono lo stesso account.
+
+Tre cose da sapere prima di toccarlo.
+
+**Il chiaro è il predefinito, e non c'è `prefers-color-scheme`.** È una scelta
+e non una dimenticanza: legare il tema all'impostazione di sistema vorrebbe
+dire che il pannello cambia aspetto da solo al tramonto su un Mac configurato
+in automatico. Chi vuole lo scuro lo accende, e da quel momento è suo su quel
+dispositivo.
+
+**Lo script che applica il tema sta nel `<head>`** (`SCRIPT_TEMA` in
+[`lib/tema.ts`](lib/tema.ts), incollato da `app/layout.tsx`) e non in un
+componente React: qualunque cosa passi da React gira *dopo* il primo disegno, e
+per un istante si vedrebbe la pagina chiara prima che diventi scura.
+
+**Un colore nuovo si scrive con un token, mai con un valore.** Il blocco
+`:root[data-tema='scuro']` in fondo a `app/globals.css` è corto proprio perché
+il pannello era già scritto quasi tutto con le variabili: una regola che porta
+un `rgba(28, 28, 24, …)` scritto a mano è una regola che al buio si ribalta
+male, e va promossa a token — è quello che è successo ai bordi degli stati
+(`--ok-border` e compagni) e ai veli neutri (`--fill-soft`, `--fill-strong`,
+`--row-off`). La sidebar e il login sono scuri in tutti e due i temi: si
+vestono con `--text-on-dark`, `--accent-on-dark` e `--border-dark`, che infatti
+non si ribaltano.
+
+Per verificare non serve il pannello vero: si apre `app/globals.css` in una
+pagina di prova con il markup rappresentativo, si mette `data-tema="scuro"`
+sull'`<html>` e si misura il contrasto compositando i fondi semitrasparenti sui
+loro antenati — un fondo `rgba(…)` confrontato con sé stesso dà rapporti
+inventati. Attenzione ai `transition` sui colori: leggendo lo stile calcolato
+subito dopo il cambio si legge il fotogramma di mezzo, non il colore d'arrivo.
+Ultima passata: al buio nessun testo sotto 4,5:1; al chiaro gli stessi sei
+badge marginali di prima (4,18–4,43), invariati.
+
 ## Stato
 
 Fatto: autenticazione, invito e primo accesso, permessi granulari, guscio del
@@ -559,6 +627,9 @@ carico, solo per i commerciali.
 
 Fatto anche: **recupero password** dal login, senza rivelare quali indirizzi
 sono abilitati.
+
+Fatto anche: **tema scuro**, con push, campanello e tema in cima al menu e la
+scelta ricordata su quel dispositivo.
 
 Da fare: Enquiries, Persone, Agenda con `/api/disponibilita` per gli slot che il
 sito offre nel form contatti, Visite al sito, pagina di Controllo operatori.
