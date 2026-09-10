@@ -331,9 +331,9 @@ socio e non ci sono due assegnazioni da tenere sincronizzate.
 Ogni riga dell'elenco mostra tre cose e apre tre pannelli indipendenti:
 
 - il blocco **Trattativa** sempre in vista: stato (`Da prendere in carico`,
-  `In gestione`, `Vinta`, `Persa`), chi la segue, e i comandi per prenderla in
-  carico, riassegnarla o cambiarne lo stato — chi la chiude come persa deve
-  scrivere il perché;
+  `In gestione`, `Vinta`, `Persa`, `Annullata`), chi la segue, e i comandi per
+  prenderla in carico, riassegnarla o cambiarne lo stato — chi la chiude come
+  persa o annullata deve scrivere il perché;
 - **Dettagli** — i dati del modulo, i recapiti cliccabili, l'esito;
 - **Gestione** — chiudere la richiesta con un esito (lo stesso pannello
   dell'Agenda: eseguita, fallita, riprogrammata, annullata);
@@ -342,6 +342,162 @@ Ogni riga dell'elenco mostra tre cose e apre tre pannelli indipendenti:
 Tutto questo vale **solo qui**: sugli altri canali non c'è nessuna trattativa,
 e la gestione è un interruttore più una nota — vedi «Young School e gli altri
 corsi» più sotto.
+
+### Le due `trova_o_crea_opportunita`
+
+In `public` esistono **due funzioni con questo nome**, ed è una trappola su cui
+si è già inciampato una volta:
+
+| Firma | Chi la chiama |
+|---|---|
+| `(uuid)` | **nessuno**: è codice morto, resto di [`2026-09-02-opportunita.sql`](scripts/sql/2026-09-02-opportunita.sql) |
+| `(uuid, text, boolean)` | **il trigger** `collega_persona_a_contatto`, cioè ogni lead dal sito e dal banco |
+
+Quella viva è la seconda, nata col registro ospiti: `p_origine` scrive da dove
+viene la trattativa (`'walk-in'`), `p_senza_assegnazione` la fa nascere libera
+invece di ereditare l'ultimo commerciale. **Chi modifica il comportamento di
+"trova o crea la trattativa" deve toccare quella**, non la prima.
+
+Due conseguenze pratiche:
+
+- una chiamata con **un solo argomento** è ambigua e fallisce, perché la
+  seconda firma ha valori di default per il 2° e il 3° parametro e quindi è
+  candidata anche lei. La firma morta andrebbe tolta
+  (`drop function public.trova_o_crea_opportunita(uuid);`), dopo aver escluso
+  che la usi qualcosa fuori da questi due repository;
+- **`scripts/sql/` non ha sempre rispecchiato lo schema di produzione.** La
+  migration che ha creato la funzione a tre argomenti (`walk_in_guest_register`)
+  è stata applicata al database senza essere versionata qui, ed è per questo
+  che una correzione è finita sulla firma sbagliata. Prima di modificare una
+  funzione, conviene leggerla dal database:
+  `select pg_get_functiondef('public.nome(tipi)'::regprocedure);`
+
+La correzione sta in
+[`2026-09-10-walk-in-conosce-annullato.sql`](scripts/sql/2026-09-10-walk-in-conosce-annullato.sql),
+che oltre a sistemare la funzione la **scrive finalmente nel repo**.
+
+### L'evento in agenda apre la trattativa
+
+L'agenda la tiene il **settore core**, cioè gli adulti: se un commerciale
+scrive un evento su una persona, quella persona è una trattativa in corso.
+Non serve che l'abbia dichiarato scegliendo un'attività di interesse — è il
+gesto stesso a dirlo.
+
+Prima non era così, e il buco si vedeva dove fa più male: l'agenda accetta
+contatti che in anagrafica non esistono ancora (li crea al volo, vedi «Se il
+contatto non c'è, si crea dall'agenda»), quindi si poteva fissare un
+appuntamento a qualcuno che non compariva in nessuna pipeline. È il caso di
+adesso, con le trattative in corso da ricopiare dall'agenda di carta: senza
+questa regola si ricostruirebbe il calendario e non il lavoro che rappresenta.
+
+La regola sta nel database
+([`trattativa_per_evento`](scripts/sql/2026-09-10-evento-apre-trattativa.sql)),
+chiamata per RPC da [`lib/trattative-server.ts`](lib/trattative-server.ts) —
+come `trova_o_crea_persona`, e per la stessa ragione: «esiste già o va
+creata?» va deciso in un colpo solo, o due eventi scritti nello stesso istante
+aprono due trattative sulla stessa persona. Un lock sulla persona lo
+garantisce.
+
+Cosa fa, e cosa non fa mai:
+
+| Situazione della persona | Cosa succede |
+|---|---|
+| Nessuna trattativa aperta | ne apre una, **In gestione**, assegnata a chi ha scritto l'evento |
+| Una trattativa **libera** | se la prende chi ha scritto l'evento — è lo stesso gesto del pulsante «Prendi in carico» |
+| Una assegnata ma ferma in «Da prendere in carico» | passa **In gestione**; l'assegnatario **non** si tocca |
+| Una che segue già un collega | **niente**: un evento non porta via la trattativa a nessuno |
+| Solo trattative chiuse (vinte, perse, annullate) | ne apre una nuova |
+
+Vale per gli eventi agganciati a una **persona**: quelli creati dall'agenda
+(`creaVoce`) e dal comando `programmaEvento`. Non per quelli agganciati a una
+richiesta, che arrivano dal pannello Eventi di Club e Family — lì la
+trattativa c'è già per definizione, è lei a fare esistere quel pannello.
+
+Chi salva l'evento se lo vede detto nel banner: «Aperta anche la trattativa di
+questo contatto, in gestione a te». Quando non è cambiato niente non compare
+niente. Se la trattativa non si riesce ad aprire l'evento **resta salvato lo
+stesso** e il difetto finisce nei log: l'evento è il dato che non si può
+perdere, e un errore rosso su un salvataggio riuscito porterebbe a riprovare,
+cioè a scrivere l'evento due volte.
+
+La migration è
+[`2026-09-10-evento-apre-trattativa.sql`](scripts/sql/2026-09-10-evento-apre-trattativa.sql),
+va dopo quella dell'annullata e **prima del deploy**: senza la funzione, ogni
+evento salvato lascerebbe la trattativa non aperta.
+
+### La trattativa annullata: né vinta né persa
+
+Una trattativa può **nascere per sbaglio**: un doppione, una riga finita sulla
+persona sbagliata, una prova rimasta in giro.
+
+Da non confondere con le trattative che **nascono da sole ed è giusto che
+nascano** — l'interesse per Club o Family spuntato al banco, l'evento messo in
+agenda da un commerciale (vedi le due sezioni qui sopra e qui sotto). Quelle
+sono volute: si lavorano, non si annullano.
+
+Per gli sbagli veri, invece, l'unica uscita era **Persa**, e costava tre
+bugie: il riquadro «Perse da te» in dashboard contava una sconfitta che non
+c'è stata, `motivo_perso` chiedeva il perché di una trattativa che non è mai
+stata una trattativa, e nella scheda della persona restava scritto che con lei
+era andata male.
+
+Da qui il quinto stato, **Annullata**. È finale come vinta e persa — valorizza
+`chiuso_il`, esce dagli elenchi del lavoro da fare, non blocca la richiesta
+successiva — ma **non è un esito**: dice che quella riga non andava creata.
+
+Come si annulla: nel blocco Trattativa si sceglie `Annullata` dalla tendina
+dello stato, si scrive il perché (doppione, persona sbagliata, prova) e si
+conferma. Il motivo è **obbligatorio**, di là e di qua dalla rete — il
+pannello non lascia confermare a campo vuoto e `cambiaStato` rifiuta comunque,
+perché una Server Action resta chiamabile a mano. E sta in una colonna sua
+(`motivo_annullato`, non `motivo_perso`): sono due domande diverse, e
+mescolarle vorrebbe dire non poter più rileggere i motivi di perdita senza
+prima filtrare via gli sbagli.
+
+**Annullare lo può fare qualsiasi commerciale, anche su una trattativa che
+segue un collega**, ed è l'unico passaggio che sfugge alla regola
+dell'assegnazione (`puoAnnullare` invece di `puoAssegnare`). Gli altri stati
+sono giudizi sul lavoro di chi la ha in mano — dire che la trattativa di un
+collega è persa vuol dire archiviare la sua telefonata — e restano suoi.
+Annullare invece dice che quella riga non è mai stata una trattativa: è una
+correzione dei dati, e chi si accorge di un doppione deve poterlo togliere
+quando lo vede, non scrivere al titolare e aspettare.
+
+Il contrappeso a quella libertà sono tre cose, non una: il motivo
+obbligatorio, la riga nel registro operatori con chi l'ha annullata
+(`trattativa_annullata`), e il fatto che **si disfa** — basta riportarla `In
+gestione`. Chi non ha la tendina degli stati (non la segue e non può
+riassegnare) trova un comando suo, «Annulla la trattativa», tenuto discreto
+in fondo al blocco: è una correzione, non un passo della pipeline.
+
+Tre effetti che vale la pena conoscere:
+
+- **la prossima richiesta di quella persona apre una trattativa nuova.**
+  `trova_o_crea_opportunita` considera chiusa anche l'annullata, altrimenti
+  resterebbe «quella aperta» e l'errore tornerebbe indietro da solo. La stessa
+  funzione salta le annullate anche quando cerca l'assegnatario da ereditare:
+  su una riga nata per sbaglio non la seguiva nessuno, e prendere quel valore
+  vorrebbe dire perdere il commerciale vero che c'era prima. **Attenzione: di
+  quella funzione ne esistono due** — vedi «Le due `trova_o_crea_opportunita`»
+  qui sotto;
+- **non entra nella fotografia.** La riga «Nel club: …» in dashboard e quella
+  in cima al canale mostrano `STATI_IN_SINTESI`, cioè i quattro stati che sono
+  lavoro o risultato. `annullato` resta invece fra i **chip dei filtri**, che
+  usano `STATI` per intero: lì la domanda è «fammele vedere», e una riga che
+  non si può ritrovare è una riga persa;
+- **la richiesta sotto non si chiude da sé.** Annullare la trattativa e
+  chiudere la richiesta che l'ha generata sono due gesti su due oggetti
+  diversi: dopo l'annullamento quel modulo resta «da lavorare» finché non lo
+  si segna gestito con il suo interruttore. È voluto — un comando che ne
+  esegue due di nascosto è quello che poi nessuno sa disfare.
+
+La migration è
+[`2026-09-10-trattativa-annullata.sql`](scripts/sql/2026-09-10-trattativa-annullata.sql)
+e, a differenza delle due precedenti, **va eseguita prima del deploy**: senza
+il vincolo aggiornato su `stato` il database rifiuta `'annullato'`. Ricrea
+anche l'indice parziale delle aperte, la funzione e la vista `trattative`, e
+in coda ha due query per rileggere quanti errori di inserimento stavano
+finendo fra le perse.
 
 ### Il pannello Eventi
 

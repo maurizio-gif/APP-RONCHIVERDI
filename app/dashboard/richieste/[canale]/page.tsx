@@ -8,6 +8,7 @@ import {
   ETICHETTE_STATO,
   PUNTO_STATO,
   STATI,
+  STATI_IN_SINTESI,
   eStatoValido,
   type StatoTrattativa,
 } from '@/lib/pipeline'
@@ -139,7 +140,7 @@ export default async function CanalePage({
     // nella seconda ondata, filtrata sugli id delle righe mostrate: due
     // letture della stessa tabella, e un'ondata in più prima di disegnare.
     canale.inAgenda
-      ? supabase.from('opportunita').select('id, stato, assegnato_a, motivo_perso')
+      ? supabase.from('opportunita').select('id, stato, assegnato_a, motivo_perso, motivo_annullato')
       : Promise.resolve({ data: [] as Record<string, any>[] }),
     // Nome e cognome oltre all'email: le lavorazioni si firmano con l'email,
     // ma a schermo si legge il nome (vedi lib/staff.ts).
@@ -280,6 +281,7 @@ export default async function CanalePage({
             stato: t.stato as StatoTrattativa,
             assegnato_a: t.assegnato_a as string | null,
             motivo_perso: t.motivo_perso as string | null,
+            motivo_annullato: t.motivo_annullato as string | null,
           } satisfies DatiTrattativa,
         ])
       ),
@@ -416,7 +418,7 @@ export default async function CanalePage({
             se non tornando in dashboard. */}
         {canale.inAgenda && (
           <ul className="canale-conti muted">
-            {STATI.map((x) => (
+            {STATI_IN_SINTESI.map((x) => (
               <li key={x}>
                 <span className={`chip-punto ${PUNTO_STATO[x]}`} aria-hidden="true" />
                 <b>{conti.perStato[x]}</b> {ETICHETTE_STATO[x].toLowerCase()}
@@ -482,6 +484,10 @@ export default async function CanalePage({
           {canale.inAgenda && (
             <>
               <fieldset className="filtro-gruppo">
+                {/* Qui gli stati ci sono tutti, annullate comprese: la
+                    fotografia qui sopra dice quanto lavoro c'è, questi
+                    servono a ritrovare una riga — e una riga che non si può
+                    chiedere è una riga persa. */}
                 <legend>Stato della trattativa</legend>
                 <Chip
                   attivo={!statoRichiesto}

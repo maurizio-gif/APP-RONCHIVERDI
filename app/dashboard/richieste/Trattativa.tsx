@@ -9,6 +9,7 @@ import {
   OPZIONI_STATO,
   PASSI_AVANZAMENTO,
   eChiusa,
+  puoAnnullare,
   puoAssegnare,
   type StatoTrattativa,
 } from '@/lib/pipeline'
@@ -20,6 +21,8 @@ export type DatiTrattativa = {
   stato: StatoTrattativa
   assegnato_a: string | null
   motivo_perso: string | null
+  /** Perché non andava creata: doppione, errore al banco, prova. */
+  motivo_annullato: string | null
 }
 
 // Il blocco trattativa che compare sulla riga di una richiesta Club/Family.
@@ -47,23 +50,33 @@ export function Trattativa({
   nomiStaff?: Record<string, string>
 }) {
   const [errore, setErrore] = useState<string | null>(null)
-  const [chiedoMotivo, setChiedoMotivo] = useState(false)
-  const [motivo, setMotivo] = useState(t.motivo_perso ?? '')
+  // Quale chiusura sta chiedendo il perché: null = nessuna. Due stati lo
+  // chiedono — persa e annullata — e la domanda non è la stessa, quindi il
+  // riquadro deve sapere quale delle due sta raccogliendo.
+  const [chiedoMotivo, setChiedoMotivo] = useState<'perso' | 'annullato' | null>(null)
+  const [motivo, setMotivo] = useState('')
   const [inCorso, startTransition] = useTransition()
 
-  const modificabile = puoAssegnare({
-    assegnatoA: t.assegnato_a,
-    io,
-    sonoCommerciale,
-    possoRiassegnare,
-  })
+  const diritti = { assegnatoA: t.assegnato_a, io, sonoCommerciale, possoRiassegnare }
+  const modificabile = puoAssegnare(diritti)
+
+  // Annullare si può sempre, da commerciale, anche sulla trattativa di un
+  // collega (vedi puoAnnullare): non è un giudizio sul suo lavoro, è dire
+  // che quella riga non è mai stata una trattativa. Chi ha già la tendina
+  // degli stati ce l'ha lì dentro; a chi non ce l'ha serve un comando suo,
+  // o si accorgerebbe del doppione senza poterlo togliere.
+  const possoAnnullare = puoAnnullare(diritti)
+  const annullaAParte = possoAnnullare && !modificabile && t.stato !== 'annullato'
 
   function esegui(azione: () => Promise<{ ok: true } | { ok: false; errore: string }>) {
     setErrore(null)
     startTransition(async () => {
       const esito = await azione()
       if (!esito.ok) setErrore(esito.errore)
-      else setChiedoMotivo(false)
+      else {
+        setChiedoMotivo(null)
+        setMotivo('')
+      }
     })
   }
 
@@ -145,10 +158,15 @@ export function Trattativa({
             disabled={inCorso}
             onChange={(e) => {
               const nuovo = e.target.value as StatoTrattativa
-              // Una trattativa persa senza motivo non insegna niente al
-              // prossimo che la guarda: si chiede prima di chiudere.
-              if (nuovo === 'perso') setChiedoMotivo(true)
-              else esegui(() => cambiaStato(t.id, nuovo))
+              // Due stati chiedono il perché prima di chiudere. Una persa
+              // senza motivo non insegna niente al prossimo che la guarda;
+              // una annullata senza motivo è una riga sparita dalla pipeline
+              // che fra un mese nessuno sa più perché non c'è più.
+              if (nuovo === 'perso' || nuovo === 'annullato') {
+                setErrore(null)
+                setMotivo(nuovo === 'perso' ? (t.motivo_perso ?? '') : (t.motivo_annullato ?? ''))
+                setChiedoMotivo(nuovo)
+              } else esegui(() => cambiaStato(t.id, nuovo))
             }}
             aria-label="Stato"
           >
@@ -161,31 +179,66 @@ export function Trattativa({
         </>
       )}
 
+      {/* Discreto e in fondo: è una correzione dei dati, non un passo della
+          pipeline, e su una trattativa che sta lavorando un collega non deve
+          somigliare a un comando da usare per abitudine. */}
+      {annullaAParte && !chiedoMotivo && (
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          disabled={inCorso}
+          onClick={() => {
+            setErrore(null)
+            setMotivo('')
+            setChiedoMotivo('annullato')
+          }}
+        >
+          Annulla la trattativa
+        </button>
+      )}
+
       {chiedoMotivo && (
         <span className="trattativa-motivo">
           <input
             type="text"
             value={motivo}
             onChange={(e) => setMotivo(e.target.value)}
-            placeholder="Perché è andata persa?"
+            placeholder={
+              chiedoMotivo === 'perso'
+                ? 'Perché è andata persa?'
+                : 'Perché non andava creata? Doppione, errore al banco, prova…'
+            }
             autoFocus
           />
           <button
             type="button"
             className="btn btn-sm"
-            disabled={inCorso}
-            onClick={() => esegui(() => cambiaStato(t.id, 'perso', motivo))}
+            // Sull'annullamento il motivo è obbligatorio anche di qua, non
+            // solo sul server: un pulsante che si preme e risponde con un
+            // errore è peggio di uno che dice prima che non è pronto.
+            disabled={inCorso || (chiedoMotivo === 'annullato' && !motivo.trim())}
+            onClick={() => esegui(() => cambiaStato(t.id, chiedoMotivo, motivo))}
           >
-            Segna persa
+            {chiedoMotivo === 'perso' ? 'Segna persa' : 'Annulla la trattativa'}
           </button>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setChiedoMotivo(false)}>
-            Annulla
+          {/* "Lascia stare" e non "Annulla": accanto a un pulsante che
+              annulla la trattativa, due «annulla» che fanno cose opposte
+              sono il modo di premere quello sbagliato. */}
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setChiedoMotivo(null)}>
+            Lascia stare
           </button>
         </span>
       )}
 
       {t.stato === 'perso' && t.motivo_perso && !chiedoMotivo && (
         <span className="trattativa-chi muted">motivo: {t.motivo_perso}</span>
+      )}
+
+      {/* Un'annullata senza il perché sotto gli occhi è una riga sparita
+          dalla pipeline senza spiegazione: chi la ritrova col filtro deve
+          poter capire in un colpo se è stato uno sbaglio o un ripensamento. */}
+      {t.stato === 'annullato' && t.motivo_annullato && !chiedoMotivo && (
+        <span className="trattativa-chi muted">annullata: {t.motivo_annullato}</span>
       )}
 
       {eChiusa(t.stato) && !modificabile && (
@@ -195,9 +248,10 @@ export function Trattativa({
       {/* Cosa chiede lo stato (AZIONE_STATO in lib/pipeline.ts): il badge dice
           dov'è la trattativa, questa riga dice cosa farne. Su una persa il
           motivo qui sopra è già la spiegazione, e ripeterlo sarebbe rumore. */}
-      {!(t.stato === 'perso' && t.motivo_perso) && (
-        <p className="trattativa-azione">{AZIONE_STATO[t.stato]}</p>
-      )}
+      {!(t.stato === 'perso' && t.motivo_perso) &&
+        !(t.stato === 'annullato' && t.motivo_annullato) && (
+          <p className="trattativa-azione">{AZIONE_STATO[t.stato]}</p>
+        )}
 
       {errore && (
         <span className="field-hint" style={{ color: 'var(--error)', flexBasis: '100%' }}>

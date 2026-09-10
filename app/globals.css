@@ -3859,6 +3859,12 @@ table.tabella tbody tr:hover {
 	border-left-color: var(--error);
 }
 
+/* Annullata: il grigio spento delle chiuse, non il rosso della persa. Non è
+   un problema da guardare — è una riga che non doveva esserci. */
+.stato-annullato {
+	border-left-color: var(--border-strong);
+}
+
 .stato-chiuso {
 	border-left-color: var(--border-strong);
 }
@@ -4102,6 +4108,10 @@ table.tabella tbody tr:hover {
 
 .chip-punto.punto-perso {
 	background: var(--error);
+}
+
+.chip-punto.punto-annullato {
+	background: var(--border-strong);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -4405,6 +4415,14 @@ table.tabella tbody tr:hover {
 
 .trattativa.stato-perso {
 	border-left-color: var(--error);
+}
+
+/* Il blocco di una annullata si smorza tutto: sbiadito, senza il fondo
+   colorato degli stati vivi. È l'unico modo di dire «questa non contarla»
+   scorrendo un elenco in cui tutte le altre righe contano. */
+.trattativa.stato-annullato {
+	border-left-color: var(--border-strong);
+	opacity: 0.7;
 }
 
 .trattativa-etichetta {
