@@ -523,14 +523,41 @@ la scritta "CRM".
 Per cambiare icona si sostituisce il master e si rilancia lo script: i file di
 `public/` non si ritoccano a mano, o la prossima rigenerazione li sovrascrive.
 
-## Tema chiaro e scuro
+## I tre interruttori in cima al menu
 
-L'interruttore sta in fondo al menu, accanto a quello delle notifiche push, ed
-è la stessa cosa del pannello Athlon portata qui. La scelta vive nel
+Notifiche push, campanello e tema stanno **in cima al menu**, sopra le voci di
+navigazione e separati da un filetto, come nel pannello Athlon. Non sono
+navigazione — non portano da nessuna parte — e stavano nel piede: si toccano
+una volta sola per dispositivo, ma si toccano il *primo giorno*, e in fondo a
+un menu di quindici voci il primo giorno non li trova nessuno.
+
+Le push da sole su una riga, campanello e tema affiancati: le prime riguardano
+il telefono a pannello chiuso, gli altri due come si vede e come suona questo
+schermo adesso.
+
+**Il campanello compare solo a chi qualcosa può sentirlo.** L'avviso sonoro
+suona per le trattative da prendere in carico, che è un diritto dei
+commerciali (`puoRicevereAvvisoOpportunita`): un interruttore che governa un
+suono che non arriverà mai è una domanda senza risposta.
+
+**Gli interruttori del campanello sono due, e leggono la stessa preferenza.**
+Quello dentro il popup dell'avviso c'era già ed è giusto che resti — chi vuole
+zittire il suono lo vuole zittire nel momento in cui gli ha dato fastidio, non
+dopo aver cercato dove si fa — ma da solo era una porta a senso unico: il
+popup compare quando arriva una trattativa, cioè esattamente quello che non
+succede più dopo averlo spento. La preferenza vive quindi in un modulo
+(`useAvvisoSonoro.ts`, con `useSyncExternalStore`) e non in uno `useState` per
+componente: con uno stato per istanza, spegnere dal popup lasciava il menu
+acceso fino al ricaricamento, e due interruttori che dicono cose diverse sulla
+stessa preferenza sono peggio di un interruttore solo nel posto sbagliato.
+
+### Tema chiaro e scuro
+
+È la stessa cosa del pannello Athlon portata qui. La scelta vive nel
 **browser** (`localStorage`, chiave `ronchiverdi-tema`) e non nel database,
-come le push: è una preferenza del *dispositivo*, non della persona — il
-telefono con cui si timbra la sera vuole lo scuro, il portatile in reception di
-giorno vuole il chiaro, e sono lo stesso account.
+come le push e come il campanello: è una preferenza del *dispositivo*, non
+della persona — il telefono con cui si timbra la sera vuole lo scuro, il
+portatile in reception di giorno vuole il chiaro, e sono lo stesso account.
 
 Tre cose da sapere prima di toccarlo.
 
@@ -601,8 +628,8 @@ carico, solo per i commerciali.
 Fatto anche: **recupero password** dal login, senza rivelare quali indirizzi
 sono abilitati.
 
-Fatto anche: **tema scuro**, con l'interruttore in fondo al menu e la scelta
-ricordata su quel dispositivo.
+Fatto anche: **tema scuro**, con push, campanello e tema in cima al menu e la
+scelta ricordata su quel dispositivo.
 
 Da fare: Enquiries, Persone, Agenda con `/api/disponibilita` per gli slot che il
 sito offre nel form contatti, Visite al sito, pagina di Controllo operatori.
