@@ -343,38 +343,43 @@ Tutto questo vale **solo qui**: sugli altri canali non c'è nessuna trattativa,
 e la gestione è un interruttore più una nota — vedi «Young School e gli altri
 corsi» più sotto.
 
-### Le due `trova_o_crea_opportunita`
+### `trova_o_crea_opportunita`, e la firma che non c'è più
 
-In `public` esistono **due funzioni con questo nome**, ed è una trappola su cui
-si è già inciampato una volta:
+Oggi ce n'è **una sola**: `(uuid, text, boolean)`, nata col registro ospiti.
+`p_origine` scrive da dove viene la trattativa (`'walk-in'`),
+`p_senza_assegnazione` la fa nascere libera invece di ereditare l'ultimo
+commerciale. La chiama il trigger `collega_persona_a_contatto`, cioè ogni lead
+dal sito e dal banco.
 
-| Firma | Chi la chiama |
-|---|---|
-| `(uuid)` | **nessuno**: è codice morto, resto di [`2026-09-02-opportunita.sql`](scripts/sql/2026-09-02-opportunita.sql) |
-| `(uuid, text, boolean)` | **il trigger** `collega_persona_a_contatto`, cioè ogni lead dal sito e dal banco |
+Fino al 10 settembre ne convivevano **due** — c'era anche una `(uuid)`, resto
+di [`2026-09-02-opportunita.sql`](scripts/sql/2026-09-02-opportunita.sql), che
+non chiamava più nessuno. Vale la pena ricordare come è andata, perché la
+lezione resta:
 
-Quella viva è la seconda, nata col registro ospiti: `p_origine` scrive da dove
-viene la trattativa (`'walk-in'`), `p_senza_assegnazione` la fa nascere libera
-invece di ereditare l'ultimo commerciale. **Chi modifica il comportamento di
-"trova o crea la trattativa" deve toccare quella**, non la prima.
+- una correzione allo stato `annullato` è finita **sulla firma morta**, e non
+  ha avuto effetto: chi leggeva `scripts/sql/` trovava solo quella. Il difetto
+  — trattative annullate riusate dai lead dal sito — si è visto solo
+  interrogando il database;
+- e finché esistevano entrambe, una chiamata con **un solo argomento** era
+  ambigua (`function is not unique`), perché la firma a tre ha valori di
+  default per il 2° e il 3° parametro ed era candidata anche lei. Dentro il
+  trigger quell'errore sarebbe finito nel suo `exception when others`: un lead
+  senza trattativa, e nessun errore visibile.
 
-Due conseguenze pratiche:
+La firma morta è stata tolta da
+[`2026-09-10-via-la-firma-morta.sql`](scripts/sql/2026-09-10-via-la-firma-morta.sql),
+dopo che
+[`2026-09-10-walk-in-conosce-annullato.sql`](scripts/sql/2026-09-10-walk-in-conosce-annullato.sql)
+ha corretto quella viva e l'ha **scritta finalmente nel repo**.
 
-- una chiamata con **un solo argomento** è ambigua e fallisce, perché la
-  seconda firma ha valori di default per il 2° e il 3° parametro e quindi è
-  candidata anche lei. La firma morta andrebbe tolta
-  (`drop function public.trova_o_crea_opportunita(uuid);`), dopo aver escluso
-  che la usi qualcosa fuori da questi due repository;
-- **`scripts/sql/` non ha sempre rispecchiato lo schema di produzione.** La
-  migration che ha creato la funzione a tre argomenti (`walk_in_guest_register`)
-  è stata applicata al database senza essere versionata qui, ed è per questo
-  che una correzione è finita sulla firma sbagliata. Prima di modificare una
-  funzione, conviene leggerla dal database:
-  `select pg_get_functiondef('public.nome(tipi)'::regprocedure);`
+**La lezione che resta**: `scripts/sql/` non ha sempre rispecchiato lo schema
+di produzione — la migration che ha creato la funzione a tre argomenti
+(`walk_in_guest_register`) è stata applicata al database senza essere
+versionata qui. Prima di modificare una funzione, leggerla dal database:
 
-La correzione sta in
-[`2026-09-10-walk-in-conosce-annullato.sql`](scripts/sql/2026-09-10-walk-in-conosce-annullato.sql),
-che oltre a sistemare la funzione la **scrive finalmente nel repo**.
+```sql
+select pg_get_functiondef('public.nome(tipi)'::regprocedure);
+```
 
 ### L'evento in agenda apre la trattativa
 

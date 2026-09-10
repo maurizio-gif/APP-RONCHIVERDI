@@ -110,6 +110,13 @@ alter table public.staff_users
  * l'assegnatario dell'ultima: chi seguiva quella persona continua a seguirla,
  * senza che qualcuno debba riassegnarla a mano.
  */
+-- ATTENZIONE, se rileggi questo file da solo: questa firma a UN argomento
+-- NON esiste più in produzione, l'ha tolta 2026-09-10-via-la-firma-morta.sql.
+-- Quella viva è `(uuid, text, boolean)`, definita in
+-- 2026-09-10-walk-in-conosce-annullato.sql, ed è quella che chiama il trigger.
+-- Rieseguire questo file da solo la ricreerebbe, e con due firme una chiamata
+-- a un argomento torna ambigua: rieseguirlo ha senso solo ricostruendo il
+-- database da zero, in ordine e fino in fondo.
 create or replace function public.trova_o_crea_opportunita(p_persona_id uuid)
 returns uuid
 language plpgsql
