@@ -9,6 +9,7 @@ import { SEZIONE_NOTIFICHE } from '@/lib/notifiche'
 import { IconaMenu } from './IconeMenu'
 import { useNotifiche } from './NotificheProvider'
 import { PushToggleNavItem } from './PushToggleNavItem'
+import { TemaToggle } from './TemaToggle'
 
 type VoceMenu = {
   href: string
@@ -143,6 +144,10 @@ export function Sidebar({
             dei messaggi: va acceso una volta su ogni dispositivo, e in una
             sezione che si apre di rado nessuno lo troverebbe. */}
         {sezioniConsentite.includes(SEZIONE_NOTIFICHE) && <PushToggleNavItem />}
+        {/* Accanto alle push, e senza condizioni: il tema non dipende da
+            quali sezioni una persona può aprire, e chi ha il solo accesso
+            esterno lavora su questo pannello come chiunque altro. */}
+        <TemaToggle />
         <form action={logout}>
           <button type="submit" className="btn btn-ghost btn-block btn-sm">
             Esci

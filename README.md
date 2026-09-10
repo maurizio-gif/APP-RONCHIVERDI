@@ -523,6 +523,47 @@ la scritta "CRM".
 Per cambiare icona si sostituisce il master e si rilancia lo script: i file di
 `public/` non si ritoccano a mano, o la prossima rigenerazione li sovrascrive.
 
+## Tema chiaro e scuro
+
+L'interruttore sta in fondo al menu, accanto a quello delle notifiche push, ed
+è la stessa cosa del pannello Athlon portata qui. La scelta vive nel
+**browser** (`localStorage`, chiave `ronchiverdi-tema`) e non nel database,
+come le push: è una preferenza del *dispositivo*, non della persona — il
+telefono con cui si timbra la sera vuole lo scuro, il portatile in reception di
+giorno vuole il chiaro, e sono lo stesso account.
+
+Tre cose da sapere prima di toccarlo.
+
+**Il chiaro è il predefinito, e non c'è `prefers-color-scheme`.** È una scelta
+e non una dimenticanza: legare il tema all'impostazione di sistema vorrebbe
+dire che il pannello cambia aspetto da solo al tramonto su un Mac configurato
+in automatico. Chi vuole lo scuro lo accende, e da quel momento è suo su quel
+dispositivo.
+
+**Lo script che applica il tema sta nel `<head>`** (`SCRIPT_TEMA` in
+[`lib/tema.ts`](lib/tema.ts), incollato da `app/layout.tsx`) e non in un
+componente React: qualunque cosa passi da React gira *dopo* il primo disegno, e
+per un istante si vedrebbe la pagina chiara prima che diventi scura.
+
+**Un colore nuovo si scrive con un token, mai con un valore.** Il blocco
+`:root[data-tema='scuro']` in fondo a `app/globals.css` è corto proprio perché
+il pannello era già scritto quasi tutto con le variabili: una regola che porta
+un `rgba(28, 28, 24, …)` scritto a mano è una regola che al buio si ribalta
+male, e va promossa a token — è quello che è successo ai bordi degli stati
+(`--ok-border` e compagni) e ai veli neutri (`--fill-soft`, `--fill-strong`,
+`--row-off`). La sidebar e il login sono scuri in tutti e due i temi: si
+vestono con `--text-on-dark`, `--accent-on-dark` e `--border-dark`, che infatti
+non si ribaltano.
+
+Per verificare non serve il pannello vero: si apre `app/globals.css` in una
+pagina di prova con il markup rappresentativo, si mette `data-tema="scuro"`
+sull'`<html>` e si misura il contrasto compositando i fondi semitrasparenti sui
+loro antenati — un fondo `rgba(…)` confrontato con sé stesso dà rapporti
+inventati. Attenzione ai `transition` sui colori: leggendo lo stile calcolato
+subito dopo il cambio si legge il fotogramma di mezzo, non il colore d'arrivo.
+Ultima passata: al buio nessun testo sotto 4,5:1; al chiaro gli stessi sei
+badge marginali di prima (4,18–4,43), invariati.
+
 ## Stato
 
 Fatto: autenticazione, invito e primo accesso, permessi granulari, guscio del
@@ -559,6 +600,9 @@ carico, solo per i commerciali.
 
 Fatto anche: **recupero password** dal login, senza rivelare quali indirizzi
 sono abilitati.
+
+Fatto anche: **tema scuro**, con l'interruttore in fondo al menu e la scelta
+ricordata su quel dispositivo.
 
 Da fare: Enquiries, Persone, Agenda con `/api/disponibilita` per gli slot che il
 sito offre nel form contatti, Visite al sito, pagina di Controllo operatori.

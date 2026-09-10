@@ -23,26 +23,43 @@
 	--text-on-dark: #f6efde;
 	--text-muted: #4a4a42;
 	--text-muted-on-dark: rgba(246, 239, 222, 0.62);
+	/* Il testo sopra una campitura piena d'accento: crema sul bronzo qui,
+	   nero caldo sull'oro al buio. È un ruolo a sé e non `--bg`, perché nei
+	   due temi l'accento cambia di luminosità e il testo lo deve seguire. */
+	--text-on-accent: #fdfaf3;
 
 	/* Bordi semi-trasparenti, come sul sito */
 	--border: rgba(28, 28, 24, 0.08);
 	--border-strong: rgba(28, 28, 24, 0.12);
 	--border-dark: rgba(246, 239, 222, 0.14);
 
+	/* Veli d'inchiostro: le pastiglie neutre (tag, conteggi, badge spenti),
+	   il passo vuoto della pipeline, la riga già gestita. Sono token e non
+	   valori scritti dentro le regole perché al buio si ribaltano, e due di
+	   loro si ribaltano in versi opposti: una pastiglia deve schiarirsi per
+	   staccare dal fondo, una riga spenta deve scurirsi per rientrarci. */
+	--fill-soft: rgba(28, 28, 24, 0.06);
+	--fill-strong: rgba(28, 28, 24, 0.12);
+	--row-off: rgba(28, 28, 24, 0.015);
+
 	/* Accento oro/bronzo */
 	--accent: #8b6c14;
 	--accent-on-dark: #c8991f;
 	--accent-hover: #6e5610;
 	--accent-tint: rgba(139, 108, 20, 0.1);
+	--accent-border: rgba(139, 108, 20, 0.3);
 
 	/* Stati. Verde e rosso sono desaturati verso il caldo: un semaforo
 	   saturo stonerebbe accanto alla tavolozza crema/oro del club. */
 	--ok: #4a6b3a;
 	--ok-tint: rgba(74, 107, 58, 0.12);
+	--ok-border: rgba(74, 107, 58, 0.3);
 	--warn: #8a6410;
 	--warn-tint: rgba(138, 100, 16, 0.12);
+	--warn-border: rgba(138, 100, 16, 0.3);
 	--error: #8c3320;
 	--error-tint: rgba(140, 51, 32, 0.1);
+	--error-border: rgba(140, 51, 32, 0.3);
 	/* Blu ardesia: il terzo stato. Con solo verde/ambra/rosso «in corso» e
 	   «da prendere» finivano entrambi sull'oro dell'accento, e in elenco si
 	   distinguevano solo leggendo la parola. */
@@ -432,7 +449,7 @@ a:hover {
 	background: var(--accent);
 	border: 1px solid var(--accent);
 	border-radius: var(--radius);
-	color: #fdfaf3;
+	color: var(--text-on-accent);
 	font-family: inherit;
 	font-size: var(--text-xs);
 	font-weight: 500;
@@ -478,7 +495,7 @@ a:hover {
 
 .btn-danger {
 	background: none;
-	border-color: rgba(140, 51, 32, 0.35);
+	border-color: var(--error-border);
 	color: var(--error);
 }
 
@@ -743,7 +760,7 @@ a.stat:hover .stat-freccia {
 .stat.is-azione.stat-warn,
 .stat.is-azione.stat-nuovo {
 	background: linear-gradient(var(--warn-tint), var(--warn-tint)), var(--surface);
-	border-color: rgba(138, 100, 16, 0.3);
+	border-color: var(--warn-border);
 }
 
 .stat.is-azione.stat-info,
@@ -755,7 +772,7 @@ a.stat:hover .stat-freccia {
 /* Un arretrato è la cosa che scotta: qui il velo è rosso, non ambra. */
 .stat.is-azione.stat-error {
 	background: linear-gradient(var(--error-tint), var(--error-tint)), var(--surface);
-	border-color: rgba(140, 51, 32, 0.32);
+	border-color: var(--error-border);
 }
 
 a.stat.is-azione:hover,
@@ -919,7 +936,7 @@ table.tabella tbody tr:hover {
 }
 
 .badge-off {
-	background: rgba(28, 28, 24, 0.06);
+	background: var(--fill-soft);
 	color: var(--text-muted);
 }
 
@@ -951,7 +968,7 @@ table.tabella tbody tr:hover {
 	margin-bottom: 1.25rem;
 	padding: 0.75rem 1rem;
 	background: var(--error-tint);
-	border: 1px solid rgba(140, 51, 32, 0.3);
+	border: 1px solid var(--error-border);
 	border-radius: var(--radius);
 	color: var(--error);
 	font-size: var(--text-sm);
@@ -961,7 +978,7 @@ table.tabella tbody tr:hover {
 	margin-bottom: 1.25rem;
 	padding: 0.75rem 1rem;
 	background: var(--ok-tint);
-	border: 1px solid rgba(74, 107, 58, 0.3);
+	border: 1px solid var(--ok-border);
 	border-radius: var(--radius);
 	color: var(--ok);
 	font-size: var(--text-sm);
@@ -1154,7 +1171,7 @@ table.tabella tbody tr:hover {
 
 .agenda-giorno.is-arretrato {
 	background: linear-gradient(var(--error-tint), var(--error-tint)), var(--surface);
-	border-color: rgba(140, 51, 32, 0.22);
+	border-color: var(--error-border);
 	border-left: 4px solid var(--error);
 }
 
@@ -1559,31 +1576,31 @@ table.tabella tbody tr:hover {
 
 .badge-tipo.tipo-sede {
 	background: var(--ok-tint);
-	border-color: rgba(74, 107, 58, 0.3);
+	border-color: var(--ok-border);
 	color: var(--ok);
 }
 
 .badge-tipo.tipo-telefono {
 	background: var(--accent-tint);
-	border-color: rgba(139, 108, 20, 0.3);
+	border-color: var(--accent-border);
 	color: var(--accent);
 }
 
 .badge-tipo.tipo-task {
-	background: rgba(28, 28, 24, 0.06);
+	background: var(--fill-soft);
 	border-color: var(--border-strong);
 	color: var(--text-muted);
 }
 
 .badge-tipo.tipo-email {
-	background: rgba(58, 90, 107, 0.12);
-	border-color: rgba(58, 90, 107, 0.3);
-	color: #35566b;
+	background: var(--info-tint);
+	border-color: var(--info-border);
+	color: var(--info);
 }
 
 .badge-tipo.tipo-whatsapp {
 	background: var(--warn-tint);
-	border-color: rgba(138, 100, 16, 0.3);
+	border-color: var(--warn-border);
 	color: var(--warn);
 }
 
@@ -2172,7 +2189,7 @@ table.tabella tbody tr:hover {
    chiaro: il colore dell'accento va invertito. */
 .persona-riga .user-badge {
 	background: var(--accent-tint);
-	border-color: rgba(139, 108, 20, 0.3);
+	border-color: var(--accent-border);
 	color: var(--accent);
 }
 
@@ -2546,6 +2563,107 @@ table.tabella tbody tr:hover {
 	color: var(--accent-on-dark);
 	font-size: var(--text-2xs);
 	line-height: 1.4;
+}
+
+/* ── Chiaro o scuro ──
+   Stessa riga dell'interruttore delle push, che gli sta sopra: sono due
+   preferenze del dispositivo, e due forme diverse per la stessa cosa
+   direbbero che una delle due è un'altra cosa. Vive sulla sidebar, che è
+   scura in tutti e due i temi: si veste per il fondo scuro e non usa i token
+   che si ribaltano. */
+.tema-nav {
+	margin-bottom: 0.75rem;
+}
+
+.tema-nav-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.6rem;
+	width: 100%;
+	padding: 0.5rem 0.65rem;
+	background: transparent;
+	border: 1px dashed var(--border-dark);
+	border-radius: var(--radius);
+	color: var(--text-muted-on-dark);
+	font-family: inherit;
+	font-size: var(--text-xs);
+	text-align: left;
+	cursor: pointer;
+}
+
+.tema-nav-toggle:hover {
+	border-color: var(--accent-on-dark);
+	color: var(--text-on-dark);
+}
+
+.tema-nav-toggle.is-scuro {
+	border-style: solid;
+	border-color: var(--accent-on-dark);
+	color: var(--accent-on-dark);
+}
+
+/* Un binario con un pallino che scorre da sole a luna, non le parole
+   «chiaro»/«scuro»: lo stato si vede prima di leggerlo. Le due icone stanno
+   sopra il pallino (`z-index`), così quella attiva si legge sul crema pieno
+   invece che sul binario. */
+.tema-switch {
+	position: relative;
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: space-between;
+	width: 42px;
+	height: 21px;
+	padding: 0 4px;
+	background: rgba(246, 239, 222, 0.08);
+	border: 1px solid var(--border-dark);
+	border-radius: 999px;
+	transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.tema-nav-toggle.is-scuro .tema-switch {
+	background: rgba(200, 153, 31, 0.16);
+	border-color: rgba(200, 153, 31, 0.45);
+}
+
+.tema-switch-icona {
+	position: relative;
+	z-index: 1;
+	flex-shrink: 0;
+	width: 11px;
+	height: 11px;
+	color: var(--text-muted-on-dark);
+}
+
+/* Quella dal lato del pallino: sta sul crema, quindi si scrive col nero
+   caldo. L'altra resta smorzata sul binario. */
+.tema-nav-toggle .tema-switch-sole {
+	color: var(--bg-dark);
+}
+
+.tema-nav-toggle.is-scuro .tema-switch-sole {
+	color: var(--text-muted-on-dark);
+}
+
+.tema-nav-toggle.is-scuro .tema-switch-luna {
+	color: var(--bg-dark);
+}
+
+.tema-switch-pallino {
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 15px;
+	height: 15px;
+	background: var(--text-on-dark);
+	border-radius: 50%;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+	transition: transform 0.2s ease;
+}
+
+.tema-nav-toggle.is-scuro .tema-switch-pallino {
+	transform: translateX(21px);
 }
 
 /* ── Il modulo di composizione ── */
@@ -3444,7 +3562,7 @@ table.tabella tbody tr:hover {
 	align-items: center;
 	gap: 0.3rem;
 	padding: 0.1rem 0.5rem;
-	background: rgba(28, 28, 24, 0.05);
+	background: var(--fill-soft);
 	border: 1px solid var(--border-strong);
 	border-radius: 999px;
 	color: var(--text-muted);
@@ -3457,7 +3575,7 @@ table.tabella tbody tr:hover {
    principale, e sull'oro del club si legge come «di casa». */
 .tag-canale {
 	background: var(--accent-tint);
-	border-color: rgba(139, 108, 20, 0.28);
+	border-color: var(--accent-border);
 	color: var(--accent);
 }
 
@@ -3472,7 +3590,7 @@ table.tabella tbody tr:hover {
 
 .tag-avviso {
 	background: var(--warn-tint);
-	border-color: rgba(138, 100, 16, 0.3);
+	border-color: var(--warn-border);
 	color: var(--warn);
 	font-weight: 500;
 }
@@ -3488,7 +3606,7 @@ table.tabella tbody tr:hover {
 
 .tag-ok {
 	background: var(--ok-tint);
-	border-color: rgba(74, 107, 58, 0.3);
+	border-color: var(--ok-border);
 	color: var(--ok);
 }
 
@@ -3596,7 +3714,7 @@ table.tabella tbody tr:hover {
 	justify-content: center;
 	min-width: 1.35rem;
 	padding: 0 0.3rem;
-	background: rgba(28, 28, 24, 0.07);
+	background: var(--fill-soft);
 	border-radius: 999px;
 	color: var(--text-muted);
 	font-size: var(--text-2xs);
@@ -3691,7 +3809,7 @@ table.tabella tbody tr:hover {
 
 .canale-testa.is-arretrato {
 	background: linear-gradient(var(--warn-tint), var(--warn-tint)), var(--surface);
-	border-color: rgba(138, 100, 16, 0.3);
+	border-color: var(--warn-border);
 	border-left-color: var(--warn);
 }
 
@@ -3782,7 +3900,7 @@ table.tabella tbody tr:hover {
    60% di opacità i badge di stato diventavano illeggibili: si spegne il
    colore della banda e si sbianca il fondo, non il testo. */
 .richiesta.is-gestita {
-	background: rgba(28, 28, 24, 0.015);
+	background: var(--row-off);
 }
 
 .richiesta.is-gestita .richiesta-testa {
@@ -3832,7 +3950,7 @@ table.tabella tbody tr:hover {
 	height: 2.1rem;
 	margin-top: 0.1rem;
 	background: var(--accent-tint);
-	border: 1px solid rgba(139, 108, 20, 0.28);
+	border: 1px solid var(--accent-border);
 	border-radius: 50%;
 	color: var(--accent);
 	font-size: var(--text-2xs);
@@ -3841,7 +3959,7 @@ table.tabella tbody tr:hover {
 }
 
 .richiesta.is-gestita .richiesta-iniziali {
-	background: rgba(28, 28, 24, 0.05);
+	background: var(--fill-soft);
 	border-color: var(--border-strong);
 	color: var(--text-muted);
 }
@@ -3923,7 +4041,7 @@ table.tabella tbody tr:hover {
 
 .trattativa.stato-nuovo {
 	background: linear-gradient(var(--warn-tint), var(--warn-tint)), var(--bg);
-	border-color: rgba(138, 100, 16, 0.28);
+	border-color: var(--warn-border);
 	border-left-color: var(--warn);
 }
 
@@ -3935,7 +4053,7 @@ table.tabella tbody tr:hover {
 
 .trattativa.stato-vinto {
 	background: linear-gradient(var(--ok-tint), var(--ok-tint)), var(--bg);
-	border-color: rgba(74, 107, 58, 0.28);
+	border-color: var(--ok-border);
 	border-left-color: var(--ok);
 }
 
@@ -3972,7 +4090,7 @@ table.tabella tbody tr:hover {
 	width: 1.5rem;
 	height: 0.28rem;
 	border-radius: 999px;
-	background: rgba(28, 28, 24, 0.12);
+	background: var(--fill-strong);
 }
 
 .pipeline-passo.is-fatto {
@@ -4113,7 +4231,7 @@ table.tabella tbody tr:hover {
 
 .card-avviso {
 	background: linear-gradient(var(--warn-tint), var(--warn-tint)), var(--surface);
-	border-color: rgba(138, 100, 16, 0.3);
+	border-color: var(--warn-border);
 	border-left: 4px solid var(--warn);
 }
 
@@ -4272,4 +4390,124 @@ table.tabella tbody tr:hover {
 	.tabella-agenda .riga-agenda.is-fatta {
 		border-left: 4px solid var(--ok);
 	}
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TEMA SCURO
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Si accende con `data-tema="scuro"` sull'<html>, messo dallo script nel
+   <head> prima del primo disegno (vedi lib/tema.ts). Il chiaro resta il
+   predefinito: non c'è `prefers-color-scheme`, perché il tema qui è una
+   scelta esplicita e non deve cambiare da solo al tramonto.
+
+   Il grosso lo fanno i token, ed è la ragione per cui questo blocco è corto:
+   il pannello era già scritto quasi interamente con le variabili. Le poche
+   regole sotto sono quelle che al buio si ribaltano male — un riempimento
+   pieno che diventava chiaro su chiaro, un'ombra che al buio non esiste.
+
+   La tavolozza non è nera: è la stessa casa a luci spente. Grigi caldi con
+   dentro il marrone della crema, e l'oro del club che al buio può finalmente
+   essere il tono vivo invece del bronzo scuro che il fondo chiaro imponeva. */
+
+:root[data-tema='scuro'] {
+	/* Lo dice ai controlli di sistema — la tendina di un <select>, le barre
+	   di scorrimento, il calendario di un input date, il riempimento
+	   automatico del browser: senza, restano bianchi in mezzo a una pagina
+	   scura, e sono l'unica parte della pagina che il CSS non veste. */
+	color-scheme: dark;
+
+	/* La gerarchia delle superfici si conserva invertendo il verso: la
+	   sidebar resta la più scura (è l'incasso), la pagina sta in mezzo, la
+	   card è la più chiara perché è la cosa che sta sopra. Le bande alternate
+	   scendono invece di salire, perché su un fondo scuro è il buio a leggersi
+	   come rientranza. */
+	--bg: #201d19;
+	--bg-alt: #191713;
+	--bg-dark: #131210;
+	--surface: #292520;
+
+	--text: #f1ebdf;
+	--text-muted: #a9a196;
+	/* `--text-on-dark` e `--text-muted-on-dark` non si toccano: vestono la
+	   sidebar e il login, che sono scuri in tutti e due i temi. */
+
+	--border: rgba(246, 239, 222, 0.09);
+	--border-strong: rgba(246, 239, 222, 0.16);
+
+	/* Il velo neutro si schiarisce — una pastiglia deve staccare dal fondo —
+	   mentre la riga già gestita si scurisce: spegnere, al buio, vuol dire
+	   rientrare nel fondo, non uscirne. */
+	--fill-soft: rgba(246, 239, 222, 0.08);
+	--fill-strong: rgba(246, 239, 222, 0.16);
+	--row-off: rgba(0, 0, 0, 0.18);
+
+	/* Il bronzo #8b6c14 nasce dal problema opposto: era scuro per reggere il
+	   contrasto sulla crema. Al buio quel problema si ribalta e l'oro pieno
+	   del club diventa leggibile — 7,4:1 sul fondo della pagina. E l'hover
+	   schiarisce invece di scurire, perché è il verso in cui qui si «accende».
+	   `--accent-on-dark` resta com'è: veste la sidebar, che non cambia. */
+	--accent: #d3a52e;
+	--accent-hover: #e8bc4f;
+	--accent-tint: rgba(211, 165, 46, 0.15);
+	--accent-border: rgba(211, 165, 46, 0.34);
+
+	/* Ora è l'oro a essere chiaro, quindi sopra ci va il nero caldo. */
+	--text-on-accent: #1a1712;
+
+	/* Gli stati restano desaturati verso il caldo, come sul chiaro: cambia
+	   che partono da sopra invece che da sotto. Tutti fra 6,9:1 e 7,4:1 sul
+	   fondo della pagina. */
+	--ok: #8fc276;
+	--ok-tint: rgba(143, 194, 118, 0.14);
+	--ok-border: rgba(143, 194, 118, 0.34);
+	--warn: #dca63d;
+	--warn-tint: rgba(220, 166, 61, 0.14);
+	--warn-border: rgba(220, 166, 61, 0.34);
+	--error: #e59178;
+	--error-tint: rgba(229, 145, 120, 0.13);
+	--error-border: rgba(229, 145, 120, 0.34);
+	--info: #8ab4cc;
+	--info-tint: rgba(138, 180, 204, 0.14);
+	--info-border: rgba(138, 180, 204, 0.34);
+}
+
+/* Il filtro attivo è un riempimento pieno, e sul chiaro il pieno è il nero
+   caldo. Al buio quel nero sparisce nella pagina: il pieno diventa l'oro, che
+   è l'altro modo che questo pannello ha di dire «questo è acceso». */
+:root[data-tema='scuro'] .chip.is-attivo {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: var(--text-on-accent);
+}
+
+:root[data-tema='scuro'] .chip.is-attivo:hover {
+	background: var(--accent-hover);
+	border-color: var(--accent-hover);
+}
+
+/* Il conteggio dentro il chip acceso: sul chiaro era un velo di crema sul
+   nero, qui è un velo d'inchiostro sull'oro. */
+:root[data-tema='scuro'] .chip.is-attivo .chip-conteggio {
+	background: rgba(26, 23, 18, 0.2);
+	color: var(--text-on-accent);
+}
+
+/* Le ombre nate per il chiaro al buio non si vedono, e sono la sola cosa che
+   stacca un pannello che galleggia dal contenuto sotto: si approfondiscono
+   invece di sparire. */
+:root[data-tema='scuro'] .vista-tab.is-attivo {
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+:root[data-tema='scuro'] .destinatari-menu {
+	box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+}
+
+:root[data-tema='scuro'] .msg-modale {
+	box-shadow: 0 24px 56px rgba(0, 0, 0, 0.6);
+}
+
+:root[data-tema='scuro'] .avviso-opportunita {
+	box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
 }
