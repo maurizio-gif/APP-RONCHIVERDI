@@ -343,6 +343,39 @@ Tutto questo vale **solo qui**: sugli altri canali non c'è nessuna trattativa,
 e la gestione è un interruttore più una nota — vedi «Young School e gli altri
 corsi» più sotto.
 
+### Le due `trova_o_crea_opportunita`
+
+In `public` esistono **due funzioni con questo nome**, ed è una trappola su cui
+si è già inciampato una volta:
+
+| Firma | Chi la chiama |
+|---|---|
+| `(uuid)` | **nessuno**: è codice morto, resto di [`2026-09-02-opportunita.sql`](scripts/sql/2026-09-02-opportunita.sql) |
+| `(uuid, text, boolean)` | **il trigger** `collega_persona_a_contatto`, cioè ogni lead dal sito e dal banco |
+
+Quella viva è la seconda, nata col registro ospiti: `p_origine` scrive da dove
+viene la trattativa (`'walk-in'`), `p_senza_assegnazione` la fa nascere libera
+invece di ereditare l'ultimo commerciale. **Chi modifica il comportamento di
+"trova o crea la trattativa" deve toccare quella**, non la prima.
+
+Due conseguenze pratiche:
+
+- una chiamata con **un solo argomento** è ambigua e fallisce, perché la
+  seconda firma ha valori di default per il 2° e il 3° parametro e quindi è
+  candidata anche lei. La firma morta andrebbe tolta
+  (`drop function public.trova_o_crea_opportunita(uuid);`), dopo aver escluso
+  che la usi qualcosa fuori da questi due repository;
+- **`scripts/sql/` non ha sempre rispecchiato lo schema di produzione.** La
+  migration che ha creato la funzione a tre argomenti (`walk_in_guest_register`)
+  è stata applicata al database senza essere versionata qui, ed è per questo
+  che una correzione è finita sulla firma sbagliata. Prima di modificare una
+  funzione, conviene leggerla dal database:
+  `select pg_get_functiondef('public.nome(tipi)'::regprocedure);`
+
+La correzione sta in
+[`2026-09-10-walk-in-conosce-annullato.sql`](scripts/sql/2026-09-10-walk-in-conosce-annullato.sql),
+che oltre a sistemare la funzione la **scrive finalmente nel repo**.
+
 ### L'evento in agenda apre la trattativa
 
 L'agenda la tiene il **settore core**, cioè gli adulti: se un commerciale
@@ -444,7 +477,9 @@ Tre effetti che vale la pena conoscere:
   resterebbe «quella aperta» e l'errore tornerebbe indietro da solo. La stessa
   funzione salta le annullate anche quando cerca l'assegnatario da ereditare:
   su una riga nata per sbaglio non la seguiva nessuno, e prendere quel valore
-  vorrebbe dire perdere il commerciale vero che c'era prima;
+  vorrebbe dire perdere il commerciale vero che c'era prima. **Attenzione: di
+  quella funzione ne esistono due** — vedi «Le due `trova_o_crea_opportunita`»
+  qui sotto;
 - **non entra nella fotografia.** La riga «Nel club: …» in dashboard e quella
   in cima al canale mostrano `STATI_IN_SINTESI`, cioè i quattro stati che sono
   lavoro o risultato. `annullato` resta invece fra i **chip dei filtri**, che
