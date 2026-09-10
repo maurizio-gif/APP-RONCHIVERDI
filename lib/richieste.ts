@@ -191,6 +191,32 @@ export function canaleDaChiave(chiave: string): Canale | undefined {
   return CANALI.find((c) => c.chiave === chiave)
 }
 
+/**
+ * Come si lavora una richiesta di questo canale. Sono due modi diversi
+ * perché sono due lavori diversi, e finora ne esisteva uno solo.
+ *
+ *  - `trattativa` — solo Club e Family. C'è una vendita da seguire: la
+ *    persona ha una trattativa con uno stato e un assegnatario, la richiesta
+ *    si chiude con un esito motivato e nello stesso gesto si programma il
+ *    seguito in agenda. Serve tutto: è quello il lavoro.
+ *
+ *  - `semplice` — le Young School (tennis, nuoto, triathlon), il Summer Camp,
+ *    Chinesis, i corsi padel, il Fitness Manager. Lì il responsabile è uno,
+ *    chiama, e la richiesta è finita: non c'è una pipeline da far avanzare né
+ *    un secondo appuntamento da fissare in agenda. Chiedergli esito
+ *    (eseguita/fallita/riprogrammata/annullata), nota obbligatoria e
+ *    programmatore di eventi voleva dire far compilare un modulo di vendita
+ *    per dire «l'ho chiamata». Qui bastano due cose: **gestito o no**, e una
+ *    **nota** — che si può scrivere subito, dopo, o mai, e correggere sempre.
+ *
+ * Il discrimine è lo stesso `inAgenda`: passare dalla segreteria, avere una
+ * trattativa e comparire in agenda sono la stessa condizione, e tenerne due
+ * separate vorrebbe dire poterle disallineare.
+ */
+export function eGestioneSemplice(canale: Canale): boolean {
+  return !canale.inAgenda
+}
+
 /** Le attività che passano dalla segreteria: quelle che l'Agenda mostra. */
 export const ATTIVITA_IN_AGENDA: readonly string[] = CANALI.filter((c) => c.inAgenda).flatMap(
   (c) => c.attivita

@@ -339,6 +339,10 @@ Ogni riga dell'elenco mostra tre cose e apre tre pannelli indipendenti:
   dell'Agenda: eseguita, fallita, riprogrammata, annullata);
 - **Eventi** — il seguito della trattativa.
 
+Tutto questo vale **solo qui**: sugli altri canali non c'è nessuna trattativa,
+e la gestione è un interruttore più una nota — vedi «Young School e gli altri
+corsi» più sotto.
+
 ### Il pannello Eventi
 
 Gli eventi sono voci di agenda (`task`) collegate alla richiesta da cui
@@ -377,6 +381,71 @@ I comandi vivono in [`esito-actions.ts`](app/dashboard/agenda/esito-actions.ts)
 e non nelle azioni dell'Agenda perché l'autorizzazione è diversa: là serve la
 sezione `agenda`, qui basta `richieste-club` — chi lavora le trattative
 programma e corregge i propri seguiti anche senza avere l'Agenda.
+
+## Young School e gli altri corsi: gestito, non gestito, una nota
+
+Le richieste dal sito si lavorano in **due modi diversi**, perché sono due
+lavori diversi. Lo decide il canale (`inAgenda` in
+[`lib/richieste.ts`](lib/richieste.ts), letto da `eGestioneSemplice`), non una
+preferenza per pagina: passare dalla segreteria, avere una trattativa e
+comparire in agenda sono la stessa condizione, e tenerne due separate vorrebbe
+dire poterle disallineare.
+
+| | Abbonamento Club e Family | Young School e gli altri |
+|---|---|---|
+| Canali | `richieste-club` | tennis scuola, tennis competizione, nuoto, triathlon, Summer Camp, Chinesis, corsi padel, Fitness Manager |
+| C'è una trattativa | sì, in `opportunita` | no |
+| Come si chiude | esito (eseguita, fallita, riprogrammata, annullata) + nota obbligatoria | interruttore **Gestito** |
+| La nota | è il verbale della chiusura: obbligatoria, si scrive chiudendo | facoltativa, si scrive quando si vuole e si corregge sempre |
+| Eventi in agenda | sì, si programmano chiudendo o dal pannello Eventi | no |
+| Colonne toccate | `esito_tipo`, `esito`, `gestito*` | `gestito*`, `note` |
+
+Il pannello **Gestione** delle Young School è
+[`GestioneSemplice.tsx`](app/dashboard/richieste/GestioneSemplice.tsx): un
+interruttore e una casella di testo. Il comando è
+[`salvaGestione`](app/dashboard/richieste/actions.ts), e scrive solo `gestito`,
+`gestito_da`, `gestito_il` e `note`.
+
+**Perché non lo stesso pannello di Club e Family.** Il responsabile del nuoto
+chiama la mamma che ha chiesto del corso, le dice gli orari, e la richiesta è
+finita: non c'è una vendita da far avanzare, nessun secondo appuntamento da
+mettere in calendario, nessuna pipeline. Il pannello degli esiti gli chiedeva
+di scegliere fra quattro esiti, motivare per iscritto e valutare un
+programmatore di eventi con sei campi — un modulo di vendita per dire «l'ho
+chiamata». E la nota, essendo il verbale di una chiusura, non si poteva né
+scrivere prima né correggere dopo.
+
+Tre conseguenze visibili in pagina, tutte volute:
+
+- l'interruttore va **nei due sensi**. Togliere il gestito rimette la
+  richiesta fra quelle da fare e cancella `gestito_da`/`gestito_il`, perché
+  lasciarli scritti direbbe che è stata gestita da qualcuno mentre l'elenco
+  dice il contrario. Il pulsante «Riapri» sparisce da queste righe: un secondo
+  comando che fa la stessa cosa lascia chiedersi in cosa differiscano;
+- le **parole seguono il canale** — «da gestire» e «gestita» invece di «da
+  lavorare» e «chiusa», in riga, sui chip dei filtri e negli elenchi vuoti:
+  dove non si chiude niente con un esito, «da lavorare» prometteva una
+  lavorazione che non esiste;
+- che ci sia una nota si vede **senza aprire**, dalla targhetta `con nota`.
+
+**Un permesso che era rotto.** `chiudiConEsito` autorizza sulle sezioni
+`agenda` o `richieste-club`: il responsabile dei corsi padel, che ha solo la
+propria sezione, non poteva chiudere nemmeno le proprie richieste. Il comando
+nuovo autorizza sul **canale della richiesta** (`canaleAutorizzato`), che è
+già il controllo giusto e l'unico che regge — chi ha solo il nuoto non muove
+una riga del tennis nemmeno chiamando l'azione a mano con un id altrui.
+
+Gli esiti già scritti su queste righe **restano**: sono lavorazioni vere fatte
+col pannello di prima, e azzerarle vorrebbe dire cancellare il perché di
+richieste già chiuse. Continuano a comparire nei Dettagli; semplicemente non
+se ne scrivono di nuovi.
+
+Lo schema non cambia — le quattro colonne esistono da settembre — ma i
+commenti sì:
+[`2026-09-10-gestione-semplice.sql`](scripts/sql/2026-09-10-gestione-semplice.sql)
+scrive nel database chi scrive quelle colonne e cosa vogliono dire su ciascun
+canale, e in coda ha la query per rileggere quante richieste restano da
+gestire e quante hanno una nota.
 
 ## Voucher visita medica (partnership Chiron)
 

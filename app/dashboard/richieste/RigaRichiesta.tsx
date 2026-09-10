@@ -15,6 +15,7 @@ import { GestioneEsito } from '@/components/GestioneEsito'
 import { ContattiRapidi } from '../ContattiRapidi'
 import { riapriRichiesta } from './actions'
 import { EventiTrattativa, type EventoCollegato } from './EventiTrattativa'
+import { GestioneSemplice } from './GestioneSemplice'
 import { Trattativa, type DatiTrattativa } from './Trattativa'
 
 export type Richiesta = {
@@ -95,12 +96,21 @@ export function RigaRichiesta({
   puoCancellare = false,
   storico,
   eventi = [],
+  gestioneSemplice = false,
 }: {
   r: Richiesta
   contesto?: ContestoTrattativa
   /** Chi può essere assegnatario di un evento programmato chiudendo la richiesta. */
   operatori?: string[]
   puoCancellare?: boolean
+  /**
+   * Come si lavora questa richiesta (vedi eGestioneSemplice in
+   * lib/richieste.ts). Vero per Young School, Summer Camp, Chinesis, corsi
+   * padel e Fitness Manager: là non c'è una trattativa da far avanzare, e la
+   * gestione è un interruttore più una nota. Falso per Club e Family, dove
+   * la richiesta si chiude con un esito motivato e il suo seguito in agenda.
+   */
+  gestioneSemplice?: boolean
   /** Che numero è questa richiesta nella storia della persona. */
   storico?: { ordinale: number; totale: number; precedenteIl: string | null }
   /**
@@ -212,11 +222,21 @@ export function RigaRichiesta({
               {/* La lavorazione della richiesta è cosa diversa dallo stato
                   della trattativa: una persona in gestione può avere una
                   richiesta nuova ancora da chiudere, ed è quella la cosa da
-                  fare adesso. */}
+                  fare adesso.
+
+                  Le parole sono quelle del canale: dove si chiude con un
+                  esito la richiesta è «chiusa», dove si gestisce con
+                  l'interruttore è «gestita» — la stessa parola scritta sul
+                  comando che la muove, o si cercherebbe un pulsante «chiudi»
+                  che non c'è. */}
               {r.gestito ? (
-                <span className="badge badge-off badge-punto">chiusa</span>
+                <span className="badge badge-off badge-punto">
+                  {gestioneSemplice ? 'gestita' : 'chiusa'}
+                </span>
               ) : (
-                <span className="badge badge-warn badge-punto badge-stato">da lavorare</span>
+                <span className="badge badge-warn badge-punto badge-stato">
+                  {gestioneSemplice ? 'da gestire' : 'da lavorare'}
+                </span>
               )}
 
               {eEsitoValido(r.esito_tipo) && (
@@ -255,6 +275,11 @@ export function RigaRichiesta({
                 <span className="tag tag-avviso">{storico!.ordinale}ª richiesta</span>
               )}
 
+              {/* Che ci sia una nota va visto senza aprire: dove la nota è
+                  l'unica cosa che si scrive, una riga muta e una riga con
+                  dentro «richiama dopo le 18» si somigliano troppo. */}
+              {gestioneSemplice && r.note && <span className="tag tag-nota">con nota</span>}
+
               {r.utm_campaign && <span className="tag">campagna {r.utm_campaign}</span>}
             </div>
 
@@ -286,7 +311,10 @@ export function RigaRichiesta({
 
               Il click non deve arrivare alla testa, o riaprire la richiesta
               aprirebbe anche il dettaglio. */}
-          {r.gestito && (
+          {/* Nella gestione semplice non c'è: l'interruttore dentro Gestione
+              va nei due sensi, e un secondo comando che fa la stessa cosa
+              lascia chiedersi in cosa differiscano. */}
+          {r.gestito && !gestioneSemplice && (
             <button
               type="button"
               className="btn btn-ghost btn-sm"
@@ -369,11 +397,12 @@ export function RigaRichiesta({
       )}
 
       {/* Non è un comando ma il fatto già avvenuto: chi l'ha chiusa e quando.
-          Diceva "presa in carico" quando la si prendeva in carico a mano; ora
-          `gestito` lo scrive solo la chiusura con esito. */}
+          Diceva "presa in carico" quando la si prendeva in carico a mano; su
+          Club e Family ora `gestito` lo scrive solo la chiusura con esito,
+          sugli altri canali l'interruttore della gestione semplice. */}
       {r.gestito && (
         <p className="richiesta-meta muted" style={{ margin: '0.35rem 0 0' }}>
-          Chiusa
+          {gestioneSemplice ? 'Gestita' : 'Chiusa'}
           {r.gestito_da && ` da ${r.gestito_da}`}
           {r.gestito_il && ` il ${dataOra(r.gestito_il)}`}
         </p>
@@ -498,12 +527,14 @@ export function RigaRichiesta({
                 <dd>{r.esito}</dd>
               </>
             )}
-            {/* Nota del vecchio riquadro "Note", che non esiste più: la nota
-                ora è una sola e si scrive chiudendo l'esito. Le vecchie
-                restano leggibili invece di sparire col riquadro. */}
+            {/* Su Club e Family è la nota del vecchio riquadro "Note", che
+                non esiste più: là la nota ora è una sola e si scrive
+                chiudendo l'esito, e le vecchie restano leggibili invece di
+                sparire col riquadro. Sugli altri canali è *la* nota, quella
+                che si scrive e si corregge dalla gestione. */}
             {r.note && (
               <>
-                <dt>Nota precedente</dt>
+                <dt>{gestioneSemplice ? 'Nota' : 'Nota precedente'}</dt>
                 <dd>{r.note}</dd>
               </>
             )}
@@ -516,21 +547,35 @@ export function RigaRichiesta({
           sotto i dati costava un clic in più ogni volta. */}
       {gestioneAperta && (
         <div className="richiesta-dettagli">
-          {/* Lo stesso pannello dell'agenda: una richiesta dal sito e una voce
-              di segreteria si chiudono con lo stesso gesto, e chi lavora non
-              deve imparare due schemi. */}
-          <GestioneEsito
-            origine="form_contatti"
-            id={r.id}
-            titolo={nome}
-            operatori={operatori}
-            puoCancellare={puoCancellare}
-            // Appuntamento e telefonata sono gli unici che hanno un orario:
-            // un messaggio non si sposta di ora perché non ne ha una.
-            conOrario={!!tipoDaAzione(r.azione)}
-            dataCorrente={r.data_scelta}
-            oraCorrente={r.ora_scelta ? String(r.ora_scelta).slice(0, 5) : null}
-          />
+          {gestioneSemplice ? (
+            // Young School, Summer Camp, Chinesis, corsi padel, Fitness
+            // Manager: un interruttore e una nota. Non c'è una trattativa da
+            // far avanzare né un seguito da fissare in agenda, quindi non c'è
+            // niente da chiudere con un esito.
+            <GestioneSemplice
+              id={r.id}
+              gestito={r.gestito}
+              nota={r.note}
+              gestitoDa={r.gestito_da}
+              gestitoIl={r.gestito_il}
+            />
+          ) : (
+            // Club e Family: lo stesso pannello dell'agenda. Una richiesta dal
+            // sito e una voce di segreteria si chiudono con lo stesso gesto, e
+            // chi lavora la pipeline non deve imparare due schemi.
+            <GestioneEsito
+              origine="form_contatti"
+              id={r.id}
+              titolo={nome}
+              operatori={operatori}
+              puoCancellare={puoCancellare}
+              // Appuntamento e telefonata sono gli unici che hanno un orario:
+              // un messaggio non si sposta di ora perché non ne ha una.
+              conOrario={!!tipoDaAzione(r.azione)}
+              dataCorrente={r.data_scelta}
+              oraCorrente={r.ora_scelta ? String(r.ora_scelta).slice(0, 5) : null}
+            />
+          )}
         </div>
       )}
 
