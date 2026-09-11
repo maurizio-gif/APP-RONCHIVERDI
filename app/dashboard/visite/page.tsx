@@ -22,6 +22,14 @@ type Citta = { citta: string; paese: string; sessioni: number }
 
 type Statistiche = {
   sessioni: number
+  /**
+   * Le teste, stimate.
+   *
+   * Arriva solo dove la migration 2026-09-11-persone-nelle-statistiche-visite
+   * è passata: finché non gira il campo non c'è, e il riquadro non si mostra
+   * invece di mostrare uno zero che sarebbe falso.
+   */
+  persone?: number
   convertite: number
   visitatori: number
   con_consenso: number
@@ -134,9 +142,24 @@ export default async function VisitePage({ searchParams }: { searchParams: { per
       </div>
 
       <div className="griglia-stat">
+        {/* Le persone prima delle sessioni: la domanda che ci si fa guardando
+            questa pagina è «quanta gente passa dal sito», e una persona che
+            torna tre volte non sono tre persone. Le sessioni restano subito
+            dopo, perché sono il denominatore del tasso di conversione. */}
+        {typeof s.persone === 'number' && (
+          <div className="stat">
+            <span className="stat-valore">{s.persone}</span>
+            <span className="stat-label">Persone</span>
+            <span className="stat-nota">
+              Stima per eccesso: si riconosce chi accetta i cookie di statistica, le altre visite
+              contano una testa ciascuna.
+            </span>
+          </div>
+        )}
         <div className="stat">
           <span className="stat-valore">{s.sessioni}</span>
           <span className="stat-label">Sessioni</span>
+          <span className="stat-nota">Visite, non teste: chi torna in un altro momento conta due.</span>
         </div>
         <div className="stat">
           <span className="stat-valore">{s.convertite}</span>
