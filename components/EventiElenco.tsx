@@ -12,9 +12,10 @@ import {
 } from '@/lib/agenda'
 import { nomeDiEmail } from '@/lib/staff'
 import { GestioneEsito } from '@/components/GestioneEsito'
-import { GestioneSemplice } from '@/app/dashboard/richieste/GestioneSemplice'
-import { ChiusuraTrattativa } from '@/app/dashboard/ChiusuraTrattativa'
+import { GestioneEvento, type ContestoEvento } from '@/components/GestioneEvento'
 import { ContattiRapidi } from '@/app/dashboard/ContattiRapidi'
+import type { EventoCollegato } from '@/app/dashboard/richieste/EventiTrattativa'
+import type { Richiesta } from '@/app/dashboard/richieste/RigaRichiesta'
 import type { DatiTrattativa } from '@/app/dashboard/richieste/Trattativa'
 
 /**
@@ -52,6 +53,9 @@ export type GestioneSemplicePerVoce = {
 export function EventiElenco({
   voci,
   gestioni = {},
+  richieste = {},
+  eventiPerPersona = {},
+  commerciali = [],
   trattative = {},
   oggi,
   io,
@@ -64,6 +68,20 @@ export function EventiElenco({
   voci: VoceAgenda[]
   /** Nota e firme delle richieste dal sito, per chiave di voce. */
   gestioni?: Record<string, GestioneSemplicePerVoce>
+  /**
+   * La richiesta dal sito che sta dietro la voce, per chiave di voce.
+   *
+   * È quello che rende l'espansione di questo elenco **la stessa** di Eventi
+   * Core: con la richiesta intera in mano si apre GestioneEvento, che è un
+   * componente solo per le tre pagine. Senza, l'espansione ripiega su quel
+   * poco che VoceAgenda porta con sé — ed è il caso delle voci scritte in
+   * segreteria (`task`), che una richiesta dal sito non ce l'hanno.
+   */
+  richieste?: Record<string, Richiesta>
+  /** Gli eventi già nati dalla trattativa di una persona, per id di persona. */
+  eventiPerPersona?: Record<string, EventoCollegato[]>
+  /** Chi può essere assegnatario di una trattativa: la tendina del pannello. */
+  commerciali?: string[]
   /**
    * La trattativa aperta del contatto di ogni voce, per id di persona.
    *
@@ -132,6 +150,9 @@ export function EventiElenco({
          */
         const fatta = voce.esitoDa ?? gestione?.gestitoDa ?? null
         const trattativa = voce.personaId ? trattative[voce.personaId] : undefined
+        // La richiesta dal sito dietro la voce: c'è per tutto quello che è
+        // arrivato da un form, manca sulle voci scritte in segreteria.
+        const richiesta = richieste[voce.chiave]
 
         // La banda a sinistra dice il peso della voce prima di leggerla: rossa
         // se è di un giorno passato, blu se è di oggi. Prima l'arretrato si
@@ -236,85 +257,76 @@ export function EventiElenco({
 
             {inGestione && (
               <div className="op-espansione">
-                {(voce.persona || voce.attivita || voce.note) && (
-                  <div className="op-richiesta">
-                    {voce.attivita && (
-                      <p className="op-attivita">
-                        <span className="muted">Ha chiesto:</span> {voce.attivita}
-                      </p>
-                    )}
-                    {voce.persona && <p className="op-attivita">{voce.persona}</p>}
-                    {/* La nota per intero: in riga sarebbe da troncare, e una
-                        nota troncata è una nota che va riaperta comunque. */}
-                    {voce.note && <p className="op-messaggio">{voce.note}</p>}
-                  </div>
-                )}
-
-                {/* Chiamare senza cambiare pagina: su un appuntamento di oggi
-                    è il gesto più probabile dopo averlo aperto. */}
-                <ContattiRapidi email={voce.email} cellulare={voce.cellulare} />
-
-                {conInterruttore ? (
-                  <GestioneSemplice
-                    id={voce.id}
-                    gestito={!voce.daFare}
-                    nota={gestione?.nota ?? null}
-                    gestitoDa={
-                      gestione?.gestitoDa ? nomeDiEmail(gestione.gestitoDa, nomiStaff) : null
-                    }
-                    gestitoIl={gestione?.gestitoIl ?? null}
-                    notaDa={gestione?.notaDa ? nomeDiEmail(gestione.notaDa, nomiStaff) : null}
-                    notaIl={gestione?.notaIl ?? null}
+                {richiesta ? (
+                  /* Esattamente l'espansione di Eventi Core: stato della
+                     trattativa e come chiuderla, recapiti con numero e
+                     indirizzo scritti, tutti i dettagli della richiesta, la
+                     chiusura dell'evento, il seguito. Prima questa pagina ne
+                     mostrava un terzo — niente riassegnazione, niente
+                     cronologia, e dei dati del form solo l'attività e il
+                     messaggio — e per il resto si cambiava pagina. */
+                  <GestioneEvento
+                    r={richiesta}
+                    trattativa={trattativa}
+                    contesto={{ io, sonoCommerciale, possoRiassegnare, commerciali }}
+                    eventi={voce.personaId ? (eventiPerPersona[voce.personaId] ?? []) : []}
+                    nomiStaff={nomiStaff}
+                    operatori={operatori}
+                    puoCancellare={puoCancellare}
                   />
                 ) : (
-                <GestioneEsito
-                  origine={voce.origine}
-                  id={voce.id}
-                  titolo={voce.titolo}
-                  operatori={operatori}
-                  puoCancellare={puoCancellare}
-                  conOrario={eAppuntamentoVero(voce.tipo)}
-                  dataCorrente={voce.data}
-                  oraCorrente={voce.ora}
-                  // Chiuso l'evento, il passo dopo si fissa qui. Una voce
-                  // d'agenda (`task`) non è un collegamento valido, quindi il
-                  // seguito si aggancia alla persona: la trattativa si apre e
-                  // si chiude nel tempo, la persona resta. Senza persona non
-                  // c'è niente a cui agganciarlo, e la domanda non si fa.
-                  seguito={
-                    voce.origine === 'form_contatti'
-                      ? { entita: 'form_contatti', id: voce.id }
-                      : voce.personaId
-                        ? { entita: 'persona', id: voce.personaId }
-                        : null
-                  }
-                />
-                )}
+                  /* Le voci scritte in segreteria: non vengono da un form, e
+                     quindi non hanno né i dati del form né una trattativa da
+                     far avanzare. Restano il perché della voce e come si
+                     chiude. */
+                  <>
+                    {(voce.persona || voce.attivita || voce.note) && (
+                      <div className="op-richiesta">
+                        {voce.attivita && (
+                          <p className="op-attivita">
+                            <span className="muted">Ha chiesto:</span> {voce.attivita}
+                          </p>
+                        )}
+                        {voce.persona && <p className="op-attivita">{voce.persona}</p>}
+                        {/* La nota per intero: in riga sarebbe da troncare, e
+                            una nota troncata è una nota che va riaperta
+                            comunque. */}
+                        {voce.note && <p className="op-messaggio">{voce.note}</p>}
+                      </div>
+                    )}
 
-                {/* Com'è finita la trattativa, se ce n'è una aperta: la
-                    telefonata appena chiusa è quasi sempre il momento in cui
-                    si sa anche questo. */}
-                {trattativa && (
-                  <div className="op-gestione">
-                    <ChiusuraTrattativa
-                      t={trattativa}
-                      io={io}
-                      sonoCommerciale={sonoCommerciale}
-                      possoRiassegnare={possoRiassegnare}
-                      nomiStaff={nomiStaff}
+                    <ContattiRapidi email={voce.email} cellulare={voce.cellulare} />
+
+                    <GestioneEsito
+                      origine={voce.origine}
+                      id={voce.id}
+                      titolo={voce.titolo}
+                      operatori={operatori}
+                      puoCancellare={puoCancellare}
+                      conOrario={eAppuntamentoVero(voce.tipo)}
+                      dataCorrente={voce.data}
+                      oraCorrente={voce.ora}
+                      chiusa={!voce.daFare}
+                      esitoCorrente={voce.esitoTipo}
+                      notaCorrente={voce.esito}
+                      firma={voce.esitoDa ? nomeDiEmail(voce.esitoDa, nomiStaff) : null}
+                      firmaIl={voce.esitoIl}
+                      // Chiuso l'evento, il passo dopo si fissa qui. Una voce
+                      // d'agenda (`task`) non è un collegamento valido, quindi
+                      // il seguito si aggancia alla persona: la trattativa si
+                      // apre e si chiude nel tempo, la persona resta.
+                      seguito={voce.personaId ? { entita: 'persona', id: voce.personaId } : null}
                     />
-                  </div>
-                )}
 
-                {/* La scheda della persona, per chi deve sapere qualcosa in
-                    più prima di chiamare: da qui non si vede la storia. */}
-                {voce.personaId && (
-                  <Link
-                    className="btn btn-ghost btn-sm"
-                    href={`/dashboard/persone/${voce.personaId}`}
-                  >
-                    Apri la scheda del contatto
-                  </Link>
+                    {voce.personaId && (
+                      <Link
+                        className="btn btn-ghost btn-sm"
+                        href={`/dashboard/persone/${voce.personaId}`}
+                      >
+                        Apri la scheda del contatto
+                      </Link>
+                    )}
+                  </>
                 )}
               </div>
             )}

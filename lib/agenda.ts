@@ -292,6 +292,24 @@ export function dataBreve(giorno: string): string {
   })
 }
 
+/**
+ * "11 set, 15:21" — un **istante**, non un giorno: quando è arrivata una
+ * richiesta, quando è stata firmata una nota.
+ *
+ * Fuso di Roma e non UTC, al contrario di dataBreve: là il giorno è già
+ * scritto come stringa e va solo formattato, qui c'è un timestamp vero, e
+ * una richiesta arrivata alle 00:30 non deve risultare del giorno prima.
+ */
+export function dataOra(iso: string): string {
+  return new Date(iso).toLocaleString('it-IT', {
+    timeZone: 'Europe/Rome',
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 // ─────────────────────────────────────────────────────── griglia del mese
 //
 // Il calendario mensile ragiona su anno e mese numerici, non su date: una

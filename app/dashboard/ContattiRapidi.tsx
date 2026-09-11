@@ -1,12 +1,14 @@
 'use client'
 
 /**
- * Chiama · WhatsApp · Email, come tre pastiglie sulla riga.
+ * Chiama · WhatsApp · Email, come pastiglie, **con il recapito scritto
+ * accanto**.
  *
- * Prima i recapiti stavano solo dentro «Dettagli»: per telefonare a qualcuno
- * si apriva la riga, si leggeva il numero e si cliccava — due passaggi per il
- * gesto che in segreteria si ripete venti volte al giorno. E in dashboard
- * c'erano come testo grigio, da ricopiare a mano.
+ * I pulsanti da soli non bastano: al banco si detta un numero al telefono, si
+ * copia un indirizzo in un'altra finestra, ci si accorge che il cellulare ha
+ * nove cifre e per questo nessuno ha ancora risposto. Un link «Chiama» non si
+ * legge e non si copia — e il valore stava solo più in basso, in una lista di
+ * etichette, cioè lontano dal gesto a cui serve.
  *
  * Il click non deve risalire alla riga che li contiene, o telefonare
  * aprirebbe anche il pannello dei dettagli: `stopPropagation` sta qui una
@@ -33,8 +35,12 @@ export function ContattiRapidi({
 
   return (
     <div className="contatti-rapidi" onClick={(e) => e.stopPropagation()}>
+      {/* Numero e indirizzo restano attaccati ai loro comandi: il cellulare
+          serve Chiama e WhatsApp, l'email serve Email. In una fila unica di
+          pastiglie e valori non si capirebbe quale recapito appartiene a
+          quale pulsante quando ce n'è uno solo dei due. */}
       {cellulare && (
-        <>
+        <span className="contatto-gruppo">
           <a className="contatto-rapido" href={`tel:${soloCifre(cellulare)}`}>
             <span className="contatto-glifo" aria-hidden="true">
               ☎
@@ -52,15 +58,22 @@ export function ContattiRapidi({
             </span>
             WhatsApp
           </a>
-        </>
+          {/* Il numero com'è scritto sul database, spazi e prefisso compresi:
+              è quello che si detta e si confronta. Le cifre pulite servono a
+              `tel:` e a wa.me, non a chi legge. */}
+          <span className="contatto-valore">{cellulare}</span>
+        </span>
       )}
       {email && (
-        <a className="contatto-rapido" href={`mailto:${email}`}>
-          <span className="contatto-glifo" aria-hidden="true">
-            ✉
-          </span>
-          Email
-        </a>
+        <span className="contatto-gruppo">
+          <a className="contatto-rapido" href={`mailto:${email}`}>
+            <span className="contatto-glifo" aria-hidden="true">
+              ✉
+            </span>
+            Email
+          </a>
+          <span className="contatto-valore">{email}</span>
+        </span>
       )}
     </div>
   )

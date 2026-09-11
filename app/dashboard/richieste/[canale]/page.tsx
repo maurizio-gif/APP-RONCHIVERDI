@@ -8,7 +8,7 @@ import {
 } from '@/lib/migrazioni'
 import { emailCorrente, getSezioniConsentite } from '@/lib/auth/sezioni-server'
 import { eCommerciale, puoCancellare, puoRiassegnare } from '@/lib/auth/permessi'
-import { canaleDaChiave, eGestioneSemplice } from '@/lib/richieste'
+import { COLONNE_RICHIESTA, canaleDaChiave, eGestioneSemplice } from '@/lib/richieste'
 import {
   ETICHETTE_STATO,
   PUNTO_STATO,
@@ -68,9 +68,6 @@ export default async function CanalePage({
   const soloMie = !!canale.inAgenda && searchParams.mie === '1'
 
   const supabase = createSupabaseServiceClient()
-
-  const COLONNE_RICHIESTA =
-    'id, created_at, origine, operatore, nome, cognome, email, cellulare, data_nascita, attivita_label, settore, azione, data_scelta, ora_scelta, messaggio, dettagli, minore_nome, minore_cognome, minore_data_nascita, marketing, gestito, gestito_da, gestito_il, assegnato_a, note, note_da, note_il, pagina, cta, audience, utm_source, utm_medium, utm_campaign, first_utm_source, first_utm_campaign, landing_page, referrer, opportunita_id, esito_tipo, esito, esito_da, esito_il, persona_id'
 
   /**
    * L'elenco del canale, costruito da una funzione invece che pezzo per

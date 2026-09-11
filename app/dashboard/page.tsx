@@ -4,7 +4,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, getNomeUtente, getSezioniConsentite } from '@/lib/auth/sezioni-server'
 import { eCommerciale, puoAmministrare, puoCancellare, puoRiassegnare } from '@/lib/auth/permessi'
 import { SEZIONI, soloAccessoEsterno } from '@/lib/auth/sezioni'
-import { ATTIVITA_IN_AGENDA, canaleDiRichiesta } from '@/lib/richieste'
+import { ATTIVITA_IN_AGENDA, COLONNE_RICHIESTA, canaleDiRichiesta } from '@/lib/richieste'
 import {
   STATI,
   STATI_IN_SINTESI,
@@ -29,6 +29,8 @@ import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import { COLONNE_ASSEGNAZIONE_RICHIESTA, conColonneNuove } from '@/lib/migrazioni'
 import { GuidaDashboard } from '@/components/GuidaDashboard'
 import { EventiElenco, type GestioneSemplicePerVoce } from '@/components/EventiElenco'
+import type { EventoCollegato } from './richieste/EventiTrattativa'
+import type { Richiesta } from './richieste/RigaRichiesta'
 import type { DatiTrattativa } from './richieste/Trattativa'
 import {
   TrattativeDashboard,
@@ -222,8 +224,11 @@ async function impegniDelGiorno() {
     // dire prendersi anche il suo appuntamento, ed è la ragione per cui la
     // colonna è scritta e non derivata: la trattativa si riassegna, e di
     // questa riga serve sapere **a chi era**.
+    // Le stesse colonne di Eventi Core (vedi COLONNE_RICHIESTA): l'elenco qui
+    // apre lo stesso pannello, e un pannello a cui manca metà dei campi
+    // mostrerebbe le stesse etichette con dentro dei vuoti.
     conColonneNuove<Record<string, any>>(
-      'id, azione, data_scelta, ora_scelta, nome, cognome, email, cellulare, attivita_label, messaggio, gestito, gestito_da, gestito_il, assegnato_a, note, note_da, note_il, esito_tipo, esito, esito_da, esito_il, persona_id, appuntamento_annullato_il',
+      COLONNE_RICHIESTA,
       COLONNE_ASSEGNAZIONE_RICHIESTA,
       (colonne) =>
         supabase
@@ -351,11 +356,60 @@ async function impegniDelGiorno() {
     }
   }
 
+  // La richiesta dal sito dietro ogni voce, per chiave di voce: è quello che
+  // permette a questo elenco di aprire **lo stesso** pannello di Eventi Core
+  // (vedi GestioneEvento) invece di una versione ridotta sua.
+  const richieste: Record<string, Richiesta> = {}
+  for (const r of prenotati ?? []) {
+    richieste[`contatto-${r.id}`] = r as unknown as Richiesta
+  }
+
+  // Il seguito delle trattative mostrate: i richiami già fissati e quelli
+  // fatti. Due agganci, non uno — un evento nasce da una richiesta (chiudendola
+  // con esito, o dal pannello Eventi) e allora porta il suo id, oppure è
+  // creato a mano dall'agenda per un contatto e allora porta l'id della
+  // persona. Cercarne uno solo lascerebbe fuori proprio il seguito fissato a
+  // mano, che è quello che si ricorda meno.
+  const idRichiesteMostrate = (prenotati ?? []).map((r) => r.id as string)
+  const [{ data: eventiDaRichieste }, { data: eventiDaContatti }] = idPersoneVoci.length
+    ? await Promise.all([
+        supabase
+          .from('task')
+          .select(COLONNE_TASK)
+          .eq('entita', 'form_contatti')
+          .in('entita_id', idRichiesteMostrate.length ? idRichiesteMostrate : ['']),
+        supabase.from('task').select(COLONNE_TASK).eq('entita', 'persona').in('entita_id', idPersoneVoci),
+      ])
+    : [{ data: [] as Record<string, any>[] }, { data: [] as Record<string, any>[] }]
+
+  const personaDiRichiesta = new Map<string, string>()
+  for (const r of prenotati ?? []) {
+    if (r.persona_id) personaDiRichiesta.set(r.id as string, r.persona_id as string)
+  }
+
+  const eventiPerPersona: Record<string, EventoCollegato[]> = {}
+  function aggiungiEvento(persona: string | undefined, riga: Record<string, any>, richiestaId: string | null) {
+    if (!persona) return
+    eventiPerPersona[persona] = [
+      ...(eventiPerPersona[persona] ?? []),
+      { ...voceDaTask(riga), richiestaId },
+    ]
+  }
+  for (const riga of eventiDaRichieste ?? []) {
+    const richiestaId = (riga.entita_id as string) ?? null
+    aggiungiEvento(richiestaId ? personaDiRichiesta.get(richiestaId) : undefined, riga, richiestaId)
+  }
+  for (const riga of eventiDaContatti ?? []) {
+    aggiungiEvento(riga.entita_id as string, riga, null)
+  }
+
   return {
     voci: tutte.slice(0, IMPEGNI_IN_ELENCO),
     totaleAperti: tutte.length,
     arretrati,
     gestioni,
+    richieste,
+    eventiPerPersona,
     trattative,
   }
 }
@@ -716,6 +770,9 @@ export default async function RiepilogoPage() {
               <EventiElenco
                 voci={impegni.voci}
                 gestioni={impegni.gestioni}
+                richieste={impegni.richieste}
+                eventiPerPersona={impegni.eventiPerPersona}
+                commerciali={commerciali}
                 trattative={impegni.trattative}
                 oggi={oggi}
                 io={email}

@@ -4754,6 +4754,74 @@ table.tabella tbody tr:hover {
 	line-height: 1;
 }
 
+/* Il recapito e il suo comando stanno insieme: Chiama e WhatsApp con il
+   numero, Email con l'indirizzo. Il valore non è decorazione — si detta al
+   telefono, si copia, e guardandolo ci si accorge del numero sbagliato che
+   spiega perché nessuno ha risposto. */
+.contatto-gruppo {
+	display: inline-flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+}
+
+.contatto-valore {
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+	/* Un clic solo e il recapito è selezionato tutto: copiarlo a mano da una
+	   riga di venti caratteri è il momento in cui si perde una cifra. */
+	user-select: all;
+	word-break: break-all;
+}
+
+/* I gruppi si distanziano fra loro più di quanto si distanzino le pastiglie
+   al loro interno: è quello che fa leggere «Chiama · WhatsApp · numero» come
+   una cosa sola e l'email come un'altra. */
+.contatti-rapidi {
+	gap: 0.35rem 0.9rem;
+}
+
+/* ─────────────────────────────────── l'espansione di un evento, ovunque */
+
+/* Lo stesso blocco in Eventi Core, in dashboard e in agenda (vedi
+   components/GestioneEvento.tsx): i suoi pezzi si distanziano qui una volta
+   sola, invece che tre volte in tre contenitori diversi. */
+.evento-espanso {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.85rem;
+}
+
+.evento-espanso > * {
+	width: 100%;
+}
+
+/* Il link alla scheda del contatto, in coda: largo quanto il suo testo. */
+.evento-espanso > .btn {
+	width: auto;
+}
+
+/* Già chiusa: detto in testa all'espansione invece che lasciato dedurre dal
+   fatto che i pannelli sotto dicono «correggi» anziché «chiudi». Fondo
+   spento, non rosso: una cosa chiusa non è un problema, è lavoro fatto. */
+.evento-chiuso {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem 0.75rem;
+	padding: 0.55rem 0.7rem;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+}
+
+.evento-chiuso-testo {
+	margin: 0;
+	font-size: var(--text-2xs);
+}
+
 /* Il recapito manca: dirlo è utile — una richiesta Club senza email né
    cellulare non genera nessuna trattativa, e chi guarda deve sapere perché
    quella riga non si può lavorare. */

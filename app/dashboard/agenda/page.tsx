@@ -15,12 +15,14 @@ import {
   voceDaTask,
   type VoceAgenda,
 } from '@/lib/agenda'
-import { ATTIVITA_IN_AGENDA } from '@/lib/richieste'
+import { ATTIVITA_IN_AGENDA, COLONNE_RICHIESTA } from '@/lib/richieste'
 import { nomePersona } from '@/lib/persone'
 import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import { CalendarioAgenda } from '@/components/CalendarioAgenda'
 import { EventiElenco, type GestioneSemplicePerVoce } from '@/components/EventiElenco'
 import { eCommerciale, puoRiassegnare } from '@/lib/auth/permessi'
+import type { EventoCollegato } from '../richieste/EventiTrattativa'
+import type { Richiesta } from '../richieste/RigaRichiesta'
 import type { DatiTrattativa } from '../richieste/Trattativa'
 import { VistaTabs } from '@/components/VistaTabs'
 import { NuovaVoce, type ContattoScegliibile } from './NuovaVoce'
@@ -86,7 +88,7 @@ export default async function AgendaPage({
   const supabase = createSupabaseServiceClient()
   const [
     { data: task, error: erroreTask },
-    { data: contatti, error: erroreRichieste },
+    { data: contattiGrezzi, error: erroreRichieste },
     { data: staff },
     possoCancellare,
     { data: persone, error: errorePersone },
@@ -101,10 +103,11 @@ export default async function AgendaPage({
       .gte('data', inizio)
       .lte('data', fine),
     supabase
+      // Le stesse colonne di Eventi Core (vedi COLONNE_RICHIESTA): da questo
+      // elenco si apre lo stesso pannello, e un pannello a cui manca metà dei
+      // campi mostrerebbe le stesse etichette con dentro dei vuoti.
       .from('form_contatti')
-      .select(
-        'id, created_at, azione, data_scelta, ora_scelta, nome, cognome, email, cellulare, attivita_label, messaggio, gestito, gestito_da, gestito_il, assegnato_a, note, note_da, note_il, esito_tipo, esito, esito_da, esito_il, persona_id, appuntamento_annullato_il'
-      )
+      .select(COLONNE_RICHIESTA)
       // Due finestre, non una: le richieste che hanno preso un appuntamento
       // si cercano sul giorno scelto, i messaggi — che una data non ce
       // l'hanno — sul giorno in cui sono arrivati. Con il solo confronto su
@@ -124,7 +127,9 @@ export default async function AgendaPage({
       .in('attivita', ATTIVITA_IN_AGENDA),
     // Nome e cognome oltre all'email: l'email è la firma scritta sulle righe,
     // il nome è quello che si legge. La traduzione sta in lib/staff.ts.
-    supabase.from('staff_users').select('email, nome, cognome'),
+    // `commerciale` dice chi può prendersi una trattativa: è la tendina del
+    // pannello che si apre aprendo una riga.
+    supabase.from('staff_users').select('email, nome, cognome, commerciale'),
     puoCancellare(email),
     // I contatti per la tendina del form: una voce d'agenda è sempre
     // agganciata a qualcuno (vedi creaVoce). I più mossi per primi — chi si
@@ -167,6 +172,12 @@ export default async function AgendaPage({
   const guasto = erroreTask ?? erroreRichieste
   if (erroreTask) console.error('Voci di agenda non lette:', erroreTask.message)
   if (erroreRichieste) console.error('Richieste in agenda non lette:', erroreRichieste.message)
+
+  // L'elenco delle colonne è una costante condivisa e non un letterale, e
+  // supabase-js deduce il tipo del risultato solo dal secondo: senza questo
+  // passaggio ogni campo si leggerebbe come un errore di tipo. La forma vera
+  // gliela dà `Richiesta`, più sotto.
+  const contatti = (contattiGrezzi ?? []) as unknown as Record<string, any>[]
 
   // I nomi dei contatti agganciati alle voci della segreteria: `task.entita_id`
   // è un id, e senza il nome in elenco l'obbligo di agganciare una voce a
@@ -267,8 +278,11 @@ export default async function AgendaPage({
   // Per il datalist del form: chi può essere assegnatario di una voce.
   // Ordinati per cognome, come in Gestione utenti: una tendina di colleghi
   // ordinata per email li mette in un ordine che nessuno ha in testa.
-  const staffOrdinato = ordinaPerCognome((staff ?? []) as RigaStaff[])
+  const staffOrdinato = ordinaPerCognome(
+    (staff ?? []) as (RigaStaff & { commerciale?: boolean })[]
+  )
   const operatori = staffOrdinato.map((s) => s.email)
+  const commerciali = staffOrdinato.filter((s) => s.commerciale).map((s) => s.email)
   const nomiStaff = mappaNomiStaff(staffOrdinato)
 
   const contattiForm = (persone ?? []) as unknown as ContattoScegliibile[]
@@ -315,6 +329,62 @@ export default async function AgendaPage({
       motivo_perso: (t.motivo_perso as string) ?? null,
       motivo_annullato: (t.motivo_annullato as string) ?? null,
     }
+  }
+
+  // La richiesta dal sito dietro ogni voce, per chiave di voce: è quello che
+  // permette a questo elenco di aprire **lo stesso** pannello di Eventi Core
+  // (vedi GestioneEvento) invece di una versione ridotta sua.
+  const richieste: Record<string, Richiesta> = {}
+  for (const r of contatti ?? []) {
+    richieste[`contatto-${r.id}`] = r as unknown as Richiesta
+  }
+
+  // Il seguito delle trattative: i richiami già fissati e quelli fatti. Due
+  // agganci — un evento nasce da una richiesta e porta il suo id, oppure è
+  // creato a mano per un contatto e porta l'id della persona. Cercarne uno
+  // solo lascerebbe fuori il seguito fissato a mano, che è quello che si
+  // ricorda meno.
+  const COLONNE_EVENTO =
+    'id, titolo, tipo, data, ora, durata_minuti, note, assegnato_a, stato, esito_tipo, esito, esito_da, esito_il, entita, entita_id'
+  const idRichiesteMostrate = (contatti ?? []).map((r) => r.id as string)
+  const [{ data: eventiDaRichieste }, { data: eventiDaContatti }] = idPersoneVoci.length
+    ? await Promise.all([
+        supabase
+          .from('task')
+          .select(COLONNE_EVENTO)
+          .eq('entita', 'form_contatti')
+          .in('entita_id', idRichiesteMostrate.length ? idRichiesteMostrate : ['']),
+        supabase
+          .from('task')
+          .select(COLONNE_EVENTO)
+          .eq('entita', 'persona')
+          .in('entita_id', idPersoneVoci),
+      ])
+    : [{ data: [] as Record<string, any>[] }, { data: [] as Record<string, any>[] }]
+
+  const personaDiRichiesta = new Map<string, string>()
+  for (const r of contatti ?? []) {
+    if (r.persona_id) personaDiRichiesta.set(r.id as string, r.persona_id as string)
+  }
+
+  const eventiPerPersona: Record<string, EventoCollegato[]> = {}
+  function aggiungiEvento(
+    persona: string | undefined,
+    riga: Record<string, any>,
+    richiestaId: string | null
+  ) {
+    if (!persona) return
+    eventiPerPersona[persona] = [
+      ...(eventiPerPersona[persona] ?? []),
+      { ...voceDaTask(riga), richiestaId },
+    ]
+  }
+  for (const riga of eventiDaRichieste ?? []) {
+    const richiestaId = (riga.entita_id as string) ?? null
+    aggiungiEvento(richiestaId ? personaDiRichiesta.get(richiestaId) : undefined, riga, richiestaId)
+  }
+  for (const riga of eventiDaContatti ?? []) {
+    aggiungiEvento(riga.entita_id as string, riga, null)
   }
 
   // Nella lista il passato conta solo se è ancora aperto: gli arretrati vanno
@@ -559,6 +629,9 @@ export default async function AgendaPage({
                 <EventiElenco
                   voci={delGiorno}
                   gestioni={gestioni}
+                  richieste={richieste}
+                  eventiPerPersona={eventiPerPersona}
+                  commerciali={commerciali}
                   trattative={trattative}
                   oggi={oggi}
                   io={email}

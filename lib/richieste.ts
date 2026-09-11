@@ -65,6 +65,26 @@ export type Canale = {
   inAgenda?: boolean
 }
 
+/**
+ * Le colonne di `form_contatti` che disegnano una richiesta per intero.
+ *
+ * Una sola volta perché i dettagli si leggono da tre pagine — Eventi Core,
+ * dashboard e agenda — e sono gli stessi dettagli: tre elenchi di colonne
+ * divergerebbero al primo campo aggiunto, e la differenza si vedrebbe come un
+ * dato che c'è in una pagina e manca in un'altra, senza un motivo leggibile.
+ *
+ * `assegnato_a` può non esserci ancora sul database: chi legge passi da
+ * conColonneNuove con COLONNE_ASSEGNAZIONE_RICHIESTA (vedi lib/migrazioni.ts).
+ */
+export const COLONNE_RICHIESTA =
+  'id, created_at, origine, operatore, nome, cognome, email, cellulare, data_nascita, ' +
+  'attivita_label, settore, azione, data_scelta, ora_scelta, messaggio, dettagli, ' +
+  'minore_nome, minore_cognome, minore_data_nascita, marketing, gestito, gestito_da, ' +
+  'gestito_il, assegnato_a, note, note_da, note_il, pagina, cta, audience, utm_source, ' +
+  'utm_medium, utm_campaign, first_utm_source, first_utm_campaign, landing_page, ' +
+  'referrer, opportunita_id, esito_tipo, esito, esito_da, esito_il, persona_id, ' +
+  'appuntamento_annullato_il'
+
 export const CANALI: readonly Canale[] = [
   {
     chiave: 'richieste-club',
