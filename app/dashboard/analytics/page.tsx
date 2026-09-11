@@ -3,19 +3,14 @@ import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import {
-  OPZIONI_CONFRONTO,
   OPZIONI_PERIODO,
   STATISTICHE_VUOTE,
   calcolaEstremi,
-  classeVariazione,
-  confrontoDa,
   dataBreve,
-  formattaVariazione,
   percentuale,
   periodoDa,
   perCanaleTraffico,
   serieCompleta,
-  variazione,
   dominioDi,
   type Statistiche,
   type Voce,
@@ -55,22 +50,12 @@ function statiLeggibili(voci: Voce[]): Voce[] {
 function Totale({
   titolo,
   valore,
-  prima,
-  piuEMeglio = true,
   suffisso,
 }: {
   titolo: string
   valore: number | string
-  prima?: number | null
-  piuEMeglio?: boolean
   suffisso?: string
 }) {
-  const delta =
-    typeof valore === 'number' && prima !== undefined && prima !== null
-      ? variazione(valore, prima)
-      : null
-  const mostraDelta = typeof valore === 'number' && prima !== undefined && prima !== null
-
   return (
     <div className="stat">
       <span className="stat-valore">
@@ -78,11 +63,6 @@ function Totale({
         {suffisso}
       </span>
       <span className="stat-label">{titolo}</span>
-      {mostraDelta && (
-        <span className={`badge ${classeVariazione(delta, piuEMeglio)}`} style={{ marginTop: '0.5rem' }}>
-          {formattaVariazione(delta)}
-        </span>
-      )}
     </div>
   )
 }
@@ -90,54 +70,39 @@ function Totale({
 export default async function AnalyticsPage({
   searchParams,
 }: {
-  searchParams: { periodo?: string; confronto?: string }
+  searchParams: { periodo?: string }
 }) {
   if (!(await utenteHaSezione('analytics'))) {
     redirect('/dashboard')
   }
 
   const periodo = periodoDa(searchParams.periodo)
-  const confronto = confrontoDa(searchParams.confronto)
-  const estremi = calcolaEstremi(periodo.giorni, confronto)
+  const estremi = calcolaEstremi(periodo.giorni)
 
   const supabase = createSupabaseServiceClient()
-  const [{ data: ora, error }, { data: prima }] = await Promise.all([
-    supabase.rpc('statistiche_richieste', {
-      p_da: estremi.da.toISOString(),
-      p_a: estremi.a.toISOString(),
-    }),
-    estremi.confronto
-      ? supabase.rpc('statistiche_richieste', {
-          p_da: estremi.confronto.da.toISOString(),
-          p_a: estremi.confronto.a.toISOString(),
-        })
-      : Promise.resolve({ data: null }),
-  ])
+  const { data: ora, error } = await supabase.rpc('statistiche_richieste', {
+    p_da: estremi.da.toISOString(),
+    p_a: estremi.a.toISOString(),
+  })
 
   if (error) console.error('Analytics non calcolate:', error.message)
 
   const s = (ora ?? STATISTICHE_VUOTE) as Statistiche
-  const c = (prima ?? null) as Statistiche | null
 
   const serie = serieCompleta(s.giorni, estremi.da, estremi.a)
   // Due dimensioni diverse che in TCA si chiamano entrambe "canale": quella
   // di traffico (da dove arriva la persona) e quella di instradamento (a chi
   // va la richiesta). Qui hanno due nomi.
   const traffico = perCanaleTraffico(s.coppie_utm)
-  const trafficoPrima = c ? perCanaleTraffico(c.coppie_utm) : null
   const sezioni = perSezione(s)
-  const sezioniPrima = c ? perSezione(c) : null
 
   const referrerPuliti: Voce[] = s.referrer.map((v) => ({
     ...v,
     voce: v.voce.startsWith('http') ? dominioDi(v.voce) : v.voce,
   }))
 
-  function link(p: { periodo?: string; confronto?: string }) {
-    const params = new URLSearchParams()
-    params.set('periodo', p.periodo ?? periodo.valore)
-    params.set('confronto', p.confronto ?? confronto)
-    return `/dashboard/analytics?${params.toString()}`
+  function link(p: { periodo: string }) {
+    return `/dashboard/analytics?periodo=${p.periodo}`
   }
 
   return (
@@ -147,9 +112,6 @@ export default async function AnalyticsPage({
         <h1>Analytics</h1>
         <p className="muted">
           Da {dataBreve(estremi.da)} a {dataBreve(estremi.a)}
-          {estremi.confronto && (
-            <> · confronto con {dataBreve(estremi.confronto.da)} – {dataBreve(estremi.confronto.a)}</>
-          )}
         </p>
       </div>
 
@@ -165,23 +127,12 @@ export default async function AnalyticsPage({
             </Link>
           ))}
         </div>
-        <div className="agenda-nav">
-          {OPZIONI_CONFRONTO.map((o) => (
-            <Link
-              key={o.valore}
-              className={`btn btn-sm ${o.valore === confronto ? '' : 'btn-ghost'}`}
-              href={link({ confronto: o.valore })}
-            >
-              {o.etichetta}
-            </Link>
-          ))}
-        </div>
       </div>
 
       <div className="griglia-stat">
-        <Totale titolo="Richieste" valore={s.richieste} prima={c?.richieste} />
-        <Totale titolo="Persone nuove" valore={s.persone_nuove} prima={c?.persone_nuove} />
-        <Totale titolo="Con appuntamento" valore={s.con_appuntamento} prima={c?.con_appuntamento} />
+        <Totale titolo="Richieste" valore={s.richieste} />
+        <Totale titolo="Persone nuove" valore={s.persone_nuove} />
+        <Totale titolo="Con appuntamento" valore={s.con_appuntamento} />
         <Totale titolo="Lavorate" valore={percentuale(s.lavorate, s.richieste)} suffisso="" />
         <Totale
           titolo="Con sessione tracciata"
@@ -191,16 +142,9 @@ export default async function AnalyticsPage({
       </div>
 
       <div className="griglia-stat">
-        <Totale titolo="Trattative aperte" valore={s.trattative_aperte} prima={c?.trattative_aperte} />
-        <Totale titolo="Vinte" valore={s.trattative_vinte} prima={c?.trattative_vinte} />
-        {/* Sulle perse una crescita non è una buona notizia: il colore del
-            badge va letto al contrario. */}
-        <Totale
-          titolo="Perse"
-          valore={s.trattative_perse}
-          prima={c?.trattative_perse}
-          piuEMeglio={false}
-        />
+        <Totale titolo="Trattative aperte" valore={s.trattative_aperte} />
+        <Totale titolo="Vinte" valore={s.trattative_vinte} />
+        <Totale titolo="Perse" valore={s.trattative_perse} />
         <Totale
           titolo="Vinte sul chiuso"
           valore={percentuale(s.trattative_vinte, s.trattative_vinte + s.trattative_perse)}
@@ -226,15 +170,13 @@ export default async function AnalyticsPage({
           <Ripartizione
             titolo="Richieste per canale di traffico"
             voci={traffico}
-            vociConfronto={trafficoPrima}
             totale={s.richieste}
-            nota="Stessa classificazione del CRM del Tennis Club Ambrosiano, con le etichette in italiano. Un click id o un referrer senza UTM non contano come traffico diretto: la campagna non aveva i parametri, non è arrivata da sola."
+            nota="Un click id o un referrer senza UTM non contano come traffico diretto: la campagna non aveva i parametri, non è arrivata da sola."
           />
 
           <Ripartizione
             titolo="Richieste per sezione di destinazione"
             voci={sezioni}
-            vociConfronto={sezioniPrima}
             totale={s.richieste}
             nota={`Gli ${CANALI.length} canali di instradamento ai responsabili: chi non corrisponde a nessuno compare come «non instradata».`}
           />
@@ -243,50 +185,42 @@ export default async function AnalyticsPage({
             <Ripartizione
               titolo="Per attività"
               voci={s.attivita}
-              vociConfronto={c?.attivita}
               totale={s.richieste}
             />
             <Ripartizione
               titolo="Per stato della trattativa"
               voci={statiLeggibili(s.stati_trattativa)}
-              vociConfronto={c ? statiLeggibili(c.stati_trattativa) : null}
               totale={s.richieste}
               nota="Le richieste dei corsi non aprono una trattativa: vanno diritte al responsabile."
             />
             <Ripartizione
               titolo="Per sorgente (UTM)"
               voci={s.sorgenti}
-              vociConfronto={c?.sorgenti}
               totale={s.richieste}
             />
             <Ripartizione
               titolo="Per mezzo"
               voci={s.mezzi}
-              vociConfronto={c?.mezzi}
               totale={s.richieste}
             />
             <Ripartizione
               titolo="Per campagna"
               voci={s.campagne}
-              vociConfronto={c?.campagne}
               totale={s.richieste}
             />
             <Ripartizione
               titolo="Per termine di ricerca"
               voci={s.termini}
-              vociConfronto={c?.termini}
               totale={s.richieste}
             />
             <Ripartizione
               titolo="Per contenuto (utm_content)"
               voci={s.contenuti}
-              vociConfronto={c?.contenuti}
               totale={s.richieste}
             />
             <Ripartizione
               titolo="Per pubblico"
               voci={s.audience}
-              vociConfronto={c?.audience}
               totale={s.richieste}
             />
             <Ripartizione
