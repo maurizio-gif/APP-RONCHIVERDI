@@ -4431,6 +4431,14 @@ table.tabella tbody tr:hover {
 	border-radius: 0 var(--radius) var(--radius) 0;
 }
 
+/* La riga aperta arrivando dal link di un'email. In un elenco dove più righe
+   possono essere aperte insieme, questa va distinta: chi ha cliccato deve
+   sapere quale delle due sullo schermo è la sua. */
+.richiesta.is-indicata {
+	box-shadow: inset 0 0 0 2px var(--accent);
+	border-radius: 0 var(--radius) var(--radius) 0;
+}
+
 .richiesta-testa {
 	align-items: flex-start;
 	gap: 0.6rem 0.9rem;
