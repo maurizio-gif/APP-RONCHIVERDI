@@ -1,6 +1,11 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
+import {
+  COLONNE_ASSEGNAZIONE_RICHIESTA,
+  COLONNE_NOTA_VINTA,
+  conColonneNuove,
+} from '@/lib/migrazioni'
 import { emailCorrente, getSezioniConsentite } from '@/lib/auth/sezioni-server'
 import { eCommerciale, puoCancellare, puoRiassegnare } from '@/lib/auth/permessi'
 import { canaleDaChiave, eGestioneSemplice } from '@/lib/richieste'
@@ -63,24 +68,41 @@ export default async function CanalePage({
   const soloMie = !!canale.inAgenda && searchParams.mie === '1'
 
   const supabase = createSupabaseServiceClient()
-  let query = supabase
-    .from('form_contatti')
-    .select(
-      'id, created_at, origine, operatore, nome, cognome, email, cellulare, data_nascita, attivita_label, settore, azione, data_scelta, ora_scelta, messaggio, dettagli, minore_nome, minore_cognome, minore_data_nascita, marketing, gestito, gestito_da, gestito_il, note, note_da, note_il, pagina, cta, audience, utm_source, utm_medium, utm_campaign, first_utm_source, first_utm_campaign, landing_page, referrer, opportunita_id, esito_tipo, esito, esito_da, esito_il, persona_id'
-    )
-    .order('created_at', { ascending: false })
-    .limit(200)
 
-  // I form inline di pagina (Chinesis) non fanno scegliere un'attività: il
-  // loro canale si aggancia all'origine del payload.
-  query = canale.origine
-    ? query.in('origine', canale.origine)
-    : query.in('attivita', canale.attivita)
+  const COLONNE_RICHIESTA =
+    'id, created_at, origine, operatore, nome, cognome, email, cellulare, data_nascita, attivita_label, settore, azione, data_scelta, ora_scelta, messaggio, dettagli, minore_nome, minore_cognome, minore_data_nascita, marketing, gestito, gestito_da, gestito_il, assegnato_a, note, note_da, note_il, pagina, cta, audience, utm_source, utm_medium, utm_campaign, first_utm_source, first_utm_campaign, landing_page, referrer, opportunita_id, esito_tipo, esito, esito_da, esito_il, persona_id'
 
-  // Il tennis è l'unica attività con due responsabili: il settore scelto nel
-  // form decide di chi è la richiesta.
-  if (canale.settore) query = query.eq('settore', canale.settore)
-  if (soloDaLavorare) query = query.eq('gestito', false)
+  /**
+   * L'elenco del canale, costruito da una funzione invece che pezzo per
+   * pezzo su una variabile.
+   *
+   * Serve perché la lettura si può dover **ripetere** senza le colonne che
+   * una migration non ancora eseguita non ha (vedi conColonneNuove): una
+   * query costruita a incrementi su un `let` non si può ricostruire, e
+   * riusare quella già eseguita non rifà la richiesta.
+   */
+  // Il canale con il tipo già ristretto: TypeScript non porta dentro una
+  // funzione l'esclusione del null fatta dal `notFound()` qui sopra, e senza
+  // questo alias ogni `canale.qualcosa` nella funzione sarebbe un errore.
+  const suo = canale
+
+  function elencoDelCanale(colonne: string) {
+    let q = supabase
+      .from('form_contatti')
+      .select(colonne)
+      .order('created_at', { ascending: false })
+      .limit(200)
+
+    // I form inline di pagina (Chinesis) non fanno scegliere un'attività: il
+    // loro canale si aggancia all'origine del payload.
+    q = suo.origine ? q.in('origine', suo.origine) : q.in('attivita', suo.attivita)
+
+    // Il tennis è l'unica attività con due responsabili: il settore scelto
+    // nel form decide di chi è la richiesta.
+    if (suo.settore) q = q.eq('settore', suo.settore)
+    if (soloDaLavorare) q = q.eq('gestito', false)
+    return q
+  }
 
   // Il totale da lavorare non dipende dal filtro in pagina: serve a sapere
   // quanto resta anche mentre si guarda lo storico completo.
@@ -127,7 +149,11 @@ export default async function CanalePage({
     possoRiassegnare,
     { data: staffCommerciale },
   ] = await Promise.all([
-    query,
+    conColonneNuove<Record<string, any>>(
+      COLONNE_RICHIESTA,
+      COLONNE_ASSEGNAZIONE_RICHIESTA,
+      elencoDelCanale
+    ),
     queryDaLavorare,
     queryConteggi,
     // Tutte le trattative del canale, in una lettura. Le trattative esistono
@@ -140,7 +166,11 @@ export default async function CanalePage({
     // nella seconda ondata, filtrata sugli id delle righe mostrate: due
     // letture della stessa tabella, e un'ondata in più prima di disegnare.
     canale.inAgenda
-      ? supabase.from('opportunita').select('id, stato, assegnato_a, motivo_perso, motivo_annullato')
+      ? conColonneNuove<Record<string, any>>(
+          'id, stato, assegnato_a, motivo_perso, motivo_annullato, motivo_vinto, valore_euro',
+          COLONNE_NOTA_VINTA,
+          (colonne) => supabase.from('opportunita').select(colonne)
+        )
       : Promise.resolve({ data: [] as Record<string, any>[] }),
     // Nome e cognome oltre all'email: le lavorazioni si firmano con l'email,
     // ma a schermo si legge il nome (vedi lib/staff.ts).
@@ -282,6 +312,8 @@ export default async function CanalePage({
             assegnato_a: t.assegnato_a as string | null,
             motivo_perso: t.motivo_perso as string | null,
             motivo_annullato: t.motivo_annullato as string | null,
+            motivo_vinto: (t.motivo_vinto as string) ?? null,
+            valore_euro: t.valore_euro != null ? Number(t.valore_euro) : null,
           } satisfies DatiTrattativa,
         ])
       ),

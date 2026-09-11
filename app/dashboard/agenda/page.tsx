@@ -19,7 +19,9 @@ import { ATTIVITA_IN_AGENDA } from '@/lib/richieste'
 import { nomePersona } from '@/lib/persone'
 import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import { CalendarioAgenda } from '@/components/CalendarioAgenda'
-import { TabellaAgenda } from '@/components/TabellaAgenda'
+import { EventiElenco, type GestioneSemplicePerVoce } from '@/components/EventiElenco'
+import { eCommerciale, puoRiassegnare } from '@/lib/auth/permessi'
+import type { DatiTrattativa } from '../richieste/Trattativa'
 import { VistaTabs } from '@/components/VistaTabs'
 import { NuovaVoce, type ContattoScegliibile } from './NuovaVoce'
 
@@ -61,7 +63,18 @@ export default async function AgendaPage({
   const inizio = vista === 'calendario' ? mese : giornoPiu(oggi, -GIORNI_INDIETRO)
   const fine = vista === 'calendario' ? ultimoDelMese(mese) : giornoPiu(oggi, GIORNI_AVANTI)
 
-  const soloAppuntamenti = searchParams.solo === 'appuntamenti'
+  // Tre stati e non più l'orario. «Solo con orario» divideva le voci per una
+  // proprietà che non è il motivo per cui si apre l'agenda: chi la guarda
+  // vuole sapere cosa è in ritardo, cosa c'è da fare e cosa è già stato
+  // fatto — non quali cose hanno un'ora e quali no. Un appuntamento alle 17 e
+  // una telefonata «in giornata» sono due cose da fare, e separarle metteva
+  // fra loro una linea che nessuno ha in testa.
+  const soloStato =
+    searchParams.solo === 'ritardo' ||
+    searchParams.solo === 'dafare' ||
+    searchParams.solo === 'eseguite'
+      ? searchParams.solo
+      : null
   // Di chi è l'agenda che si sta guardando. È un asse suo, indipendente da
   // «cosa mostrare»: prima era uno dei tre valori dello stesso parametro, e
   // scegliere «le mie» spegneva «solo con orario» — le due domande («di chi?»
@@ -77,6 +90,8 @@ export default async function AgendaPage({
     { data: staff },
     possoCancellare,
     { data: persone, error: errorePersone },
+    sonoCommerciale,
+    possoRiassegnareTrattative,
   ] = await Promise.all([
     supabase
       .from('task')
@@ -88,7 +103,7 @@ export default async function AgendaPage({
     supabase
       .from('form_contatti')
       .select(
-        'id, created_at, azione, data_scelta, ora_scelta, nome, cognome, email, cellulare, attivita_label, messaggio, gestito, esito_tipo, esito, esito_da, esito_il, persona_id, appuntamento_annullato_il'
+        'id, created_at, azione, data_scelta, ora_scelta, nome, cognome, email, cellulare, attivita_label, messaggio, gestito, gestito_da, gestito_il, assegnato_a, note, note_da, note_il, esito_tipo, esito, esito_da, esito_il, persona_id, appuntamento_annullato_il'
       )
       // Due finestre, non una: le richieste che hanno preso un appuntamento
       // si cercano sul giorno scelto, i messaggi — che una data non ce
@@ -129,6 +144,10 @@ export default async function AgendaPage({
       .select('id, nome, cognome, email, cellulare')
       .order('ultima_richiesta', { ascending: false, nullsFirst: false })
       .limit(CONTATTI_NEL_FORM),
+    // I diritti sulla pipeline: l'elenco degli eventi permette di chiudere la
+    // trattativa collegata, e quali chiusure offrire lo decidono questi.
+    eCommerciale(email),
+    puoRiassegnare(email),
   ])
 
   // Senza i contatti il form non si può usare: va detto nei log, invece di
@@ -217,18 +236,29 @@ export default async function AgendaPage({
   // «solo con orario» dice quanti ne troverà *nell'agenda che stai
   // guardando*, non nel club intero.
   const diChi = soloMie ? voci.filter(eMia) : voci
+
+  // I tre stati, come predicati: si usano per i conteggi dei chip e per il
+  // filtro, così un chip non può mai promettere un numero diverso da quello
+  // che mostra.
+  const eInRitardo = (v: VoceAgenda) => v.daFare && v.data < oggi
+  const eDaFare = (v: VoceAgenda) => v.daFare && v.data >= oggi
+  const eEseguita = (v: VoceAgenda) => !v.daFare
+
   const contiFiltri = {
     tutti: voci.length,
     mie: voci.filter(eMia).length,
     tutto: diChi.length,
-    appuntamenti: diChi.filter((v) => v.ora !== null).length,
+    ritardo: diChi.filter(eInRitardo).length,
+    dafare: diChi.filter(eDaFare).length,
+    eseguite: diChi.filter(eEseguita).length,
   }
 
   voci = diChi
-  if (soloAppuntamenti) voci = voci.filter((v) => v.ora !== null)
+  if (soloStato === 'ritardo') voci = voci.filter(eInRitardo)
+  else if (soloStato === 'dafare') voci = voci.filter(eDaFare)
+  else if (soloStato === 'eseguite') voci = voci.filter(eEseguita)
 
   const daFare = voci.filter((v) => v.daFare).length
-  const appuntamenti = voci.filter((v) => v.ora !== null).length
   // Gli arretrati sono il numero che decide la giornata: aperti e di un
   // giorno già passato. Non c'erano da nessuna parte in questa pagina —
   // stavano dentro il conteggio generico di «Ancora da fare».
@@ -244,9 +274,56 @@ export default async function AgendaPage({
   const contattiForm = (persone ?? []) as unknown as ContattoScegliibile[]
   const contattiTroncati = contattiForm.length === CONTATTI_NEL_FORM
 
+  // ── Quello che serve a lavorare una riga, non solo a leggerla ──────────
+  //
+  // L'elenco è lo stesso componente della dashboard (EventiElenco), e quel
+  // componente chiude le richieste, scrive le note e chiude la trattativa.
+  // Sono due letture in più rispetto alla vecchia tabella, ed è il prezzo di
+  // non avere due elenchi che si comportano diversamente.
+
+  // La nota dell'operatore e le firme delle richieste dal sito. Non stanno in
+  // VoceAgenda e non ci possono stare: là `note` è il messaggio che ha
+  // scritto la persona, che è un'altra cosa dalla nota di chi la lavora.
+  const gestioni: Record<string, GestioneSemplicePerVoce> = {}
+  for (const r of contatti ?? []) {
+    gestioni[`contatto-${r.id}`] = {
+      nota: (r.note as string) ?? null,
+      gestitoDa: (r.gestito_da as string) ?? null,
+      gestitoIl: (r.gestito_il as string) ?? null,
+      notaDa: (r.note_da as string) ?? null,
+      notaIl: (r.note_il as string) ?? null,
+    }
+  }
+
+  // La trattativa aperta del contatto di ogni voce, per chiuderla da qui: si
+  // telefona, la persona dice sì, e in quel minuto si sanno entrambe le cose.
+  const idPersoneVoci = [...new Set(voci.map((v) => v.personaId).filter(Boolean))] as string[]
+  const { data: trattativeAperte } = idPersoneVoci.length
+    ? await supabase
+        .from('opportunita')
+        .select('id, persona_id, stato, assegnato_a, motivo_perso, motivo_annullato')
+        .in('persona_id', idPersoneVoci)
+        .in('stato', ['nuovo', 'in_gestione'])
+    : { data: [] as Record<string, any>[] }
+
+  const trattative: Record<string, DatiTrattativa> = {}
+  for (const t of trattativeAperte ?? []) {
+    trattative[t.persona_id as string] = {
+      id: t.id as string,
+      stato: t.stato,
+      assegnato_a: (t.assegnato_a as string) ?? null,
+      motivo_perso: (t.motivo_perso as string) ?? null,
+      motivo_annullato: (t.motivo_annullato as string) ?? null,
+    }
+  }
+
   // Nella lista il passato conta solo se è ancora aperto: gli arretrati vanno
-  // recuperati, le cose già fatte no.
-  const vociLista = voci.filter((v) => v.data >= oggi || v.daFare)
+  // recuperati, le cose già fatte no — a meno che non si sia chiesto proprio
+  // di vederle. Senza questa eccezione il filtro «Eseguite» mostrava un
+  // elenco quasi vuoto: le eseguite sono per definizione nel passato, e il
+  // filtro le trovava per poi lasciarle fuori.
+  const vociLista =
+    soloStato === 'eseguite' ? voci : voci.filter((v) => v.data >= oggi || v.daFare)
   const giorniLista = [...new Set(vociLista.map((v) => v.data))].sort()
   const perGiornata = perGiorno(vociLista)
 
@@ -335,31 +412,52 @@ export default async function AgendaPage({
             </ChipAgenda>
           </fieldset>
 
+          {/* Tre stati che si escludono e si sommano al totale: in ritardo,
+              da fare, eseguite. Sono le tre domande vere di un'agenda, e
+              messe in fila dicono anche in che stato è la giornata senza
+              bisogno di premere niente. */}
           <fieldset className="filtro-gruppo">
-            <legend>Cosa mostrare</legend>
+            <legend>In che stato</legend>
             <ChipAgenda
-              attivo={!searchParams.solo}
+              attivo={!soloStato}
               quante={contiFiltri.tutto}
               href={link({ da: daRichiesto, solo: null })}
             >
               Tutto
             </ChipAgenda>
             <ChipAgenda
-              attivo={soloAppuntamenti}
-              quante={contiFiltri.appuntamenti}
-              href={link({ da: daRichiesto, solo: 'appuntamenti' })}
+              attivo={soloStato === 'ritardo'}
+              quante={contiFiltri.ritardo}
+              href={link({ da: daRichiesto, solo: 'ritardo' })}
             >
-              Solo con orario
+              In ritardo
+            </ChipAgenda>
+            <ChipAgenda
+              attivo={soloStato === 'dafare'}
+              quante={contiFiltri.dafare}
+              href={link({ da: daRichiesto, solo: 'dafare' })}
+            >
+              Da fare
+            </ChipAgenda>
+            <ChipAgenda
+              attivo={soloStato === 'eseguite'}
+              quante={contiFiltri.eseguite}
+              href={link({ da: daRichiesto, solo: 'eseguite' })}
+            >
+              Eseguite
             </ChipAgenda>
           </fieldset>
         </div>
       </div>
 
-      {/* Tre riquadri e non due, cogli stessi toni del resto del pannello:
-          rosso per quello che è in ritardo — che è la domanda con cui si apre
-          l'agenda e non era contato da nessuna parte — ambra per quello che
-          resta da fare, blu per gli appuntamenti con un orario. E ciascuno
-          dice cosa vuol dire, invece di lasciare un numero da interpretare. */}
+      {/* Due riquadri: in ritardo e ancora da fare, cogli stessi toni del
+          resto del pannello. Il terzo contava gli appuntamenti «con orario»,
+          ed è andato via con il filtro omonimo: divideva le voci per una
+          proprietà che non è il motivo per cui si apre l'agenda — un
+          appuntamento alle 17 e una telefonata «in giornata» sono due cose da
+          fare, e il numero di quelle che hanno un'ora non risponde a nessuna
+          domanda. Ciascuno dice cosa vuol dire, invece di lasciare un numero
+          da interpretare. */}
       <div className="griglia-stat">
         <div className={`stat stat-error${arretrati > 0 ? ' is-azione' : ' is-vuoto'}`}>
           <span className="stat-testa">
@@ -388,27 +486,20 @@ export default async function AgendaPage({
           </span>
         </div>
 
-        <div className={`stat stat-info${appuntamenti > 0 ? '' : ' is-vuoto'}`}>
-          <span className="stat-testa">
-            <span className="stat-label">Con orario</span>
-          </span>
-          <span className="stat-valore">{appuntamenti}</span>
-          <span className="stat-nota">
-            {vista === 'calendario'
-              ? 'Appuntamenti in sede o al telefono, questo mese'
-              : 'Appuntamenti in sede o al telefono, in elenco'}
-          </span>
-        </div>
       </div>
 
       {vista === 'calendario' ? (
         <CalendarioAgenda
           voci={voci}
+          gestioni={gestioni}
+          trattative={trattative}
           mese={mese}
           oggi={oggi}
           emailCorrente={email}
           operatori={operatori}
           puoCancellare={possoCancellare}
+          sonoCommerciale={sonoCommerciale}
+          possoRiassegnare={possoRiassegnareTrattative}
           nomiStaff={nomiStaff}
           linkMesePrecedente={link({ da: mesePiu(mese, -1) })}
           linkMeseSuccessivo={link({ da: mesePiu(mese, 1) })}
@@ -460,12 +551,21 @@ export default async function AgendaPage({
                     )}
                   </span>
                 </div>
-                <TabellaAgenda
+                {/* Lo stesso elenco della dashboard, non una tabella sua:
+                    stesse righe compatte, stessa espansione, stessi comandi.
+                    Prima erano due forme per le stesse voci e gli stessi
+                    gesti, e chi passava da una pagina all'altra doveva
+                    impararle entrambe. */}
+                <EventiElenco
                   voci={delGiorno}
+                  gestioni={gestioni}
+                  trattative={trattative}
                   oggi={oggi}
-                  emailCorrente={email}
+                  io={email}
                   operatori={operatori}
                   puoCancellare={possoCancellare}
+                  sonoCommerciale={sonoCommerciale}
+                  possoRiassegnare={possoRiassegnareTrattative}
                   nomiStaff={nomiStaff}
                 />
               </div>
@@ -525,7 +625,7 @@ export default async function AgendaPage({
  * scelto» anche a chi non percepisce il contrasto del fondo scuro, che da solo
  * sarebbe l'unico segno.
  *
- * È il gemello del Chip di Abbonamento Club e Family: due copie di sei righe
+ * È il gemello del Chip di Eventi Core: due copie di sei righe
  * di classi, invece di un componente condiviso, perché i due filtri non hanno
  * niente in comune oltre l'aspetto — e il giorno che uno dei due prende un
  * pallino di stato o un raggruppamento, il componente unico si spacca in due.

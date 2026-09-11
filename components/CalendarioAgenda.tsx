@@ -11,7 +11,8 @@ import {
   perGiorno,
   type VoceAgenda,
 } from '@/lib/agenda'
-import { TabellaAgenda } from './TabellaAgenda'
+import { EventiElenco, type GestioneSemplicePerVoce } from './EventiElenco'
+import type { DatiTrattativa } from '@/app/dashboard/richieste/Trattativa'
 
 /**
  * Il giorno selezionato nel calendario, per chi sta sotto — cioè il form
@@ -27,11 +28,15 @@ export function useGiornoSelezionato(): string | null {
 
 export function CalendarioAgenda({
   voci,
+  gestioni = {},
+  trattative = {},
   mese,
   oggi,
   emailCorrente,
   operatori,
   puoCancellare,
+  sonoCommerciale = false,
+  possoRiassegnare = false,
   nomiStaff,
   linkMesePrecedente,
   linkMeseSuccessivo,
@@ -39,12 +44,19 @@ export function CalendarioAgenda({
   nuovaVoce,
 }: {
   voci: VoceAgenda[]
+  /** Nota e firme delle richieste dal sito, per chiave di voce. */
+  gestioni?: Record<string, GestioneSemplicePerVoce>
+  /** La trattativa aperta del contatto di ogni voce, per id di persona. */
+  trattative?: Record<string, DatiTrattativa>
   /** Un giorno qualsiasi del mese mostrato, in YYYY-MM-DD. */
   mese: string
   oggi: string
   emailCorrente: string | null
   operatori: string[]
   puoCancellare: boolean
+  /** I diritti sulla pipeline: decidono quali chiusure si possono offrire. */
+  sonoCommerciale?: boolean
+  possoRiassegnare?: boolean
   /** Email → "Nome Cognome" dello staff, per firmare le note di chiusura. */
   nomiStaff: Record<string, string>
   linkMesePrecedente: string
@@ -163,15 +175,22 @@ export function CalendarioAgenda({
               {delGiorno.length} {delGiorno.length === 1 ? 'voce' : 'voci'}
             </span>
           </div>
+          {/* Lo stesso elenco della dashboard e della vista a lista: righe
+              compatte che si aprono sui comandi. Prima qui c'era una tabella
+              sua, con una colonna per dato — le stesse voci e gli stessi
+              gesti in una terza forma da imparare. */}
           {delGiorno.length > 0 ? (
-            <TabellaAgenda
+            <EventiElenco
               voci={delGiorno}
+              gestioni={gestioni}
+              trattative={trattative}
               oggi={oggi}
-              emailCorrente={emailCorrente}
+              io={emailCorrente}
               operatori={operatori}
               puoCancellare={puoCancellare}
+              sonoCommerciale={sonoCommerciale}
+              possoRiassegnare={possoRiassegnare}
               nomiStaff={nomiStaff}
-              mostraData={false}
             />
           ) : (
             <p className="vuoto">Niente in agenda in questo giorno.</p>

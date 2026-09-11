@@ -6,6 +6,10 @@ import { emailCorrente } from '@/lib/auth/sezioni-server'
 import { rigaStaffCorrente } from '@/lib/auth/staff-server'
 import { registraLog } from '@/lib/audit'
 import {
+  DOMANDA_MOTIVO,
+  VALORE_MASSIMO_EURO,
+  chiedeMotivo,
+  chiedeValore,
   eChiusa,
   eStatoValido,
   puoAnnullare,
@@ -122,9 +126,15 @@ export async function prendiInCarico(id: string): Promise<Esito> {
 /**
  * Sposta la trattativa in un altro stato.
  *
- * `motivo` serve ai due stati che lo chiedono, e finisce in due colonne
- * diverse perché sono due domande diverse:
+ * `motivo` è **obbligatorio su tutte e tre le chiusure**, e finisce in tre
+ * colonne diverse perché sono tre domande diverse:
  *
+ *  - **vinto** → `motivo_vinto`, quale abbonamento è stato venduto, più
+ *    `valore_euro` in un campo numerico suo. Era l'unico esito senza nota,
+ *    cioè l'unico che produce fatturato e non lasciava traccia di cosa fosse
+ *    — «Vinta» da sola non dice che abbonamento è, e a sei mesi nessuno
+ *    ricollega una riga di pipeline a una vendita. Il valore sta fuori dalla
+ *    nota perché dentro non si somma: è la base del fatturato per periodo;
  *  - **perso** → `motivo_perso`, il motivo commerciale: ci abbiamo provato e
  *    non è andata, e fra sei mesi quel perché è l'unica cosa che insegna
  *    qualcosa;
@@ -132,12 +142,17 @@ export async function prendiInCarico(id: string): Promise<Esito> {
  *    inserimento: doppione, attività spuntata per sbaglio al banco, prova.
  *
  * Tenerli separati è ciò che permette di rileggere i motivi di perdita senza
- * doverci prima filtrare via gli sbagli.
+ * doverci prima filtrare via gli sbagli e le vendite. E ogni motivo vive solo
+ * nel suo stato: uscendo da quello si azzera, o una annullata rimessa in
+ * gestione si porterebbe dietro «doppione» e direbbe il falso alla prima riga
+ * di storico.
  */
 export async function cambiaStato(
   id: string,
   nuovo: string,
-  motivo?: string | null
+  motivo?: string | null,
+  /** Il valore del contratto, già normalizzato dal pannello (valoreDaTesto). */
+  valore?: number | null
 ): Promise<Esito> {
   const { email, sonoCommerciale, possoRiassegnare, haSezione } = await dirittiCorrenti()
   if (!haSezione) return { ok: false, errore: 'Non hai accesso alle richieste Club e Family.' }
@@ -171,11 +186,29 @@ export async function cambiaStato(
   }
 
   // Il controllo sta qui e non solo nel pannello: una Server Action resta
-  // chiamabile a mano, e un'annullata senza spiegazione è esattamente la
-  // riga che fra un mese nessuno sa più perché è sparita dalla pipeline —
-  // tanto più adesso che si può annullare la trattativa di un collega.
-  if (stato === 'annullato' && !perche) {
-    return { ok: false, errore: 'Scrivi perché la annulli: doppione, errore di inserimento, prova…' }
+  // chiamabile a mano, e una chiusura senza spiegazione è esattamente la
+  // riga che fra un mese nessuno sa più com'è finita — tanto più adesso che
+  // si può chiudere da tre posti diversi.
+  if (chiedeMotivo(stato) && !perche) {
+    return { ok: false, errore: `Scrivi la nota. ${DOMANDA_MOTIVO[stato]}` }
+  }
+
+  // Il valore del contratto: obbligatorio sulla vinta, e validato di nuovo
+  // qui. Il pannello lo normalizza già (valoreDaTesto), ma una Server Action
+  // resta chiamabile a mano — e un fatturato con dentro uno zero o un
+  // NaN è peggio di un fatturato che manca, perché non si vede.
+  const valorePulito =
+    chiedeValore(stato) && valore !== null && valore !== undefined
+      ? Math.round(Number(valore) * 100) / 100
+      : null
+
+  if (chiedeValore(stato)) {
+    if (valorePulito === null || !Number.isFinite(valorePulito)) {
+      return { ok: false, errore: 'Scrivi quanto vale il contratto, in euro.' }
+    }
+    if (valorePulito <= 0 || valorePulito > VALORE_MASSIMO_EURO) {
+      return { ok: false, errore: 'Il valore del contratto non è un importo plausibile.' }
+    }
   }
 
   const supabase = createSupabaseServiceClient()
@@ -191,12 +224,31 @@ export async function cambiaStato(
       // Ogni motivo vive solo nel suo stato, e uscendo da quello si azzera:
       // una annullata rimessa in gestione che si portasse dietro «doppione»
       // direbbe il falso alla prima riga di storico.
+      motivo_vinto: stato === 'vinto' ? perche : null,
       motivo_perso: stato === 'perso' ? perche : null,
       motivo_annullato: stato === 'annullato' ? perche : null,
+      // Come i motivi: il valore vive solo nella vinta. Una vinta rimessa in
+      // gestione che si portasse dietro 1.080 € direbbe il falso al primo
+      // conto del fatturato.
+      valore_euro: valorePulito,
     })
     .eq('id', id)
 
-  if (error) return { ok: false, errore: error.message }
+  if (error) {
+    // La colonna della nota della vinta arriva con una migration
+    // (scripts/sql/2026-09-11-nota-della-vinta.sql). Se non è passata, dirlo
+    // invece di rimandare il messaggio di Postgres: qui non si ripiega
+    // scrivendo senza la nota — è appena stata dichiarata obbligatoria, e
+    // salvarla a metà in silenzio è peggio che rifiutare.
+    if (/motivo_vinto|valore_euro/.test(error.message)) {
+      return {
+        ok: false,
+        errore:
+          'Manca la colonna della nota: esegui scripts/sql/2026-09-11-nota-della-vinta.sql nel SQL Editor.',
+      }
+    }
+    return { ok: false, errore: error.message }
+  }
 
   await registraLog(
     email,
@@ -204,7 +256,7 @@ export async function cambiaStato(
     {
       entita: 'opportunita',
       entitaId: id,
-      dettagli: { da: t.stato, a: stato, motivo: perche },
+      dettagli: { da: t.stato, a: stato, motivo: perche, valore: valorePulito },
     }
   )
 

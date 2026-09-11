@@ -14,18 +14,27 @@ import {
   type StatoTrattativa,
 } from '@/lib/pipeline'
 import {
-  TIPI_APPUNTAMENTO,
+  DURATA_PREDEFINITA,
+  eEsitoValido,
+  normalizzaOra,
   oggiRoma,
   ordinaVoci,
+  tipoDaAzione,
   voceDaContatto,
   voceDaTask,
   type VoceAgenda,
 } from '@/lib/agenda'
 import { nomePersona } from '@/lib/persone'
 import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
+import { COLONNE_ASSEGNAZIONE_RICHIESTA, conColonneNuove } from '@/lib/migrazioni'
 import { GuidaDashboard } from '@/components/GuidaDashboard'
-import { ImpegniDashboard } from './ImpegniDashboard'
-import { TrattativeDashboard, type TrattativaConPersona } from './TrattativeDashboard'
+import { EventiElenco, type GestioneSemplicePerVoce } from '@/components/EventiElenco'
+import type { DatiTrattativa } from './richieste/Trattativa'
+import {
+  TrattativeDashboard,
+  type EventoDOrigine,
+  type TrattativaConPersona,
+} from './TrattativeDashboard'
 
 export const dynamic = 'force-dynamic'
 
@@ -169,68 +178,76 @@ async function contatoriTrattative(email: string | null) {
 }
 
 /**
- * Gli impegni su cui si può agire adesso: gli arretrati e quelli di oggi. Le
+ * Gli eventi su cui si può agire adesso: gli arretrati e quelli di oggi. Le
  * voci future restano in agenda — qui servirebbero solo a far sembrare la
  * giornata più piena di com'è.
  *
- * Chi vede cosa, e perché non è la stessa regola per tutti:
+ * **Quelli di tutti, senza distinzione di tipo.** Prima gli appuntamenti si
+ * vedevano tutti e le cose da fare solo le proprie, con l'idea che un task
+ * fosse un promemoria personale. Ma le due metà della regola producevano un
+ * elenco che nessuno poteva leggere per quello che era: guardandolo non si
+ * sapeva se «niente di arretrato» volesse dire che il club è in pari o solo
+ * che l'arretrato è di un collega. In segreteria si copre il turno di chi non
+ * c'è, e per farlo bisogna poter vedere cosa è rimasto indietro a chiunque.
  *
- *  - **gli appuntamenti — in sede e telefonici — si vedono tutti**, anche
- *    quelli dei colleghi. Il club è uno: chi è al banco deve sapere chi arriva
- *    stamattina anche se l'appuntamento non è suo, altrimenti si scopre la
- *    persona in portineria. Ci sono anche quelli prenotati dal sito, che non
- *    hanno un assegnatario per definizione.
- *  - **le cose da fare si vedono solo se proprie**: un task è un promemoria
- *    personale, e l'elenco di tutti sarebbe illeggibile e per lo più roba di
- *    altri.
+ * Il prezzo è che ogni riga deve dire **di chi è**, e dirlo sempre: il tag
+ * dell'assegnatario in ImpegniDashboard porta il nome per esteso, o «Non
+ * assegnato» dove non c'è nessuno. Senza quello un elenco di tutti si legge
+ * come una lista di cose proprie, ed è il modo di presentarsi in due alla
+ * stessa telefonata.
  *
  * Email e WhatsApp non compaiono: si registrano già chiusi (vedi
  * TIPI_SOLO_REGISTRATI in lib/agenda.ts), quindi non sono mai «da fare».
  */
-async function impegniDelGiorno(email: string | null) {
+async function impegniDelGiorno() {
   const supabase = createSupabaseServiceClient()
   const oggi = oggiRoma()
 
   const COLONNE_TASK =
     'id, titolo, tipo, data, ora, durata_minuti, stato, note, assegnato_a, esito_tipo, esito, esito_da, esito_il, entita, entita_id'
 
-  // Due letture invece di un filtro `or`: le email contengono @ e punti, che
-  // in un `or` di PostgREST vanno protetti a mano — e una query che si legge
-  // è meglio di una che si azzecca.
-  const [{ data: appuntamenti }, { data: miei }, { data: prenotati }] = await Promise.all([
+  const [{ data: righe }, { data: prenotati }] = await Promise.all([
     supabase
       .from('task')
       .select(COLONNE_TASK)
       .eq('stato', 'aperto')
-      .in('tipo', TIPI_APPUNTAMENTO)
       // `lte` e non `eq`: un impegno di martedì rimasto aperto è esattamente
       // quello che non deve sparire per il fatto di essere passato.
       .lte('data', oggi),
-    email
-      ? supabase
-          .from('task')
-          .select(COLONNE_TASK)
-          .eq('stato', 'aperto')
-          .eq('assegnato_a', email)
-          .lte('data', oggi)
-      : Promise.resolve({ data: [] as Record<string, any>[] }),
-    // Gli appuntamenti prenotati dal sito: sono voci d'agenda per conto loro
-    // (vedi voceDaContatto) e nessuno li ha in carico.
-    supabase
-      .from('form_contatti')
-      .select(
-        'id, azione, data_scelta, ora_scelta, nome, cognome, email, cellulare, attivita_label, messaggio, gestito, esito_tipo, esito, persona_id, appuntamento_annullato_il'
-      )
-      .in('attivita', ATTIVITA_IN_AGENDA)
-      .eq('gestito', false)
-      .lte('data_scelta', oggi)
-      .not('data_scelta', 'is', null),
+    // Le richieste del settore core ancora da gestire: sono voci d'agenda per
+    // conto loro (vedi voceDaContatto).
+    //
+    // `assegnato_a` è quello della trattativa, scritto dal trigger
+    // assegna_eventi_della_trattativa — prendere in carico la trattativa vuol
+    // dire prendersi anche il suo appuntamento, ed è la ragione per cui la
+    // colonna è scritta e non derivata: la trattativa si riassegna, e di
+    // questa riga serve sapere **a chi era**.
+    conColonneNuove<Record<string, any>>(
+      'id, azione, data_scelta, ora_scelta, nome, cognome, email, cellulare, attivita_label, messaggio, gestito, gestito_da, gestito_il, assegnato_a, note, note_da, note_il, esito_tipo, esito, esito_da, esito_il, persona_id, appuntamento_annullato_il',
+      COLONNE_ASSEGNAZIONE_RICHIESTA,
+      (colonne) =>
+        supabase
+          .from('form_contatti')
+          .select(colonne)
+          .in('attivita', ATTIVITA_IN_AGENDA)
+          .eq('gestito', false)
+          // Scadute o di oggi, **e anche quelle senza un'ora**: chi ha
+          // scritto un messaggio senza prenotare non ha una `data_scelta`, e
+          // il filtro sulla sola data lo lasciava fuori. Era lavoro invisibile
+          // — visibile in Eventi Core e non in dashboard — e per giunta
+          // proprio il tipo che si dimentica più facilmente, perché nessuno
+          // gli ha dato un orario. In elenco si colloca nel giorno in cui è
+          // arrivato (vedi voceDaContatto), che è da quando aspetta.
+          //
+          // Le prenotazioni future restano fuori: la sezione dice «scaduti o
+          // da gestire oggi», e riempirla di appuntamenti di giovedì
+          // significherebbe far sembrare la giornata più piena di com'è.
+          .or(`data_scelta.lte.${oggi},data_scelta.is.null`)
+    ),
   ])
 
-  // Le due letture su task si sovrappongono (un mio appuntamento sta in
-  // entrambe): si deduplica per id, o comparirebbe due volte.
   const righeTask = new Map<string, Record<string, any>>()
-  for (const riga of [...(appuntamenti ?? []), ...(miei ?? [])]) {
+  for (const riga of righe ?? []) {
     righeTask.set(riga.id as string, riga)
   }
 
@@ -284,7 +301,63 @@ async function impegniDelGiorno(email: string | null) {
   // «12 voci aperte» non dice che tre sono di ieri, ed è quello che conta.
   const arretrati = tutte.filter((v) => v.data < oggi).length
 
-  return { voci: tutte.slice(0, IMPEGNI_IN_ELENCO), totaleAperti: tutte.length, arretrati }
+  // I dati della **gestione semplice** delle richieste dal sito: la nota
+  // dell'operatore e le firme.
+  //
+  // Non stanno in VoceAgenda e non ci possono stare: là `note` è il messaggio
+  // che ha scritto la persona (vedi voceDaContatto), che è un'altra cosa
+  // dalla nota di chi la lavora. Passarle a parte, indicizzate sulla chiave
+  // della voce, evita di dare due significati allo stesso campo — che è il
+  // modo di mostrare a un operatore il testo del cliente dentro la casella
+  // dove deve scrivere lui.
+  const gestioni: Record<string, GestioneSemplicePerVoce> = {}
+  for (const r of prenotati ?? []) {
+    gestioni[`contatto-${r.id}`] = {
+      nota: (r.note as string) ?? null,
+      gestitoDa: (r.gestito_da as string) ?? null,
+      gestitoIl: (r.gestito_il as string) ?? null,
+      notaDa: (r.note_da as string) ?? null,
+      notaIl: (r.note_il as string) ?? null,
+    }
+  }
+
+  // La trattativa aperta del contatto di ogni voce, per poterla chiudere da
+  // qui: si telefona, la persona dice sì, e in quel minuto si sanno entrambe
+  // le cose — com'è andata la telefonata e com'è finita la trattativa.
+  //
+  // Per persona e non per evento: una persona ha al massimo una trattativa
+  // aperta (vedi trova_o_crea_opportunita), e solo le aperte interessano —
+  // da qui si chiude, e una già chiusa non ha niente da chiudere.
+  const idPersoneVoci = [
+    ...new Set(tutte.slice(0, IMPEGNI_IN_ELENCO).map((v) => v.personaId).filter(Boolean)),
+  ] as string[]
+
+  const { data: trattativeAperte } = idPersoneVoci.length
+    ? await supabase
+        .from('opportunita')
+        .select('id, persona_id, stato, assegnato_a, motivo_perso, motivo_annullato')
+        .in('persona_id', idPersoneVoci)
+        .in('stato', ['nuovo', 'in_gestione'])
+    : { data: [] as Record<string, any>[] }
+
+  const trattative: Record<string, DatiTrattativa> = {}
+  for (const t of trattativeAperte ?? []) {
+    trattative[t.persona_id as string] = {
+      id: t.id as string,
+      stato: t.stato,
+      assegnato_a: (t.assegnato_a as string) ?? null,
+      motivo_perso: (t.motivo_perso as string) ?? null,
+      motivo_annullato: (t.motivo_annullato as string) ?? null,
+    }
+  }
+
+  return {
+    voci: tutte.slice(0, IMPEGNI_IN_ELENCO),
+    totaleAperti: tutte.length,
+    arretrati,
+    gestioni,
+    trattative,
+  }
 }
 
 /**
@@ -300,9 +373,15 @@ async function trattativeDaLavorare(email: string | null) {
 
   // Solo le aperte: una vinta o persa non è lavoro, è storia — si consulta
   // dalla sezione, filtrando per stato.
+  //
+  // `origine` serve alla targhetta della provenienza: su una trattativa nata
+  // al banco è l'unico posto in cui quel fatto è scritto, se poi la richiesta
+  // agganciata non c'è (vedi lib/provenienza.ts).
   const { data } = await supabase
     .from('opportunita')
-    .select('id, stato, assegnato_a, motivo_perso, motivo_annullato, persona_id, creato_il')
+    .select(
+      'id, stato, assegnato_a, motivo_perso, motivo_annullato, persona_id, creato_il, origine'
+    )
     .in('stato', ['nuovo', 'in_gestione'])
     .order('creato_il', { ascending: false })
 
@@ -315,16 +394,41 @@ async function trattativeDaLavorare(email: string | null) {
 
   const scelte = [...mie, ...libere].slice(0, TRATTATIVE_IN_ELENCO * 2)
   const personaIds = [...new Set(scelte.map((t) => t.persona_id).filter(Boolean))] as string[]
+  const trattativaIds = scelte.map((t) => t.id as string)
 
-  // Solo le colonne che `persone` ha davvero: `ultima_richiesta` sta sulla
-  // vista persone_con_richieste, e chiederla qui faceva fallire la lettura —
-  // con l'errore ignorato, ogni trattativa finiva intestata a «Senza nome».
-  const { data: persone, error: errorePersone } = personaIds.length
-    ? await supabase
-        .from('persone')
-        .select('id, nome, cognome, email, cellulare')
-        .in('id', personaIds)
-    : { data: [] as Record<string, any>[], error: null }
+  const [{ data: persone, error: errorePersone }, { data: richieste, error: erroreRichieste }] =
+    await Promise.all([
+      // Solo le colonne che `persone` ha davvero: `ultima_richiesta` sta sulla
+      // vista persone_con_richieste, e chiederla qui faceva fallire la lettura
+      // — con l'errore ignorato, ogni trattativa finiva intestata a «Senza
+      // nome».
+      personaIds.length
+        ? supabase.from('persone').select('id, nome, cognome, email, cellulare').in('id', personaIds)
+        : Promise.resolve({ data: [] as Record<string, any>[], error: null }),
+      // L'evento che ha aperto la trattativa, con tutto quello che serve a
+      // **chiuderlo da qui**: era il passaggio che costava una pagina — si
+      // leggeva la trattativa in dashboard e si andava in Club e Family per
+      // segnare la telefonata fatta.
+      //
+      // Agganciate per `opportunita_id`, non per persona: è il collegamento
+      // che il trigger scrive (vedi collega_persona_a_contatto), e legarle
+      // alla persona vorrebbe dire mostrare su una trattativa nuova la
+      // richiesta di una chiusa l'anno prima.
+      trattativaIds.length
+        ? conColonneNuove<Record<string, any>>(
+            'id, created_at, opportunita_id, origine, azione, data_scelta, ora_scelta, attivita_label, messaggio, gestito, gestito_da, gestito_il, assegnato_a, note, note_da, note_il, esito_tipo, esito, esito_da, esito_il',
+            COLONNE_ASSEGNAZIONE_RICHIESTA,
+            (colonne) =>
+              supabase
+                .from('form_contatti')
+                .select(colonne)
+                .in('opportunita_id', trattativaIds)
+                // Crescente: scrivendo nella mappa vince l'ultima letta, cioè
+                // la più recente — quella che si sta per lavorare.
+                .order('created_at', { ascending: true })
+          )
+        : Promise.resolve({ data: [] as Record<string, any>[], error: null }),
+    ])
 
   // Un errore qui non svuota la pagina — le trattative si vedono comunque —
   // ma senza i nomi non si capisce di chi siano: va detto nei log invece di
@@ -332,8 +436,56 @@ async function trattativeDaLavorare(email: string | null) {
   if (errorePersone) {
     console.error('Nomi delle trattative non letti:', errorePersone.message)
   }
+  // Senza le richieste le righe restano lavorabili — nome, stato, presa in
+  // carico — ma perdono provenienza, tipo di evento e pannello di chiusura:
+  // un elenco che sembra impoverito senza motivo, se non lo si scrive.
+  if (erroreRichieste) {
+    console.error('Eventi d’origine delle trattative non letti:', erroreRichieste.message)
+  }
 
   const perId = new Map((persone ?? []).map((p) => [p.id as string, p]))
+
+  // L'ultima richiesta di ogni trattativa, e quante ne ha in tutto: più di
+  // una vuol dire che è un ritorno, e presentarsi come al primo contatto a
+  // chi ha già scritto tre volte è il modo di perderlo.
+  const eventoPerTrattativa = new Map<string, EventoDOrigine>()
+  const quantePerTrattativa = new Map<string, number>()
+  for (const r of richieste ?? []) {
+    const idTrattativa = r.opportunita_id as string
+    quantePerTrattativa.set(idTrattativa, (quantePerTrattativa.get(idTrattativa) ?? 0) + 1)
+    const tipo = tipoDaAzione(r.azione as string | null)
+    eventoPerTrattativa.set(idTrattativa, {
+      richiestaId: r.id as string,
+      tipo,
+      // Solo lo slot prenotato dal sito, non il giorno d'arrivo: una data
+      // accanto a «Messaggio» si legge come un appuntamento che non esiste.
+      data: r.data_scelta ? String(r.data_scelta).slice(0, 10) : null,
+      ora: normalizzaOra(r.ora_scelta as string | null),
+      durataMinuti: DURATA_PREDEFINITA[tipo],
+      attivita: (r.attivita_label as string) ?? null,
+      messaggio: (r.messaggio as string) ?? null,
+      // Riempito dopo il giro: il conto si sa solo a elenco finito.
+      quante: 1,
+      origine: (r.origine as string) ?? null,
+      gestito: !!r.gestito,
+      gestitoDa: (r.gestito_da as string) ?? null,
+      gestitoIl: (r.gestito_il as string) ?? null,
+      // Di chi è il lavoro, distinto da chi l'ha chiuso (`esitoDa` /
+      // `gestitoDa`): un appuntamento in carico a Carola può essere stato
+      // tenuto da Marco, perché quel giorno al banco c'era lui.
+      assegnatoA: (r.assegnato_a as string) ?? null,
+      nota: (r.note as string) ?? null,
+      notaDa: (r.note_da as string) ?? null,
+      notaIl: (r.note_il as string) ?? null,
+      esitoTipo: eEsitoValido(r.esito_tipo as string | null) ? r.esito_tipo : null,
+      esito: (r.esito as string) ?? null,
+      esitoDa: (r.esito_da as string) ?? null,
+      esitoIl: (r.esito_il as string) ?? null,
+    })
+  }
+  for (const [idTrattativa, evento] of eventoPerTrattativa) {
+    evento.quante = quantePerTrattativa.get(idTrattativa) ?? 1
+  }
 
   function conPersona(t: Record<string, any>): TrattativaConPersona {
     const p = t.persona_id ? perId.get(t.persona_id as string) : undefined
@@ -351,10 +503,14 @@ async function trattativeDaLavorare(email: string | null) {
       // ferma da tre settimane avevano lo stesso aspetto, e la seconda è
       // quella da chiamare.
       creatoIl: (t.creato_il as string) ?? null,
+      origine: (t.origine as string) ?? null,
       nome: (p?.nome as string) ?? null,
       cognome: (p?.cognome as string) ?? null,
       email: (p?.email as string) ?? null,
       cellulare: (p?.cellulare as string) ?? null,
+      // Null sulle trattative nate da un evento in agenda: là non c'è nessuna
+      // richiesta dietro, e quegli eventi si lavorano nella seconda sezione.
+      evento: eventoPerTrattativa.get(t.id as string) ?? null,
     }
   }
 
@@ -406,7 +562,7 @@ export default async function RiepilogoPage() {
       getNomeUtente(email),
       vedeTrattative ? contatoriTrattative(email) : Promise.resolve(null),
       vedeTrattative ? trattativeDaLavorare(email) : Promise.resolve(null),
-      vedeAgenda ? impegniDelGiorno(email) : Promise.resolve(null),
+      vedeAgenda ? impegniDelGiorno() : Promise.resolve(null),
       // La spia interessa solo chi amministra: è lui che aggiunge un canale.
       amministra
         ? richiesteNonInstradate()
@@ -431,53 +587,231 @@ export default async function RiepilogoPage() {
 
   const inArrivo = SEZIONI.filter((s) => s.inArrivo && sezioniConsentite.includes(s.chiave))
 
-  // Quante trattative chiedono qualcosa a chi guarda: le libere da prendere
-  // più le sue in gestione. Va in testa alla sezione, perché aprendo la
-  // pagina la prima domanda è «quante cose ho da fare», non «quante ce ne
-  // sono in tutto».
-  const daFareTrattative = trattative ? trattative.libere + trattative.mie.in_gestione : 0
+  // Quante cose chiedono qualcosa **adesso**, una per sezione: è il numero
+  // accanto al titolo, perché aprendo la pagina la prima domanda è «quante ne
+  // ho da fare», non «quante ce ne sono in tutto».
+  const libereDaPrendere = trattative?.libere ?? 0
+  const eventiDaFare = impegni?.totaleAperti ?? 0
 
   return (
     <>
       <div className="page-head">
         <p className="eyebrow">CRM Ronchiverdi</p>
         <h1>{nomeUtente ? `Ciao ${nomeUtente.split(' ')[0]}` : 'Dashboard'}</h1>
-        <p className="muted">Le trattative in corso e cosa ti aspetta oggi.</p>
+        <p className="muted">
+          Cosa c&apos;è da prendere in carico e cosa scade oggi. Si lavora da qui, senza cambiare
+          pagina.
+        </p>
       </div>
 
-      {/* La legenda: le due sezioni di questa pagina hanno perimetri diversi
-          — sopra le trattative **tue**, sotto gli impegni di **tutti** — e
-          quella differenza non si vede guardando. */}
+      {/* La legenda: le sezioni di questa pagina hanno perimetri diversi —
+          le trattative sono **tue**, gli eventi sono di **tutti** — e quella
+          differenza non si vede guardando. */}
       <GuidaDashboard />
 
-      {/* Una sezione sola, non due: i riquadri sono i tuoi numeri e gli
-          elenchi qui sotto sono il loro dettaglio. Prima i riquadri contavano
-          tutto il club e sopra c'era un elenco delle proprie: con un
-          commerciale solo al lavoro i numeri coincidevano, e la pagina
-          sembrava ripetersi — «Da prendere in carico» era perfino lo stesso
-          insieme detto due volte, un numero e la sua lista.
+      {/* ─────────────────────────────────────────────────────────────────
+          1. Le trattative che non ha in mano nessuno.
 
-          I contatori che c'erano ancora prima — richieste totali, sessioni,
-          conversione — erano numeri da guardare, non da aprire. I dati sul
-          traffico stanno in Analytics e Visite al sito, dove si leggono col
-          periodo e il confronto. */}
+          Prima erano il terzo blocco di una sezione intitolata «Le tue
+          trattative», sotto quattro riquadri di numeri: la cosa più urgente
+          della pagina — una trattativa che nessuno segue è la sola che
+          rischia di non essere chiamata da nessuno — stava dove si arriva
+          scorrendo. Ora è la prima sezione, e ha un titolo che dice il
+          gesto invece dell'insieme.
+          ───────────────────────────────────────────────────────────────── */}
+      {mieTrattative && (
+        <section className="riepilogo-sezione">
+          <div className="riepilogo-testa">
+            <h2 className="riepilogo-titolo">Trattative da prendere in carico</h2>
+            <p className="riepilogo-sottotitolo muted">Eventi Core</p>
+            {libereDaPrendere > 0 ? (
+              <span className="badge badge-warn badge-punto">
+                {libereDaPrendere} {libereDaPrendere === 1 ? 'libera' : 'libere'}
+              </span>
+            ) : (
+              <span className="badge badge-punto">nessuna</span>
+            )}
+          </div>
+
+          {mieTrattative.libere.length > 0 ? (
+            <div className="card card-azione">
+              {/* Prendere in carico richiede il diritto commerciale: senza,
+                  l'elenco si vede — è lavoro del club, non un segreto — ma i
+                  comandi non compaiono (vedi puoAssegnare in
+                  lib/pipeline.ts). */}
+              <TrattativeDashboard
+                trattative={mieTrattative.libere}
+                io={email}
+                sonoCommerciale={sonoCommerciale}
+                possoRiassegnare={possoRiassegnare}
+                commerciali={commerciali}
+                operatori={operatori}
+                puoCancellare={possoCancellare}
+                nomiStaff={nomiStaff}
+              />
+              {mieTrattative.libereTotale > mieTrattative.libere.length && (
+                <Link
+                  className="btn btn-ghost btn-sm card-coda"
+                  href="/dashboard/richieste/richieste-club?stato=nuovo"
+                >
+                  Vedi tutte quelle libere ({mieTrattative.libereTotale})
+                </Link>
+              )}
+            </div>
+          ) : (
+            <div className="card">
+              {/* Un elenco vuoto centrato in grigio si legge come un errore:
+                  qui è una buona notizia, e va detto come tale. */}
+              <div className="vuoto-buono">
+                <span className="vuoto-glifo" aria-hidden="true">
+                  ✓
+                </span>
+                <p className="vuoto-titolo">Nessuna trattativa libera</p>
+                <p className="vuoto-nota">Sono tutte in mano a qualcuno.</p>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────────
+          2. Gli eventi che scadono oggi, e quelli che sono già scaduti.
+
+          Il titolo dice arretrati **e** oggi perché l'elenco è quello: una
+          sezione intitolata «Impegni di oggi» che contiene tre voci di
+          martedì scorso fa credere che il pannello sbagli le date, e
+          l'arretrato è proprio la parte che non deve passare inosservata.
+          ───────────────────────────────────────────────────────────────── */}
+      {impegni && (
+        <section className="riepilogo-sezione">
+          <div className="riepilogo-testa">
+            <h2 className="riepilogo-titolo">Eventi scaduti o da gestire oggi</h2>
+            <p className="riepilogo-sottotitolo muted">
+              Di tutto il club: ogni riga dice a chi è in carico
+            </p>
+            {/* Gli arretrati staccati dal totale: «12 voci aperte» non dice
+                che tre sono di ieri, ed è quello che conta. */}
+            {impegni.arretrati > 0 ? (
+              <span className="badge badge-ko badge-punto">
+                {impegni.arretrati} {impegni.arretrati === 1 ? 'arretrato' : 'arretrati'}
+              </span>
+            ) : eventiDaFare > 0 ? (
+              <span className="badge badge-punto">{eventiDaFare} da fare</span>
+            ) : (
+              <span className="badge badge-punto">nessuno</span>
+            )}
+          </div>
+
+          {impegni.voci.length > 0 ? (
+            <div className={`card${impegni.arretrati > 0 ? ' card-azione' : ''}`}>
+              {/* La legenda dei colori: la banda rossa e quella blu vanno
+                  capite al primo sguardo, e una riga qui costa meno di un
+                  badge per riga. */}
+              <p className="card-nota muted">
+                Sono gli eventi di <strong>tutti</strong>: guarda il tag di chi ce l&apos;ha in
+                carico prima di lavorare una riga. Banda rossa: arretrato. Banda blu: è di oggi.
+                Apri una riga per chiamare, chiudere con l&apos;esito o spostarla.
+              </p>
+
+              <EventiElenco
+                voci={impegni.voci}
+                gestioni={impegni.gestioni}
+                trattative={impegni.trattative}
+                oggi={oggi}
+                io={email}
+                operatori={operatori}
+                puoCancellare={possoCancellare}
+                sonoCommerciale={sonoCommerciale}
+                possoRiassegnare={possoRiassegnare}
+                nomiStaff={nomiStaff}
+              />
+
+              {/* Il link porta all'agenda già filtrata sulle proprie: è la
+                  continuazione di questo elenco, non un'altra pagina da
+                  ri-filtrare a mano. */}
+              <Link
+                className="btn btn-ghost btn-sm card-coda"
+                href="/dashboard/agenda?vista=lista&solo=mie"
+              >
+                Apri la tua agenda
+              </Link>
+            </div>
+          ) : (
+            <div className="card">
+              <div className="vuoto-buono">
+                <span className="vuoto-glifo" aria-hidden="true">
+                  ✓
+                </span>
+                <p className="vuoto-titolo">Giornata pulita</p>
+                <p className="vuoto-nota">
+                  Niente di arretrato e niente per oggi.{' '}
+                  <Link className="link" href="/dashboard/agenda">
+                    Vedi tutta l&apos;agenda
+                  </Link>
+                  .
+                </p>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ─────────────────────────────────────────────────────────────────
+          3. Il proprio portafoglio: quelle che segui tu, e i numeri.
+
+          Sta dopo le due code di lavoro e non prima: i riquadri sono una
+          fotografia — si guardano — mentre sopra c'è roba da fare. Aprendo
+          la pagina la prima cosa sotto gli occhi deve essere quella che
+          chiede qualcosa.
+          ───────────────────────────────────────────────────────────────── */}
       {trattative && (
         <section className="riepilogo-sezione">
-          {/* Il capitolo si vede: nome pieno, cosa risponde, e a destra quante
-              cose chiedono qualcosa. Prima era un'etichettina grigia della
-              misura dei metadati, e la pagina risultava un nastro continuo di
-              riquadri senza capitoli. */}
           <div className="riepilogo-testa">
-            <h2 className="riepilogo-titolo">Le tue trattative</h2>
-            <p className="riepilogo-sottotitolo muted">Abbonamento Club e Family</p>
-            {daFareTrattative > 0 && (
-              <span className="badge badge-warn badge-punto">
-                {daFareTrattative} da lavorare
+            <h2 className="riepilogo-titolo">Le trattative che segui tu</h2>
+            <p className="riepilogo-sottotitolo muted">Il tuo lavoro in corso, e come va</p>
+            {trattative.mie.in_gestione > 0 && (
+              <span className="badge badge-info badge-punto">
+                {trattative.mie.in_gestione} in gestione
               </span>
             )}
           </div>
 
-          <div className="griglia-stat">
+          {mieTrattative && mieTrattative.mie.length > 0 && (
+            <div className="card">
+              <TrattativeDashboard
+                trattative={mieTrattative.mie}
+                io={email}
+                sonoCommerciale={sonoCommerciale}
+                possoRiassegnare={possoRiassegnare}
+                commerciali={commerciali}
+                operatori={operatori}
+                puoCancellare={possoCancellare}
+                nomiStaff={nomiStaff}
+              />
+              {mieTrattative.mieTotale > mieTrattative.mie.length && (
+                <Link
+                  className="btn btn-ghost btn-sm card-coda"
+                  href="/dashboard/richieste/richieste-club?mostra=tutte&mie=1"
+                >
+                  Vedi tutte le tue ({mieTrattative.mieTotale})
+                </Link>
+              )}
+            </div>
+          )}
+
+          {mieTrattative && mieTrattative.mie.length === 0 && (
+            <div className="card">
+              <div className="vuoto-buono">
+                <span className="vuoto-glifo" aria-hidden="true">
+                  ✓
+                </span>
+                <p className="vuoto-titolo">Non ne hai nessuna in mano</p>
+                <p className="vuoto-nota">Le tue chiuse restano nei numeri qui sotto.</p>
+              </div>
+            </div>
+          )}
+
+          <div className="griglia-stat griglia-stat-coda">
             {RIQUADRI_STATO.map(({ stato, classe, etichetta, nota, chiedeAzione, filtro }) => {
               const valore = stato === 'nuovo' ? trattative.libere : trattative.mie[stato]
               // Tre condizioni, tre aspetti: c'è lavoro (accesa), non c'è
@@ -500,20 +834,16 @@ export default async function RiepilogoPage() {
                     </span>
                   </span>
                   <span className="stat-valore">{valore}</span>
-                  <span className="stat-nota">{valore === 0 ? 'Nessuna, per ora' : nota}</span>
+                  <span className="stat-nota">{valore === 0 ? '—' : nota}</span>
                 </Link>
               )
             })}
           </div>
 
-          {/* La fotografia del club, in una riga: serve a sapere se sei tu a
-              essere carico o è carico il club, e non merita quattro riquadri
-              accanto ai tuoi. */}
           {/* Gli stessi quattro numeri, ma di tutto il club: serve a sapere se
               sei tu a essere carico o è carico il club. In fila con il
               pallino del proprio stato, gli stessi colori dei riquadri qui
-              sopra e delle righe qui sotto — prima era una frase di testo
-              corrente, che a colpo d'occhio non diceva niente. */}
+              sopra e delle righe qui sotto. */}
           <div className="riepilogo-club">
             <ul className="canale-conti muted">
               <li className="muted">Nel club:</li>
@@ -525,171 +855,9 @@ export default async function RiepilogoPage() {
               ))}
             </ul>
             <Link className="link" href="/dashboard/richieste/richieste-club?mostra=tutte">
-              Apri Abbonamento Club e Family →
+              Apri Eventi Core →
             </Link>
           </div>
-
-          {/* Le libere prima delle proprie, come nell'ordine dei riquadri: una
-              trattativa che nessuno segue è la sola che rischia di non essere
-              chiamata da nessuno, e chi apre la pagina deve trovarla in cima —
-              non sotto l'elenco del lavoro che ha già in mano. */}
-          {mieTrattative && mieTrattative.libere.length > 0 && (
-            <div className="card card-azione">
-              <div className="card-head">
-                <h3 className="card-titolo">
-                  <span className="chip-punto punto-nuovo" aria-hidden="true" />
-                  Libere: le prende chi vuole
-                </h3>
-                <span className="badge badge-warn badge-punto">
-                  {mieTrattative.libereTotale}{' '}
-                  {mieTrattative.libereTotale === 1 ? 'senza titolare' : 'senza titolare'}
-                </span>
-              </div>
-              <p className="card-nota muted">
-                Nessuno le ha in carico. «Prendi in carico» te le assegna e le sposta in gestione.
-              </p>
-              {/* Prendere in carico richiede il diritto commerciale: senza,
-                  l'elenco si vede — è lavoro del club, non un segreto — ma i
-                  comandi non compaiono (vedi puoAssegnare in lib/pipeline.ts). */}
-              <TrattativeDashboard
-                trattative={mieTrattative.libere}
-                io={email}
-                sonoCommerciale={sonoCommerciale}
-                possoRiassegnare={possoRiassegnare}
-                commerciali={commerciali}
-              />
-              {mieTrattative.libereTotale > mieTrattative.libere.length && (
-                <Link
-                  className="btn btn-ghost btn-sm"
-                  href="/dashboard/richieste/richieste-club?stato=nuovo"
-                >
-                  Vedi tutte quelle libere ({mieTrattative.libereTotale})
-                </Link>
-              )}
-            </div>
-          )}
-
-          {mieTrattative && mieTrattative.mie.length > 0 && (
-            <div className="card">
-              <div className="card-head">
-                <h3 className="card-titolo">
-                  <span className="chip-punto punto-gestione" aria-hidden="true" />
-                  Quelle che segui tu
-                </h3>
-                <span className="badge badge-info badge-punto">
-                  {mieTrattative.mieTotale} in gestione
-                </span>
-              </div>
-              <p className="card-nota muted">
-                Aperte e assegnate a te: da portare a vinta o a persa, col motivo.
-              </p>
-              <TrattativeDashboard
-                trattative={mieTrattative.mie}
-                io={email}
-                sonoCommerciale={sonoCommerciale}
-                possoRiassegnare={possoRiassegnare}
-                commerciali={commerciali}
-              />
-              {mieTrattative.mieTotale > mieTrattative.mie.length && (
-                <Link
-                  className="btn btn-ghost btn-sm"
-                  href="/dashboard/richieste/richieste-club?mostra=tutte&mie=1"
-                >
-                  Vedi tutte le tue ({mieTrattative.mieTotale})
-                </Link>
-              )}
-            </div>
-          )}
-
-          {mieTrattative && mieTrattative.mie.length === 0 && mieTrattative.libere.length === 0 && (
-            <div className="card">
-              {/* Un elenco vuoto centrato in grigio si legge come un errore:
-                  qui è una buona notizia, e va detto come tale. */}
-              <div className="vuoto-buono">
-                <span className="vuoto-glifo" aria-hidden="true">
-                  ✓
-                </span>
-                <p className="vuoto-titolo">Nessuna trattativa da lavorare</p>
-                <p className="vuoto-nota">
-                  Non ne hai in mano e non ce ne sono libere da prendere.
-                </p>
-              </div>
-            </div>
-          )}
-        </section>
-      )}
-
-      {impegni && (
-        <section className="riepilogo-sezione">
-          <div className="riepilogo-testa">
-            <h2 className="riepilogo-titolo">Impegni di oggi</h2>
-            <p className="riepilogo-sottotitolo muted">Appuntamenti, telefonate e cose da fare</p>
-            {/* Gli arretrati staccati dal totale: «12 voci aperte» non dice
-                che tre sono di ieri, ed è quello che conta. */}
-            {impegni.arretrati > 0 ? (
-              <span className="badge badge-ko badge-punto">
-                {impegni.arretrati} {impegni.arretrati === 1 ? 'arretrato' : 'arretrati'}
-              </span>
-            ) : (
-              impegni.totaleAperti > 0 && (
-                <span className="badge badge-punto">{impegni.totaleAperti} da fare</span>
-              )
-            )}
-          </div>
-          {impegni.voci.length > 0 ? (
-            <div className={`card${impegni.arretrati > 0 ? ' card-azione' : ''}`}>
-              <div className="card-head">
-                <h3 className="card-titolo">Da fare adesso</h3>
-                <span className="muted">
-                  {impegni.totaleAperti}{' '}
-                  {impegni.totaleAperti === 1 ? 'voce aperta' : 'voci aperte'}
-                </span>
-              </div>
-
-              {/* La legenda dei colori, non solo la regola di chi vede cosa:
-                  in elenco la banda rossa e quella blu vanno capite al primo
-                  sguardo, e una riga qui costa meno di un badge per riga. */}
-              <p className="card-nota muted">
-                Banda rossa: <strong>arretrato</strong>, è di un giorno passato. Banda blu: è di
-                oggi. Gli appuntamenti — in sede e telefonici — sono quelli di tutti, perché al
-                banco serve sapere chi arriva; le cose da fare sono solo le tue.
-              </p>
-
-              {/* Gestibili qui: chiudere una telefonata appena fatta non deve
-                  costare tre passaggi verso l'agenda. */}
-              <ImpegniDashboard
-                voci={impegni.voci}
-                oggi={oggi}
-                io={email}
-                operatori={operatori}
-                puoCancellare={possoCancellare}
-                nomiStaff={nomiStaff}
-              />
-
-              {/* Il link porta all'agenda già filtrata sulle proprie: è la
-                  continuazione di questo elenco, non un'altra pagina da
-                  ri-filtrare a mano. */}
-              <Link className="btn btn-ghost btn-sm" href="/dashboard/agenda?vista=lista&solo=mie">
-                Apri la tua agenda
-              </Link>
-            </div>
-          ) : (
-            <div className="card">
-              <div className="vuoto-buono">
-                <span className="vuoto-glifo" aria-hidden="true">
-                  ✓
-                </span>
-                <p className="vuoto-titolo">Giornata pulita</p>
-                <p className="vuoto-nota">
-                  Nessun appuntamento e nessuna cosa da fare, né arretrata né per oggi.{' '}
-                  <Link className="link" href="/dashboard/agenda">
-                    Vedi tutta l&apos;agenda
-                  </Link>
-                  .
-                </p>
-              </div>
-            </div>
-          )}
         </section>
       )}
 

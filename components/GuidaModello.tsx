@@ -82,7 +82,7 @@ export function GuidaModello() {
               lavora la giornata: cosa c&apos;è oggi, cosa è rimasto indietro.
             </li>
             <li>
-              <strong>Abbonamento Club e Family</strong> — il cruscotto delle trattative: quante ne
+              <strong>Eventi Core</strong> — il cruscotto delle trattative: quante ne
               sono aperte, chi segue chi, a che punto sono.
             </li>
             <li>

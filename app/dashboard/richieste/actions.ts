@@ -6,8 +6,9 @@ import { emailCorrente, getSezioniConsentite } from '@/lib/auth/sezioni-server'
 import { registraLog } from '@/lib/audit'
 import { canaleDiRichiesta, eGestioneSemplice, type Canale } from '@/lib/richieste'
 import { eAppuntamentoVero, tipoDaAzione } from '@/lib/agenda'
+import { AVVISO_PRESA_CHIUDENDO, prendiChiudendoEvento } from '@/lib/trattative-server'
 
-export type Esito = { ok: true } | { ok: false; errore: string }
+export type Esito = { ok: true; avviso?: string } | { ok: false; errore: string }
 
 /**
  * Il canale della richiesta, se chi sta agendo ha quella sezione.
@@ -206,7 +207,19 @@ export async function salvaGestione(input: {
     dettagli: { canale: canale.chiave, nota },
   })
 
+  // Chi segna gestita la richiesta si prende la trattativa, se non la
+  // seguiva nessuno — la stessa regola della chiusura con esito (vedi
+  // prendiChiudendoEvento). Solo chiudendo: **riaprire** una richiesta non
+  // intesta niente a nessuno, o la si riaprirebbe per prendersi il contatto.
+  //
+  // Sui canali a gestione semplice non c'è nessuna trattativa da prendere e
+  // la funzione esce subito: là il responsabile è uno, ed è chi sta leggendo.
+  const presa = input.gestito
+    ? await prendiChiudendoEvento('form_contatti', input.id, email)
+    : false
+
   revalidatePath('/dashboard/richieste', 'layout')
+  revalidatePath('/dashboard/persone', 'layout')
   revalidatePath('/dashboard')
-  return { ok: true }
+  return presa ? { ok: true, avviso: AVVISO_PRESA_CHIUDENDO } : { ok: true }
 }

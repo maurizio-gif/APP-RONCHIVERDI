@@ -582,7 +582,21 @@ export function voceDaContatto(riga: Riga): VoceAgenda {
     // (`attivita` qui sotto) e ripeterla dentro le note la faceva comparire
     // due volte nella stessa riga.
     note: riga.messaggio ?? null,
-    assegnatoA: null,
+    // Di chi è il lavoro su questa richiesta.
+    //
+    // Era `null` fisso, con la nota «le richieste dal sito non hanno un
+    // assegnatario»: vero finché la colonna non esisteva, e in dashboard
+    // significava che un appuntamento prenotato compariva «Non assegnato»
+    // accanto a una trattativa che qualcuno stava già seguendo — o ci si
+    // presenta in due, o si dà per scontato che ci pensi l'altro.
+    //
+    // Adesso `form_contatti.assegnato_a` c'è, e ce lo mette il trigger
+    // assegna_eventi_della_trattativa quando la trattativa trova un titolare
+    // (scripts/sql/2026-09-11-evento-assegnato-alla-trattativa.sql). Resta
+    // null dove la trattativa non l'ha ancora presa nessuno, che è
+    // l'informazione giusta: «Non assegnato» perché è libera, non perché
+    // qualcuno si è dimenticato.
+    assegnatoA: riga.assegnato_a ?? null,
     stato,
     daFare: stato === 'aperto',
     ricerca: [nome, riga.email, riga.cellulare, riga.attivita_label]

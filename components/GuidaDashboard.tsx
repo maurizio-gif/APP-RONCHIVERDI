@@ -1,9 +1,9 @@
 // Cosa c'è nella dashboard, e di chi è ciò che ci si vede dentro.
 //
-// La domanda che questa legenda risolve è una sola, e non è ovvia: le due
-// sezioni della pagina hanno perimetri diversi. Sopra ci sono le trattative
-// **tue**; sotto ci sono gli impegni di **tutti**. Chi non lo sa legge
-// «Impegni di oggi» come «i miei impegni di oggi» — e finisce o per
+// La domanda che questa legenda risolve è una sola, e non è ovvia: le sezioni
+// della pagina hanno perimetri diversi. Le trattative sono **tue** (o libere,
+// cioè di chi se le prende); gli eventi sono di **tutti**. Chi non lo sa legge
+// «Eventi da gestire oggi» come «i miei eventi di oggi» — e finisce o per
 // presentarsi a un appuntamento di una collega, o per dare per scontato che
 // qualcun altro se ne occupi.
 //
@@ -16,49 +16,53 @@ export function GuidaDashboard() {
   return (
     <GuidaSezione titolo="Cosa trovi in questa pagina">
       <section className="guida-passo">
-        <h3>In alto: le tue trattative</h3>
+        <h3>Le righe si aprono</h3>
         <p>
-          I quattro numeri sono i <strong>tuoi</strong>: quante ne hai in gestione, quante hai
-          vinto, quante perso. L&apos;unico che non è tuo è <em>da prendere in carico</em>, che
-          conta quelle libere di tutto il club — sono lì apposta perché qualcuno se le prenda.
+          Ogni riga dice a colpo d&apos;occhio le cose che servono a scegliere chi chiamare per
+          primo: il <strong>nome</strong>, <strong>da dove arriva</strong> — Sito, Guest Register,
+          Agenda — <strong>che tipo di contatto</strong> l&apos;ha generata e{' '}
+          <strong>da quanto aspetta</strong>. Aprila e trovi il messaggio, i pulsanti per chiamare o
+          scrivere, e i comandi per chiuderla: <em>da qui si lavora, senza cambiare pagina</em>.
         </p>
       </section>
 
       <section className="guida-passo">
-        <h3>Poi due elenchi: le libere e quelle che segui</h3>
+        <h3>1. Trattative da prendere in carico</h3>
         <p>
-          <strong>Libere: le prende chi vuole</strong> — non le ha in mano nessuno. «Prendi in
-          carico» te le assegna e le sposta in gestione.
-        </p>
-        <p>
-          <strong>Quelle che segui tu</strong> — aperte e assegnate a te. Sono il tuo lavoro in
-          corso: vanno portate a vinta o a persa, col motivo.
+          Non le ha in mano <strong>nessuno</strong>: sono di tutto il club e le prende chi vuole.
+          «Prendi in carico» te le assegna e le sposta in gestione — sta in riga chiusa, perché è il
+          gesto per cui l&apos;elenco esiste.
         </p>
       </section>
 
       <section className="guida-passo">
-        <h3>In basso: gli impegni di oggi, che non sono solo tuoi</h3>
+        <h3>2. Eventi scaduti o da gestire oggi</h3>
         <p>
-          Gli appuntamenti e le telefonate sono quelli <strong>di tutto il club</strong>, non solo i
-          tuoi: al banco serve sapere chi arriva, e vederli tutti evita che in due ci si presenti
-          alla stessa telefonata. Le <em>cose da fare</em>, invece, sono solo le tue — quelle non
-          riguardano nessun altro. In elenco c&apos;è anche quello che è rimasto indietro nei giorni
-          scorsi.
+          Sono quelli <strong>di tutto il club</strong> — appuntamenti, telefonate e cose da fare,
+          di chiunque: al banco serve sapere chi arriva, e in segreteria si copre il turno di chi
+          non c&apos;è. Per questo ogni riga dice <strong>a chi è in carico</strong>: «in carico a
+          te», il nome del collega, o <em>Non assegnato</em> dove non l&apos;ha preso nessuno —
+          com&apos;è per definizione di quelli prenotati dal sito. Guarda quel tag prima di lavorare
+          una riga, o in due ci si presenta alla stessa telefonata.
         </p>
         <p>
-          Per questo accanto a ogni impegno c&apos;è <strong>il tag di chi ce l&apos;ha in
-          mano</strong>: il tuo nome quando è tuo, quello della collega quando è suo,{' '}
-          <em>dal sito</em> se l&apos;ha prenotato la persona e non l&apos;ha ancora preso nessuno.
-          Prima di lavorare una riga, guarda il tag.
+          Banda <strong>rossa</strong>: è di un giorno passato. Banda <strong>blu</strong>: è di
+          oggi.
+        </p>
+        <p>
+          Chiudendo una riga con l&apos;esito ti viene chiesto se vuoi <strong>programmare
+          l&apos;evento successivo</strong>: è il «richiamare fra una settimana» che la persona ha
+          appena chiesto, e se non lo fissi lì resta solo in testa a te.
         </p>
       </section>
 
       <section className="guida-passo">
-        <h3>Da qui si lavora, non solo si guarda</h3>
+        <h3>3. Le trattative che segui tu</h3>
         <p>
-          Ogni impegno si chiude da questa pagina con <em>Gestisci</em>: è lo stesso pannello
-          dell&apos;agenda e delle richieste, con la stessa nota obbligatoria. L&apos;agenda resta
-          il posto dove si vede tutto il calendario; qui c&apos;è solo quello che tocca oggi.
+          Il tuo lavoro in corso, da portare a vinta o a persa col motivo. Sotto, i quattro numeri
+          sono i <strong>tuoi</strong> — l&apos;unico che non è tuo è <em>da prendere in carico</em>
+          , che conta le libere di tutto il club — e in fondo c&apos;è il totale del club, per
+          sapere se sei tu a essere carico o è carico il club.
         </p>
       </section>
     </GuidaSezione>

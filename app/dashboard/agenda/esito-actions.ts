@@ -22,7 +22,11 @@ import {
   type CollegamentoEvento,
   type EventoDaProgrammare,
 } from '@/lib/eventi'
-import { trattativaPerEvento } from '@/lib/trattative-server'
+import {
+  AVVISO_PRESA_CHIUDENDO,
+  prendiChiudendoEvento,
+  trattativaPerEvento,
+} from '@/lib/trattative-server'
 import type { Esito } from './actions'
 
 // Chiudere una voce dicendo com'è andata, correggerla dopo, spostarla,
@@ -169,8 +173,14 @@ export async function chiudiConEsito(input: {
     dettagli: { nota },
   })
 
+  // Chi chiude l'evento si prende la trattativa, se non la seguiva nessuno.
+  // Dopo la scrittura dell'esito e non insieme: se l'assegnazione non riesce
+  // l'evento resta chiuso, che è lo stato giusto — vedi il commento in
+  // lib/trattative-server.ts.
+  const presa = await prendiChiudendoEvento(input.origine, input.id, email)
+
   rinfresca()
-  return { ok: true }
+  return presa ? { ok: true, avviso: AVVISO_PRESA_CHIUDENDO } : { ok: true }
 }
 
 /**

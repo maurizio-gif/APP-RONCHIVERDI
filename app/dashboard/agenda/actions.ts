@@ -79,6 +79,22 @@ export async function creaVoce(formData: FormData): Promise<Esito> {
     notaEsito: String(formData.get('nota_esito') ?? '') || null,
   }
 
+  // Le note sono obbligatorie su una voce creata a mano, e il controllo sta
+  // qui e non in campiEvento: là passano anche i seguiti programmati
+  // chiudendo un esito e le correzioni di un evento già fissato, dove la nota
+  // è facoltativa perché il contesto ce l'hanno addosso.
+  //
+  // Qui no: l'oggetto della voce è il nome del contatto e nient'altro (vedi
+  // NuovaVoce), quindi senza note la riga dice **chi** e non dice niente su
+  // cosa. Chi la trova in agenda fra tre giorni — e a volte non è chi l'ha
+  // scritta — ha un nome e un'ora.
+  if (!String(formData.get('note') ?? '').trim()) {
+    return {
+      ok: false,
+      errore: 'Scrivi le note: servono a chi apre la voce per prepararsi, e a volte non sei tu.',
+    }
+  }
+
   const email = emailCorrente()
 
   // L'evento si valida **prima** di toccare l'anagrafica: se il titolo manca

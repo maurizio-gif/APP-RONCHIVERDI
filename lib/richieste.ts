@@ -1,7 +1,7 @@
 // Instradamento delle richieste che arrivano dal form del sito.
 //
 // Il form (src/data/leadActivities.ts nel repo del sito) fa scegliere una
-// sola attività, e da lì si ramifica: Abbonamento Club e Family passano dalla
+// sola attività, e da lì si ramifica: le Eventi Core (club-adulti, family) passano dalla
 // segreteria, che fissa un appuntamento o una telefonata — e finiscono in
 // Agenda; tutte le altre vanno diritte al responsabile di quel corso.
 //
@@ -68,7 +68,7 @@ export type Canale = {
 export const CANALI: readonly Canale[] = [
   {
     chiave: 'richieste-club',
-    label: 'Abbonamento Club e Family',
+    label: 'Eventi Core',
     gruppo: 'Abbonamento',
     descrizione:
       'Le richieste che passano dalla segreteria: appuntamento in sede, telefonata o messaggio. Gli appuntamenti con un orario compaiono anche in Agenda.',

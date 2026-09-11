@@ -12,6 +12,7 @@ import {
 } from '@/lib/agenda'
 import { CLASSE_RIGA_STATO } from '@/lib/pipeline'
 import { dominioDi, percorsoBreve, primoContattoDi, provenienzaRichiesta } from '@/lib/percorsoSito'
+import { provenienzaTrattativa } from '@/lib/provenienza'
 import { CLASSE_URGENZA, fraseAttesa, giorniDa, urgenzaAttesa } from '@/lib/attesa'
 import { inizialiPersona } from '@/lib/persone'
 import { nomeDiEmail } from '@/lib/staff'
@@ -22,6 +23,7 @@ import { riapriRichiesta } from './actions'
 import { EventiTrattativa, type EventoCollegato } from './EventiTrattativa'
 import { GestioneSemplice } from './GestioneSemplice'
 import { Trattativa, type DatiTrattativa } from './Trattativa'
+import { ChiusuraTrattativa } from '../ChiusuraTrattativa'
 
 export type Richiesta = {
   id: string
@@ -74,6 +76,10 @@ export type Richiesta = {
   landing_page: string | null
   referrer: string | null
   opportunita_id: string | null
+  /** Di chi è il lavoro: l'assegnatario della trattativa (vedi il trigger
+   *  assegna_eventi_della_trattativa). Distinto da gestito_da/esito_da, che
+   *  dicono chi l'ha chiusa. */
+  assegnato_a?: string | null
   /** La persona riconosciuta dal database: è la chiave con cui si contano le richieste ripetute. */
   persona_id: string | null
 }
@@ -186,6 +192,27 @@ export function RigaRichiesta({
   const walkIn = r.origine === 'walk-in'
   const minore = [r.minore_nome, r.minore_cognome].filter(Boolean).join(' ')
   const provenienza = provenienzaRichiesta(r)
+
+  /**
+   * Da dove è entrata la richiesta: Sito, Guest Register, Altro.
+   *
+   * Diversa da `provenienza` qui sopra, che è la **campagna** (utm_source,
+   * utm_medium): quella dice da quale annuncio è arrivato il clic, questa da
+   * quale porta è entrata la persona — e sono due cose che si guardano in
+   * momenti diversi. Stessa targhetta e stessi colori della dashboard e
+   * della scheda contatto.
+   */
+  const daDove = provenienzaTrattativa({ origineRichiesta: r.origine, haRichiesta: true })
+
+  /** Se la richiesta è in carico a chi sta guardando. */
+  const mia = !!r.assegnato_a && r.assegnato_a === contesto?.io
+
+  /**
+   * Chi l'ha effettivamente lavorata, col nome per esteso. Su un appuntamento
+   * la firma è `esito_da`, su un messaggio `gestito_da`: sono le due chiusure
+   * diverse (chiudiConEsito e salvaGestione).
+   */
+  const chiLHaFatta = nomeDiEmail(r.esito_da ?? r.gestito_da, nomiStaff)
   const primoContatto = primoContattoDi(r)
 
   // Una richiesta ripetuta va detta prima di chiamare: il database riusa la
@@ -367,10 +394,34 @@ export function RigaRichiesta({
               )}
               {r.azione && !tipoAppuntamento && <span className="tag">{r.azione}</span>}
 
-              {/* Era in reception, non ha scritto dal sito: cambia come ci
-                  si presenta a chi si richiama, e va visto senza aprire
-                  niente. */}
-              {walkIn && <span className="tag tag-walkin">Walk-in</span>}
+              {/* Da dove arriva, nella stessa targhetta e con gli stessi
+                  colori della dashboard e della scheda contatto: Sito, Guest
+                  Register, Altro (vedi lib/provenienza.ts). Prima qui c'era
+                  solo «Walk-in», cioè il caso raro marcato e il caso normale
+                  taciuto — e chi passa da una pagina all'altra del pannello
+                  trovava due modi di dire lo stesso fatto. */}
+              <span className={`tag-provenienza ${daDove.classe}`}>{daDove.etichetta}</span>
+
+              {/* Di chi è il lavoro, e detto **sempre**. Su una richiesta già
+                  lavorata il dato giusto è un altro — chi l'ha fatta — perché
+                  sono due fasi distinte: prima si assegna, poi si esegue, e
+                  di una ancora aperta non si può sapere chi la farà. Stessa
+                  regola di EventiElenco. */}
+              {r.gestito && chiLHaFatta ? (
+                <span className="tag-assegnato e-fatta">Fatta da {chiLHaFatta}</span>
+              ) : (
+                <span
+                  className={`tag-assegnato${
+                    r.assegnato_a ? (mia ? ' e-mio' : ' e-altrui') : ' e-nessuno'
+                  }`}
+                >
+                  {r.assegnato_a
+                    ? mia
+                      ? 'In carico a te'
+                      : `In carico a ${nomeDiEmail(r.assegnato_a, nomiStaff)}`
+                    : 'Non assegnato'}
+                </span>
+              )}
 
               {ripetuta && (
                 <span className="tag tag-avviso">{storico!.ordinale}ª richiesta</span>
@@ -487,15 +538,37 @@ export function RigaRichiesta({
 
       {/* La trattativa è della persona: compare solo su Club e Family, dove
           esiste un team che se la prende in carico. */}
-      {contesto && r.opportunita_id && contesto.trattative[r.opportunita_id] && (
-        <Trattativa
-          t={contesto.trattative[r.opportunita_id]}
-          io={contesto.io}
-          sonoCommerciale={contesto.sonoCommerciale}
-          possoRiassegnare={contesto.possoRiassegnare}
-          commerciali={contesto.commerciali}
-          nomiStaff={nomiStaff}
-        />
+      {trattativa && contesto && (
+        <>
+          <Trattativa
+            t={trattativa}
+            io={contesto.io}
+            sonoCommerciale={contesto.sonoCommerciale}
+            possoRiassegnare={contesto.possoRiassegnare}
+            commerciali={contesto.commerciali}
+            nomiStaff={nomiStaff}
+          />
+
+          {/* La chiusura con gli stessi tre pulsanti e gli stessi campi del
+              resto del pannello — nome dell'abbonamento e importo sulla
+              vinta, il motivo sulle altre due. La tendina degli stati qui
+              sopra fa già la stessa cosa, ma con un gesto diverso: resta per
+              tornare indietro (rimettere in gestione, riaprire una chiusa),
+              che è una correzione di percorso. Chiudere invece si fa allo
+              stesso modo da qualunque parte del pannello ci si arrivi. */}
+          {aperta && (
+            <div className="richiesta-chiusura">
+              <ChiusuraTrattativa
+                t={trattativa}
+                io={contesto.io}
+                sonoCommerciale={contesto.sonoCommerciale}
+                possoRiassegnare={contesto.possoRiassegnare}
+                conIntestazione={false}
+                nomiStaff={nomiStaff}
+              />
+            </div>
+          )}
+        </>
       )}
 
       {/* Non è un comando ma il fatto già avvenuto: chi l'ha chiusa e quando.

@@ -75,6 +75,104 @@ export function eStatoValido(v: string | null | undefined): v is StatoTrattativa
   return !!v && (STATI as readonly string[]).includes(v)
 }
 
+/**
+ * Gli stati che **chiudono** una trattativa e che quindi pretendono una nota.
+ *
+ * Tutte e tre, e non più le sole persa e annullata. L'unico esito che
+ * produce fatturato era anche il solo a non lasciare traccia di cosa fosse:
+ * «Vinta» da sola non dice che abbonamento è stato fatto né quanto vale, e a
+ * sei mesi di distanza nessuno ricollega una riga di pipeline a una vendita.
+ *
+ * La nota finisce in tre colonne diverse perché sono tre domande diverse, e
+ * tenerle separate è ciò che permette di rileggere i motivi di perdita senza
+ * doverci prima filtrare via gli sbagli e le vendite.
+ */
+export const COLONNA_MOTIVO: Partial<Record<StatoTrattativa, string>> = {
+  vinto: 'motivo_vinto',
+  perso: 'motivo_perso',
+  annullato: 'motivo_annullato',
+}
+
+export function chiedeMotivo(stato: StatoTrattativa): boolean {
+  return stato in COLONNA_MOTIVO
+}
+
+/** Cosa si chiede di scrivere, stato per stato: la domanda giusta al momento giusto. */
+export const DOMANDA_MOTIVO: Partial<Record<StatoTrattativa, string>> = {
+  vinto: 'Quale abbonamento? Es. «Club Full annuale»',
+  perso: 'Perché non si iscrive?',
+  annullato: 'Perché non è una trattativa? Doppione, errore al banco, prova…',
+}
+
+/**
+ * Lo stato che chiede anche **quanto vale il contratto**, in un campo suo.
+ *
+ * Solo la vinta: è l'unica chiusura che produce fatturato. E un campo
+ * numerico e non un numero dentro la nota, perché è la differenza fra un
+ * dato leggibile da una persona e un dato che si somma — «Club Full annuale,
+ * 1.080 €» è opaco a una query, e estrarlo a posteriori con un'espressione
+ * regolare dà il numero sbagliato in una quota dei casi (chi scrive «1.080»,
+ * chi «1080,00», chi «€1080 rateizzato») senza che si sappia quale. Sul
+ * fatturato è il tipo di errore peggiore: invisibile.
+ */
+export function chiedeValore(stato: StatoTrattativa): boolean {
+  return stato === 'vinto'
+}
+
+/** Il tetto del campo: `numeric(10,2)` sul database (vedi la migration). */
+export const VALORE_MASSIMO_EURO = 99_999_999.99
+
+/**
+ * Il valore scritto dall'operatore, normalizzato.
+ *
+ * Accetta la virgola come separatore decimale, che è come si scrivono i
+ * numeri in italiano: un campo che rifiuta «1080,50» è un campo che si
+ * compila sbagliato. I separatori di migliaia invece non si indovinano —
+ * «1.080» in Italia è milleottanta, in un `Number()` è 1,08 — quindi il
+ * punto si accetta solo come decimale, e chi scrive i punti delle migliaia
+ * riceve un errore invece di un valore mille volte più piccolo.
+ */
+export function valoreDaTesto(testo: string): number | null {
+  const pulito = testo.trim().replace(/[€\s]/g, '')
+  if (!pulito) return null
+  // Una virgola o un punto, e al massimo uno: tutto il resto è ambiguo.
+  if (!/^\d+([.,]\d{1,2})?$/.test(pulito)) return null
+  const n = Number(pulito.replace(',', '.'))
+  if (!Number.isFinite(n) || n <= 0 || n > VALORE_MASSIMO_EURO) return null
+  return Math.round(n * 100) / 100
+}
+
+/** «1.080,00 €» — il valore come si legge, non come si salva. */
+export function euro(valore: number | null | undefined): string | null {
+  if (valore === null || valore === undefined || !Number.isFinite(Number(valore))) return null
+  return new Intl.NumberFormat('it-IT', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(valore))
+}
+
+/** Il verbo del pulsante che conferma la chiusura. */
+export const CONFERMA_MOTIVO: Partial<Record<StatoTrattativa, string>> = {
+  vinto: 'Segna vinta',
+  perso: 'Segna persa',
+  annullato: 'Annulla la trattativa',
+}
+
+/** La nota già scritta su una trattativa chiusa, qualunque sia lo stato. */
+export function motivoDi(t: {
+  stato: StatoTrattativa
+  motivo_vinto?: string | null
+  motivo_perso?: string | null
+  motivo_annullato?: string | null
+}): string | null {
+  if (t.stato === 'vinto') return t.motivo_vinto ?? null
+  if (t.stato === 'perso') return t.motivo_perso ?? null
+  if (t.stato === 'annullato') return t.motivo_annullato ?? null
+  return null
+}
+
 /** Il percorso "buono", quello che si mostra come avanzamento: persa è un'uscita laterale. */
 export const PASSI_AVANZAMENTO: readonly StatoTrattativa[] = ['nuovo', 'in_gestione', 'vinto']
 
@@ -108,6 +206,10 @@ export type Trattativa = {
   assegnato_il: string | null
   chiuso_il: string | null
   motivo_perso: string | null
+  /** Quale abbonamento è stato venduto. */
+  motivo_vinto?: string | null
+  /** Quanto vale il contratto, in euro. Solo sulle vinte. */
+  valore_euro?: number | null
   note: string | null
   persona_id: string
   nome: string | null

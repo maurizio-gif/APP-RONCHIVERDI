@@ -52,7 +52,23 @@ export function NuovaVoce({
   // significato. Chi arriva qui sta quasi sempre scegliendo dall'elenco — il
   // contatto nuovo è l'eccezione, e si chiede.
   const [contattoNuovo, setContattoNuovo] = useState(false)
+
   const [nuovo, setNuovo] = useState({ nome: '', cognome: '', email: '', cellulare: '' })
+
+  /**
+   * L'oggetto della voce: **sempre** il nome del contatto.
+   *
+   * Calcolato e non scritto, per la ragione detta accanto al campo: una riga
+   * d'agenda si cerca per persona, e un titolo libero produceva tre formule
+   * diverse per lo stesso fatto. Sul contatto nuovo si compone da quello che
+   * si sta digitando, così il campo non resta vuoto mentre lo si crea.
+   */
+  const titoloAuto = contattoNuovo
+    ? [nuovo.nome, nuovo.cognome].filter(Boolean).join(' ').trim()
+    : (() => {
+        const scelto = contatti.find((c) => c.id === personaId)
+        return scelto ? nomePersona(scelto) : ''
+      })()
   const [errore, setErrore] = useState<string | null>(null)
   const [avviso, setAvviso] = useState<string | null>(null)
   const [inCorso, startTransition] = useTransition()
@@ -342,10 +358,25 @@ export function NuovaVoce({
           </div>
         )}
 
+        {/* ── L'oggetto è il nome del contatto, e non si scrive ─────────
+            Era un campo libero, e in agenda il risultato erano titoli che
+            dicevano tre cose diverse per lo stesso fatto: «Mario Rossi»,
+            «richiamare Rossi», «appuntamento». Una riga d'agenda si cerca per
+            **persona** — chi apre l'agenda cerca chi arriva, non come
+            l'avevano intitolata — e una colonna che a volte porta il nome e a
+            volte un verbo non si può né scorrere né cercare.
+            Cosa c'è da fare lo dicono il tipo (in sede, telefonata, task) e
+            le note, che sono il posto giusto: hanno spazio, e si correggono. */}
         <div className="form-row">
           <div className="field" style={{ flexBasis: '100%' }}>
-            <label htmlFor="titolo">Titolo</label>
-            <input id="titolo" name="titolo" type="text" required autoComplete="off" />
+            <span className="campo-etichetta">Oggetto</span>
+            <p className={`campo-fisso${titoloAuto ? '' : ' e-vuoto'}`}>
+              {titoloAuto || 'Scegli prima il contatto'}
+            </p>
+            <input type="hidden" name="titolo" value={titoloAuto} />
+            <p className="field-hint">
+              È il nome del contatto, sempre. Cosa c&apos;è da fare si scrive nelle note.
+            </p>
           </div>
         </div>
 
@@ -410,8 +441,25 @@ export function NuovaVoce({
             </datalist>
           </div>
           <div className="field" style={{ flexBasis: '100%' }}>
-            <label htmlFor="note">Note</label>
-            <input id="note" name="note" type="text" autoComplete="off" />
+            <label htmlFor="note">
+              Note <span aria-hidden="true">*</span>
+            </label>
+            <input
+              id="note"
+              name="note"
+              type="text"
+              required
+              autoComplete="off"
+              placeholder="Cosa serve sapere prima: cosa ha chiesto, cosa portargli, dove eravamo rimasti"
+            />
+            {/* Obbligatorie, e sono la parte utile della riga: l'oggetto dice
+                solo **chi**, quindi senza note una voce d'agenda è un nome e
+                un'ora — e chi la trova fra tre giorni non sa cosa ci si era
+                detti. */}
+            <p className="field-hint">
+              Obbligatorie: servono a chi apre la voce per prepararsi, e a volte non è chi
+              l&apos;ha scritta.
+            </p>
           </div>
         </div>
 

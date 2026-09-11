@@ -5,10 +5,17 @@ import {
   AZIONE_STATO,
   CLASSE_BADGE_STATO,
   CLASSE_RIGA_STATO,
+  CONFERMA_MOTIVO,
+  DOMANDA_MOTIVO,
   ETICHETTE_STATO,
   OPZIONI_STATO,
   PASSI_AVANZAMENTO,
+  chiedeMotivo,
+  chiedeValore,
   eChiusa,
+  euro,
+  motivoDi,
+  valoreDaTesto,
   puoAnnullare,
   puoAssegnare,
   type StatoTrattativa,
@@ -23,6 +30,10 @@ export type DatiTrattativa = {
   motivo_perso: string | null
   /** Perché non andava creata: doppione, errore al banco, prova. */
   motivo_annullato: string | null
+  /** Quale abbonamento è stato venduto. */
+  motivo_vinto?: string | null
+  /** Quanto vale il contratto, in euro. Solo sulle vinte. */
+  valore_euro?: number | null
 }
 
 // Il blocco trattativa che compare sulla riga di una richiesta Club/Family.
@@ -50,11 +61,15 @@ export function Trattativa({
   nomiStaff?: Record<string, string>
 }) {
   const [errore, setErrore] = useState<string | null>(null)
-  // Quale chiusura sta chiedendo il perché: null = nessuna. Due stati lo
-  // chiedono — persa e annullata — e la domanda non è la stessa, quindi il
-  // riquadro deve sapere quale delle due sta raccogliendo.
-  const [chiedoMotivo, setChiedoMotivo] = useState<'perso' | 'annullato' | null>(null)
+  // Quale chiusura sta chiedendo la nota: null = nessuna. La chiedono tutte
+  // e tre — vinta, persa, annullata — e la domanda non è la stessa, quindi il
+  // riquadro deve sapere quale delle tre sta raccogliendo.
+  const [chiedoMotivo, setChiedoMotivo] = useState<StatoTrattativa | null>(null)
   const [motivo, setMotivo] = useState('')
+  // Testo e non numero: un campo controllato che rifiuta i caratteri mentre
+  // si digita non lascia scrivere «1080,», cioè il passaggio obbligato per
+  // arrivare a «1080,50». Si normalizza al salvataggio (valoreDaTesto).
+  const [valore, setValore] = useState('')
   const [inCorso, startTransition] = useTransition()
 
   const diritti = { assegnatoA: t.assegnato_a, io, sonoCommerciale, possoRiassegnare }
@@ -158,13 +173,17 @@ export function Trattativa({
             disabled={inCorso}
             onChange={(e) => {
               const nuovo = e.target.value as StatoTrattativa
-              // Due stati chiedono il perché prima di chiudere. Una persa
+              // Le tre chiusure chiedono la nota prima di chiudere. Una persa
               // senza motivo non insegna niente al prossimo che la guarda;
               // una annullata senza motivo è una riga sparita dalla pipeline
-              // che fra un mese nessuno sa più perché non c'è più.
-              if (nuovo === 'perso' || nuovo === 'annullato') {
+              // che fra un mese nessuno sa più perché non c'è più; e una
+              // vinta senza nota non dice che abbonamento è stato fatto.
+              if (chiedeMotivo(nuovo)) {
                 setErrore(null)
-                setMotivo(nuovo === 'perso' ? (t.motivo_perso ?? '') : (t.motivo_annullato ?? ''))
+                setMotivo(motivoDi({ ...t, stato: nuovo }) ?? '')
+                setValore(
+                  nuovo === 'vinto' && t.valore_euro != null ? String(t.valore_euro) : ''
+                )
                 setChiedoMotivo(nuovo)
               } else esegui(() => cambiaStato(t.id, nuovo))
             }}
@@ -203,23 +222,49 @@ export function Trattativa({
             type="text"
             value={motivo}
             onChange={(e) => setMotivo(e.target.value)}
-            placeholder={
-              chiedoMotivo === 'perso'
-                ? 'Perché è andata persa?'
-                : 'Perché non andava creata? Doppione, errore al banco, prova…'
-            }
+            placeholder={DOMANDA_MOTIVO[chiedoMotivo]}
             autoFocus
           />
+
+          {/* Il valore, solo sulla vinta: è l'unica chiusura che produce
+              fatturato, e dentro la nota non si sommerebbe. */}
+          {chiedeValore(chiedoMotivo) && (
+            <span className="trattativa-valore-campo">
+              <input
+                type="text"
+                inputMode="decimal"
+                value={valore}
+                onChange={(e) => setValore(e.target.value)}
+                placeholder="1080"
+                aria-label="Valore del contratto in euro"
+              />
+              <span aria-hidden="true">€</span>
+            </span>
+          )}
+
           <button
             type="button"
             className="btn btn-sm"
-            // Sull'annullamento il motivo è obbligatorio anche di qua, non
-            // solo sul server: un pulsante che si preme e risponde con un
-            // errore è peggio di uno che dice prima che non è pronto.
-            disabled={inCorso || (chiedoMotivo === 'annullato' && !motivo.trim())}
-            onClick={() => esegui(() => cambiaStato(t.id, chiedoMotivo, motivo))}
+            // Nota e valore sono obbligatori anche di qua, non solo sul
+            // server: un pulsante che si preme e risponde con un errore è
+            // peggio di uno che dice prima che non è pronto.
+            disabled={
+              inCorso ||
+              !motivo.trim() ||
+              (chiedeValore(chiedoMotivo) && valoreDaTesto(valore) === null)
+            }
+            onClick={() =>
+              esegui(() =>
+                cambiaStato(
+                  t.id,
+                  chiedoMotivo,
+                  motivo,
+                  chiedeValore(chiedoMotivo) ? valoreDaTesto(valore) : null
+                )
+              )
+            }
           >
-            {chiedoMotivo === 'perso' ? 'Segna persa' : 'Annulla la trattativa'}
+            {CONFERMA_MOTIVO[chiedoMotivo]}
           </button>
           {/* "Lascia stare" e non "Annulla": accanto a un pulsante che
               annulla la trattativa, due «annulla» che fanno cose opposte
@@ -230,15 +275,15 @@ export function Trattativa({
         </span>
       )}
 
-      {t.stato === 'perso' && t.motivo_perso && !chiedoMotivo && (
-        <span className="trattativa-chi muted">motivo: {t.motivo_perso}</span>
-      )}
-
-      {/* Un'annullata senza il perché sotto gli occhi è una riga sparita
-          dalla pipeline senza spiegazione: chi la ritrova col filtro deve
-          poter capire in un colpo se è stato uno sbaglio o un ripensamento. */}
-      {t.stato === 'annullato' && t.motivo_annullato && !chiedoMotivo && (
-        <span className="trattativa-chi muted">annullata: {t.motivo_annullato}</span>
+      {/* La nota della chiusura, sotto gli occhi. Un'annullata senza il
+          perché è una riga sparita dalla pipeline senza spiegazione; una
+          vinta senza nota non dice cosa è stato venduto. */}
+      {!chiedoMotivo && eChiusa(t.stato) && motivoDi(t) && (
+        <span className="trattativa-chi muted">
+          {t.stato === 'vinto' ? 'venduto: ' : t.stato === 'annullato' ? 'annullata: ' : 'motivo: '}
+          {motivoDi(t)}
+          {t.stato === 'vinto' && euro(t.valore_euro) && ` · ${euro(t.valore_euro)}`}
+        </span>
       )}
 
       {eChiusa(t.stato) && !modificabile && (
@@ -248,10 +293,9 @@ export function Trattativa({
       {/* Cosa chiede lo stato (AZIONE_STATO in lib/pipeline.ts): il badge dice
           dov'è la trattativa, questa riga dice cosa farne. Su una persa il
           motivo qui sopra è già la spiegazione, e ripeterlo sarebbe rumore. */}
-      {!(t.stato === 'perso' && t.motivo_perso) &&
-        !(t.stato === 'annullato' && t.motivo_annullato) && (
-          <p className="trattativa-azione">{AZIONE_STATO[t.stato]}</p>
-        )}
+      {!(eChiusa(t.stato) && motivoDi(t)) && (
+        <p className="trattativa-azione">{AZIONE_STATO[t.stato]}</p>
+      )}
 
       {errore && (
         <span className="field-hint" style={{ color: 'var(--error)', flexBasis: '100%' }}>

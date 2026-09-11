@@ -5,15 +5,26 @@ import { SCRIPT_TEMA } from '@/lib/tema'
 // Gli stessi due caratteri del sito: Jost per l'interfaccia, Cormorant
 // Garamond per i titoli. Sul sito arrivano da @fontsource, qui da next/font,
 // che li serve dal nostro dominio e li carica senza flash di testo.
+//
+// Sono caratteri editoriali, e a misure piccole si rileggono: la leggibilità
+// del pannello si è sistemata dove andava sistemata — la **scala** (il
+// gradino più basso è 0.8rem, non gli 11.5px di prima), il **contrasto** dei
+// grigi smorzati e dei bordi, e il peso 300 che non si usa più. Vedi il
+// blocco dei token in app/globals.css. Il carattere resta quello del sito:
+// il pannello deve sembrare la stessa casa vista da dietro.
 const jost = Jost({
   subsets: ['latin'],
-  weight: ['300', '400', '500', '600'],
+  // Niente 300: il fondo chiaro del pannello è crema, non bianco, e un peso
+  // sottile su quel fondo perde il poco contrasto che ha.
+  weight: ['400', '500', '600'],
   variable: '--font-jost',
 })
 
 const cormorant = Cormorant_Garamond({
   subsets: ['latin'],
-  weight: ['400', '500'],
+  // Il 600 in più: i titoli in Cormorant a 400 sono un filo grigio, e su
+  // misure ora più grandi il peso medio regge meglio il fondo crema.
+  weight: ['400', '500', '600'],
   variable: '--font-cormorant',
 })
 

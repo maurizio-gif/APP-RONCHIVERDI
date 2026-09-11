@@ -19,6 +19,16 @@ const DEFINIZIONI = [
   // La pagina che una persona della segreteria tiene aperta durante la
   // giornata: appuntamenti e cose da fare.
   { chiave: 'agenda', label: 'Agenda', href: '/dashboard/agenda', gruppo: 'Core' },
+  // La pagina della responsabile del settore core: come è distribuito il
+  // lavoro fra le persone. Sta in Core e non in Amministrazione perché è uno
+  // strumento di conduzione quotidiana, non un report — si guarda per
+  // riequilibrare il carico adesso, non per rendicontare il trimestre.
+  {
+    chiave: 'core-manager',
+    label: 'Core Manager',
+    href: '/dashboard/core-manager',
+    gruppo: 'Core',
+  },
   // Le richieste dal form del sito, instradate al responsabile: una sezione
   // per canale, così ciascuno vede le proprie e non legge i contatti degli
   // altri. Le chiavi e i responsabili stanno in lib/richieste.ts — aggiungere
@@ -28,7 +38,11 @@ const DEFINIZIONI = [
   // segreteria e che alimenta agenda e trattative.
   {
     chiave: 'richieste-club',
-    label: 'Abbonamento Club e Family',
+    // «Eventi Core» e non più «Abbonamento Club e Family»: la chiave resta
+    // `richieste-club` — è il permesso sui profili utente e l'URL della
+    // sezione, e rinominarla vorrebbe dire migrare sezioni_consentite su
+    // ogni riga di staff_users per un'etichetta.
+    label: 'Eventi Core',
     href: '/dashboard/richieste/richieste-club',
     gruppo: 'Core',
   },

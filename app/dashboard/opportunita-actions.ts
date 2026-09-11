@@ -256,7 +256,7 @@ export async function getAvvisiLavoro(): Promise<AvvisoLavoro[]> {
     quando: t.quando,
     attivita: t.attivita,
     messaggio: t.messaggio,
-    sezione: 'Abbonamento Club e Family',
+    sezione: 'Eventi Core',
     href: `/dashboard/persone/${t.personaId}`,
   }))
 

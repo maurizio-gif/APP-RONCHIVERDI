@@ -62,6 +62,11 @@ export function GestioneSemplice({
   const [nota, setNota] = useState(notaSalvata ?? '')
   const [gestitoLocale, setGestitoLocale] = useState(gestito)
   const [errore, setErrore] = useState<string | null>(null)
+  // Quello che il server ha fatto in più: segnando gestita una richiesta, la
+  // trattativa libera di quel contatto passa a chi la segna (vedi
+  // prendiChiudendoEvento). Dirlo, o è un'assegnazione che nessuno sa di
+  // avere.
+  const [avviso, setAvviso] = useState<string | null>(null)
   const [inCorso, startTransition] = useTransition()
 
   // Dopo il salvataggio il server rilegge la riga e rimanda le prop nuove, ma
@@ -91,9 +96,11 @@ export function GestioneSemplice({
       )
     }
     setErrore(null)
+    setAvviso(null)
     startTransition(async () => {
       const esito = await salvaGestione({ id, gestito: gestitoLocale, nota })
       if (!esito.ok) setErrore(esito.errore)
+      else if (esito.avviso) setAvviso(esito.avviso)
     })
   }
 
@@ -178,6 +185,8 @@ export function GestioneSemplice({
           </p>
         )}
       </div>
+
+      {avviso && <p className="esito-avviso">{avviso}</p>}
 
       {errore && (
         <p className="field-hint" style={{ color: 'var(--error)' }}>

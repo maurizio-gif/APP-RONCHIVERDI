@@ -8,12 +8,15 @@ import {
   OPZIONI_TIPO_PROGRAMMABILI,
   eAppuntamentoVero,
   eTipoValido,
+  giornoPiu,
   oggiRoma,
   type TipoVoce,
 } from '@/lib/agenda'
+import type { CollegamentoEvento } from '@/lib/eventi'
 import {
   chiudiConEsito,
   correggiEsito,
+  programmaEvento,
   rimuoviVoce,
   riprogrammaVoce,
   type EventoDaProgrammare,
@@ -25,12 +28,31 @@ import {
 // gesto è lo stesso — due copie avrebbero preso strade diverse alla prima
 // modifica.
 //
-// Il programmatore di seguiti non è più qui. Chiudere e creare l'evento
-// successivo erano due cose nello stesso riquadro, e l'evento si poteva
-// creare da due posti — questo e il pannello Eventi della trattativa — che
-// facevano esattamente la stessa insert. Adesso gli eventi nascono in un
-// posto solo: il pannello Eventi se c'è una trattativa, «Aggiungi in agenda»
-// se si è in agenda.
+// ── Il seguito, dopo la chiusura e non insieme ────────────────────────────
+//
+// Il programmatore di seguiti era stato tolto da qui per una ragione buona:
+// chiudere e creare l'evento successivo stavano nello **stesso** riquadro e
+// nello **stesso** salvataggio, quindi senza transazioni si poteva restare
+// con la voce chiusa e il suo seguito mai creato — e lo stesso evento nasceva
+// da due porte diverse che facevano la medesima insert.
+//
+// Ma senza nessun seguito il pannello risolve mezzo problema: si segna la
+// telefonata fatta e il «richiamare fra una settimana» che la persona ha
+// appena chiesto non finisce in nessun posto — resta in testa a chi ha
+// telefonato. Da dashboard, dove si chiude senza cambiare pagina, è proprio
+// lì che si perde.
+//
+// Quindi torna, ma come **passo successivo** e non come campo della chiusura:
+//
+//  - la chiusura salva da sola, e solo **dopo** che è riuscita compare la
+//    domanda. Niente scrittura doppia: se il seguito non si crea, la voce è
+//    chiusa comunque — che è lo stato giusto;
+//  - l'insert è quella sola di `programmaEvento`, la stessa porta del
+//    pannello Eventi e di «Aggiungi in agenda». Nessuna seconda
+//    implementazione;
+//  - si vede solo dove il chiamante passa `seguito`, cioè dice a cosa
+//    agganciare l'evento nuovo. Dove non c'è nulla a cui agganciarlo, la
+//    domanda non si fa.
 
 type Gruppo = 'eseguita' | 'fallita' | 'riprogrammata' | 'annullata'
 
@@ -70,6 +92,7 @@ export function GestioneEsito({
   notaCorrente = null,
   firma = null,
   firmaIl = null,
+  seguito = null,
 }: {
   origine: OrigineVoce
   id: string
@@ -96,6 +119,20 @@ export function GestioneEsito({
   /** Chi ha scritto quella nota, già come nome e cognome, e quando. */
   firma?: string | null
   firmaIl?: string | null
+  /**
+   * A cosa agganciare l'evento che si programma **dopo** la chiusura.
+   *
+   * Assente (il caso normale) = nessuna proposta: il pannello chiude e basta,
+   * com'è sempre stato. Passandolo si accende la domanda «vuoi programmare un
+   * evento?», che è la cosa che si vuole fare subito dopo aver segnato una
+   * telefonata — e che altrimenti resta in testa a chi ha telefonato.
+   *
+   * Una richiesta dal sito (`form_contatti`) o una persona: `task` non è un
+   * collegamento valido (vedi ENTITA_COLLEGAMENTO), quindi chiudendo un
+   * evento d'agenda si aggancia il seguito alla persona — la trattativa si
+   * apre e si chiude nel tempo, la persona resta.
+   */
+  seguito?: CollegamentoEvento | null
 }) {
   const [gruppo, setGruppo] = useState<Gruppo | null>(null)
   // Su una voce chiusa il campo parte da quello che c'è scritto: una
@@ -120,20 +157,71 @@ export function GestioneEsito({
   const [nuovaData, setNuovaData] = useState(dataCorrente || oggiRoma())
   const [nuovaOra, setNuovaOra] = useState(oraCorrente ?? '')
 
-  function esegui(azione: () => Promise<{ ok: true } | { ok: false; errore: string }>) {
+  // La proposta del seguito, dopo una chiusura riuscita. Tre passi: la
+  // domanda, i campi, la conferma — uno stato per ciascuno, invece di un
+  // booleano che dovrebbe dire in quale dei tre siamo.
+  const [proposta, setProposta] = useState<'chiedi' | 'compila' | 'fatto' | null>(null)
+  const [seguitoNuovo, setSeguitoNuovo] = useState<EventoDaProgrammare | null>(null)
+  // Quello che il server ha fatto **in più** di quanto chiesto: chiudendo
+  // l'evento la trattativa libera passa a chi lo chiude, e un'assegnazione
+  // che avviene in silenzio è un'assegnazione che nessuno sa di avere.
+  const [avviso, setAvviso] = useState<string | null>(null)
+
+  function esegui(
+    azione: () => Promise<{ ok: true; avviso?: string } | { ok: false; errore: string }>,
+    poi?: () => void
+  ) {
     setErrore(null)
+    setAvviso(null)
     startTransition(async () => {
       const esito = await azione()
       if (esito.ok) {
+        if (esito.avviso) setAvviso(esito.avviso)
         setGruppo(null)
         // Su una voce chiusa la nota non si svuota: resta quella corretta, che
         // è ciò che si rilegge riaprendo il pannello. Le prop la riallineano
         // al valore appena salvato non appena il server rilegge la riga.
         if (!chiusa) setNota('')
+        poi?.()
       } else {
         setErrore(esito.errore)
       }
     })
+  }
+
+  /**
+   * Il seguito proposto: una telefonata di richiamo domani, intestata a chi
+   * sta chiudendo.
+   *
+   * Domani e non oggi: si chiude una voce quando la cosa è appena stata
+   * fatta, e il passo dopo non è mai lo stesso giorno. Una telefonata e non
+   * un appuntamento: fissare una visita in sede richiede di sapere quando la
+   * persona può, e quello si scopre telefonando.
+   */
+  function seguitoProposto(): EventoDaProgrammare {
+    return {
+      titolo: `Richiamare ${titolo}`,
+      tipo: 'appuntamento_telefonico',
+      data: giornoPiu(oggiRoma(), 1),
+      ora: '',
+      durataMinuti: null,
+      // Vuoto = a chi scrive (vedi campiEvento): il seguito di una telefonata
+      // che hai appena fatto è tuo, finché non lo passi a qualcuno.
+      assegnatoA: '',
+      note: '',
+      modo: 'programma',
+    }
+  }
+
+  function programmaSeguito() {
+    if (!seguito || !seguitoNuovo) return
+    esegui(
+      () => programmaEvento({ collegamento: seguito, evento: seguitoNuovo }),
+      () => {
+        setProposta('fatto')
+        setSeguitoNuovo(null)
+      }
+    )
   }
 
   function riprogramma() {
@@ -147,7 +235,15 @@ export function GestioneEsito({
   function chiudi() {
     if (!gruppo || gruppo === 'annullata' || gruppo === 'riprogrammata') return
     if (!nota.trim()) return setErrore('La nota è obbligatoria: scrivi com’è andata.')
-    esegui(() => chiudiConEsito({ origine, id, esito: gruppo, nota }))
+    // La domanda del seguito **dopo** che la chiusura è riuscita: una sola
+    // scrittura per volta, e se il seguito non si crea la voce resta chiusa —
+    // che è lo stato giusto.
+    esegui(
+      () => chiudiConEsito({ origine, id, esito: gruppo, nota }),
+      () => {
+        if (seguito) setProposta('chiedi')
+      }
+    )
   }
 
   /** Riscrive esito e nota su una voce già chiusa, senza riaprirla. */
@@ -317,6 +413,91 @@ export function GestioneEsito({
             </p>
           )}
         </>
+      )}
+
+      {avviso && <p className="esito-avviso">{avviso}</p>}
+
+      {/* ── Il passo successivo ──────────────────────────────────────────
+          Compare solo dopo una chiusura riuscita, e solo se il chiamante ha
+          detto a cosa agganciare l'evento nuovo. Fuori dal blocco `gruppo`
+          perché la chiusura lo azzera: la domanda deve restare in piedi
+          quando i pulsanti dell'esito si sono già richiusi. */}
+      {seguito && proposta && (
+        <div className="seguito">
+          {proposta === 'fatto' ? (
+            <p className="seguito-fatto">
+              <span aria-hidden="true">✓</span> Evento programmato: lo trovi in agenda.
+            </p>
+          ) : proposta === 'chiedi' ? (
+            <>
+              <p className="seguito-domanda">
+                Chiusa. <strong>Vuoi programmare un evento?</strong>
+              </p>
+              <p className="field-hint">
+                Il «richiamare fra una settimana» che ti ha appena chiesto: se non lo fissi adesso
+                resta solo in testa a te.
+              </p>
+              <div className="esito-azioni">
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => {
+                    setSeguitoNuovo(seguitoProposto())
+                    setProposta('compila')
+                  }}
+                >
+                  Sì, programma
+                </button>
+                {/* «Per ora no» e non «Annulla»: non c'è niente da annullare —
+                    la voce è già chiusa e salvata. */}
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setProposta(null)}
+                >
+                  Per ora no
+                </button>
+              </div>
+            </>
+          ) : (
+            seguitoNuovo && (
+              <>
+                <p className="seguito-domanda">Il prossimo passo</p>
+                <CampiEvento
+                  riga={seguitoNuovo}
+                  operatori={operatori}
+                  onCambia={(campi) => setSeguitoNuovo({ ...seguitoNuovo, ...campi })}
+                />
+                <div className="esito-azioni">
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    disabled={inCorso}
+                    onClick={programmaSeguito}
+                  >
+                    {inCorso ? 'Salvataggio…' : 'Programma'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    disabled={inCorso}
+                    onClick={() => {
+                      setSeguitoNuovo(null)
+                      setProposta(null)
+                    }}
+                  >
+                    Lascia stare
+                  </button>
+                </div>
+                {errore && (
+                  <p className="field-hint" style={{ color: 'var(--error)' }}>
+                    {errore}
+                  </p>
+                )}
+              </>
+            )
+          )}
+        </div>
       )}
     </div>
   )

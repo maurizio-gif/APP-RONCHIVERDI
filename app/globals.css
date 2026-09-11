@@ -1,14 +1,23 @@
 /* Sistema grafico del pannello Ronchiverdi.
  *
- * I token sono gli stessi del sito (src/styles/tokens.css in Sito-Ronchiverdi):
- * crema dorata come sfondo, sabbia per le superfici, nero caldo e oro/bronzo
- * come accento, Jost per l'interfaccia e Cormorant Garamond per i titoli. Se
- * un colore cambia sul sito va cambiato qui, non reinventato: il pannello deve
- * sembrare la stessa casa vista da dietro.
+ * I **colori** sono gli stessi del sito (src/styles/tokens.css in
+ * Sito-Ronchiverdi): crema dorata come sfondo, sabbia per le superfici, nero
+ * caldo e oro/bronzo come accento. Se un colore cambia sul sito va cambiato
+ * qui, non reinventato: il pannello deve sembrare la stessa casa vista da
+ * dietro.
  *
- * Differenza voluta rispetto al sito: là la tipografia è editoriale e respira,
- * qui è un pannello di lavoro. Le misure di testo partono più basse e le
- * spaziature sono più compatte, ma la tavolozza e i caratteri sono identici.
+ * Anche i **caratteri** sono quelli del sito: Jost per l'interfaccia,
+ * Cormorant Garamond per i titoli.
+ *
+ * Sono caratteri editoriali, e a misure piccole si rileggono — ma la risposta
+ * non è cambiarli, è smettere di usarli piccoli. La leggibilità si è
+ * sistemata su tre fronti: la **scala** (il gradino più basso è 0.8rem, non
+ * gli 11.5px di prima, e il corpo del testo sta a 16px pieni), il
+ * **contrasto** dei grigi smorzati e dei bordi, e il **peso 300** che non si
+ * carica più.
+ *
+ * Le misure restano più compatte di quelle del sito, che è editoriale e
+ * respira, ma non più piccole del leggibile.
  */
 
 :root {
@@ -18,20 +27,31 @@
 	--bg-dark: #1c1c18; /* nero caldo: sidebar e intestazioni */
 	--surface: #fdfaf3; /* card e tabelle: un gradino più chiaro dello sfondo */
 
-	/* Testo */
-	--text: #1c1c18;
+	/* Testo.
+	   Il grigio smorzato è scuro per davvero — 9,2:1 sulla crema — perché in
+	   questo pannello «smorzato» non vuol dire decorativo: sono metadati che
+	   si leggono (l'ora di un appuntamento, chi ha in carico una riga, da
+	   quanto aspetta). Un grigio al minimo sindacale li rende la parte che si
+	   salta, e sono la parte che serve.
+	   Il grigio sul nero della sidebar era a 0.62 di opacità, cioè 4,6:1:
+	   appena sopra il limite, su testo di 12-13px. Ora 0.78. */
+	--text: #17170f;
 	--text-on-dark: #f6efde;
-	--text-muted: #4a4a42;
-	--text-muted-on-dark: rgba(246, 239, 222, 0.62);
+	--text-muted: #3d3d33;
+	--text-muted-on-dark: rgba(246, 239, 222, 0.78);
 	/* Il testo sopra una campitura piena d'accento: crema sul bronzo qui,
 	   nero caldo sull'oro al buio. È un ruolo a sé e non `--bg`, perché nei
 	   due temi l'accento cambia di luminosità e il testo lo deve seguire. */
 	--text-on-accent: #fdfaf3;
 
-	/* Bordi semi-trasparenti, come sul sito */
-	--border: rgba(28, 28, 24, 0.08);
-	--border-strong: rgba(28, 28, 24, 0.12);
-	--border-dark: rgba(246, 239, 222, 0.14);
+	/* Bordi semi-trasparenti, come sul sito, ma più marcati: sono la
+	   struttura — dove finisce una card, dove si separano due righe di
+	   elenco — e a 0.08 su un fondo crema erano un'idea di bordo. Un elenco
+	   le cui righe non si vedono separate si conta con il dito sullo
+	   schermo. */
+	--border: rgba(28, 28, 24, 0.14);
+	--border-strong: rgba(28, 28, 24, 0.24);
+	--border-dark: rgba(246, 239, 222, 0.2);
 
 	/* Veli d'inchiostro: le pastiglie neutre (tag, conteggi, badge spenti),
 	   il passo vuoto della pipeline, la riga già gestita. Sono token e non
@@ -67,18 +87,28 @@
 	--info-tint: rgba(58, 90, 107, 0.12);
 	--info-border: rgba(58, 90, 107, 0.32);
 
-	/* Tipografia */
-	--font-sans: var(--font-jost), "Helvetica Neue", Arial, sans-serif;
-	--font-serif: var(--font-cormorant), Georgia, serif;
+	/* Tipografia: gli stessi due caratteri del sito.
+	   I fallback passano per i caratteri di sistema prima di Helvetica e
+	   Georgia: se Jost non arriva, -apple-system e Segoe UI sono comunque
+	   disegnate per lo schermo. */
+	--font-sans: var(--font-jost), -apple-system, BlinkMacSystemFont, "Segoe UI",
+		"Helvetica Neue", Arial, sans-serif;
+	--font-serif: var(--font-cormorant), Georgia, "Times New Roman", serif;
 
-	--text-2xs: 0.72rem;
-	--text-xs: 0.8rem;
-	--text-sm: 0.9rem;
-	--text-base: 0.95rem;
-	--text-md: 1.1rem;
-	--text-lg: 1.375rem;
-	--text-xl: 1.6rem;
-	--text-2xl: 2.1rem;
+	/* La scala, alzata di un gradino su tutta la linea.
+	   Era 0.72 → 2.1rem: i due gradini più bassi cadevano a 11.5px e 12.8px,
+	   ed è lì che vive metà del pannello — metadati, targhette, attesa, note.
+	   A quelle misure anche un carattere buono si rilegge, e uno geometrico
+	   si indovina. Ora si parte da 12.8px e il corpo del testo è a 16px
+	   pieni, la misura per cui i browser sono tarati. */
+	--text-2xs: 0.8rem;
+	--text-xs: 0.875rem;
+	--text-sm: 0.94rem;
+	--text-base: 1rem;
+	--text-md: 1.2rem;
+	--text-lg: 1.5rem;
+	--text-xl: 1.8rem;
+	--text-2xl: 2.3rem;
 
 	--radius: 8px;
 	--sidebar-width: 260px;
@@ -1783,34 +1813,6 @@ table.tabella tbody tr:hover {
 
 .riepilogo-testa .badge {
 	margin-left: auto;
-}
-
-.impegni {
-	margin: 0;
-	padding: 0;
-	list-style: none;
-}
-
-.impegno {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 0.5rem 0.75rem;
-	padding: 0.6rem 0;
-	border-top: 1px solid var(--border);
-	font-size: var(--text-sm);
-}
-
-.impegno:first-child {
-	border-top: 0;
-	padding-top: 0;
-}
-
-/* Il titolo prende lo spazio che resta, così data e badge restano allineati a
-   destra invece di ballare in base alla lunghezza del titolo. */
-.impegno-titolo {
-	flex: 1;
-	min-width: 10rem;
 }
 
 /* ────────────────────────────────────────────────── barra dei filtri */
@@ -3640,22 +3642,8 @@ table.tabella tbody tr:hover {
 	margin: 0;
 }
 
-/* ────────────────────────────────── dashboard: impegni gestibili sul posto */
+/* ─────────────────────── dashboard: chi ha in mano una riga, e chi no */
 
-/* .impegno è una riga flat; questa variante impila la riga principale, i
-   dettagli e il pannello di gestione, che è alto. */
-.impegno-gestibile {
-	display: block;
-}
-
-.impegno-riga {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 0.5rem 0.75rem;
-}
-
-.impegno-quando,
 /* Chi ha in mano l'impegno. Era testo grigio, e per giunta solo sulle righe
    altrui: l'assenza del nome era essa stessa l'informazione, il che la
    rendeva leggibile solo a chi la sapeva già. Ora è un tag su ogni riga, e i
@@ -3687,6 +3675,15 @@ table.tabella tbody tr:hover {
 	color: var(--info);
 }
 
+/* Chi l'ha fatta, su una voce chiusa: verde, perché non chiede niente a
+   nessuno — è una cosa fatta. Sostituisce l'assegnatario invece di
+   affiancarlo: su una riga chiusa «in carico a» non è più la domanda. */
+.tag-assegnato.e-fatta {
+	background: var(--ok-tint);
+	border-color: var(--ok-border);
+	color: var(--ok);
+}
+
 /* Di nessuno, o prenotato dal sito e non ancora preso: ambra, perché è
    l'unico dei tre casi che chiede qualcosa a chi sta leggendo. */
 .tag-assegnato.e-nessuno {
@@ -3695,73 +3692,232 @@ table.tabella tbody tr:hover {
 	color: var(--warn);
 }
 
-.impegno-dettagli {
-	margin-top: 0.2rem;
-	font-size: var(--text-2xs);
-}
+/* ═══════════════════ dashboard: la riga di lavoro, chiusa e aperta
+ *
+ * Una forma sola per i due elenchi della pagina — le trattative da prendere
+ * in carico e gli eventi scaduti o di oggi. Prima erano due forme diverse: le
+ * trattative erano righe **sempre aperte** (nome, tre pastiglie di recapito,
+ * due tendine e un pulsante: mezzo schermo a testa), gli eventi righe piatte
+ * con un pulsante «Gestisci». Con sei trattative libere la domanda «quali
+ * sono e da dove arrivano» richiedeva di scorrere — ed è la domanda con cui
+ * si apre la giornata.
+ *
+ * Ora la riga chiusa porta solo ciò che serve a scegliere quale aprire, e
+ * tutto il resto — recapiti, messaggio, comandi della trattativa, pannello di
+ * chiusura dell'evento — sta nell'espansione. Due elenchi che nella stessa
+ * pagina si leggono in due modi si leggono male entrambi.
+ *
+ * `op` sta per opportunità di lavoro: una trattativa o un evento, che qui si
+ * guardano allo stesso modo.
+ */
 
-/* Una riga sola: l'oggetto di un appuntamento può essere lungo, e per intero
-   sta nel pannello di gestione. */
-.impegno-nota {
-	display: inline-block;
-	max-width: 100%;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	vertical-align: bottom;
-	white-space: nowrap;
-}
-
-.impegno-gestione {
-	margin-top: 0.75rem;
-	padding-top: 0.75rem;
-	border-top: 1px dashed var(--border-strong);
-}
-
-.impegno-gestione .esito {
-	margin-bottom: 0.75rem;
-}
-
-/* ─────────────────────────────── dashboard: le trattative da lavorare */
-
-.trattative-elenco {
+.op-elenco {
 	margin: 0;
 	padding: 0;
 	list-style: none;
 }
 
-.trattativa-riga {
-	padding: 0.75rem 0;
+.op {
 	border-top: 1px solid var(--border);
 }
 
-.trattativa-riga:first-child {
-	padding-top: 0;
-	border-top: none;
+.op:first-child {
+	border-top: 0;
 }
 
-.trattativa-chi-riga {
+/* Aperta: fondo velato, così in un elenco di dodici si vede a quale
+   appartiene il pannello alto che si ha davanti. */
+.op.is-aperta {
+	background: linear-gradient(var(--fill-soft), var(--fill-soft)), transparent;
+}
+
+/* Un evento arretrato non è un evento di oggi con un badge in più: è la cosa
+   che scotta. Fondo velato e banda rossa lo dicono prima di leggere. */
+.op.is-arretrato {
+	background: linear-gradient(var(--error-tint), var(--error-tint)), transparent;
+	border-left-color: var(--error);
+}
+
+.op.is-oggi {
+	border-left-color: var(--info);
+}
+
+.op-riga {
 	display: flex;
-	flex-wrap: wrap;
-	align-items: baseline;
+	align-items: center;
 	gap: 0.5rem;
 }
 
-.trattativa-nome {
-	font-size: var(--text-base);
-	font-weight: 500;
+/* Tutta la riga apre, non un bersaglio in fondo a destra: su un elenco che si
+   scorre col pollice venti pixel all'angolo sono venti pixel che si mancano. */
+.op-apri {
+	display: flex;
+	flex: 1;
+	min-width: 0;
+	align-items: center;
+	gap: 0.65rem;
+	padding: 0.7rem 0;
+	background: none;
+	border: 0;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
 }
 
-.trattativa-recapiti {
+.op-apri:hover .op-nome {
+	color: var(--accent);
+}
+
+.op-corpo {
+	min-width: 0;
+	flex: 1;
+}
+
+/* Il nome su una riga sua e per intero fin dove ci sta: è la prima cosa che
+   si cerca, e troncarlo a metà in mezzo ai metadati lo fa cercare due volte. */
+.op-nome {
+	display: block;
+	overflow: hidden;
+	font-family: var(--font-serif);
+	font-size: var(--text-md);
+	line-height: 1.15;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* La fila delle classificazioni: provenienza, tipo di evento, quando,
+   attesa. Va a capo per intero, non spezzata dentro una targhetta. */
+.op-meta {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.3rem 0.4rem;
+	margin-top: 0.25rem;
+}
+
+.op-quando {
+	font-size: var(--text-2xs);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+/* Sugli eventi il tipo sta a sinistra del nome, al posto delle iniziali: una
+   visita in sede e una telefonata si preparano in modo diverso, e lì è la
+   prima cosa da sapere. */
+.op-tipo {
+	flex: none;
+}
+
+/* Il segno che si apre: un triangolo e non una parola. «Dettagli» ripetuto
+   dodici volte diventa la cosa più scritta della pagina. */
+.op-freccia {
+	flex: none;
+	width: 0.42rem;
+	height: 0.42rem;
+	margin-left: 0.35rem;
+	border-right: 1.5px solid var(--text-muted);
+	border-bottom: 1.5px solid var(--text-muted);
+	transform: rotate(45deg);
+	transition: transform 0.15s ease;
+}
+
+.op.is-aperta .op-freccia {
+	transform: rotate(225deg);
+}
+
+/* «Prendi in carico» resta fuori dall'espansione: è il gesto per cui questo
+   elenco esiste, e farlo costare un'apertura in più vorrebbe dire lasciare lì
+   le trattative libere. */
+.op-prendi {
+	flex: none;
+}
+
+.op-errore {
+	margin: 0 0 0.6rem;
+	color: var(--error);
 	font-size: var(--text-2xs);
 }
 
-/* Dentro l'elenco della dashboard il blocco trattativa non ha bisogno del
-   suo riquadro: la riga è già la sua cornice. */
-.trattativa-riga .trattativa {
-	margin-top: 0.5rem;
+.op-espansione {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.8rem;
+	margin-bottom: 0.9rem;
+	padding-top: 0.8rem;
+	border-top: 1px dashed var(--border-strong);
+}
+
+/* I pannelli occupano la riga intera; recapiti e link restano della loro
+   misura, o tre pastiglie si allargherebbero a tutta la card. */
+.op-espansione .op-richiesta,
+.op-espansione .trattativa,
+.op-espansione .op-gestione {
+	align-self: stretch;
+}
+
+.op-richiesta {
+	margin: 0;
+}
+
+.op-provenienza,
+.op-attivita {
+	margin: 0 0 0.3rem;
+	font-size: var(--text-xs);
+}
+
+/* Quello che ha scritto, per intero: in riga andrebbe troncato, e una nota
+   troncata è una nota che va riaperta comunque. */
+.op-messaggio {
+	margin: 0.4rem 0 0;
+	padding: 0.5rem 0.7rem;
+	background: var(--fill-soft);
+	border-radius: var(--radius);
+	font-size: var(--text-xs);
+	white-space: pre-line;
+}
+
+/* Il pannello di chiusura dell'evento d'origine. Il titolino dice di cosa
+   parla: dentro una riga di trattativa, «Gestione» da solo si legge come la
+   gestione della trattativa — che è un'altra cosa, e sta appena sopra. */
+.op-gestione-titolo {
+	margin: 0 0 -0.3rem;
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+/* Dentro l'espansione i riquadri arrivano già distanziati dal gap: il loro
+   margine superiore raddoppierebbe lo spazio. */
+.op-espansione .esito,
+.op-espansione .gestione,
+.op-espansione .contatti-rapidi,
+.op-espansione .contatti-mancanti {
+	margin-top: 0;
+}
+
+/* Dentro l'elenco il blocco trattativa non ha bisogno del suo riquadro: la
+   riga è già la sua cornice. */
+.op-espansione .trattativa {
+	margin: 0;
 	padding: 0;
 	background: none;
 	border: none;
+}
+
+/* Il link in coda a una card: «Vedi tutte quelle libere», «Apri la tua
+   agenda». Staccato dall'elenco, o sembra la tredicesima riga. */
+.card-coda {
+	margin-top: 1rem;
+}
+
+/* I riquadri dei numeri quando stanno in coda a una sezione e non in testa:
+   sono la fotografia, e chiudono il capitolo invece di aprirlo. */
+.griglia-stat-coda {
+	margin-top: 1.25rem;
+	margin-bottom: 0.75rem;
 }
 
 /* Il totale del club sotto i propri riquadri: una riga, non quattro card
@@ -4119,6 +4275,64 @@ table.tabella tbody tr:hover {
 	line-height: 1;
 }
 
+/* ── Da dove arriva (vedi lib/provenienza.ts) ─────────────────────────────
+ *
+ * Il dato c'era in `opportunita.origine` e in `form_contatti.origine`, ma da
+ * nessuna parte diventava una cosa da guardare: una trattativa nata al banco
+ * e una arrivata dal form del sito erano due righe identiche. Sono due
+ * telefonate diverse — chi è passato dal Guest Register era qui e ha già
+ * parlato con qualcuno della segreteria.
+ *
+ * Quattro colori per quattro provenienze, e non il grigio delle targhette
+ * neutre: questa è la prima cosa che si guarda su una riga chiusa, e va
+ * distinta prima di essere letta.
+ */
+.tag-provenienza {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	padding: 0.1rem 0.5rem;
+	border: 1px solid transparent;
+	border-radius: 999px;
+	font-size: var(--text-2xs);
+	font-weight: 500;
+	line-height: 1.5;
+	white-space: nowrap;
+}
+
+/* Dal sito: blu ardesia, come tutto ciò che arriva da fuori senza che nessuno
+   in club l'abbia ancora toccato. */
+.tag-provenienza.da-sito {
+	background: var(--info-tint);
+	border-color: var(--info-border);
+	color: var(--info);
+}
+
+/* Guest Register: l'oro pieno del club, lo stesso della targhetta Walk-in
+   nelle richieste. Era in reception: è la provenienza che cambia di più il
+   modo di richiamare. */
+.tag-provenienza.da-banco {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: var(--bg);
+}
+
+/* Nata da un evento scritto in agenda: nessuna richiesta dietro, niente da
+   leggere. Resta smorzata — non è un canale in arrivo, è lavoro interno. */
+.tag-provenienza.da-agenda {
+	background: var(--fill-soft);
+	border-color: var(--border-strong);
+	color: var(--text-muted);
+}
+
+/* Un'origine che il pannello non conosce: ambra, perché chiede qualcosa a
+   chi la vede — c'è un canale da instradare in lib/provenienza.ts. */
+.tag-provenienza.da-altro {
+	background: var(--warn-tint);
+	border-color: var(--warn-border);
+	color: var(--warn);
+}
+
 /* Una fila di targhette va a capo per intero, non spezzata dentro la
    targhetta: mezza parola a capo si legge come un errore. */
 .tag-fila {
@@ -4462,7 +4676,8 @@ table.tabella tbody tr:hover {
 
 /* Il pallino con le iniziali, come in anagrafica e in sidebar: dà alla riga
    un punto d'appoggio per l'occhio quando si scorre un elenco lungo. */
-.richiesta-iniziali {
+.richiesta-iniziali,
+.op-iniziali {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -4638,64 +4853,313 @@ table.tabella tbody tr:hover {
 	background: var(--info);
 }
 
-/* ──────────────────────── dashboard: le righe delle trattative, per stato */
+/* ───────────────────── dashboard: la riga di lavoro, banda e spaziatura */
 
-.trattativa-riga {
-	padding: 0.8rem 0;
+.op.riga-stato {
+	padding: 0 0 0 0.85rem;
 }
 
-.trattativa-riga.riga-stato {
-	padding: 0.8rem 0 0.8rem 0.85rem;
-}
-
-.trattativa-riga:first-child {
-	padding-top: 0.8rem;
-	border-top: none;
-}
-
-.trattativa-chi-riga {
-	align-items: center;
-	gap: 0.4rem 0.6rem;
-}
-
-.trattativa-nome {
-	font-family: var(--font-serif);
-	font-size: var(--text-md);
-	line-height: 1.15;
-}
-
-/* Dentro l'elenco della dashboard il blocco trattativa non ripete il velo di
-   fondo: la banda della riga dice già lo stato, e due veli sovrapposti
-   diventano una macchia. */
-.trattativa-riga .trattativa {
-	margin-top: 0.5rem;
-	padding: 0;
+/* Dentro l'espansione il blocco trattativa non ripete il velo di fondo: la
+   banda della riga dice già lo stato, e due veli sovrapposti diventano una
+   macchia. */
+.op-espansione .trattativa {
 	background: none;
 	border: none;
 }
 
-.trattativa-riga .trattativa-azione {
-	display: none;
+/* ─────────────── un campo che non si scrive: l'oggetto di una voce nuova
+ *
+ * È il nome del contatto, calcolato. Si disegna come un valore e non come un
+ * input disabilitato: un campo grigio con il cursore che non entra fa provare
+ * a scriverci dentro, mentre un valore in chiaro si legge e si passa avanti.
+ */
+.campo-etichetta {
+	display: block;
+	margin-bottom: 0.3rem;
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
 }
 
-/* ───────────────────────────── dashboard: impegni, arretrati in evidenza */
-
-.impegno.riga-stato {
-	padding-left: 0.85rem;
+.campo-fisso {
+	margin: 0;
+	padding: 0.45rem 0.7rem;
+	background: var(--fill-soft);
+	border: 1px dashed var(--border-strong);
+	border-radius: var(--radius);
+	font-family: var(--font-serif);
+	font-size: var(--text-md);
+	line-height: 1.2;
 }
 
-/* Un impegno arretrato non è un impegno di oggi con un badge in più: è la
-   cosa che scotta. Fondo velato e banda rossa lo dicono prima di leggere. */
-.impegno.is-arretrato {
-	background: linear-gradient(var(--error-tint), var(--error-tint)), transparent;
-	border-left-color: var(--error);
+/* Non ancora scelto il contatto: è un'istruzione, non un valore. */
+.campo-fisso.e-vuoto {
+	color: var(--text-muted);
+	font-family: var(--font-sans);
+	font-size: var(--text-sm);
+	font-style: italic;
 }
 
-.impegno.is-oggi {
-	border-left-color: var(--info);
+/* ──────────────────────────── Core Manager: il carico, visto guardando
+ *
+ * In una colonna di cifre lo squilibrio si vede contando; con una barra dietro
+ * il numero si vede guardando — ed è l'unica ragione per cui questa pagina
+ * esiste. La barra sta **dietro** e non accanto: una colonna in più
+ * allargherebbe la tabella su un telefono, e il numero deve restare leggibile
+ * sopra il velo.
+ */
+.carico {
+	position: relative;
+	display: flex;
+	align-items: center;
+	min-width: 3.5rem;
+	padding: 0.15rem 0.35rem;
 }
 
-.impegno-titolo {
+.carico-barra {
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	background: var(--info-tint);
+	border-radius: 3px;
+}
+
+.carico-numero {
+	position: relative;
+	font-variant-numeric: tabular-nums;
+	font-weight: 500;
+}
+
+/* Lo scarto fra eventi assegnati ed eseguiti. Verde in su — sta coprendo i
+   turni di qualcun altro — ambra in giù, che è arretrato che si accumula.
+   Nessuno dei due è una colpa, ed è per questo che non c'è il rosso. */
+.scarto {
+	margin-left: 0.35rem;
+	font-size: var(--text-2xs);
+	font-variant-numeric: tabular-nums;
+	font-weight: 500;
+}
+
+.scarto.e-su {
+	color: var(--ok);
+}
+
+.scarto.e-giu {
+	color: var(--warn);
+}
+
+/* L'unità di misura sotto l'intestazione di una colonna: «ore di apertura»
+   non sta nel titolo — lo raddoppierebbe — ma senza di lei quella colonna si
+   legge come ore d'orologio, che è un altro numero. */
+.th-nota {
+	display: block;
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+	font-weight: 400;
+	letter-spacing: 0;
+	text-transform: none;
+}
+
+/* Gli importi in cifre tabellari e allineati a destra: è l'unico modo di
+   confrontare a occhio una colonna di euro. */
+.cella-valore {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+/* La propria riga, in una tabella che elenca i colleghi: si cerca per prima. */
+table.tabella tr.is-mia td {
+	background: var(--accent-tint);
+}
+
+/* La chiusura della trattativa dentro una riga di Eventi Core: staccata dal
+   blocco trattativa da una riga tratteggiata, come nell'espansione degli
+   eventi — è un passo successivo, non un secondo pannello di pari peso. */
+.richiesta-chiusura {
+	margin-top: 0.75rem;
+	padding-top: 0.75rem;
+	border-top: 1px dashed var(--border-strong);
+}
+
+/* ─────────── come è finita la trattativa, dalla gestione dell'evento
+ *
+ * Chiudere l'evento e chiudere la trattativa sono due gesti diversi che
+ * arrivano nello stesso momento: si telefona, la persona dice sì, e in quel
+ * minuto si sanno entrambe le cose. Il blocco sta sotto quello dell'esito,
+ * dentro la stessa espansione, e si distingue per la banda che non ha: è un
+ * seguito, non un secondo pannello di pari peso.
+ */
+.chiusura-trattativa {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.chiusura-riga {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.4rem 0.6rem;
+}
+
+.chiusura-chi,
+.chiusura-motivo {
+	margin: 0;
+	font-size: var(--text-2xs);
+}
+
+.chiusura-azioni {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.4rem;
+}
+
+.chiusura-motivo-campo {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.chiusura-motivo-campo input {
+	width: 100%;
+}
+
+/* Il campo del valore dentro la riga della trattativa, che è orizzontale. */
+.trattativa-valore-campo {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+}
+
+.trattativa-valore-campo input {
+	width: 6.5rem;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Il valore del contratto, accanto a cosa è stato venduto: è la stessa frase
+   detta in due campi, e separarli a schermo li fa cercare due volte. */
+.chiusura-valore {
+	color: var(--ok);
+	font-variant-numeric: tabular-nums;
+}
+
+/* Il campo dell'importo col simbolo accanto, non dentro: dentro il
+   placeholder si confonde con quello che si sta scrivendo. */
+.chiusura-valore-campo {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+}
+
+.chiusura-valore-campo input {
+	width: 9rem;
+	font-variant-numeric: tabular-nums;
+}
+
+/* L'etichetta dei campi della chiusura: la nota è obbligatoria su tutte e tre
+   e il valore sulla vinta, e l'asterisco è il solo modo di dirlo prima che si
+   prema il pulsante. */
+.chiusura-etichetta {
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+
+/* Quello che il server ha fatto in più di quanto chiesto: chiudendo l'evento
+   la trattativa libera passa a chi lo chiude. Verde e non grigio — è una cosa
+   avvenuta, non una nota a margine — e un'assegnazione che compare in
+   silenzio è un'assegnazione che nessuno sa di avere. */
+.esito-avviso {
+	margin: 0.75rem 0 0;
+	padding: 0.5rem 0.7rem;
+	background: var(--ok-tint);
+	border: 1px solid var(--ok-border);
+	border-radius: var(--radius);
+	color: var(--ok);
+	font-size: var(--text-2xs);
+	font-weight: 500;
+}
+
+/* ────────────── scheda contatto: le pagine che ha visto, in ordine
+ *
+ * Il percorso sul sito stava chiuso dentro ogni singola richiesta, una visita
+ * per volta (vedi PercorsoSito). Ma è il percorso a dire cosa interessa a una
+ * persona — le tre volte che è tornata sulla pagina del padel prima di
+ * scrivere del nuoto — e si legge tutto insieme o non si legge.
+ */
+.visite-elenco {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	font-size: var(--text-sm);
+}
+
+.visite-riga {
+	display: flex;
+	gap: 0.75rem;
+	align-items: baseline;
+	padding: 0.22rem 0;
+}
+
+/* Cifre tabellari e larghezza fissa: le righe si leggono in colonna, e un
+   orario che balla a destra e a sinistra rompe la fila. La colonna è larga
+   quanto «11 set 14:20», perché il giorno si scrive quando cambia. */
+.visite-quando {
+	flex-shrink: 0;
+	width: 7.5rem;
+	font-size: var(--text-2xs);
+	font-variant-numeric: tabular-nums;
+}
+
+.visite-dove {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+/* Di chi è il lavoro su un evento, e chi l'ha fatto: due fatti veri insieme.
+   Sopra il pannello di chiusura, perché è ciò che si guarda prima di
+   chiuderlo al posto di qualcun altro. */
+.op-gestione-chi {
+	margin: 0 0 0.5rem;
+	font-size: var(--text-2xs);
+}
+
+/* ─────────────────────── il passo successivo, dopo la chiusura con esito
+ *
+ * Non è un campo della chiusura: compare **dopo** che la chiusura è riuscita,
+ * e la insert è quella sola di programmaEvento — la stessa porta del pannello
+ * Eventi e di «Aggiungi in agenda». Vedi il commento in GestioneEsito.
+ *
+ * Sta dentro il riquadro dell'esito ma staccato da una riga: è una cosa
+ * nuova che appare dove prima non c'era niente, e se somigliasse al resto del
+ * pannello si leggerebbe come un campo che era lì da prima e non si era
+ * compilato.
+ */
+.seguito {
+	margin-top: 1rem;
+	padding-top: 0.9rem;
+	border-top: 1px dashed var(--border-strong);
+}
+
+.seguito-domanda {
+	margin: 0 0 0.35rem;
+	font-size: var(--text-sm);
+}
+
+/* Fatto: verde e con la spunta, come gli elenchi vuoti per bene. Un
+   «programmato» in grigio accanto a un pannello pieno di campi non si
+   distingue da un'etichetta. */
+.seguito-fatto {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	margin: 0;
+	color: var(--ok);
+	font-size: var(--text-sm);
 	font-weight: 500;
 }
 
@@ -4781,26 +5245,6 @@ table.tabella tbody tr:hover {
 
 /* Nome e attesa in colonna, e i recapiti spinti a destra: su una riga sola il
    nome ballava in base alla lunghezza dei recapiti. */
-.trattativa-identita {
-	display: flex;
-	flex-direction: column;
-	gap: 0.15rem;
-	min-width: 0;
-	flex: 1;
-}
-
-.trattativa-chi-riga .contatti-rapidi {
-	margin-top: 0;
-	margin-left: auto;
-}
-
-@media (max-width: 560px) {
-	.trattativa-chi-riga .contatti-rapidi {
-		margin-left: 0;
-		flex-basis: 100%;
-	}
-}
-
 /* Sotto i 720px i comandi della riga vanno a capo per intero, sotto
    l'identità: condividendo la riga col nome lo strizzavano fino a spezzare le
    parole a metà — «Nessun recapito» diventava una colonna di sillabe. */
@@ -4956,13 +5400,16 @@ table.tabella tbody tr:hover {
 	--bg-dark: #131210;
 	--surface: #292520;
 
-	--text: #f1ebdf;
-	--text-muted: #a9a196;
+	--text: #f6f1e7;
+	/* Era #a9a196: 5,3:1 sul fondo, su testo di 12-13px. Ora 8,4:1 — al buio
+	   il testo smorzato è la prima cosa che sparisce, e qui sono metadati che
+	   si leggono. */
+	--text-muted: #c3bbae;
 	/* `--text-on-dark` e `--text-muted-on-dark` non si toccano: vestono la
 	   sidebar e il login, che sono scuri in tutti e due i temi. */
 
-	--border: rgba(246, 239, 222, 0.09);
-	--border-strong: rgba(246, 239, 222, 0.16);
+	--border: rgba(246, 239, 222, 0.15);
+	--border-strong: rgba(246, 239, 222, 0.28);
 
 	/* Il velo neutro si schiarisce — una pastiglia deve staccare dal fondo —
 	   mentre la riga già gestita si scurisce: spegnere, al buio, vuol dire
