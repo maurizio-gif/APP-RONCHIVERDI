@@ -2427,6 +2427,94 @@ table.tabella tbody tr:hover {
 	gap: 0.15rem;
 }
 
+/* ───────────────────────────────────────────────────── percorso sul sito */
+
+/* Le pagine viste prima di scrivere. Vive in due posti con due pesi diversi:
+   aperto nel pannello di gestione, dove serve mentre si lavora la richiesta,
+   e sotto una riga da aprire nella scheda del contatto, dove le richieste
+   sono più d'una e l'elenco diventerebbe un muro. */
+.percorso {
+	margin-top: 0.75rem;
+}
+
+/* Dentro una voce di elenco prende la riga tutta per sé: .voce va a capo da
+   sola (flex-wrap), e senza questa larghezza il percorso finirebbe schiacciato
+   nella colonna delle azioni. */
+.voce > .percorso {
+	flex-basis: 100%;
+	width: 100%;
+}
+
+.percorso-titolo {
+	margin: 0 0 0.35rem;
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+/* Il comando che apre il percorso non è un pulsante d'azione: non fa niente
+   al database, apre una tendina. Ha quindi l'aspetto di un link, per non
+   competere con i pulsanti veri della riga. */
+.percorso-apri {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--text-muted);
+	font: inherit;
+	font-size: var(--text-2xs);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	cursor: pointer;
+}
+
+.percorso-apri:hover {
+	color: var(--text);
+}
+
+.percorso-sintesi {
+	margin: 0;
+	font-size: var(--text-sm);
+}
+
+.percorso-nota {
+	margin: 0.15rem 0 0;
+	font-size: var(--text-sm);
+}
+
+.percorso-pagine {
+	margin: 0.5rem 0 0;
+	padding: 0;
+	list-style: none;
+	display: flex;
+	flex-direction: column;
+	gap: 0.1rem;
+	font-size: var(--text-sm);
+}
+
+.percorso-pagine li {
+	display: flex;
+	gap: 0.6rem;
+	align-items: baseline;
+}
+
+/* L'ora in cifre tabulari e a larghezza fissa: le pagine si leggono in
+   colonna, e un orario che balla a destra e a sinistra rompe la fila. */
+.percorso-ora {
+	flex-shrink: 0;
+	width: 3.2rem;
+	color: var(--text-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.percorso-pagina {
+	word-break: break-word;
+}
+
+.percorso-pagina .tag {
+	margin-left: 0.4rem;
+}
+
 /* ────────────────────────────────────────────────────────────── anagrafica */
 
 .persone {

@@ -4,6 +4,8 @@ import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { ETICHETTA_MANUALE, dataOra, eInseritoAMano, nomePersona } from '@/lib/persone'
 import { canaleDiRichiesta } from '@/lib/richieste'
+import { primoContattoDi, provenienzaRichiesta } from '@/lib/percorsoSito'
+import { PercorsoSito } from '@/components/PercorsoSito'
 import { CLASSE_BADGE_STATO, ETICHETTE_STATO, type StatoTrattativa } from '@/lib/pipeline'
 import { SchedaPersona } from '../SchedaPersona'
 
@@ -27,7 +29,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
       .maybeSingle(),
     supabase
       .from('form_contatti')
-      .select('id, created_at, origine, attivita, attivita_label, settore, azione, data_scelta, ora_scelta, messaggio, gestito, gestito_da, utm_source, utm_campaign')
+      .select('id, created_at, origine, attivita, attivita_label, settore, azione, data_scelta, ora_scelta, messaggio, dettagli, gestito, gestito_da, pagina, cta, audience, utm_source, utm_medium, utm_campaign, first_utm_source, first_utm_campaign, landing_page')
       .eq('persona_id', params.id)
       .order('created_at', { ascending: false }),
     // Le trattative in sola lettura: si lavorano nella sezione Club e Family,
@@ -192,9 +194,27 @@ export default async function PersonaPage({ params }: { params: { id: string } }
                       </span>
                     )}
                     {r.messaggio && <span className="voce-note muted">{r.messaggio}</span>}
-                    {r.utm_campaign && (
+                    {/* Da dove ha compilato e cosa ha premuto: gli stessi dati
+                        che il responsabile vede nel pannello di gestione.
+                        Ripetuti qui perché la scheda del contatto è il posto
+                        in cui si guarda la storia di una persona, e una
+                        richiesta senza il suo contesto è solo una data. */}
+                    {(r.pagina || r.cta) && (
                       <span className="voce-note muted">
-                        Provenienza: {[r.utm_source, r.utm_campaign].filter(Boolean).join(' · ')}
+                        Ha compilato da {r.pagina ?? 'pagina non registrata'}
+                        {r.cta && ` · pulsante «${r.cta}»`}
+                      </span>
+                    )}
+                    {r.dettagli && r.dettagli.length > 0 && (
+                      <span className="voce-note muted">Interessi: {r.dettagli.join(', ')}</span>
+                    )}
+                    {(provenienzaRichiesta(r) || r.landing_page) && (
+                      <span className="voce-note muted">
+                        Provenienza: {provenienzaRichiesta(r) || 'diretto'}
+                        {primoContattoDi(r) && primoContattoDi(r) !== provenienzaRichiesta(r) && (
+                          <> · primo contatto: {primoContattoDi(r)}</>
+                        )}
+                        {r.landing_page && <> · atterrato su {r.landing_page}</>}
                       </span>
                     )}
                   </span>
@@ -208,6 +228,9 @@ export default async function PersonaPage({ params }: { params: { id: string } }
                       </Link>
                     </span>
                   )}
+                  {/* Ultimo, e a riga intera: è un approfondimento, e sopra ci
+                      sono le cose che si leggono sempre. */}
+                  <PercorsoSito idRichiesta={r.id} paginaForm={r.pagina} />
                 </li>
               )
             })}
