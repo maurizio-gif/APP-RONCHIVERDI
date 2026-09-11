@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { Validatore } from './Validatore'
+import { ContatoreValidati } from './ContatoreValidati'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,7 +10,11 @@ export const dynamic = 'force-dynamic'
 // lascia il proprio nome accanto al voucher. Al partner si assegna questa
 // sola sezione — è marcata "esterna" in lib/auth/sezioni.ts, quindi il
 // pannello non gli mostra nemmeno il Riepilogo.
-export default async function ValidazionePage() {
+export default async function ValidazionePage({
+  searchParams,
+}: {
+  searchParams: { da?: string; a?: string }
+}) {
   if (!(await utenteHaSezione('validazione-voucher'))) {
     redirect('/dashboard')
   }
@@ -26,6 +31,11 @@ export default async function ValidazionePage() {
       </div>
 
       <Validatore />
+
+      {/* Sotto al validatore, non sopra: la pagina serve a bruciare un codice
+          col socio al telefono, e il conteggio è la cosa che si guarda a fine
+          mese. Primo quello che si fa ogni giorno. */}
+      <ContatoreValidati da={searchParams.da} a={searchParams.a} />
     </>
   )
 }

@@ -221,6 +221,42 @@ export function chiaveGiorno(anno: number, mese: number, giorno: number): string
   return `${anno}-${String(mese + 1).padStart(2, '0')}-${String(giorno).padStart(2, '0')}`
 }
 
+/** Lo scarto di Roma dall'ora universale in un dato istante, in minuti. */
+function scartoMinuti(istante: Date): number {
+  const parti = new Intl.DateTimeFormat('it-IT', {
+    timeZone: 'Europe/Rome',
+    timeZoneName: 'longOffset',
+  }).formatToParts(istante)
+  const nome = parti.find((p) => p.type === 'timeZoneName')?.value ?? 'GMT+01:00'
+  const pezzi = /GMT([+-])(\d{2}):(\d{2})/.exec(nome)
+  if (!pezzi) return 60
+  const segno = pezzi[1] === '-' ? -1 : 1
+  return segno * (Number(pezzi[2]) * 60 + Number(pezzi[3]))
+}
+
+/**
+ * La mezzanotte di un giorno italiano, come istante assoluto (ISO in UTC).
+ *
+ * Serve a filtrare le colonne timestamptz per giorno: quelle sono istanti, il
+ * giorno che una persona scrive in un form è un giorno italiano, e senza
+ * questa conversione una riga dell'una di notte finisce nel giorno prima.
+ *
+ * Due passaggi, e non uno: lo scarto va chiesto *nell'istante che stiamo
+ * cercando*, non a mezzogiorno di quel giorno. Le due domeniche del cambio
+ * d'ora sono l'unico caso in cui i due valori differiscono — alle 00:00 del
+ * 29 marzo l'Italia è ancora sull'ora solare, e cambia alle 02:00 — ma
+ * chiedendolo a mezzogiorno quelle notti il confine scivolava di un'ora, e il
+ * conteggio di un giorno si prendeva l'ultima ora di quello prima.
+ */
+export function mezzanotteRoma(giorno: string): string {
+  const comeSeUtc = new Date(`${giorno}T00:00:00Z`).getTime()
+  const primo = scartoMinuti(new Date(comeSeUtc))
+  let istante = comeSeUtc - primo * 60000
+  const secondo = scartoMinuti(new Date(istante))
+  if (secondo !== primo) istante = comeSeUtc - secondo * 60000
+  return new Date(istante).toISOString()
+}
+
 /** Somma giorni a una data YYYY-MM-DD, restando in YYYY-MM-DD. */
 export function giornoPiu(giorno: string, giorni: number): string {
   const d = new Date(`${giorno}T12:00:00Z`)
