@@ -6,14 +6,24 @@ import { dataOra } from '@/lib/persone'
 
 export const dynamic = 'force-dynamic'
 
-// Periodi offerti. Non un intervallo libero: su un pannello di lavoro le tre
+// Periodi offerti. Non un intervallo libero: su un pannello di lavoro queste
 // finestre coprono quasi tutte le domande, e un selettore di date sarebbe
 // un'altra cosa da compilare per la stessa risposta.
+//
+// Le 24 ore stanno per prime perché rispondono a una domanda diversa dalle
+// altre: non «come sta andando», ma «cosa è successo da ieri» — quella che ci
+// si fa aprendo il pannello al mattino. Sono le ultime ventiquattr'ore
+// contate da adesso, non il giorno di calendario: alle nove del mattino
+// «oggi» sarebbero tre ore di dati e sembrerebbe un guasto.
 const PERIODI = [
+  { chiave: '1', label: '24 ore', giorni: 1 },
   { chiave: '7', label: '7 giorni', giorni: 7 },
   { chiave: '30', label: '30 giorni', giorni: 30 },
   { chiave: '90', label: '90 giorni', giorni: 90 },
 ] as const
+
+/** Quello che si vede senza scegliere niente: un mese è la finestra che racconta di più. */
+const PERIODO_PREDEFINITO = PERIODI.find((p) => p.chiave === '30')!
 
 type Campagna = { sorgente: string; mezzo: string; campagna: string; sessioni: number; lead: number }
 type Pagina = { pagina: string; viste: number; sessioni: number }
@@ -77,7 +87,7 @@ export default async function VisitePage({ searchParams }: { searchParams: { per
     redirect('/dashboard')
   }
 
-  const periodo = PERIODI.find((p) => p.chiave === searchParams.periodo) ?? PERIODI[1]
+  const periodo = PERIODI.find((p) => p.chiave === searchParams.periodo) ?? PERIODO_PREDEFINITO
   const da = new Date()
   da.setDate(da.getDate() - periodo.giorni)
 
