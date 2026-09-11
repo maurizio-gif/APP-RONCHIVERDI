@@ -11,7 +11,7 @@ import {
   voceDaContatto,
 } from '@/lib/agenda'
 import { CLASSE_RIGA_STATO } from '@/lib/pipeline'
-import { dominioDi, primoContattoDi, provenienzaRichiesta } from '@/lib/percorsoSito'
+import { dominioDi, percorsoBreve, primoContattoDi, provenienzaRichiesta } from '@/lib/percorsoSito'
 import { CLASSE_URGENZA, fraseAttesa, giorniDa, urgenzaAttesa } from '@/lib/attesa'
 import { inizialiPersona } from '@/lib/persone'
 import { nomeDiEmail } from '@/lib/staff'
@@ -620,7 +620,12 @@ export function RigaRichiesta({
                   {primoContatto && primoContatto !== provenienza && (
                     <span className="muted"> · primo contatto: {primoContatto}</span>
                   )}
-                  {r.landing_page && <span className="muted"> · atterrato su {r.landing_page}</span>}
+                  {r.landing_page && (
+                    <span className="muted" title={r.landing_page}>
+                      {' '}
+                      · atterrato su {percorsoBreve(r.landing_page)}
+                    </span>
+                  )}
                 </dd>
               </>
             )}
