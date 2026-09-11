@@ -11,10 +11,12 @@ import {
   voceDaContatto,
 } from '@/lib/agenda'
 import { CLASSE_RIGA_STATO } from '@/lib/pipeline'
+import { dominioDi, primoContattoDi, provenienzaRichiesta } from '@/lib/percorsoSito'
 import { CLASSE_URGENZA, fraseAttesa, giorniDa, urgenzaAttesa } from '@/lib/attesa'
 import { inizialiPersona } from '@/lib/persone'
 import { nomeDiEmail } from '@/lib/staff'
 import { GestioneEsito } from '@/components/GestioneEsito'
+import { PercorsoSito } from '@/components/PercorsoSito'
 import { ContattiRapidi } from '../ContattiRapidi'
 import { riapriRichiesta } from './actions'
 import { EventiTrattativa, type EventoCollegato } from './EventiTrattativa'
@@ -56,8 +58,21 @@ export type Richiesta = {
   /** Chi ha scritto la nota di chiusura, e quando. Distinta da gestito_da. */
   esito_da: string | null
   esito_il: string | null
+  /** La pagina del sito da cui è partito il form: non l'attività scelta, ma dove si trovava. */
+  pagina: string | null
+  /** Il pulsante che ha aperto il form: «Prenota un tour», «Richiedi informazioni»… */
+  cta: string | null
+  /** adulti o junior: lo manda il percorso Young School, e cambia con chi si parla. */
+  audience: string | null
   utm_source: string | null
+  utm_medium: string | null
   utm_campaign: string | null
+  /** First touch: la campagna che l'aveva portato sul sito la prima volta. */
+  first_utm_source: string | null
+  first_utm_campaign: string | null
+  /** La pagina di atterraggio e il sito da cui è arrivato, della visita che ha convertito. */
+  landing_page: string | null
+  referrer: string | null
   opportunita_id: string | null
   /** La persona riconosciuta dal database: è la chiave con cui si contano le richieste ripetute. */
   persona_id: string | null
@@ -153,6 +168,8 @@ export function RigaRichiesta({
   // parlato con qualcuno della segreteria.
   const walkIn = r.origine === 'walk-in'
   const minore = [r.minore_nome, r.minore_cognome].filter(Boolean).join(' ')
+  const provenienza = provenienzaRichiesta(r)
+  const primoContatto = primoContattoDi(r)
 
   // Una richiesta ripetuta va detta prima di chiamare: il database riusa la
   // trattativa già aperta senza cambiare niente, quindi in elenco questa riga
@@ -573,12 +590,37 @@ export function RigaRichiesta({
                 <span className="tag tag-avviso">nessun consenso</span>
               )}
             </dd>
-            {r.utm_source && (
+            {/* Dove si trovava sul sito quando ha scritto, e cosa ha premuto.
+                È la prima domanda di chi richiama — «mi ha scritto per il
+                tennis o stava guardando gli abbonamenti?» — e finora era un
+                dato che il sito mandava e il pannello buttava via. */}
+            {(r.pagina || r.cta) && (
+              <>
+                <dt>Ha compilato</dt>
+                <dd>
+                  {r.pagina ?? 'pagina non registrata'}
+                  {r.cta && ` · pulsante «${r.cta}»`}
+                </dd>
+              </>
+            )}
+            {r.audience && (
+              <>
+                <dt>Per chi</dt>
+                <dd>{r.audience === 'junior' ? 'Young School (junior)' : r.audience}</dd>
+              </>
+            )}
+            {(provenienza || r.referrer || r.landing_page) && (
               <>
                 <dt>Provenienza</dt>
                 <dd>
-                  {r.utm_source}
-                  {r.utm_campaign && ` · ${r.utm_campaign}`}
+                  {provenienza || (dominioDi(r.referrer) ? `da ${dominioDi(r.referrer)}` : 'diretto')}
+                  {/* Il primo contatto si dice solo se racconta un'altra
+                      storia: quando coincide con l'ultimo è una ripetizione
+                      che allunga la riga e non aggiunge niente. */}
+                  {primoContatto && primoContatto !== provenienza && (
+                    <span className="muted"> · primo contatto: {primoContatto}</span>
+                  )}
+                  {r.landing_page && <span className="muted"> · atterrato su {r.landing_page}</span>}
                 </dd>
               </>
             )}
@@ -615,6 +657,11 @@ export function RigaRichiesta({
               </>
             )}
           </dl>
+
+          {/* Le pagine viste prima di scrivere. Sta dopo la lista e non dentro
+              perché non è una coppia etichetta/valore: è un elenco, e in una
+              griglia a due colonne si leggerebbe male. */}
+          <PercorsoSito idRichiesta={r.id} paginaForm={r.pagina} apertoSubito />
         </div>
       )}
 

@@ -66,7 +66,7 @@ export default async function CanalePage({
   let query = supabase
     .from('form_contatti')
     .select(
-      'id, created_at, origine, operatore, nome, cognome, email, cellulare, data_nascita, attivita_label, settore, azione, data_scelta, ora_scelta, messaggio, dettagli, minore_nome, minore_cognome, minore_data_nascita, marketing, gestito, gestito_da, gestito_il, note, note_da, note_il, utm_source, utm_campaign, opportunita_id, esito_tipo, esito, esito_da, esito_il, persona_id'
+      'id, created_at, origine, operatore, nome, cognome, email, cellulare, data_nascita, attivita_label, settore, azione, data_scelta, ora_scelta, messaggio, dettagli, minore_nome, minore_cognome, minore_data_nascita, marketing, gestito, gestito_da, gestito_il, note, note_da, note_il, pagina, cta, audience, utm_source, utm_medium, utm_campaign, first_utm_source, first_utm_campaign, landing_page, referrer, opportunita_id, esito_tipo, esito, esito_da, esito_il, persona_id'
     )
     .order('created_at', { ascending: false })
     .limit(200)
