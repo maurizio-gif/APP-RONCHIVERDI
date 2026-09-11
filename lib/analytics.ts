@@ -1,8 +1,12 @@
-// Periodi, confronti e variazioni per la sezione Analytics.
+// Periodi e aggregazioni per la sezione Analytics.
 //
-// Tutto in italiano, comprese le etichette dei grafici: nel CRM del Tennis
-// Club Ambrosiano l'Analytics è l'unica sezione in inglese (formatDeltaEn,
-// formatDateWithWeekday) e stona col resto del pannello. Qui no.
+// Tutto in italiano, comprese le etichette dei grafici: una sezione sola in
+// inglese, in mezzo a un pannello che parla italiano, si legge come un pezzo
+// preso da un'altra parte.
+//
+// Il confronto con il periodo precedente non c'è più: i numeri del club sono
+// pochi e la storia è corta, e una variazione calcolata su due richieste
+// contro una diceva «+100%» senza dire niente. Meglio il numero nudo.
 //
 // Nessun import server-only: usato sia dai Server Component sia dai client.
 
@@ -15,77 +19,16 @@ export const OPZIONI_PERIODO = [
 
 export type ValorePeriodo = (typeof OPZIONI_PERIODO)[number]['valore']
 
-export const OPZIONI_CONFRONTO = [
-  { valore: 'precedente', etichetta: 'Periodo precedente' },
-  { valore: 'anno', etichetta: 'Anno precedente' },
-  { valore: 'nessuno', etichetta: 'Nessun confronto' },
-] as const
-
-export type ValoreConfronto = (typeof OPZIONI_CONFRONTO)[number]['valore']
-
 export function periodoDa(valore: string | undefined) {
   return OPZIONI_PERIODO.find((p) => p.valore === valore) ?? OPZIONI_PERIODO[1]
 }
 
-export function confrontoDa(valore: string | undefined): ValoreConfronto {
-  return (OPZIONI_CONFRONTO.find((c) => c.valore === valore)?.valore ?? 'precedente') as ValoreConfronto
-}
-
-/**
- * Estremi del periodo e del confronto.
- *
- * Il periodo precedente è lungo esattamente come quello principale e finisce
- * dove l'altro comincia: confrontare 30 giorni con 14 darebbe una variazione
- * che non significa niente. L'anno precedente sposta di 365 giorni entrambi
- * gli estremi, così il confronto cade sullo stesso periodo dell'anno prima.
- */
-export function calcolaEstremi(giorni: number, confronto: ValoreConfronto) {
+/** Da quando a quando guardiamo: gli ultimi `giorni` fino a adesso. */
+export function calcolaEstremi(giorni: number) {
   const a = new Date()
   const da = new Date(a)
   da.setDate(da.getDate() - giorni)
-
-  if (confronto === 'nessuno') return { da, a, confronto: null as null | { da: Date; a: Date } }
-
-  if (confronto === 'anno') {
-    const cDa = new Date(da)
-    const cA = new Date(a)
-    cDa.setDate(cDa.getDate() - 365)
-    cA.setDate(cA.getDate() - 365)
-    return { da, a, confronto: { da: cDa, a: cA } }
-  }
-
-  const cA = new Date(da)
-  const cDa = new Date(da)
-  cDa.setDate(cDa.getDate() - giorni)
-  return { da, a, confronto: { da: cDa, a: cA } }
-}
-
-/**
- * Variazione percentuale fra due periodi.
- *
- * null quando prima era zero e ora no: mostrare "+∞%" o "+100%" sarebbe
- * falso, si scrive "nuovo". 0 quando entrambi sono a zero — niente è
- * cambiato, e nascondere il dato farebbe pensare a un errore.
- */
-export function variazione(ora: number, prima: number): number | null {
-  if (prima === 0) return ora === 0 ? 0 : null
-  return Math.round(((ora - prima) / prima) * 1000) / 10
-}
-
-/** "+12,5%", "−8%", "nuovo", "=". */
-export function formattaVariazione(v: number | null): string {
-  if (v === null) return 'nuovo'
-  if (v === 0) return '='
-  const segno = v > 0 ? '+' : '−'
-  return `${segno}${String(Math.abs(v)).replace('.', ',')}%`
-}
-
-/** Classe del badge: una variazione negativa non è sempre una brutta notizia. */
-export function classeVariazione(v: number | null, piuEMeglio = true): string {
-  if (v === null) return 'badge-ok'
-  if (v === 0) return 'badge-off'
-  const buona = piuEMeglio ? v > 0 : v < 0
-  return buona ? 'badge-ok' : 'badge-warn'
+  return { da, a }
 }
 
 export function percentuale(parte: number, totale: number): string {
