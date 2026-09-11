@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import {
   ETICHETTE_ESITO,
   ETICHETTE_TIPO_BREVI,
@@ -122,6 +122,7 @@ export function RigaRichiesta({
   storico,
   eventi = [],
   gestioneSemplice = false,
+  apriSubito = false,
 }: {
   r: Richiesta
   contesto?: ContestoTrattativa
@@ -154,11 +155,27 @@ export function RigaRichiesta({
    * un seguito da programmare.
    */
   eventi?: EventoCollegato[]
+  /**
+   * La richiesta indicata nell'indirizzo (?richiesta=<id>): si apre da sola e
+   * si porta sotto gli occhi. È come ci arriva chi clicca «Accedi al CRM»
+   * nell'email che il sito manda al responsabile dell'attività.
+   */
+  apriSubito?: boolean
 }) {
-  const [aperta, setAperta] = useState(false)
+  // Aperta di suo quando si arriva dal link di un'email (vedi
+  // app/dashboard/richiesta/[id]): chi ha cliccato «Accedi al CRM» vuole
+  // leggere quella richiesta, non cercarla in un elenco di duecento.
+  const [aperta, setAperta] = useState(apriSubito)
+  const riferimento = useRef<HTMLLIElement>(null)
   const [gestioneAperta, setGestioneAperta] = useState(false)
   const [eventiAperti, setEventiAperti] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
+
+  // In un elenco lungo la riga giusta può essere sotto la piega: aprirla e
+  // lasciarla fuori schermo sarebbe come non averla aperta.
+  useEffect(() => {
+    if (apriSubito) riferimento.current?.scrollIntoView({ block: 'center' })
+  }, [apriSubito])
   const [inCorso, startTransition] = useTransition()
 
   const nome = [r.nome, r.cognome].filter(Boolean).join(' ') || '—'
@@ -268,9 +285,10 @@ export function RigaRichiesta({
 
   return (
     <li
+      ref={riferimento}
       className={`richiesta riga-stato ${classeBanda}${r.gestito ? ' is-gestita' : ''}${
         aperta || gestioneAperta || eventiAperti ? ' is-aperta' : ''
-      }`}
+      }${apriSubito ? ' is-indicata' : ''}`}
     >
       {/* Tutta la testa apre e chiude: è il bersaglio che si colpisce
           naturalmente col mouse. Il pulsante in fondo è quello che la rende

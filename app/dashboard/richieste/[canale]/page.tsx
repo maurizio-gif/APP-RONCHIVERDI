@@ -29,7 +29,7 @@ export default async function CanalePage({
   searchParams,
 }: {
   params: { canale: string }
-  searchParams: { mostra?: string; stato?: string; mie?: string }
+  searchParams: { mostra?: string; stato?: string; mie?: string; richiesta?: string }
 }) {
   const canale = canaleDaChiave(params.canale)
   if (!canale) notFound()
@@ -571,9 +571,23 @@ export default async function CanalePage({
           </div>
         ) : (
           <ul className="richieste">
+            {/* Il link puntava a una richiesta che qui non c'è: più vecchia
+                delle ultime duecento, o nascosta da un filtro attivo. Dirlo è
+                l'unico modo di distinguere «non l'ho trovata» da «il link non
+                ha funzionato». */}
+            {searchParams.richiesta &&
+              !richiesteMostrate.some((x) => x.id === searchParams.richiesta) && (
+                <li className="richiesta">
+                  <p className="muted" style={{ margin: 0 }}>
+                    La richiesta del link non è in questo elenco: può essere più vecchia delle
+                    ultime 200, oppure esclusa dai filtri qui sopra.
+                  </p>
+                </li>
+              )}
             {richiesteMostrate.map((riga) => (
               <RigaRichiesta
                 r={riga}
+                apriSubito={riga.id === searchParams.richiesta}
                 contesto={contesto}
                 nomiStaff={nomiStaff}
                 operatori={operatori}
