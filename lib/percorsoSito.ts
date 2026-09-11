@@ -175,6 +175,34 @@ export function stessaPagina(a: string | null, b: string | null): boolean {
   return pulisci(a) === pulisci(b)
 }
 
+/**
+ * Un indirizzo lungo, accorciato per la lettura.
+ *
+ * Chi arriva da una ricerca si porta dietro la coda di tracciamento di Google
+ * — `/?ved=2ahUKEwic67TO…&usg=…` — un centinaio di caratteri che non dicono
+ * niente a nessuno e che su un telefono occupano tre righe di scheda.
+ *
+ * Il taglio non è a lunghezza fissa: si tiene **tutto il percorso**, che è la
+ * parte che si riconosce («è atterrato sulla home», «è atterrato sugli
+ * abbonamenti»), e si riduce a un puntino la sola query. Tagliare a caratteri
+ * lascerebbe mezza coda di tracciamento, che è il peggio dei due mondi: lunga
+ * e pure incomprensibile. Le query corte restano intere, perché quelle
+ * scritte da noi (le UTM di una campagna) si leggono.
+ *
+ * L'indirizzo intero resta nel `title`, per chi lo vuole vedere davvero.
+ */
+export function percorsoBreve(url: string, max = 56): string {
+  if (url.length <= max) return url
+
+  const inizioQuery = url.indexOf('?')
+  if (inizioQuery !== -1) {
+    const percorso = url.slice(0, inizioQuery)
+    return percorso.length > max ? `${percorso.slice(0, max - 1)}…?…` : `${percorso}?…`
+  }
+
+  return `${url.slice(0, max - 1).trimEnd()}…`
+}
+
 /** I campi di campagna che una richiesta porta con sé (form_contatti). */
 export type ProvenienzaLead = {
   utm_source: string | null

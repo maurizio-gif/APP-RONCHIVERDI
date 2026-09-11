@@ -7,6 +7,7 @@ import {
   dataOraDi,
   dominioDi,
   oraDi,
+  percorsoBreve,
   sintesiDi,
   stessaPagina,
   type AltraVisita,
@@ -126,7 +127,11 @@ function VisitaCorrente({
 
       {(sessione.landing_page || arrivoDa) && (
         <p className="muted percorso-nota">
-          {sessione.landing_page && <>Atterrato su {sessione.landing_page}</>}
+          {sessione.landing_page && (
+            <span title={sessione.landing_page}>
+              Atterrato su {percorsoBreve(sessione.landing_page)}
+            </span>
+          )}
           {sessione.landing_page && arrivoDa && ' · '}
           {arrivoDa && <>arrivato da {arrivoDa}</>}
         </p>

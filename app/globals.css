@@ -1239,6 +1239,9 @@ table.tabella tbody tr:hover {
 
 .voce-note {
 	font-size: var(--text-xs);
+	/* Nelle note di una voce finiscono messaggi e indirizzi scritti da altri:
+	   roba che non si sa quanto è lunga né dove si spezza. */
+	overflow-wrap: anywhere;
 }
 
 .voce-azioni {
@@ -2384,10 +2387,14 @@ table.tabella tbody tr:hover {
 }
 
 /* Etichetta e valore in due colonne, con l'etichetta stretta: su una scheda
-   di dettaglio si scorre la colonna dei valori, non si legge riga per riga. */
+   di dettaglio si scorre la colonna dei valori, non si legge riga per riga.
+   La colonna dei valori è minmax(0, 1fr) e non 1fr: `1fr` vale `minmax(auto,
+   1fr)`, quindi una parola che non si spezza — un indirizzo di atterraggio con
+   la coda di tracciamento di Google — allargherebbe la griglia oltre lo
+   schermo, portandosi dietro tutta la scheda. */
 .dettagli-lista {
 	display: grid;
-	grid-template-columns: minmax(90px, auto) 1fr;
+	grid-template-columns: minmax(90px, auto) minmax(0, 1fr);
 	gap: 0.35rem 1rem;
 	margin: 0 0 1rem;
 	font-size: var(--text-sm);
@@ -2402,11 +2409,15 @@ table.tabella tbody tr:hover {
 
 .dettagli-lista dd {
 	margin: 0;
+	/* `anywhere` e non `break-word`: solo il primo permette di spezzare una
+	   parola lunghissima *e* di tenerne conto nel calcolo della larghezza
+	   minima del riquadro. */
+	overflow-wrap: anywhere;
 }
 
 @media (max-width: 560px) {
 	.dettagli-lista {
-		grid-template-columns: 1fr;
+		grid-template-columns: minmax(0, 1fr);
 		gap: 0.1rem;
 	}
 
@@ -2475,11 +2486,13 @@ table.tabella tbody tr:hover {
 .percorso-sintesi {
 	margin: 0;
 	font-size: var(--text-sm);
+	overflow-wrap: anywhere;
 }
 
 .percorso-nota {
 	margin: 0.15rem 0 0;
 	font-size: var(--text-sm);
+	overflow-wrap: anywhere;
 }
 
 .percorso-pagine {
@@ -2498,6 +2511,13 @@ table.tabella tbody tr:hover {
 	align-items: baseline;
 }
 
+/* Senza min-width un figlio flex non scende sotto la larghezza del suo
+   contenuto: il percorso di una pagina lunga spingerebbe la riga fuori. */
+.percorso-pagine li > *,
+.percorso-visite li > * {
+	min-width: 0;
+}
+
 /* L'ora in cifre tabulari e a larghezza fissa: le pagine si leggono in
    colonna, e un orario che balla a destra e a sinistra rompe la fila. */
 .percorso-ora {
@@ -2508,7 +2528,7 @@ table.tabella tbody tr:hover {
 }
 
 .percorso-pagina {
-	word-break: break-word;
+	overflow-wrap: anywhere;
 }
 
 .percorso-pagina .tag {
@@ -2546,6 +2566,10 @@ table.tabella tbody tr:hover {
 	width: 8.5rem;
 	color: var(--text-muted);
 	font-variant-numeric: tabular-nums;
+}
+
+.percorso-visita {
+	overflow-wrap: anywhere;
 }
 
 .percorso-visita .tag {

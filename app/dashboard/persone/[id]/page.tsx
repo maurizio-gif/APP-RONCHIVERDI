@@ -4,7 +4,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { ETICHETTA_MANUALE, dataOra, eInseritoAMano, nomePersona } from '@/lib/persone'
 import { canaleDiRichiesta } from '@/lib/richieste'
-import { primoContattoDi, provenienzaRichiesta } from '@/lib/percorsoSito'
+import { percorsoBreve, primoContattoDi, provenienzaRichiesta } from '@/lib/percorsoSito'
 import { PercorsoSito } from '@/components/PercorsoSito'
 import { CLASSE_BADGE_STATO, ETICHETTE_STATO, type StatoTrattativa } from '@/lib/pipeline'
 import { SchedaPersona } from '../SchedaPersona'
@@ -214,7 +214,9 @@ export default async function PersonaPage({ params }: { params: { id: string } }
                         {primoContattoDi(r) && primoContattoDi(r) !== provenienzaRichiesta(r) && (
                           <> · primo contatto: {primoContattoDi(r)}</>
                         )}
-                        {r.landing_page && <> · atterrato su {r.landing_page}</>}
+                        {r.landing_page && (
+                          <span title={r.landing_page}> · atterrato su {percorsoBreve(r.landing_page)}</span>
+                        )}
                       </span>
                     )}
                   </span>
