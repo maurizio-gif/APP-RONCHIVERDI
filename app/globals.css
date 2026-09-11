@@ -2515,6 +2515,51 @@ table.tabella tbody tr:hover {
 	margin-left: 0.4rem;
 }
 
+/* Le visite di altri giorni. Staccate da una riga, perché sono un'altra cosa
+   rispetto alle pagine della visita in cui ha scritto: là si legge cosa
+   guardava, qui quante volte è tornato. */
+.percorso-altre {
+	margin-top: 0.75rem;
+	padding-top: 0.6rem;
+	border-top: 1px solid var(--border);
+}
+
+.percorso-visite {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+	font-size: var(--text-sm);
+}
+
+.percorso-visite li {
+	display: flex;
+	gap: 0.6rem;
+	align-items: baseline;
+	flex-wrap: wrap;
+}
+
+.percorso-quando {
+	flex-shrink: 0;
+	width: 8.5rem;
+	color: var(--text-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.percorso-visita .tag {
+	margin-left: 0.4rem;
+}
+
+@media (max-width: 560px) {
+	/* Su schermo stretto la data prende la sua riga: lasciarle un ottavo di
+	   larghezza schiaccerebbe la sintesi in una colonna di due parole. */
+	.percorso-quando {
+		width: 100%;
+	}
+}
+
 /* ────────────────────────────────────────────────────────────── anagrafica */
 
 .persone {

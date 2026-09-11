@@ -35,12 +35,26 @@ export type SessioneVisita = {
   paese: string | null
 }
 
+/** Una visita precedente o successiva della stessa persona, in riga sola. */
+export type AltraVisita = SessioneVisita & { convertita: boolean }
+
 export type Percorso = {
   /** Null quando la richiesta non ha un session_id, o quando quella sessione non è mai stata registrata. */
   sessione: SessioneVisita | null
   pagine: PaginaVista[]
   /** true se la visita ha più pagine di quelle riportate (vedi MAX_PAGINE). */
   troncato: boolean
+  /**
+   * Le altre visite della stessa persona, dalla più recente.
+   *
+   * Esistono solo dove il sito ha potuto riconoscere il visitatore: serve il
+   * consenso a statistiche o marketing, e serve che il lead porti il
+   * visitor_id — cosa che i lead vecchi non fanno, perché il sito ha
+   * cominciato a spedirlo dopo.
+   */
+  altreVisite: AltraVisita[]
+  /** true se le altre visite sono più di quelle riportate (vedi MAX_ALTRE_VISITE). */
+  altreTroncate: boolean
 }
 
 /**
@@ -51,6 +65,14 @@ export type Percorso = {
  * un registro, e chi sta per telefonare non la guarda più.
  */
 export const MAX_PAGINE = 40
+
+/**
+ * Quante altre visite riportiamo.
+ *
+ * Dieci sono già una storia: chi ne ha di più è un socio che torna, e per
+ * quello c'è la pagina Visite, non la scheda di una richiesta.
+ */
+export const MAX_ALTRE_VISITE = 10
 
 const FUSO = 'Europe/Rome'
 

@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react'
 import { caricaPercorso } from '@/app/dashboard/percorso-actions'
 import {
   MAX_PAGINE,
+  dataOraDi,
   dominioDi,
   oraDi,
   sintesiDi,
   stessaPagina,
+  type AltraVisita,
   type Percorso,
 } from '@/lib/percorsoSito'
 
@@ -80,12 +82,25 @@ export function PercorsoSito({ idRichiesta, paginaForm, apertoSubito = false }: 
 }
 
 function Contenuto({ percorso, paginaForm }: { percorso: Percorso; paginaForm?: string | null }) {
+  return (
+    <>
+      <VisitaCorrente percorso={percorso} paginaForm={paginaForm} />
+      <AltreVisite visite={percorso.altreVisite} troncate={percorso.altreTroncate} />
+    </>
+  )
+}
+
+function VisitaCorrente({
+  percorso,
+  paginaForm,
+}: {
+  percorso: Percorso
+  paginaForm?: string | null
+}) {
   const { sessione, pagine, troncato } = percorso
 
-  // Nessuna visita collegata. I due casi si distinguono, perché portano a due
-  // conclusioni diverse: senza sessione registrata non c'è niente da cercare,
-  // mentre una sessione che risulta ma non ha pagine è un dato monco da
-  // segnalare a chi tiene il sito.
+  // Nessuna visita collegata: va detto in parole, perché non è la stessa cosa
+  // di una persona che non ha girato il sito.
   if (!sessione) {
     return (
       <p className="muted percorso-nota">
@@ -141,5 +156,40 @@ function Contenuto({ percorso, paginaForm }: { percorso: Percorso; paginaForm?: 
         </p>
       )}
     </>
+  )
+}
+
+/**
+ * Le visite di altri giorni della stessa persona.
+ *
+ * Una riga ciascuna, senza le pagine: qui la domanda non è cosa ha guardato
+ * quel giorno, ma da quanto ci gira intorno e quante volte è tornato prima di
+ * scrivere. Quando non ce ne sono il blocco sparisce del tutto — un elenco
+ * vuoto farebbe pensare a un guasto invece che a una prima visita.
+ */
+function AltreVisite({ visite, troncate }: { visite: AltraVisita[]; troncate: boolean }) {
+  if (visite.length === 0) return null
+
+  return (
+    <div className="percorso-altre">
+      <p className="percorso-titolo">
+        {visite.length === 1 ? "Un'altra visita" : `Altre ${visite.length} visite`} di questa
+        persona
+      </p>
+      <ul className="percorso-visite">
+        {visite.map((v) => (
+          <li key={v.session_id}>
+            <span className="percorso-quando">{dataOraDi(v.created_at)}</span>
+            <span className="percorso-visita">
+              {sintesiDi(v, 0)}
+              {/* Una visita che ha portato un'altra richiesta cambia la
+                  telefonata: non è la prima volta che scrive. */}
+              {v.convertita && <span className="tag tag-ok">richiesta</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {troncate && <p className="muted percorso-nota">Ce ne sono altre, più vecchie.</p>}
+    </div>
   )
 }

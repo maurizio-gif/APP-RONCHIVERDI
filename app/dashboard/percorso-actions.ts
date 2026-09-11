@@ -3,7 +3,14 @@
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, getSezioniConsentite } from '@/lib/auth/sezioni-server'
 import { canaleDiRichiesta } from '@/lib/richieste'
-import { MAX_PAGINE, type PaginaVista, type Percorso, type SessioneVisita } from '@/lib/percorsoSito'
+import {
+  MAX_ALTRE_VISITE,
+  MAX_PAGINE,
+  type AltraVisita,
+  type PaginaVista,
+  type Percorso,
+  type SessioneVisita,
+} from '@/lib/percorsoSito'
 
 /** Le colonne della visita che servono alla riga di sintesi. */
 const COLONNE_SESSIONE =
@@ -30,11 +37,23 @@ export async function caricaPercorso(idRichiesta: string): Promise<Percorso | nu
   if (!idRichiesta) return null
 
   const supabase = createSupabaseServiceClient()
-  const { data: richiesta } = await supabase
+  let { data: richiesta, error } = await supabase
     .from('form_contatti')
-    .select('attivita, settore, origine, session_id')
+    .select('attivita, settore, origine, session_id, visitor_id')
     .eq('id', idRichiesta)
     .maybeSingle()
+
+  // La colonna visitor_id arriva con una migration del sito
+  // (2026-09-11-visitor-id-e-sessione-del-lead.sql). Finché non è passata la
+  // chiediamo e basta: il percorso della visita corrente si vede lo stesso,
+  // sono le altre visite che non si possono cercare.
+  if (error && /visitor_id/.test(error.message)) {
+    ;({ data: richiesta } = await supabase
+      .from('form_contatti')
+      .select('attivita, settore, origine, session_id')
+      .eq('id', idRichiesta)
+      .maybeSingle())
+  }
 
   if (!richiesta) return null
 
@@ -44,7 +63,17 @@ export async function caricaPercorso(idRichiesta: string): Promise<Percorso | nu
   if (!autorizzato) return null
 
   const sessionId = (richiesta.session_id as string | null) ?? null
-  if (!sessionId) return { sessione: null, pagine: [], troncato: false }
+  const visitorId = ((richiesta as { visitor_id?: string | null }).visitor_id as string | null) ?? null
+
+  const { visite: altreVisite, troncate: altreTroncate } = await altreVisiteDi(
+    supabase,
+    visitorId,
+    sessionId
+  )
+
+  if (!sessionId) {
+    return { sessione: null, pagine: [], troncato: false, altreVisite, altreTroncate }
+  }
 
   // Una pagina in più del massimo: è il modo per sapere se ne restano fuori
   // senza doverle contare tutte.
@@ -64,5 +93,39 @@ export async function caricaPercorso(idRichiesta: string): Promise<Percorso | nu
     sessione: (sessione as SessioneVisita | null) ?? null,
     pagine: viste.slice(0, MAX_PAGINE),
     troncato: viste.length > MAX_PAGINE,
+    altreVisite,
+    altreTroncate,
   }
+}
+
+/**
+ * Le altre visite della stessa persona, riconosciute dal visitor_id.
+ *
+ * È l'unica chiave che tiene insieme visite di giorni diversi: il session_id
+ * vale per una visita sola. Senza visitor_id — chi non ha dato il consenso, e
+ * i lead arrivati prima che il sito lo spedisse — l'elenco resta vuoto, che è
+ * la risposta giusta: non è che non ci siano, è che non sappiamo quali sono.
+ */
+async function altreVisiteDi(
+  supabase: ReturnType<typeof createSupabaseServiceClient>,
+  visitorId: string | null,
+  sessionIdCorrente: string | null
+): Promise<{ visite: AltraVisita[]; troncate: boolean }> {
+  if (!visitorId) return { visite: [], troncate: false }
+
+  let query = supabase
+    .from('sessioni')
+    .select(`${COLONNE_SESSIONE}, convertita`)
+    .eq('visitor_id', visitorId)
+    .order('created_at', { ascending: false })
+    .limit(MAX_ALTRE_VISITE + 1)
+
+  // La visita in cui ha compilato è già raccontata pagina per pagina qui
+  // sopra: ripeterla in fondo la farebbe sembrare due visite.
+  if (sessionIdCorrente) query = query.neq('session_id', sessionIdCorrente)
+
+  const { data } = await query
+  const visite = (data ?? []) as AltraVisita[]
+
+  return { visite: visite.slice(0, MAX_ALTRE_VISITE), troncate: visite.length > MAX_ALTRE_VISITE }
 }
