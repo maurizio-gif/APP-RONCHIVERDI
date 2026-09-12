@@ -2,12 +2,28 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
-import { ATTIVITA_IN_AGENDA } from '@/lib/richieste'
+import { ATTIVITA_IN_AGENDA, COLONNE_RICHIESTA } from '@/lib/richieste'
 import { euro, type StatoTrattativa } from '@/lib/pipeline'
-import { oggiRoma, giornoPiu, primoDelMese } from '@/lib/agenda'
+import {
+  CLASSE_TIPO,
+  ETICHETTE_TIPO_BREVI,
+  dataBreve,
+  giornoPiu,
+  oggiRoma,
+  ordinaVoci,
+  primoDelMese,
+  voceDaContatto,
+  voceDaTask,
+  type VoceAgenda,
+} from '@/lib/agenda'
+import { nomePersona } from '@/lib/persone'
 import { durataLavorativa, msLavorativi } from '@/lib/orarioLavorativo'
 import { mappaNomiStaff, nomeDiEmail, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
-import { COLONNE_NOTA_VINTA, conColonneNuove } from '@/lib/migrazioni'
+import {
+  COLONNE_ASSEGNAZIONE_RICHIESTA,
+  COLONNE_NOTA_VINTA,
+  conColonneNuove,
+} from '@/lib/migrazioni'
 
 export const dynamic = 'force-dynamic'
 
@@ -93,6 +109,79 @@ function media(valori: number[]): number | null {
   return valori.reduce((a, b) => a + b, 0) / valori.length
 }
 
+/**
+ * Gli eventi scaduti: aperti, di un giorno passato, di chiunque nel settore
+ * core. Non è filtrato per periodo — un arretrato di tre settimane fa resta
+ * un arretrato oggi — ed è il motivo per cui questa sezione sta separata
+ * dalla tabella «Per consulente», che invece segue il periodo scelto.
+ *
+ * Ogni riga porta il nominativo di chi riguarda e a chi è in carico: è
+ * l'unico modo per la responsabile di sapere se un arretrato è di qualcuno
+ * che sta affogando o di qualcuno che se l'è dimenticato.
+ */
+async function eventiScaduti(): Promise<VoceAgenda[]> {
+  const supabase = createSupabaseServiceClient()
+  const oggi = oggiRoma()
+
+  const [{ data: righeTask }, { data: richieste }] = await Promise.all([
+    supabase
+      .from('task')
+      .select(
+        'id, titolo, tipo, data, ora, durata_minuti, stato, note, assegnato_a, entita, entita_id'
+      )
+      .eq('stato', 'aperto')
+      .lt('data', oggi),
+    conColonneNuove<Record<string, any>>(
+      COLONNE_RICHIESTA,
+      COLONNE_ASSEGNAZIONE_RICHIESTA,
+      (colonne) =>
+        supabase
+          .from('form_contatti')
+          .select(colonne)
+          .in('attivita', ATTIVITA_IN_AGENDA)
+          .eq('gestito', false)
+          .or(`data_scelta.lt.${oggi},and(data_scelta.is.null,created_at.lt.${oggi})`)
+    ),
+  ])
+
+  const idContatti = [
+    ...new Set(
+      (righeTask ?? [])
+        .filter((t) => t.entita === 'persona' && t.entita_id)
+        .map((t) => t.entita_id as string)
+    ),
+  ]
+
+  const { data: contatti } = idContatti.length
+    ? await supabase.from('persone').select('id, nome, cognome, email, cellulare').in('id', idContatti)
+    : { data: [] as Record<string, any>[] }
+
+  const perId = new Map(
+    (contatti ?? []).map((p) => [
+      p.id as string,
+      {
+        id: p.id as string,
+        nome: nomePersona(p),
+        email: (p.email as string) ?? null,
+        cellulare: (p.cellulare as string) ?? null,
+      },
+    ])
+  )
+
+  const voci: VoceAgenda[] = [
+    ...(righeTask ?? []).map((riga) =>
+      voceDaTask(riga, riga.entita === 'persona' && riga.entita_id ? perId.get(riga.entita_id) : undefined)
+    ),
+    ...(richieste ?? []).map(voceDaContatto).filter((v): v is VoceAgenda => v !== null),
+  ]
+
+  const perGiorno = new Map<string, VoceAgenda[]>()
+  for (const v of [...voci].sort((a, b) => a.data.localeCompare(b.data))) {
+    perGiorno.set(v.data, [...(perGiorno.get(v.data) ?? []), v])
+  }
+  return [...perGiorno.keys()].flatMap((g) => ordinaVoci(perGiorno.get(g)!))
+}
+
 export default async function CoreManagerPage({
   searchParams,
 }: {
@@ -121,6 +210,7 @@ export default async function CoreManagerPage({
     { data: task },
     { data: richieste },
     { data: staff },
+    scaduti,
   ] = await Promise.all([
     // La fotografia di adesso: chi ha in mano quante trattative aperte.
     // Senza periodo, perché «quante ne hai in mano» non ne ha uno.
@@ -167,6 +257,7 @@ export default async function CoreManagerPage({
           )
     ),
     supabase.from('staff_users').select('email, nome, cognome, commerciale'),
+    eventiScaduti(),
   ])
 
   const staffOrdinato = ordinaPerCognome(
@@ -306,6 +397,51 @@ export default async function CoreManagerPage({
           </fieldset>
         </div>
       </div>
+
+      {scaduti.length > 0 && (
+        <div className="card card-avviso">
+          <div className="card-head">
+            <h3 className="card-titolo">Eventi scaduti da gestire</h3>
+            <span className="badge badge-warn badge-punto">{scaduti.length}</span>
+          </div>
+          <p className="card-nota muted">
+            Aperti e di un giorno passato, di chiunque nel settore: non seguono il periodo scelto
+            sopra, perché un arretrato resta un arretrato finché non viene chiuso.
+          </p>
+          <div className="tabella-wrap">
+            <table className="tabella">
+              <thead>
+                <tr>
+                  <th>Nominativo</th>
+                  <th>Tipo</th>
+                  <th>Scaduto il</th>
+                  <th>Assegnatario</th>
+                </tr>
+              </thead>
+              <tbody>
+                {scaduti.map((v) => (
+                  <tr key={v.chiave}>
+                    <td>{v.persona || v.titolo}</td>
+                    <td>
+                      <span className={`badge-tipo ${CLASSE_TIPO[v.tipo]}`}>
+                        {ETICHETTE_TIPO_BREVI[v.tipo]}
+                      </span>
+                    </td>
+                    <td>{dataBreve(v.data)}</td>
+                    <td>
+                      <span
+                        className={`tag-assegnato${v.assegnatoA ? ' e-altrui' : ' e-nessuno'}`}
+                      >
+                        {v.assegnatoA ? nomeDiEmail(v.assegnatoA, nomiStaff) : 'Non assegnato'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="griglia-stat">
         <div className={`stat stat-gestione${totaleAperte > 0 ? '' : ' is-vuoto'}`}>
