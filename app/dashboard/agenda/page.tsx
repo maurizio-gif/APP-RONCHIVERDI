@@ -30,12 +30,29 @@ import { NuovaVoce, type ContattoScegliibile } from './NuovaVoce'
 export const dynamic = 'force-dynamic'
 
 /**
- * Quanto guarda avanti e indietro la vista a lista. Indietro serve solo a
- * ripescare gli arretrati ancora da fare — il passato già chiuso non si
- * elenca, si consulta dal calendario andando al suo mese.
+ * Quanto guarda avanti e indietro la vista a lista. Indietro serve a ripescare
+ * gli arretrati ancora da fare e le cose eseguite di recente (vedi
+ * GIORNI_ESEGUITE_IN_LISTA); il passato chiuso più vecchio si consulta dal
+ * filtro «Eseguite» o dal calendario, andando al suo mese.
  */
 const GIORNI_AVANTI = 90
 const GIORNI_INDIETRO = 180
+
+/**
+ * Quanto indietro restano in elenco le voci **già eseguite**.
+ *
+ * Il passato chiuso non spariva per sbaglio: la lista serve a sapere cosa c'è
+ * da fare, e sei mesi di cose fatte in cima le seppellirebbero. Ma sparire
+ * del tutto era l'altro eccesso — chi apre l'agenda vuole vedere anche cosa è
+ * stato fatto, con che esito, senza andarselo a cercare nel calendario mese
+ * per mese o accendere il filtro «Eseguite».
+ *
+ * Due settimane sono la finestra in cui una cosa fatta serve ancora: ci si
+ * ricorda della telefonata di giovedì scorso, non di quella di marzo. Più
+ * indietro di così si guarda dal filtro «Eseguite», che continua a mostrare
+ * tutto quello che la finestra della pagina contiene.
+ */
+const GIORNI_ESEGUITE_IN_LISTA = 14
 
 /**
  * Quanti contatti si caricano per la tendina del form. Oggi l'anagrafica ne
@@ -362,13 +379,17 @@ export default async function AgendaPage({
     aggiungiEvento(riga.entita_id as string, riga, null)
   }
 
-  // Nella lista il passato conta solo se è ancora aperto: gli arretrati vanno
-  // recuperati, le cose già fatte no — a meno che non si sia chiesto proprio
-  // di vederle. Senza questa eccezione il filtro «Eseguite» mostrava un
-  // elenco quasi vuoto: le eseguite sono per definizione nel passato, e il
-  // filtro le trovava per poi lasciarle fuori.
+  // Nella lista del passato restano gli arretrati — che vanno recuperati — e
+  // le cose fatte di recente, che sono la prova che il lavoro è stato fatto e
+  // si leggono in verde con il loro esito accanto. Più indietro di due
+  // settimane si va col filtro «Eseguite», che mostra tutta la finestra della
+  // pagina: senza quell'eccezione il filtro trovava le eseguite per poi
+  // lasciarle fuori, e l'elenco tornava quasi vuoto.
+  const limiteEseguite = giornoPiu(oggi, -GIORNI_ESEGUITE_IN_LISTA)
   const vociLista =
-    soloStato === 'eseguite' ? voci : voci.filter((v) => v.data >= oggi || v.daFare)
+    soloStato === 'eseguite'
+      ? voci
+      : voci.filter((v) => v.data >= oggi || v.daFare || v.data >= limiteEseguite)
   const giorniLista = [...new Set(vociLista.map((v) => v.data))].sort()
   const perGiornata = perGiorno(vociLista)
 
@@ -560,8 +581,16 @@ export default async function AgendaPage({
         <>
           {giorniLista.map((giorno) => {
             const delGiorno = perGiornata.get(giorno) ?? []
-            const arretrato = giorno < oggi
             const daFareOggi = delGiorno.filter((v) => v.daFare).length
+            // Arretrata è una giornata passata che ha ancora qualcosa di
+            // aperto. Il solo `giorno < oggi` bastava finché in elenco il
+            // passato chiuso non c'era: ora che le eseguite di recente
+            // restano, dipingeva di rosso e marchiava «arretrato» giornate in
+            // cui era stato fatto tutto — l'esatto contrario di quello che
+            // era successo.
+            const arretrato = giorno < oggi && daFareOggi > 0
+            // Passata e senza più niente da fare: verde, come le sue righe.
+            const conclusa = giorno < oggi && daFareOggi === 0
 
             // La banda a sinistra dice il peso della giornata prima di
             // leggerne il titolo: rossa se è arretrata — è la sola che chiede
@@ -571,7 +600,13 @@ export default async function AgendaPage({
             return (
               <div
                 className={`card agenda-giorno${
-                  arretrato ? ' is-arretrato' : giorno === oggi ? ' is-oggi' : ''
+                  arretrato
+                    ? ' is-arretrato'
+                    : conclusa
+                      ? ' is-conclusa'
+                      : giorno === oggi
+                        ? ' is-oggi'
+                        : ''
                 }`}
                 key={giorno}
               >
@@ -581,6 +616,12 @@ export default async function AgendaPage({
                     {giorno === oggi && <span className="badge badge-info badge-punto">oggi</span>}
                     {arretrato && (
                       <span className="badge badge-ko badge-punto badge-stato">arretrato</span>
+                    )}
+                    {/* Una giornata passata e chiusa non porta un badge di
+                        allarme ma la sua conclusione: nella lista è quello
+                        che la distingue da una ancora da recuperare. */}
+                    {conclusa && (
+                      <span className="badge badge-ok badge-punto badge-stato">fatto</span>
                     )}
                   </h2>
                   <span className="muted agenda-giorno-conti">
