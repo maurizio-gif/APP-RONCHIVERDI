@@ -16,7 +16,7 @@ import {
   type VoceAgenda,
 } from '@/lib/agenda'
 import { ATTIVITA_IN_AGENDA, COLONNE_RICHIESTA } from '@/lib/richieste'
-import { nomePersona } from '@/lib/persone'
+import { contattiDelleVoci } from '@/lib/eventi-server'
 import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import { CalendarioAgenda } from '@/components/CalendarioAgenda'
 import { EventiElenco, type GestioneSemplicePerVoce } from '@/components/EventiElenco'
@@ -179,44 +179,19 @@ export default async function AgendaPage({
   // gliela dà `Richiesta`, più sotto.
   const contatti = (contattiGrezzi ?? []) as unknown as Record<string, any>[]
 
-  // I nomi dei contatti agganciati alle voci della segreteria: `task.entita_id`
-  // è un id, e senza il nome in elenco l'obbligo di agganciare una voce a
-  // qualcuno non servirebbe a niente — resterebbe un titolo senza il perché.
-  const idContattiDelleVoci = [
-    ...new Set(
-      (task ?? [])
-        .filter((t) => t.entita === 'persona' && t.entita_id)
-        .map((t) => t.entita_id as string)
-    ),
-  ]
-
-  const { data: contattiDelleVoci, error: erroreContatti } = idContattiDelleVoci.length
-    ? await supabase
-        .from('persone')
-        .select('id, nome, cognome, email, cellulare')
-        .in('id', idContattiDelleVoci)
-    : { data: [] as Record<string, any>[], error: null }
-
-  if (erroreContatti) {
-    console.error('Nomi dei contatti delle voci non letti:', erroreContatti.message)
-  }
-
-  const perId = new Map(
-    (contattiDelleVoci ?? []).map((p) => [
-      p.id as string,
-      {
-        id: p.id as string,
-        nome: nomePersona(p),
-        email: (p.email as string) ?? null,
-        cellulare: (p.cellulare as string) ?? null,
-      },
-    ])
-  )
+  // I contatti agganciati alle voci della segreteria: `task.entita_id` è un
+  // id, e senza il nome in elenco l'obbligo di agganciare una voce a qualcuno
+  // non servirebbe a niente — resterebbe un titolo senza il perché. Con il
+  // contatto arrivano anche i suoi recapiti e il pulsante per la sua scheda.
+  //
+  // I due agganci, non solo il diretto: un richiamo programmato chiudendo una
+  // richiesta è agganciato alla **richiesta**, e risolvere solo `persona`
+  // lasciava quelle voci senza nome, senza recapiti e senza scheda — vedi
+  // contattiDelleVoci.
+  const contattiDiVoce = await contattiDelleVoci((task ?? []) as Record<string, any>[])
 
   let voci: VoceAgenda[] = [
-    ...(task ?? []).map((riga) =>
-      voceDaTask(riga, riga.entita === 'persona' && riga.entita_id ? perId.get(riga.entita_id) : undefined)
-    ),
+    ...(task ?? []).map((riga) => voceDaTask(riga, contattiDiVoce.get(String(riga.id)))),
     // Tutte le richieste, non solo quelle che hanno prenotato uno slot: i
     // messaggi e gli appuntamenti senza data si collocano nel giorno in cui
     // sono arrivati (vedi voceDaContatto). Prima sparivano, e chi apriva

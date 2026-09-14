@@ -4797,9 +4797,33 @@ table.tabella tbody tr:hover {
 	width: 100%;
 }
 
-/* Il link alla scheda del contatto, in coda: largo quanto il suo testo. */
+/* I comandi larghi quanto il loro testo: i pannelli occupano la riga, un
+   pulsante no — «Scheda contatto» steso su tutta la card si legge come una
+   barra e non come un comando. */
 .evento-espanso > .btn {
 	width: auto;
+}
+
+/* ─────────────────────── la scheda del contatto, in testa all'espansione */
+
+/* Porta su un'altra pagina, e per questo non è una pastiglia come Chiama e
+   WhatsApp: quelli si fanno restando sulla riga. Pieno, in testa, e uguale
+   in agenda, in dashboard e in Eventi Core — vedi
+   components/SchedaContatto.tsx. */
+.scheda-contatto {
+	flex: none;
+	align-self: flex-start;
+}
+
+.scheda-contatto svg {
+	flex: none;
+}
+
+/* La scheda non c'è: si dice il perché invece di lasciare il posto vuoto. Un
+   pulsante che manca non si legge — si cerca. */
+.scheda-contatto-assente {
+	margin: 0;
+	font-size: var(--text-2xs);
 }
 
 /* Già chiusa: detto in testa all'espansione invece che lasciato dedurre dal

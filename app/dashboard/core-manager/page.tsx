@@ -16,7 +16,7 @@ import {
   voceDaTask,
   type VoceAgenda,
 } from '@/lib/agenda'
-import { nomePersona } from '@/lib/persone'
+import { contattiDelleVoci } from '@/lib/eventi-server'
 import { durataLavorativa, msLavorativi } from '@/lib/orarioLavorativo'
 import { mappaNomiStaff, nomeDiEmail, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import {
@@ -144,34 +144,15 @@ async function eventiScaduti(): Promise<VoceAgenda[]> {
     ),
   ])
 
-  const idContatti = [
-    ...new Set(
-      (righeTask ?? [])
-        .filter((t) => t.entita === 'persona' && t.entita_id)
-        .map((t) => t.entita_id as string)
-    ),
-  ]
-
-  const { data: contatti } = idContatti.length
-    ? await supabase.from('persone').select('id, nome, cognome, email, cellulare').in('id', idContatti)
-    : { data: [] as Record<string, any>[] }
-
-  const perId = new Map(
-    (contatti ?? []).map((p) => [
-      p.id as string,
-      {
-        id: p.id as string,
-        nome: nomePersona(p),
-        email: (p.email as string) ?? null,
-        cellulare: (p.cellulare as string) ?? null,
-      },
-    ])
-  )
+  // Il contatto di ogni voce, dai due agganci: l'id di una persona sulle voci
+  // scritte in agenda, l'id della richiesta sui seguiti programmati chiudendo
+  // una richiesta (vedi contattiDelleVoci). Serve il nominativo in tabella, e
+  // serve il link alla sua scheda: da un arretrato la prima cosa che si vuole
+  // è sapere chi è.
+  const contattiDiVoce = await contattiDelleVoci((righeTask ?? []) as Record<string, any>[])
 
   const voci: VoceAgenda[] = [
-    ...(righeTask ?? []).map((riga) =>
-      voceDaTask(riga, riga.entita === 'persona' && riga.entita_id ? perId.get(riga.entita_id) : undefined)
-    ),
+    ...(righeTask ?? []).map((riga) => voceDaTask(riga, contattiDiVoce.get(String(riga.id)))),
     ...(richieste ?? []).map(voceDaContatto).filter((v): v is VoceAgenda => v !== null),
   ]
 
@@ -421,7 +402,22 @@ export default async function CoreManagerPage({
               <tbody>
                 {scaduti.map((v) => (
                   <tr key={v.chiave}>
-                    <td>{v.persona || v.titolo}</td>
+                    {/* Il nominativo porta alla sua scheda, dove ci sono le
+                        altre richieste e le note di chi l'ha già chiamato:
+                        qui l'evento non si apre — si guarda chi è in
+                        arretrato — e per sapere di chi si tratta si doveva
+                        cercarlo a mano in anagrafica. Lo stesso gesto che
+                        l'espansione offre col pulsante «Scheda contatto» in
+                        agenda, in dashboard e in Eventi Core. */}
+                    <td>
+                      {v.personaId ? (
+                        <Link href={`/dashboard/persone/${v.personaId}`}>
+                          {v.persona || v.titolo}
+                        </Link>
+                      ) : (
+                        v.persona || v.titolo
+                      )}
+                    </td>
                     <td>
                       <span className={`badge-tipo ${CLASSE_TIPO[v.tipo]}`}>
                         {ETICHETTE_TIPO_BREVI[v.tipo]}
