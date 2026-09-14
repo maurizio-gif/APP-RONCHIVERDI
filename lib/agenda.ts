@@ -610,10 +610,14 @@ export function voceDaContatto(riga: Riga): VoceAgenda {
     //
     // Adesso `form_contatti.assegnato_a` c'è, e ce lo mette il trigger
     // assegna_eventi_della_trattativa quando la trattativa trova un titolare
-    // (scripts/sql/2026-09-11-evento-assegnato-alla-trattativa.sql). Resta
-    // null dove la trattativa non l'ha ancora presa nessuno, che è
-    // l'informazione giusta: «Non assegnato» perché è libera, non perché
-    // qualcuno si è dimenticato.
+    // (scripts/sql/2026-09-11-evento-assegnato-alla-trattativa.sql) e quando
+    // passa a un collega, che si porta dietro le righe ancora da lavorare
+    // (scripts/sql/2026-09-14-la-trattativa-trasferita-si-porta-i-suoi-eventi.sql):
+    // il tag in cima alla riga e il pannello della trattativa dicono lo stesso
+    // nome, o uno dei due manda al telefono la persona sbagliata. Resta null
+    // dove la trattativa non l'ha ancora presa nessuno, che è l'informazione
+    // giusta: «Non assegnato» perché è libera, non perché qualcuno si è
+    // dimenticato.
     assegnatoA: riga.assegnato_a ?? null,
     stato,
     daFare: stato === 'aperto',

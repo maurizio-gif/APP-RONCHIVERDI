@@ -221,9 +221,13 @@ async function impegniDelGiorno() {
     //
     // `assegnato_a` è quello della trattativa, scritto dal trigger
     // assegna_eventi_della_trattativa — prendere in carico la trattativa vuol
-    // dire prendersi anche il suo appuntamento, ed è la ragione per cui la
-    // colonna è scritta e non derivata: la trattativa si riassegna, e di
-    // questa riga serve sapere **a chi era**.
+    // dire prendersi anche il suo appuntamento, e passarla a un collega vuol
+    // dire passargli anche quelli ancora da fare.
+    //
+    // Scritta e non derivata da `opportunita.assegnato_a` proprio per il caso
+    // che la derivazione perderebbe: una riga **chiusa** deve continuare a
+    // dire a chi era quando andava fatta, anche se la trattativa è passata di
+    // mano tre volte da allora. Il trigger infatti non tocca le chiuse.
     // Le stesse colonne di Eventi Core (vedi COLONNE_RICHIESTA): l'elenco qui
     // apre lo stesso pannello, e un pannello a cui manca metà dei campi
     // mostrerebbe le stesse etichette con dentro dei vuoti.

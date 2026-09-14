@@ -113,6 +113,11 @@ export async function assegnaTrattativa(id: string, a: string | null): Promise<E
   // Il Riepilogo elenca le trattative proprie e quelle libere: prendersene
   // una dalla dashboard deve farla passare da un elenco all'altro subito.
   revalidatePath('/dashboard')
+  // E l'agenda, perché assegnare non tocca solo la trattativa: i suoi eventi
+  // ancora aperti passano al nuovo titolare (trigger
+  // assegna_eventi_della_trattativa), quindi cambia il tag «in carico a» di
+  // ogni riga che li mostra.
+  revalidatePath('/dashboard/agenda')
   return { ok: true }
 }
 
