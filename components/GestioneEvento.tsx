@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import Link from 'next/link'
 import {
   ETICHETTE_ESITO,
   dataOra,
@@ -14,6 +13,7 @@ import { nomeDiEmail } from '@/lib/staff'
 import { riapriRichiesta } from '@/app/dashboard/richieste/actions'
 import { GestioneEsito } from '@/components/GestioneEsito'
 import { DettagliRichiesta } from '@/components/DettagliRichiesta'
+import { SchedaContatto } from '@/components/SchedaContatto'
 import { ContattiRapidi } from '@/app/dashboard/ContattiRapidi'
 import { ChiusuraTrattativa } from '@/app/dashboard/ChiusuraTrattativa'
 import { GestioneSemplice } from '@/app/dashboard/richieste/GestioneSemplice'
@@ -42,10 +42,10 @@ export type ContestoEvento = {
  * quale gesto esisteva dove, e le differenze non erano scelte: erano il
  * risultato di averle scritte in momenti diversi.
  *
- * L'ordine è quello del lavoro: **a che punto è** (la trattativa e come
- * chiuderla), **chi chiamare** (i recapiti), **cosa ha chiesto** (i
- * dettagli), **come si chiude questo evento** (la gestione), **cosa resta da
- * fare** (il seguito).
+ * L'ordine è quello del lavoro: **chi è** (la scheda in anagrafica), **a che
+ * punto è** (la trattativa e come chiuderla), **chi chiamare** (i recapiti),
+ * **cosa ha chiesto** (i dettagli), **come si chiude questo evento** (la
+ * gestione), **cosa resta da fare** (il seguito).
  */
 export function GestioneEvento({
   r,
@@ -173,6 +173,14 @@ export function GestioneEvento({
         </p>
       )}
 
+      {/* Chi è: la sua scheda in anagrafica, dove sta tutto il resto — le
+          altre richieste, le altre trattative, le note di chi l'ha già
+          chiamato, il percorso sul sito. In testa perché è la domanda che si
+          fa **prima** di telefonare, non dopo: in coda all'espansione ci si
+          arrivava scorrendo la trattativa, i recapiti, i dettagli del form,
+          la gestione e la cronologia. */}
+      <SchedaContatto personaId={r.persona_id} />
+
       {/* A che punto è: chi la segue, in che stato, e i tre modi di chiuderla.
           La tendina degli stati e i pulsanti fanno cose che si somigliano ma
           con gesti diversi: la prima serve a tornare indietro (rimettere in
@@ -257,14 +265,6 @@ export function GestioneEvento({
           puoCancellare={puoCancellare}
           nomiStaff={nomiStaff}
         />
-      )}
-
-      {/* La scheda della persona, per chi deve sapere qualcosa in più prima di
-          chiamare: da qui non si vede la sua storia. */}
-      {r.persona_id && (
-        <Link className="btn btn-ghost btn-sm" href={`/dashboard/persone/${r.persona_id}`}>
-          Apri la scheda del contatto
-        </Link>
       )}
     </div>
   )

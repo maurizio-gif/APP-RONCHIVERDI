@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import {
   CLASSE_TIPO,
   ETICHETTE_TIPO_BREVI,
@@ -13,6 +12,7 @@ import {
 import { nomeDiEmail } from '@/lib/staff'
 import { GestioneEsito } from '@/components/GestioneEsito'
 import { GestioneEvento, type ContestoEvento } from '@/components/GestioneEvento'
+import { SchedaContatto } from '@/components/SchedaContatto'
 import { ContattiRapidi } from '@/app/dashboard/ContattiRapidi'
 import type { EventoCollegato } from '@/app/dashboard/richieste/EventiTrattativa'
 import type { Richiesta } from '@/app/dashboard/richieste/RigaRichiesta'
@@ -280,6 +280,15 @@ export function EventiElenco({
                      far avanzare. Restano il perché della voce e come si
                      chiude. */
                   <>
+                    {/* Chi è, in testa: da qui si apre la sua scheda — le
+                        altre richieste, le trattative, le note di chi l'ha
+                        già chiamato. Stesso pulsante e stesso posto
+                        dell'espansione delle richieste dal sito (vedi
+                        GestioneEvento): questa è più corta perché una voce
+                        scritta in segreteria non ha né i dati di un form né
+                        una trattativa, non perché i gesti cambino. */}
+                    <SchedaContatto personaId={voce.personaId} />
+
                     {(voce.persona || voce.attivita || voce.note) && (
                       <div className="op-richiesta">
                         {voce.attivita && (
@@ -317,15 +326,6 @@ export function EventiElenco({
                       // apre e si chiude nel tempo, la persona resta.
                       seguito={voce.personaId ? { entita: 'persona', id: voce.personaId } : null}
                     />
-
-                    {voce.personaId && (
-                      <Link
-                        className="btn btn-ghost btn-sm"
-                        href={`/dashboard/persone/${voce.personaId}`}
-                      >
-                        Apri la scheda del contatto
-                      </Link>
-                    )}
                   </>
                 )}
               </div>
