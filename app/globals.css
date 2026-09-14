@@ -1205,6 +1205,16 @@ table.tabella tbody tr:hover {
 	border-left: 4px solid var(--error);
 }
 
+/* Una giornata passata in cui è stato fatto tutto: verde come le sue righe.
+   Finché in elenco il passato chiuso non c'era, ogni giornata passata era per
+   definizione arretrata; ora che le eseguite di recente restano, senza questa
+   distinzione una giornata conclusa si sarebbe letta in rosso — l'esatto
+   contrario di quello che è successo. Solo la banda, senza il velo: non
+   chiede niente, si guarda e si passa avanti. */
+.agenda-giorno.is-conclusa {
+	border-left: 4px solid var(--ok);
+}
+
 .agenda-giorno-titolo {
 	display: flex;
 	flex-wrap: wrap;
@@ -3740,6 +3750,52 @@ table.tabella tbody tr:hover {
 
 .op.is-oggi {
 	border-left-color: var(--info);
+}
+
+/* Eseguita: verde, fondo velato e banda, come una trattativa vinta. Non è
+   decorazione — è la risposta alla prima domanda che si fa su una voce
+   passata: «è stata fatta?». Prima una eseguita aveva la stessa banda blu di
+   una ancora da fare, e in un elenco misto il lavoro già chiuso si
+   riconosceva solo leggendo riga per riga il tag di chi l'aveva fatta.
+
+   Il verde è chiaro apposta: deve spiccare senza gridare, perché una riga
+   verde non chiede niente a nessuno — dice che non c'è più niente da fare. */
+.op.is-eseguita {
+	background: linear-gradient(var(--ok-tint), var(--ok-tint)), transparent;
+	border-left-color: var(--ok);
+}
+
+/* Fallita: chiusa anche lei, ma niente verde. Una telefonata a cui non ha
+   risposto nessuno è finita, non riuscita, e dipingerla come le eseguite
+   direbbe il falso proprio a chi scorre l'elenco senza leggerlo. Solo la
+   banda rossa, senza il velo degli arretrati: non è una cosa in ritardo. */
+.op.is-fallita {
+	border-left-color: var(--error);
+}
+
+/* Il commento della chiusura, in chiaro sotto i metadati della riga: è il
+   motivo per cui una voce chiusa si riguarda — «non ha risposto, richiamare
+   giovedì» vale quanto il fatto che la telefonata sia stata fatta.
+
+   pre-wrap perché le note si scrivono a capo, e su una riga sola diventano un
+   muro; il filo verde a sinistra la stacca dai metadati, così non si legge
+   come un'altra targhetta. */
+.op-esito {
+	display: block;
+	margin-top: 0.35rem;
+	padding-left: 0.55rem;
+	border-left: 2px solid var(--ok-border);
+	color: var(--text-muted);
+	font-size: var(--text-xs);
+	line-height: 1.4;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+/* Sulla fallita il filo prende il suo colore: il commento di una chiusura
+   andata male è proprio quello che spiega il rosso della banda. */
+.op.is-fallita .op-esito {
+	border-left-color: var(--error-border);
 }
 
 .op-riga {

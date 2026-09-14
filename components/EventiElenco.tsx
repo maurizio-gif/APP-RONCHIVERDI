@@ -6,6 +6,7 @@ import {
   ETICHETTE_TIPO_BREVI,
   dataBreve,
   eAppuntamentoVero,
+  etichettaStato,
   intervalloOrario,
   type VoceAgenda,
 } from '@/lib/agenda'
@@ -149,20 +150,55 @@ export function EventiElenco({
          * mentre il dato vero c'è e dice un'altra cosa.
          */
         const fatta = voce.esitoDa ?? gestione?.gestitoDa ?? null
+
+        /**
+         * Chiusa e com'è finita. Sono due domande diverse: `daFare` dice se
+         * c'è ancora da lavorarci, l'esito dice se è andata a buon fine — una
+         * telefonata fatta e una a cui non ha risposto nessuno sono entrambe
+         * chiuse, e per la segreteria non sono la stessa cosa.
+         *
+         * Il verde va solo su quello che è stato **eseguito**: una fallita
+         * verde direbbe il falso proprio a chi scorre l'elenco senza
+         * leggerlo, che è tutto il punto di colorare le righe.
+         */
+        const chiusa = !voce.daFare
+        const fallita = chiusa && voce.esitoTipo === 'fallita'
+        const eseguita = chiusa && voce.stato === 'completato' && !fallita
+
+        /**
+         * Il commento della chiusura, in chiaro sulla riga.
+         *
+         * Due sorgenti perché le voci si chiudono in due modi: con l'esito —
+         * e allora la nota è `voce.esito` — oppure con l'interruttore delle
+         * richieste dal sito, dove quello che l'operatore ha scritto sta
+         * nella gestione semplice. Senza il ripiego, metà delle righe chiuse
+         * mostrerebbe un esito senza il perché.
+         */
+        const notaEsito = (voce.esito ?? gestione?.nota ?? '').trim() || null
+
         const trattativa = voce.personaId ? trattative[voce.personaId] : undefined
         // La richiesta dal sito dietro la voce: c'è per tutto quello che è
         // arrivato da un form, manca sulle voci scritte in segreteria.
         const richiesta = richieste[voce.chiave]
 
         // La banda a sinistra dice il peso della voce prima di leggerla: rossa
-        // se è di un giorno passato, blu se è di oggi. Prima l'arretrato si
-        // riconosceva solo da un badge ambra in mezzo alla riga, che in un
-        // elenco di dodici voci si trova rileggendo.
+        // se è aperta e di un giorno passato, **verde se è stata eseguita**,
+        // blu altrimenti. Prima l'arretrato si riconosceva solo da un badge
+        // ambra in mezzo alla riga, che in un elenco di dodici voci si trova
+        // rileggendo — e una eseguita aveva la stessa banda blu di una ancora
+        // da fare: in un elenco misto il lavoro già fatto si distingueva solo
+        // leggendo riga per riga il tag di chi l'aveva chiusa.
+        const classeStato = arretrato
+          ? 'is-arretrato'
+          : eseguita
+            ? 'is-eseguita'
+            : fallita
+              ? 'is-fallita'
+              : 'is-oggi'
+
         return (
           <li
-            className={`op riga-stato ${arretrato ? 'is-arretrato' : 'is-oggi'}${
-              inGestione ? ' is-aperta' : ''
-            }`}
+            className={`op riga-stato ${classeStato}${inGestione ? ' is-aperta' : ''}`}
             key={voce.chiave}
           >
             <div className="op-riga">
@@ -188,6 +224,23 @@ export function EventiElenco({
 
                     {arretrato && (
                       <span className="badge badge-ko badge-punto badge-stato">arretrato</span>
+                    )}
+
+                    {/* Com'è andata, sulla riga chiusa e non dentro
+                        l'espansione: «è stata fatta?» è la prima domanda su
+                        una voce passata, e fin qui si rispondeva aprendola.
+                        L'etichetta la dà etichettaStato — «Eseguita»,
+                        «Fallita», e «Fatto» sulle voci chiuse prima che gli
+                        esiti esistessero, che è tutto quello che di loro si
+                        sa davvero. */}
+                    {chiusa && (
+                      <span
+                        className={`badge badge-punto badge-stato ${
+                          eseguita ? 'badge-ok' : fallita ? 'badge-ko' : 'badge-off'
+                        }`}
+                      >
+                        {etichettaStato(voce.stato, voce.esitoTipo)}
+                      </span>
                     )}
 
                     {/* A chi è assegnato, detto per esteso e su **ogni**
@@ -249,6 +302,17 @@ export function EventiElenco({
                       </span>
                     )}
                   </span>
+
+                  {/* Il commento della chiusura, scritto per intero e senza
+                      aprire niente: è il motivo per cui una voce chiusa si
+                      riguarda — «non ha risposto, richiamare giovedì» vale
+                      quanto il fatto che la telefonata sia stata fatta, e
+                      costava un'apertura per riga. Per intero e non troncato:
+                      una nota tagliata a metà va riaperta comunque, che è
+                      esattamente il gesto che qui si voleva togliere. */}
+                  {chiusa && notaEsito && (
+                    <span className="op-esito">{notaEsito}</span>
+                  )}
                 </span>
 
                 <span className="op-freccia" aria-hidden="true" />
