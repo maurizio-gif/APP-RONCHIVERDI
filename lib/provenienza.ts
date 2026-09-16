@@ -114,3 +114,23 @@ export function provenienzaTrattativa({
     spiegazione: `Origine non riconosciuta: "${origine}". Va instradata in lib/provenienza.ts.`,
   }
 }
+
+/**
+ * Da dove viene un'origine, senza sapere se dietro c'è una richiesta —
+ * usata dove si guardano trattative chiuse in massa (Core Manager) e un
+ * join in più solo per saperlo non vale il costo: 'walk-in' e 'agenda' sono
+ * le uniche origini che trova_o_crea_opportunita e trattativa_per_evento
+ * scrivono quando la richiesta manca, quindi bastano da sole a riconoscerle.
+ */
+export function provenienzaDiOrigine(origine: string | null | undefined): Provenienza {
+  if (origine === ORIGINE_BANCO) return GUEST_REGISTER
+  if (origine === 'agenda') return AGENDA
+  if (ORIGINI_SITO.includes(origine ?? null) || origine?.endsWith('-inline')) return SITO
+
+  return {
+    chiave: 'altro',
+    etichetta: 'Altro',
+    classe: 'da-altro',
+    spiegazione: `Origine non riconosciuta: "${origine}". Va instradata in lib/provenienza.ts.`,
+  }
+}

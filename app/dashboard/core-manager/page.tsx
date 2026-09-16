@@ -4,6 +4,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { ATTIVITA_IN_AGENDA, COLONNE_RICHIESTA } from '@/lib/richieste'
 import { euro, type StatoTrattativa } from '@/lib/pipeline'
+import { provenienzaDiOrigine, type ChiaveProvenienza } from '@/lib/provenienza'
 import {
   CLASSE_TIPO,
   ETICHETTE_TIPO_BREVI,
@@ -217,7 +218,7 @@ export default async function CoreManagerPage({
     // quello in cui il lead è arrivato — altrimenti una vinta di oggi su un
     // lead di marzo non comparirebbe da nessuna parte.
     conColonneNuove<Record<string, any>>(
-      'assegnato_a, stato, chiuso_il, valore_euro',
+      'assegnato_a, stato, chiuso_il, valore_euro, origine',
       COLONNE_NOTA_VINTA,
       (colonne) =>
         supabase
@@ -344,9 +345,27 @@ export default async function CoreManagerPage({
   let valoreTotale = 0
   let perseTotali = 0
   let vinteSenzaValore = 0
+
+  // Lo stesso risultato, ma diviso per provenienza: capire se le vinte sono
+  // trainate dal sito o dal banco (o dall'agenda) è una domanda diversa da
+  // «chi le ha chiuse», e su una tabella per consulente non si vedrebbe —
+  // otto righe raccontano il carico delle persone, non i canali.
+  const perProvenienza = new Map<
+    ChiaveProvenienza,
+    { etichetta: string; vinte: number; perse: number; valore: number }
+  >()
+  function rigaProvenienza(chiave: ChiaveProvenienza, etichetta: string) {
+    if (!perProvenienza.has(chiave)) {
+      perProvenienza.set(chiave, { etichetta, vinte: 0, perse: 0, valore: 0 })
+    }
+    return perProvenienza.get(chiave)!
+  }
+
   for (const o of chiuse ?? []) {
     const chi = riga(o.assegnato_a as string | null)
     const stato = o.stato as StatoTrattativa
+    const provenienza = provenienzaDiOrigine(o.origine as string | null)
+    const daProvenienza = rigaProvenienza(provenienza.chiave, provenienza.etichetta)
     if (stato === 'vinto') {
       vinteTotali += 1
       const v = o.valore_euro != null ? Number(o.valore_euro) : null
@@ -356,11 +375,20 @@ export default async function CoreManagerPage({
         chi.vinte += 1
         if (v !== null) chi.valore += v
       }
+      daProvenienza.vinte += 1
+      if (v !== null) daProvenienza.valore += v
     } else {
       perseTotali += 1
       if (chi) chi.perse += 1
+      daProvenienza.perse += 1
     }
   }
+  // Ordinate per quante ne ha portate, non alfabeticamente: la prima riga
+  // deve essere il canale che pesa di più, non "Agenda" perché comincia
+  // prima di "Sito" nell'alfabeto.
+  const provenienze = [...perProvenienza.values()].sort(
+    (a, b) => b.vinte + b.perse - (a.vinte + a.perse)
+  )
 
   const elenco = [...righe.values()].sort((a, b) => b.aperte - a.aperte || b.vinte - a.vinte)
   const apertePiuAlte = Math.max(1, ...elenco.map((r) => r.aperte))
@@ -653,6 +681,71 @@ export default async function CoreManagerPage({
           </p>
         )}
       </div>
+
+      {/* Le stesse vinte e perse, divise per da dove è arrivata la
+          trattativa: capire se il sito o il banco stanno portando risultati
+          è una domanda sui canali, non sulle persone — su otto righe per
+          consulente non si vedrebbe. */}
+      {provenienze.length > 0 && (
+        <div className="card">
+          <div className="card-head">
+            <h2>Per provenienza</h2>
+            <span className="muted">
+              {PERIODI.find((p) => p.chiave === periodo)?.etichetta.toLowerCase()}
+            </span>
+          </div>
+
+          <div className="tabella-wrap">
+            <table className="tabella">
+              <thead>
+                <tr>
+                  <th>Provenienza</th>
+                  <th>Vinte</th>
+                  <th>Perse</th>
+                  <th>
+                    Tasso di successo
+                    <span className="th-nota">vinte su vinte + perse</span>
+                  </th>
+                  <th>Valore</th>
+                </tr>
+              </thead>
+              <tbody>
+                {provenienze.map((p) => {
+                  const chiuseProvenienza = p.vinte + p.perse
+                  const tasso =
+                    chiuseProvenienza > 0 ? Math.round((p.vinte / chiuseProvenienza) * 100) : null
+                  return (
+                    <tr key={p.etichetta}>
+                      <td>{p.etichetta}</td>
+                      <td>{p.vinte}</td>
+                      <td>{p.perse}</td>
+                      <td>{tasso !== null ? `${tasso}%` : '—'}</td>
+                      <td className="cella-valore">{p.valore > 0 ? euro(p.valore) : '—'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th>Totale</th>
+                  <th>{provenienze.reduce((a, p) => a + p.vinte, 0)}</th>
+                  <th>{provenienze.reduce((a, p) => a + p.perse, 0)}</th>
+                  <th>
+                    {(() => {
+                      const vinte = provenienze.reduce((a, p) => a + p.vinte, 0)
+                      const totale = vinte + provenienze.reduce((a, p) => a + p.perse, 0)
+                      return totale > 0 ? `${Math.round((vinte / totale) * 100)}%` : '—'
+                    })()}
+                  </th>
+                  <th className="cella-valore">
+                    {euro(provenienze.reduce((a, p) => a + p.valore, 0)) ?? '—'}
+                  </th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
 
       {vinteSenzaValore > 0 && (
         <div className="card card-avviso">
