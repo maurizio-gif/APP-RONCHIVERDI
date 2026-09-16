@@ -83,6 +83,56 @@ export function etichettaAzione(azione: string): string {
   return AZIONI_LOG[azione] ?? azione
 }
 
+/**
+ * I dettagli sono un jsonb libero: si mostrano come coppie chiave/valore
+ * invece di un JSON grezzo, che in tabella non si legge. Le chiavi tecniche
+ * (email_target) diventano parole.
+ *
+ * Condivisa fra Controllo operatori (tutte le azioni, di tutti) e il
+ * registro della scheda persona (le stesse azioni, filtrate su un
+ * contatto): due implementazioni avrebbero preso strade diverse alla prima
+ * chiave nuova.
+ */
+export const ETICHETTE_DETTAGLIO: Record<string, string> = {
+  email_target: 'utente',
+  valore: 'valore',
+  sezioni: 'sezioni',
+  motivo: 'motivo',
+  distanza_metri: 'distanza',
+  precisione_metri: 'precisione',
+  raggio_metri: 'raggio',
+  prima: 'prima',
+  dopo: 'dopo',
+  da: 'da',
+  a: 'a',
+  tipo: 'tipo',
+  titolo: 'titolo',
+  data: 'data',
+  ora: 'ora',
+  gestito: 'gestito',
+  nome: 'nome',
+  cognome: 'cognome',
+  durata_minuti: 'durata',
+}
+
+export function dettagliLeggibili(d: unknown): string {
+  if (!d || typeof d !== 'object') return ''
+  return Object.entries(d as Record<string, unknown>)
+    .filter(([, v]) => v !== null && v !== undefined && v !== '')
+    .map(([k, v]) => {
+      const etichetta = ETICHETTE_DETTAGLIO[k] ?? k
+      const valore = Array.isArray(v)
+        ? v.join(', ')
+        : typeof v === 'boolean'
+          ? v
+            ? 'sì'
+            : 'no'
+          : String(v)
+      return `${etichetta}: ${valore}`
+    })
+    .join(' · ')
+}
+
 type OpzioniLog = {
   entita?: string
   entitaId?: string

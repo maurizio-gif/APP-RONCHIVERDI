@@ -17,6 +17,17 @@ import {
   conColonneNuove,
 } from '@/lib/migrazioni'
 import { CLASSE_BADGE_STATO, ETICHETTE_STATO, euro, type StatoTrattativa } from '@/lib/pipeline'
+import {
+  CLASSE_TIPO,
+  ETICHETTE_TIPO,
+  TIPI,
+  dataBreve,
+  etichettaStato,
+  voceDaTask,
+  type TipoVoce,
+  type VoceAgenda,
+} from '@/lib/agenda'
+import { AZIONI_LOG, dettagliLeggibili, etichettaAzione } from '@/lib/audit'
 import { RichiestePersona, type RichiestaDiPersona } from '../RichiestePersona'
 
 /** Quante pagine viste riportare prima di dire che ce ne sono altre. */
@@ -178,6 +189,111 @@ export default async function PersonaPage({ params }: { params: { id: string } }
 
   const elenco = richieste ?? []
   const daLavorare = elenco.filter((r) => !r.gestito).length
+
+  // Gli eventi in agenda di questa persona: mancavano del tutto dalla
+  // scheda, che sapeva solo delle richieste dal sito. Due agganci, come in
+  // agenda/page.tsx e [canale]/page.tsx — un evento nasce da una richiesta
+  // (entita_id = id della richiesta) oppure è creato a mano per il contatto
+  // (entita_id = id della persona) — e vanno cercati entrambi, o metà del
+  // seguito (quello fissato a mano) resterebbe fuori.
+  const idRichieste = elenco.map((r) => r.id as string)
+  const COLONNE_EVENTO =
+    'id, titolo, tipo, data, ora, durata_minuti, note, assegnato_a, stato, esito_tipo, esito, esito_da, esito_il, entita, entita_id'
+  const [{ data: eventiDaRichieste }, { data: eventiDaPersona }] = await Promise.all([
+    idRichieste.length
+      ? supabase
+          .from('task')
+          .select(COLONNE_EVENTO)
+          .eq('entita', 'form_contatti')
+          .in('entita_id', idRichieste)
+      : Promise.resolve({ data: [] as Record<string, any>[] }),
+    supabase.from('task').select(COLONNE_EVENTO).eq('entita', 'persona').eq('entita_id', params.id),
+  ])
+
+  const vociEventi = [...(eventiDaRichieste ?? []), ...(eventiDaPersona ?? [])]
+    .map((riga) => voceDaTask(riga))
+    .sort((a, b) => `${b.data}${b.ora ?? ''}`.localeCompare(`${a.data}${a.ora ?? ''}`))
+
+  // Raggruppati per tipo — visita in sede, telefonata, task, email,
+  // whatsapp, messaggio — nell'ordine di TIPI: chi cerca «i tour» o «i
+  // messaggi» apre solo il gruppo che gli interessa, invece di scorrere un
+  // elenco unico dove i tipi sono mescolati.
+  const gruppiEventi = TIPI.map((tipo) => ({
+    tipo,
+    voci: vociEventi.filter((v) => v.tipo === tipo),
+  })).filter((g) => g.voci.length > 0)
+
+  // Il registro: ogni nota e ogni esito sovrascrivono il precedente sulla
+  // riga (vedi salvaGestione e chiudiConEsito/correggiEsito), quindi la
+  // scheda da sola non porta memoria di cosa c'era scritto prima. Il
+  // registro operatori (audit_log) la tiene già — la scrive ogni azione, ma
+  // finora si leggeva solo come elenco generale di "Controllo operatori",
+  // mescolato fra tutti i contatti e tutti gli operatori.
+  //
+  // Quattro letture, una per ogni modo in cui un'azione si aggancia a questa
+  // persona: sulla persona stessa (creata a mano, evento fissato per lei),
+  // su una sua richiesta dal sito, su un suo evento in agenda, o su una sua
+  // trattativa. 'persone' al plurale è un refuso storico di
+  // persona_creata_a_mano (vedi agenda/actions.ts): niente qui lo corregge,
+  // quindi lo si cerca insieme a 'persona' invece di perdere quelle righe.
+  const MAX_REGISTRO = 200
+  const idEventi = vociEventi.map((v) => v.id)
+  const idTrattative = (trattative ?? []).map((t) => t.id as string)
+  const COLONNE_LOG = 'id, created_at, email, azione, entita, entita_id, dettagli'
+  const [
+    { data: logPersona },
+    { data: logRichieste },
+    { data: logEventi },
+    { data: logTrattative },
+  ] = await Promise.all([
+    supabase
+      .from('audit_log')
+      .select(COLONNE_LOG)
+      .in('entita', ['persona', 'persone'])
+      .eq('entita_id', params.id)
+      .order('created_at', { ascending: false })
+      .limit(MAX_REGISTRO),
+    idRichieste.length
+      ? supabase
+          .from('audit_log')
+          .select(COLONNE_LOG)
+          .eq('entita', 'form_contatti')
+          .in('entita_id', idRichieste)
+          .order('created_at', { ascending: false })
+          .limit(MAX_REGISTRO)
+      : Promise.resolve({ data: [] as Record<string, any>[] }),
+    idEventi.length
+      ? supabase
+          .from('audit_log')
+          .select(COLONNE_LOG)
+          .eq('entita', 'task')
+          .in('entita_id', idEventi)
+          .order('created_at', { ascending: false })
+          .limit(MAX_REGISTRO)
+      : Promise.resolve({ data: [] as Record<string, any>[] }),
+    idTrattative.length
+      ? supabase
+          .from('audit_log')
+          .select(COLONNE_LOG)
+          .eq('entita', 'opportunita')
+          .in('entita_id', idTrattative)
+          .order('created_at', { ascending: false })
+          .limit(MAX_REGISTRO)
+      : Promise.resolve({ data: [] as Record<string, any>[] }),
+  ])
+
+  const registroCompleto = [
+    ...(logPersona ?? []),
+    ...(logRichieste ?? []),
+    ...(logEventi ?? []),
+    ...(logTrattative ?? []),
+  ].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+  // Quattro letture, ciascuna già limitata alla sua fetta: il taglio va
+  // rifatto sull'insieme ordinato, altrimenti una persona con più
+  // trattative che richieste vedrebbe le trattative più vecchie scacciare
+  // le richieste più recenti invece delle voci davvero più vecchie di tutte.
+  const registro = registroCompleto.slice(0, MAX_REGISTRO)
+  const registroTroncato = registroCompleto.length > MAX_REGISTRO
 
   return (
     <>
@@ -378,6 +494,143 @@ export default async function PersonaPage({ params }: { params: { id: string } }
           />
         )}
       </div>
+
+      {/* Tutto lo storico fra sito ed eventi, in un unico posto: prima gli
+          eventi in agenda di questa persona non comparivano da nessuna
+          parte sulla sua scheda — chi voleva sapere se il tour era stato
+          fatto doveva cercarlo in agenda o nel canale del corso. Raggruppati
+          per tipo e chiusi di default: chi ha trenta voci fra tour,
+          telefonate e messaggi apre solo il gruppo che gli interessa, invece
+          di scorrerle tutte mescolate. */}
+      <div className="card">
+        <div className="card-head">
+          <h2>Storico eventi</h2>
+          <span className="muted">
+            {vociEventi.length > 0
+              ? `${vociEventi.length} in agenda, per tipo`
+              : 'nessun evento in agenda'}
+          </span>
+        </div>
+
+        {vociEventi.length === 0 ? (
+          <p className="vuoto">
+            Nessun evento collegato a questa persona: né tour, né telefonate, né altro fissato in
+            agenda.
+          </p>
+        ) : (
+          gruppiEventi.map(({ tipo, voci }) => (
+            <details className="storico-gruppo" key={tipo}>
+              <summary className="storico-gruppo-testa">
+                <span className={`badge-tipo ${CLASSE_TIPO[tipo]}`}>{ETICHETTE_TIPO[tipo]}</span>
+                <span className="storico-gruppo-conteggio">
+                  {voci.length} {voci.length === 1 ? 'voce' : 'voci'}
+                </span>
+                <span className="storico-gruppo-apri" aria-hidden="true" />
+              </summary>
+              <div className="storico-gruppo-corpo">
+                <ul className="voci">
+                  {voci.map((v) => (
+                    <VoceStorico voce={v} nomiStaff={nomiStaff} key={v.chiave} />
+                  ))}
+                </ul>
+              </div>
+            </details>
+          ))
+        )}
+      </div>
+
+      {/* Il registro: ogni nota e ogni esito sovrascrivono il precedente
+          sulla riga, quindi da nessun'altra parte in questa scheda si legge
+          cosa c'era scritto prima di una correzione. Qui sì, perché il
+          registro operatori lo tiene già — mancava solo un modo di leggerlo
+          per un contatto solo, invece che come elenco generale mescolato a
+          tutti gli altri (vedi Controllo operatori). */}
+      <div className="card">
+        <div className="card-head">
+          <h2>Registro</h2>
+          <span className="muted">
+            {registro.length > 0
+              ? `${registro.length}${registroTroncato ? '+' : ''} azioni registrate`
+              : 'nessuna azione registrata'}
+          </span>
+        </div>
+
+        {registro.length === 0 ? (
+          <p className="vuoto">
+            Nessuna nota, esito o modifica registrata per questo contatto.
+          </p>
+        ) : (
+          <ul className="voci">
+            {registro.map((r) => (
+              <li className="voce" key={`${r.entita}-${r.id}`}>
+                <span className="voce-ora">{dataOra(r.created_at as string)}</span>
+                <span className="voce-corpo">
+                  <span className="voce-titolo">
+                    {AZIONI_LOG[r.azione as string] ? (
+                      etichettaAzione(r.azione as string)
+                    ) : (
+                      <code>{r.azione as string}</code>
+                    )}
+                    {r.email && (
+                      <span
+                        className="muted"
+                        style={{ marginLeft: '0.5rem', fontSize: 'var(--text-sm)' }}
+                      >
+                        — {nomeDiEmail(r.email as string, nomiStaff)}
+                      </span>
+                    )}
+                  </span>
+                  {dettagliLeggibili(r.dettagli) && (
+                    <span className="voce-note muted">{dettagliLeggibili(r.dettagli)}</span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </>
+  )
+}
+
+/**
+ * Una voce dello storico eventi: quando, che stato ha, chi la segue o chi
+ * l'ha fatta, e — se è chiusa — con quale nota. Tutto in chiaro, senza
+ * aprire nient'altro: è esattamente quello che manca oggi guardando un
+ * evento da Eventi Core, dall'agenda o dalla dashboard, dove si vede solo
+ * il tag «Eseguita» e non cosa è successo.
+ */
+function VoceStorico({
+  voce,
+  nomiStaff,
+}: {
+  voce: VoceAgenda
+  nomiStaff: Record<string, string>
+}) {
+  const notaEsito = (voce.esito ?? voce.note ?? '').trim() || null
+  return (
+    <li className="voce">
+      <span className="voce-ora">
+        {dataBreve(voce.data)}
+        {voce.ora && ` · ${voce.ora}`}
+      </span>
+      <span className="voce-corpo">
+        <span className="voce-titolo">
+          <span
+            className={`badge badge-punto ${
+              voce.daFare ? 'badge-warn' : voce.esitoTipo === 'fallita' ? 'badge-ko' : 'badge-ok'
+            }`}
+          >
+            {etichettaStato(voce.stato, voce.esitoTipo)}
+          </span>
+          <span className="muted" style={{ marginLeft: '0.5rem', fontSize: 'var(--text-sm)' }}>
+            {voce.assegnatoA
+              ? `${voce.daFare ? 'in carico a' : 'fatta da'} ${nomeDiEmail(voce.assegnatoA, nomiStaff)}`
+              : 'non assegnata'}
+          </span>
+        </span>
+        {notaEsito && <span className="voce-note muted">{notaEsito}</span>}
+      </span>
+    </li>
   )
 }

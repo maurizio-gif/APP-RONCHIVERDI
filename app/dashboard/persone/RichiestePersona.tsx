@@ -147,6 +147,14 @@ export function RichiestePersona({
         const titolo =
           r.attivita_label ?? (r.origine === 'chinesis-inline' ? 'Chinesis' : 'Richiesta informazioni')
 
+        // Il commento della chiusura, in chiaro sulla riga: qui non c'era
+        // nemmeno il tag «con nota» di Eventi Core, solo l'etichetta
+        // «lavorata» — per sapere com'era andata bisognava aprire ogni
+        // riga. Stessa regola di EventiElenco: interruttore o esito.
+        const notaEsito = r.gestito
+          ? (conInterruttore ? r.note : r.esito)?.trim() || null
+          : null
+
         return (
           <li
             className={`op riga-stato ${r.gestito ? 'stato-chiuso' : 'stato-nuovo'}${
@@ -199,6 +207,12 @@ export function RichiestePersona({
                       <span className="badge badge-warn badge-punto badge-stato">da lavorare</span>
                     )}
                   </span>
+
+                  {notaEsito && (
+                    <span className={`op-esito${r.esito_tipo === 'fallita' ? ' is-fallita' : ''}`}>
+                      {notaEsito}
+                    </span>
+                  )}
                 </span>
 
                 <span className="op-freccia" aria-hidden="true" />

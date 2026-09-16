@@ -135,6 +135,11 @@ export function GestioneEsito({
   seguito?: CollegamentoEvento | null
 }) {
   const [gruppo, setGruppo] = useState<Gruppo | null>(null)
+  // Su una voce chiusa i pulsanti non si vedono finché non li si chiede
+  // esplicitamente: vederli accanto a un esito già scritto fa credere che ci
+  // sia ancora da chiudere qualcosa, ed è esattamente l'inganno che si vuole
+  // evitare. «Correggi» li fa comparire; salvare o annullare li richiude.
+  const [correggendo, setCorreggendo] = useState(false)
   // Su una voce chiusa il campo parte da quello che c'è scritto: una
   // correzione è quasi sempre un'aggiunta, e ridigitare la nota da capo per
   // cambiarne una riga la fa riscrivere più corta di com'era.
@@ -178,6 +183,7 @@ export function GestioneEsito({
       if (esito.ok) {
         if (esito.avviso) setAvviso(esito.avviso)
         setGruppo(null)
+        setCorreggendo(false)
         // Su una voce chiusa la nota non si svuota: resta quella corretta, che
         // è ciò che si rilegge riaprendo il pannello. Le prop la riallineano
         // al valore appena salvato non appena il server rilegge la riga.
@@ -275,30 +281,62 @@ export function GestioneEsito({
         </p>
       )}
 
-      <div className="esito-gruppi" role="group" aria-label="Esito della lavorazione">
-        {GRUPPI.map((g) => (
-          <button
-            key={g.chiave}
-            type="button"
-            className={`btn btn-sm${gruppo === g.chiave ? '' : ' btn-ghost'}`}
-            aria-pressed={gruppo === g.chiave}
-            onClick={() => {
-              setErrore(null)
-              setGruppo(gruppo === g.chiave ? null : g.chiave)
-            }}
-          >
-            {/* Su una voce chiusa la scelta che c'è già si riconosce prima di
-                cliccarla: senza la spunta si rischia di «correggere» in
-                eseguita qualcosa che era già eseguita, credendo di cambiarla. */}
-            {chiusa && esitoCorrente === g.chiave && (
-              <span aria-hidden="true" style={{ marginRight: '0.35em' }}>
-                ✓
-              </span>
-            )}
-            {g.etichetta}
-          </button>
-        ))}
-      </div>
+      {/* Chiusa e non in correzione: solo il fatto qui sopra, senza pulsanti
+          — vederli accanto a un esito già scritto sembra dire che c'è ancora
+          da chiudere qualcosa. «Correggi» è un gesto esplicito, non lo stato
+          in cui il pannello si apre. */}
+      {chiusa && !correggendo && (
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          onClick={() => setCorreggendo(true)}
+        >
+          Correggi
+        </button>
+      )}
+
+      {(!chiusa || correggendo) && (
+        <div className="esito-gruppi" role="group" aria-label="Esito della lavorazione">
+          {GRUPPI.map((g) => (
+            <button
+              key={g.chiave}
+              type="button"
+              className={`btn btn-sm${gruppo === g.chiave ? '' : ' btn-ghost'}`}
+              aria-pressed={gruppo === g.chiave}
+              onClick={() => {
+                setErrore(null)
+                setGruppo(gruppo === g.chiave ? null : g.chiave)
+              }}
+            >
+              {/* Su una voce chiusa la scelta che c'è già si riconosce prima di
+                  cliccarla: senza la spunta si rischia di «correggere» in
+                  eseguita qualcosa che era già eseguita, credendo di cambiarla. */}
+              {chiusa && esitoCorrente === g.chiave && (
+                <span aria-hidden="true" style={{ marginRight: '0.35em' }}>
+                  ✓
+                </span>
+              )}
+              {g.etichetta}
+            </button>
+          ))}
+          {/* Via dalla correzione senza salvare: chi ha cliccato «Correggi»
+              per errore, o ha finito di leggere, torna al fatto e basta. */}
+          {chiusa && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                setCorreggendo(false)
+                setGruppo(null)
+                setErrore(null)
+                setNota(notaCorrente ?? '')
+              }}
+            >
+              Annulla la correzione
+            </button>
+          )}
+        </div>
+      )}
 
       {gruppo && (
         <>

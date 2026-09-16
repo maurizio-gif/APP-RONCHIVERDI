@@ -227,6 +227,14 @@ export function RigaRichiesta({
    */
   const conInterruttore = gestioneSemplice || !tipoAppuntamento
 
+  // Il commento della chiusura, in chiaro sulla riga: prima lo diceva solo il
+  // tag «con nota» — che una richiesta ha una nota, non cosa c'è scritto — e
+  // per leggerlo bisognava aprire la riga. Stessa regola di EventiElenco:
+  // interruttore o esito, a seconda di come si chiude questo canale.
+  const notaEsito = r.gestito
+    ? (conInterruttore ? r.note : r.esito)?.trim() || null
+    : null
+
   const oraScelta = r.ora_scelta ? String(r.ora_scelta).slice(0, 5) : null
 
   // Da quanto aspetta. Su una richiesta chiusa non vuol dire niente: è
@@ -394,6 +402,12 @@ export function RigaRichiesta({
 
             {walkIn && r.operatore && (
               <div className="richiesta-meta muted">Registrata in sede da {r.operatore}</div>
+            )}
+
+            {notaEsito && (
+              <span className={`op-esito${r.esito_tipo === 'fallita' ? ' is-fallita' : ''}`}>
+                {notaEsito}
+              </span>
             )}
 
           </div>

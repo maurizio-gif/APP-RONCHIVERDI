@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
-import { AZIONI_LOG, etichettaAzione } from '@/lib/audit'
+import { AZIONI_LOG, dettagliLeggibili, etichettaAzione } from '@/lib/audit'
 import { dataOra } from '@/lib/persone'
 
 const PERIODI = [
@@ -10,51 +10,6 @@ const PERIODI = [
 ] as const
 
 const MAX_RIGHE = 300
-
-/**
- * I dettagli sono un jsonb libero: si mostrano come coppie chiave/valore
- * invece di un JSON grezzo, che in tabella non si legge. Le chiavi tecniche
- * (email_target) diventano parole.
- */
-const ETICHETTE_DETTAGLIO: Record<string, string> = {
-  email_target: 'utente',
-  valore: 'valore',
-  sezioni: 'sezioni',
-  motivo: 'motivo',
-  distanza_metri: 'distanza',
-  precisione_metri: 'precisione',
-  raggio_metri: 'raggio',
-  prima: 'prima',
-  dopo: 'dopo',
-  da: 'da',
-  a: 'a',
-  tipo: 'tipo',
-  titolo: 'titolo',
-  data: 'data',
-  ora: 'ora',
-  gestito: 'gestito',
-  nome: 'nome',
-  cognome: 'cognome',
-  durata_minuti: 'durata',
-}
-
-function dettagliLeggibili(d: unknown): string {
-  if (!d || typeof d !== 'object') return ''
-  return Object.entries(d as Record<string, unknown>)
-    .filter(([, v]) => v !== null && v !== undefined && v !== '')
-    .map(([k, v]) => {
-      const etichetta = ETICHETTE_DETTAGLIO[k] ?? k
-      const valore = Array.isArray(v)
-        ? v.join(', ')
-        : typeof v === 'boolean'
-          ? v
-            ? 'sì'
-            : 'no'
-          : String(v)
-      return `${etichetta}: ${valore}`
-    })
-    .join(' · ')
-}
 
 export async function AttivitaLog({
   searchParams,

@@ -17,6 +17,10 @@ import Link from 'next/link'
  * Pieno e non una pastiglia come Chiama e WhatsApp: quelli sono gesti che si
  * fanno restando sulla riga, questo porta su un'altra pagina — e un comando
  * che cambia pagina si distingue prima di leggerlo.
+ *
+ * Apre in una scheda nuova, non al posto di questa: chi lo clicca lo fa
+ * mentre sta lavorando un evento o una richiesta, e tornare a quel pannello
+ * dopo aver guardato l'anagrafica non deve voler dire riaprirlo da capo.
  */
 export function SchedaContatto({
   personaId,
@@ -45,7 +49,12 @@ export function SchedaContatto({
   }
 
   return (
-    <Link className="btn btn-sm scheda-contatto" href={`/dashboard/persone/${personaId}`}>
+    <Link
+      className="btn btn-sm scheda-contatto"
+      href={`/dashboard/persone/${personaId}`}
+      target="_blank"
+      rel="noopener"
+    >
       {/* La persona a tratto, come le icone del menu: un glifo di testo
           (☺, ⌂) cambia disegno e ingombro da un sistema all'altro. */}
       <svg

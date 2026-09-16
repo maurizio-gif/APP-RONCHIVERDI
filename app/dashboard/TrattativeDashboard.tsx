@@ -205,6 +205,14 @@ function RigaOpportunita({
    */
   const conInterruttore = !!evento && !eAppuntamentoVero(evento.tipo)
 
+  // Il commento della chiusura, in chiaro sulla riga e non solo dietro un
+  // «evento gestito»: senza, per saperlo come sia andata bisognerebbe aprire
+  // ogni riga una per una. Stessa regola di EventiElenco: interruttore o
+  // esito, a seconda di come si chiude questo tipo di evento.
+  const notaEsito = evento?.gestito
+    ? (conInterruttore ? evento.nota : evento.esito)?.trim() || null
+    : null
+
   const quando = evento?.data
     ? `${dataBreve(evento.data)}${
         evento.ora ? ` · ${intervalloOrario(evento.ora, evento.durataMinuti) ?? evento.ora}` : ''
@@ -261,6 +269,12 @@ function RigaOpportunita({
                   è aperta, ma la telefonata è stata fatta. */}
               {evento?.gestito && <span className="tag tag-ok">evento gestito</span>}
             </span>
+
+            {notaEsito && (
+              <span className={`op-esito${evento?.esitoTipo === 'fallita' ? ' is-fallita' : ''}`}>
+                {notaEsito}
+              </span>
+            )}
           </span>
 
           <span className="op-freccia" aria-hidden="true" />

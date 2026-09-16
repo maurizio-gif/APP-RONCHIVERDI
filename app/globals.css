@@ -1946,6 +1946,64 @@ table.tabella tbody tr:hover {
 	margin-top: 0.4rem;
 }
 
+/* ── Storico eventi della scheda persona: gruppi per tipo, sullo stesso
+   guscio <details> della Guida — chiusi finché non servono, così lo storico
+   di chi ha scritto trenta volte non riempie la pagina da solo. ───────── */
+.storico-gruppo {
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+}
+
+.storico-gruppo + .storico-gruppo {
+	margin-top: 0.6rem;
+}
+
+.storico-gruppo-testa {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	padding: 0.75rem 1rem;
+	cursor: pointer;
+	list-style: none;
+}
+
+.storico-gruppo-testa::-webkit-details-marker {
+	display: none;
+}
+
+.storico-gruppo-testa:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+	border-radius: var(--radius);
+}
+
+.storico-gruppo-conteggio {
+	color: var(--text-muted);
+	font-size: var(--text-sm);
+}
+
+.storico-gruppo-apri {
+	flex: none;
+	margin-left: auto;
+	width: 0.5rem;
+	height: 0.5rem;
+	border-right: 1.5px solid var(--text-muted);
+	border-bottom: 1.5px solid var(--text-muted);
+	transform: rotate(45deg) translate(-2px, -2px);
+	transition: transform 0.15s ease;
+}
+
+.storico-gruppo[open] .storico-gruppo-apri {
+	transform: rotate(-135deg) translate(-2px, -2px);
+}
+
+.storico-gruppo-corpo {
+	margin: 0 1rem;
+	padding: 0.9rem 0 1.1rem;
+	border-top: 1px solid var(--border);
+}
+
 .filtri {
 	margin-bottom: 1.25rem;
 	padding: 0.9rem 1rem 1rem;
@@ -3795,6 +3853,14 @@ table.tabella tbody tr:hover {
 /* Sulla fallita il filo prende il suo colore: il commento di una chiusura
    andata male è proprio quello che spiega il rosso della banda. */
 .op.is-fallita .op-esito {
+	border-left-color: var(--error-border);
+}
+
+/* Stessa variante, per chi mostra il commento fuori da una riga .op (Eventi
+   Core, dashboard trattative, richieste della scheda persona): senza
+   l'antenato .op quella regola non scatterebbe, e una chiusura andata male
+   si leggerebbe con lo stesso filo verde di una riuscita. */
+.op-esito.is-fallita {
 	border-left-color: var(--error-border);
 }
 
