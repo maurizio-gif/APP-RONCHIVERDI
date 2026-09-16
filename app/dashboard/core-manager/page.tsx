@@ -12,6 +12,7 @@ import {
   oggiRoma,
   ordinaVoci,
   primoDelMese,
+  tipoDaAzione,
   voceDaContatto,
   voceDaTask,
   type VoceAgenda,
@@ -84,6 +85,12 @@ type RigaConsulente = {
    * Non sull'orologio: vedi lib/orarioLavorativo.ts.
    */
   attesePresa: number[]
+  /**
+   * Millisecondi **di apertura** fra l'arrivo di un messaggio dal sito e la
+   * sua chiusura. Solo messaggi, non appuntamenti: vedi il commento sopra
+   * `tempoGestioneMessaggio`.
+   */
+  tempiGestioneMessaggi: number[]
   eventiAssegnati: number
   eventiEseguiti: number
   vinte: number
@@ -96,6 +103,7 @@ function rigaVuota(email: string): RigaConsulente {
     email,
     aperte: 0,
     attesePresa: [],
+    tempiGestioneMessaggi: [],
     eventiAssegnati: 0,
     eventiEseguiti: 0,
     vinte: 0,
@@ -174,9 +182,14 @@ export default async function CoreManagerPage({
 
   const io = emailCorrente()
   const oggi = oggiRoma()
+  // Il mese è il default, non oggi: la tabella «Per consulente» serve a
+  // vedere come si distribuisce il lavoro, ed è una domanda che su un solo
+  // giorno ha quasi sempre numeri troppo piccoli per dire qualcosa — la
+  // reattività dei messaggi in particolare si legge su decine di casi, non
+  // su tre o quattro.
   const periodo: ChiavePeriodo = eiPeriodoValido(searchParams.periodo)
     ? searchParams.periodo
-    : 'oggi'
+    : 'mese'
   const inizio = inizioDi(periodo, oggi)
 
   // Il confine superiore è il giorno **dopo** oggi: le colonne sono timestamp,
@@ -225,7 +238,7 @@ export default async function CoreManagerPage({
     // lo stesso lavoro di chi chiude un task, e contare solo i task
     // sottostimerebbe proprio chi sta al banco a smaltire i messaggi.
     conColonneNuove<Record<string, any>>(
-      'assegnato_a, esito_da, gestito_da, gestito, created_at, data_scelta',
+      'assegnato_a, esito_da, gestito_da, gestito, gestito_il, created_at, data_scelta, azione',
       ['assegnato_a'],
       (colonne) =>
         supabase
@@ -304,6 +317,26 @@ export default async function CoreManagerPage({
     // firme delle due chiusure (vedi chiudiConEsito e salvaGestione).
     const eseguito = riga((r.esito_da as string) ?? (r.gestito_da as string) ?? null)
     if (eseguito && r.gestito) eseguito.eventiEseguiti += 1
+
+    // Il tempo di gestione, solo sui messaggi. Un appuntamento in sede si
+    // rispetta all'ora fissata anche se la nota si scrive dopo — cronometrare
+    // da quando arriva a quando si scrive la nota misurerebbe il ritardo
+    // della scrivania, non quello della persona che aspetta una risposta.
+    // Un messaggio invece non ha nessun altro orologio: da quando arriva a
+    // quando viene gestito è **tutto** il tempo che la persona aspetta.
+    if (
+      eseguito &&
+      r.gestito &&
+      r.gestito_il &&
+      r.created_at &&
+      tipoDaAzione(r.azione as string | null) === 'messaggio'
+    ) {
+      const giornoGestione = (r.gestito_il as string).slice(0, 10)
+      if (giornoGestione >= inizio && giornoGestione <= oggi) {
+        const ms = msLavorativi(r.created_at as string, r.gestito_il as string)
+        if (ms !== null) eseguito.tempiGestioneMessaggi.push(ms)
+      }
+    }
   }
 
   // 4: il risultato del periodo.
@@ -495,9 +528,12 @@ export default async function CoreManagerPage({
           prese nel periodo, contata sulle <strong>ore di apertura</strong> — 7:00–21:00 dal
           lunedì al venerdì, 8:00–19:00 sabato, domenica e festivi. Le ore in cui il club è
           chiuso non si contano: un lead arrivato venerdì a tarda sera e preso sabato
-          all&apos;apertura è «15 minuti», non «11 ore». <strong>Assegnati</strong> ed <strong>eseguiti</strong> sono due
-          conteggi diversi di proposito: chi esegue più di quanto ha assegnato sta coprendo i turni
-          di qualcun altro.
+          all&apos;apertura è «15 minuti», non «11 ore». <strong>Gestione messaggi</strong> è la
+          stessa media, ma dall&apos;arrivo del messaggio alla sua chiusura, e solo sui messaggi:
+          un appuntamento in sede si rispetta all&apos;ora fissata anche se la nota si scrive dopo,
+          quindi cronometrarlo misurerebbe il ritardo della nota, non quello della risposta.{' '}
+          <strong>Assegnati</strong> ed <strong>eseguiti</strong> sono due conteggi diversi di
+          proposito: chi esegue più di quanto ha assegnato sta coprendo i turni di qualcun altro.
         </p>
 
         {elenco.length === 0 ? (
@@ -519,6 +555,10 @@ export default async function CoreManagerPage({
                     Presa in carico
                     <span className="th-nota">ore di apertura</span>
                   </th>
+                  <th>
+                    Gestione messaggi
+                    <span className="th-nota">ore di apertura</span>
+                  </th>
                   <th>Eventi assegnati</th>
                   <th>Eventi eseguiti</th>
                   <th>Vinte</th>
@@ -529,6 +569,7 @@ export default async function CoreManagerPage({
               <tbody>
                 {elenco.map((r) => {
                   const mediaPresa = media(r.attesePresa)
+                  const mediaGestioneMessaggi = media(r.tempiGestioneMessaggi)
                   return (
                     <tr key={r.email} className={r.email === io ? 'is-mia' : undefined}>
                       <td>
@@ -553,6 +594,12 @@ export default async function CoreManagerPage({
                         {durataLavorativa(mediaPresa)}
                         {r.attesePresa.length > 0 && (
                           <span className="muted"> ({r.attesePresa.length})</span>
+                        )}
+                      </td>
+                      <td>
+                        {durataLavorativa(mediaGestioneMessaggi)}
+                        {r.tempiGestioneMessaggi.length > 0 && (
+                          <span className="muted"> ({r.tempiGestioneMessaggi.length})</span>
                         )}
                       </td>
                       <td>{r.eventiAssegnati}</td>
@@ -580,6 +627,7 @@ export default async function CoreManagerPage({
                   <th>Totale</th>
                   <th>{elenco.reduce((a, r) => a + r.aperte, 0)}</th>
                   <th>{durataLavorativa(media(elenco.flatMap((r) => r.attesePresa)))}</th>
+                  <th>{durataLavorativa(media(elenco.flatMap((r) => r.tempiGestioneMessaggi)))}</th>
                   <th>{elenco.reduce((a, r) => a + r.eventiAssegnati, 0)}</th>
                   <th>{elenco.reduce((a, r) => a + r.eventiEseguiti, 0)}</th>
                   <th>{elenco.reduce((a, r) => a + r.vinte, 0)}</th>
