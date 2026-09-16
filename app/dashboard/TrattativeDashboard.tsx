@@ -18,7 +18,6 @@ import { provenienzaTrattativa } from '@/lib/provenienza'
 import { nomeDiEmail } from '@/lib/staff'
 import { GestioneEsito } from '@/components/GestioneEsito'
 import { Trattativa, type DatiTrattativa } from './richieste/Trattativa'
-import { ChiusuraTrattativa } from './ChiusuraTrattativa'
 import { GestioneSemplice } from './richieste/GestioneSemplice'
 import { ContattiRapidi } from './ContattiRapidi'
 import { prendiInCarico } from './richieste/trattativa-actions'
@@ -320,10 +319,11 @@ function RigaOpportunita({
               riga scelta, non scorrendo un elenco. */}
           <ContattiRapidi email={t.email} cellulare={t.cellulare} spiegaSeVuoto />
 
-          {/* Lo stato e l'assegnazione: gli stessi comandi della sezione
-              Eventi Core, stesso componente. La tendina degli stati serve a
-              **tornare indietro** — rimettere in gestione, riaprire una
-              chiusa — che è una correzione di percorso. */}
+          {/* Lo stato e l'assegnazione, stesso componente di Eventi Core: la
+              tendina copre anche la chiusura — vinta, persa e annullata sono
+              tre delle sue voci (OPZIONI_STATO in lib/pipeline.ts), non un
+              gesto a parte. I tre pulsanti che stavano qui sotto duplicavano
+              esattamente questo, con un secondo modo di fare la stessa cosa. */}
           <Trattativa
             t={t}
             io={io}
@@ -332,24 +332,6 @@ function RigaOpportunita({
             commerciali={commerciali}
             nomiStaff={nomiStaff}
           />
-
-          {/* La chiusura, con gli stessi tre pulsanti e gli stessi campi che
-              si trovano a margine di un evento: nome dell'abbonamento e
-              importo sulla vinta, il motivo sulle altre due. Chiudere una
-              trattativa deve funzionare allo stesso modo da qualunque parte
-              del pannello ci si arrivi — la tendina lo faceva già, ma con un
-              gesto diverso, e due gesti per la stessa cosa si imparano
-              entrambi male. */}
-          <div className="op-gestione">
-            <ChiusuraTrattativa
-              t={t}
-              io={io}
-              sonoCommerciale={sonoCommerciale}
-              possoRiassegnare={possoRiassegnare}
-              conIntestazione={false}
-              nomiStaff={nomiStaff}
-            />
-          </div>
 
           {/* L'evento d'origine si chiude da qui. Era il passaggio che
               costava una pagina: si leggeva la trattativa in dashboard e si

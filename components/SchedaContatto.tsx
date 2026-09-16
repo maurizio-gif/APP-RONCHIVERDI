@@ -1,5 +1,3 @@
-import Link from 'next/link'
-
 /**
  * Il pulsante che porta all'anagrafica del contatto, **uno per tutto il
  * pannello**: l'agenda, la dashboard ed Eventi Core aprono la stessa
@@ -21,6 +19,15 @@ import Link from 'next/link'
  * Apre in una scheda nuova, non al posto di questa: chi lo clicca lo fa
  * mentre sta lavorando un evento o una richiesta, e tornare a quel pannello
  * dopo aver guardato l'anagrafica non deve voler dire riaprirlo da capo.
+ *
+ * Passa da ronchiverdi.it e non punta direttamente al CRM: il CRM è
+ * installabile come app a schermo intero (vedi app/manifest.ts), e da
+ * dentro l'app installata un link `target="_blank"` verso una pagina dello
+ * stesso dominio riapre l'app invece di una scheda del browser — è così che
+ * iOS/Chrome trattano la navigazione dentro lo `scope` di una PWA. Il sito
+ * pubblico è un dominio diverso: il sistema apre il browser per seguirlo, e
+ * da lì /api/apri-crm rimanda alla pagina vera, che così si apre davvero in
+ * una scheda anche da dentro l'app.
  */
 export function SchedaContatto({
   personaId,
@@ -49,9 +56,9 @@ export function SchedaContatto({
   }
 
   return (
-    <Link
+    <a
       className="btn btn-sm scheda-contatto"
-      href={`/dashboard/persone/${personaId}`}
+      href={`https://ronchiverdi.it/api/apri-crm?to=${encodeURIComponent(`/dashboard/persone/${personaId}`)}`}
       target="_blank"
       rel="noopener"
     >
@@ -72,6 +79,6 @@ export function SchedaContatto({
         <path d="M5 20c0-3.7 3.1-6.2 7-6.2s7 2.5 7 6.2" />
       </svg>
       Scheda contatto
-    </Link>
+    </a>
   )
 }

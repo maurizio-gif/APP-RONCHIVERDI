@@ -15,7 +15,6 @@ import { GestioneEsito } from '@/components/GestioneEsito'
 import { DettagliRichiesta } from '@/components/DettagliRichiesta'
 import { SchedaContatto } from '@/components/SchedaContatto'
 import { ContattiRapidi } from '@/app/dashboard/ContattiRapidi'
-import { ChiusuraTrattativa } from '@/app/dashboard/ChiusuraTrattativa'
 import { GestioneSemplice } from '@/app/dashboard/richieste/GestioneSemplice'
 import { Trattativa, type DatiTrattativa } from '@/app/dashboard/richieste/Trattativa'
 import { EventiTrattativa, type EventoCollegato } from '@/app/dashboard/richieste/EventiTrattativa'
@@ -181,33 +180,19 @@ export function GestioneEvento({
           la gestione e la cronologia. */}
       <SchedaContatto personaId={r.persona_id} />
 
-      {/* A che punto è: chi la segue, in che stato, e i tre modi di chiuderla.
-          La tendina degli stati e i pulsanti fanno cose che si somigliano ma
-          con gesti diversi: la prima serve a tornare indietro (rimettere in
-          gestione, riaprire una chiusa), i secondi a chiudere — e chiudere si
-          fa allo stesso modo da qualunque pagina ci si arrivi. */}
+      {/* A che punto è, chi la segue, e la tendina per chiuderla: vinta,
+          persa o annullata sono voci di quella stessa tendina degli stati
+          (vedi OPZIONI_STATO in lib/pipeline.ts), non un gesto a parte — i
+          pulsanti di ChiusuraTrattativa duplicavano esattamente questo. */}
       {trattativa && contesto && (
-        <>
-          <Trattativa
-            t={trattativa}
-            io={contesto.io}
-            sonoCommerciale={contesto.sonoCommerciale}
-            possoRiassegnare={contesto.possoRiassegnare}
-            commerciali={contesto.commerciali}
-            nomiStaff={nomiStaff}
-          />
-
-          <div className="richiesta-chiusura">
-            <ChiusuraTrattativa
-              t={trattativa}
-              io={contesto.io}
-              sonoCommerciale={contesto.sonoCommerciale}
-              possoRiassegnare={contesto.possoRiassegnare}
-              conIntestazione={false}
-              nomiStaff={nomiStaff}
-            />
-          </div>
-        </>
+        <Trattativa
+          t={trattativa}
+          io={contesto.io}
+          sonoCommerciale={contesto.sonoCommerciale}
+          possoRiassegnare={contesto.possoRiassegnare}
+          commerciali={contesto.commerciali}
+          nomiStaff={nomiStaff}
+        />
       )}
 
       {/* Chi chiamare, con il numero e l'indirizzo scritti accanto ai
