@@ -12,6 +12,8 @@ import {
   type VoceAgenda,
 } from '@/lib/agenda'
 import { EventiElenco, type GestioneSemplicePerVoce } from './EventiElenco'
+import type { EventoCollegato } from '@/app/dashboard/richieste/EventiTrattativa'
+import type { Richiesta } from '@/app/dashboard/richieste/RigaRichiesta'
 import type { DatiTrattativa } from '@/app/dashboard/richieste/Trattativa'
 
 /**
@@ -29,7 +31,10 @@ export function useGiornoSelezionato(): string | null {
 export function CalendarioAgenda({
   voci,
   gestioni = {},
+  richieste = {},
+  eventiPerPersona = {},
   trattative = {},
+  commerciali = [],
   mese,
   oggi,
   emailCorrente,
@@ -46,8 +51,19 @@ export function CalendarioAgenda({
   voci: VoceAgenda[]
   /** Nota e firme delle richieste dal sito, per chiave di voce. */
   gestioni?: Record<string, GestioneSemplicePerVoce>
+  /**
+   * La richiesta dal sito dietro ogni voce, per chiave di voce: senza,
+   * l'espansione ripiega sempre sulla versione ridotta (vedi EventiElenco),
+   * anche per le voci nate da una richiesta — e con lei sparirebbero i
+   * pulsanti Vinta/Persa/Annulla la trattativa.
+   */
+  richieste?: Record<string, Richiesta>
+  /** Gli eventi già nati dalla trattativa di una persona, per id di persona. */
+  eventiPerPersona?: Record<string, EventoCollegato[]>
   /** La trattativa aperta del contatto di ogni voce, per id di persona. */
   trattative?: Record<string, DatiTrattativa>
+  /** Chi può essere assegnatario di una trattativa: la tendina del pannello. */
+  commerciali?: string[]
   /** Un giorno qualsiasi del mese mostrato, in YYYY-MM-DD. */
   mese: string
   oggi: string
@@ -183,7 +199,10 @@ export function CalendarioAgenda({
             <EventiElenco
               voci={delGiorno}
               gestioni={gestioni}
+              richieste={richieste}
+              eventiPerPersona={eventiPerPersona}
               trattative={trattative}
+              commerciali={commerciali}
               oggi={oggi}
               io={emailCorrente}
               operatori={operatori}

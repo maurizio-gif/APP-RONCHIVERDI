@@ -20,7 +20,8 @@ import {
 import { voceDaTask } from '@/lib/agenda'
 import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import { GuidaModello } from '@/components/GuidaModello'
-import { RigaRichiesta, type ContestoTrattativa, type Richiesta } from '../RigaRichiesta'
+import { ElencoRichieste } from '../ElencoRichieste'
+import { type ContestoTrattativa, type Richiesta } from '../RigaRichiesta'
 import type { EventoCollegato } from '../EventiTrattativa'
 import type { DatiTrattativa } from '../Trattativa'
 
@@ -561,12 +562,12 @@ export default async function CanalePage({
         </p>
       )}
 
-      <div className="card">
-        {richiesteMostrate.length === 0 ? (
-          // Un elenco vuoto centrato in grigio si legge come un guasto. Qui i
-          // tre casi sono diversi e vanno detti diversi: i filtri sono troppo
-          // stretti (colpa dei filtri), non c'è niente da lavorare (buona
-          // notizia), la sezione non ha ancora ricevuto niente (fatto).
+      {richiesteMostrate.length === 0 ? (
+        // Un elenco vuoto centrato in grigio si legge come un guasto. Qui i
+        // tre casi sono diversi e vanno detti diversi: i filtri sono troppo
+        // stretti (colpa dei filtri), non c'è niente da lavorare (buona
+        // notizia), la sezione non ha ancora ricevuto niente (fatto).
+        <div className="card">
           <div className="vuoto-buono">
             <span className="vuoto-glifo" aria-hidden="true">
               {filtriAttivi > 0 ? '⌕' : '✓'}
@@ -598,38 +599,22 @@ export default async function CanalePage({
               )}
             </p>
           </div>
-        ) : (
-          <ul className="richieste">
-            {/* Il link puntava a una richiesta che qui non c'è: più vecchia
-                delle ultime duecento, o nascosta da un filtro attivo. Dirlo è
-                l'unico modo di distinguere «non l'ho trovata» da «il link non
-                ha funzionato». */}
-            {searchParams.richiesta &&
-              !richiesteMostrate.some((x) => x.id === searchParams.richiesta) && (
-                <li className="richiesta">
-                  <p className="muted" style={{ margin: 0 }}>
-                    La richiesta del link non è in questo elenco: può essere più vecchia delle
-                    ultime 200, oppure esclusa dai filtri qui sopra.
-                  </p>
-                </li>
-              )}
-            {richiesteMostrate.map((riga) => (
-              <RigaRichiesta
-                r={riga}
-                apriSubito={riga.id === searchParams.richiesta}
-                contesto={contesto}
-                nomiStaff={nomiStaff}
-                operatori={operatori}
-                puoCancellare={possoCancellare}
-                storico={storicoPersona.get(riga.id)}
-                eventi={riga.persona_id ? (eventiPerPersona.get(riga.persona_id) ?? []) : []}
-                gestioneSemplice={semplice}
-                key={riga.id}
-              />
-            ))}
-          </ul>
-        )}
-      </div>
+        </div>
+      ) : (
+        <ElencoRichieste
+          richieste={richiesteMostrate.map((riga) => ({
+            ...riga,
+            storico: storicoPersona.get(riga.id),
+            eventi: riga.persona_id ? (eventiPerPersona.get(riga.persona_id) ?? []) : [],
+          }))}
+          contesto={contesto}
+          nomiStaff={nomiStaff}
+          operatori={operatori}
+          puoCancellare={possoCancellare}
+          gestioneSemplice={semplice}
+          richiestaDalLink={searchParams.richiesta}
+        />
+      )}
     </>
   )
 }

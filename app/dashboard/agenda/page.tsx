@@ -4,11 +4,9 @@ import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { puoCancellare } from '@/lib/auth/permessi'
 import {
-  dataLunga,
   giornoPiu,
   mesePiu,
   oggiRoma,
-  perGiorno,
   primoDelMese,
   ultimoDelMese,
   voceDaContatto,
@@ -19,8 +17,9 @@ import { ATTIVITA_IN_AGENDA, COLONNE_RICHIESTA } from '@/lib/richieste'
 import { contattiDelleVoci } from '@/lib/eventi-server'
 import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import { CalendarioAgenda } from '@/components/CalendarioAgenda'
-import { EventiElenco, type GestioneSemplicePerVoce } from '@/components/EventiElenco'
+import type { GestioneSemplicePerVoce } from '@/components/EventiElenco'
 import { eCommerciale, puoRiassegnare } from '@/lib/auth/permessi'
+import { ElencoAgenda } from './ElencoAgenda'
 import type { EventoCollegato } from '../richieste/EventiTrattativa'
 import type { Richiesta } from '../richieste/RigaRichiesta'
 import type { DatiTrattativa } from '../richieste/Trattativa'
@@ -390,8 +389,6 @@ export default async function AgendaPage({
     soloStato === 'eseguite'
       ? voci
       : voci.filter((v) => v.data >= oggi || v.daFare || v.data >= limiteEseguite)
-  const giorniLista = [...new Set(vociLista.map((v) => v.data))].sort()
-  const perGiornata = perGiorno(vociLista)
 
   // Un parametro non nominato resta com'è: cambiare «di chi» non deve
   // spegnere «solo con orario», che è quello che succedeva quando i due assi
@@ -558,7 +555,10 @@ export default async function AgendaPage({
         <CalendarioAgenda
           voci={voci}
           gestioni={gestioni}
+          richieste={richieste}
+          eventiPerPersona={eventiPerPersona}
           trattative={trattative}
+          commerciali={commerciali}
           mese={mese}
           oggi={oggi}
           emailCorrente={email}
@@ -579,120 +579,28 @@ export default async function AgendaPage({
         />
       ) : (
         <>
-          {giorniLista.map((giorno) => {
-            const delGiorno = perGiornata.get(giorno) ?? []
-            const daFareOggi = delGiorno.filter((v) => v.daFare).length
-            // Arretrata è una giornata passata che ha ancora qualcosa di
-            // aperto. Il solo `giorno < oggi` bastava finché in elenco il
-            // passato chiuso non c'era: ora che le eseguite di recente
-            // restano, dipingeva di rosso e marchiava «arretrato» giornate in
-            // cui era stato fatto tutto — l'esatto contrario di quello che
-            // era successo.
-            const arretrato = giorno < oggi && daFareOggi > 0
-            // Passata e senza più niente da fare: verde, come le sue righe.
-            const conclusa = giorno < oggi && daFareOggi === 0
-
-            // La banda a sinistra dice il peso della giornata prima di
-            // leggerne il titolo: rossa se è arretrata — è la sola che chiede
-            // qualcosa adesso — blu se è oggi, niente se è futura. Prima oggi
-            // aveva un filo d'oro e l'arretrato solo un badge dentro il
-            // titolo, che in una lista di dieci giornate si trova rileggendo.
-            return (
-              <div
-                className={`card agenda-giorno${
-                  arretrato
-                    ? ' is-arretrato'
-                    : conclusa
-                      ? ' is-conclusa'
-                      : giorno === oggi
-                        ? ' is-oggi'
-                        : ''
-                }`}
-                key={giorno}
-              >
-                <div className="card-head">
-                  <h2 className="agenda-giorno-titolo">
-                    {dataLunga(giorno)}
-                    {giorno === oggi && <span className="badge badge-info badge-punto">oggi</span>}
-                    {arretrato && (
-                      <span className="badge badge-ko badge-punto badge-stato">arretrato</span>
-                    )}
-                    {/* Una giornata passata e chiusa non porta un badge di
-                        allarme ma la sua conclusione: nella lista è quello
-                        che la distingue da una ancora da recuperare. */}
-                    {conclusa && (
-                      <span className="badge badge-ok badge-punto badge-stato">fatto</span>
-                    )}
-                  </h2>
-                  <span className="muted agenda-giorno-conti">
-                    <span>
-                      {delGiorno.length} {delGiorno.length === 1 ? 'voce' : 'voci'}
-                    </span>
-                    {/* Quante ne restano aperte in questa giornata: «4 voci»
-                        non dice se sono tutte da fare o tutte già chiuse. */}
-                    {daFareOggi > 0 && (
-                      <span className={`badge badge-punto ${arretrato ? 'badge-ko' : 'badge-warn'}`}>
-                        {daFareOggi} da fare
-                      </span>
-                    )}
-                  </span>
-                </div>
-                {/* Lo stesso elenco della dashboard, non una tabella sua:
-                    stesse righe compatte, stessa espansione, stessi comandi.
-                    Prima erano due forme per le stesse voci e gli stessi
-                    gesti, e chi passava da una pagina all'altra doveva
-                    impararle entrambe. */}
-                <EventiElenco
-                  voci={delGiorno}
-                  gestioni={gestioni}
-                  richieste={richieste}
-                  eventiPerPersona={eventiPerPersona}
-                  commerciali={commerciali}
-                  trattative={trattative}
-                  oggi={oggi}
-                  io={email}
-                  operatori={operatori}
-                  puoCancellare={possoCancellare}
-                  sonoCommerciale={sonoCommerciale}
-                  possoRiassegnare={possoRiassegnareTrattative}
-                  nomiStaff={nomiStaff}
-                />
-              </div>
-            )
-          })}
-
-          {vociLista.length === 0 && (
-            <div className="card">
-              {/* «Niente in agenda» in grigio al centro si legge come un
-                  guasto: qui i due casi sono diversi — i filtri sono troppo
-                  stretti, oppure non c'è davvero niente, che è una buona
-                  notizia. */}
-              <div className="vuoto-buono">
-                <span className="vuoto-glifo" aria-hidden="true">
-                  {searchParams.solo || soloMie ? '⌕' : '✓'}
-                </span>
-                <p className="vuoto-titolo">
-                  {searchParams.solo || soloMie
-                    ? soloMie && !searchParams.solo
-                      ? 'La tua agenda è libera'
-                      : 'Niente con questo filtro'
-                    : 'Agenda libera'}
-                </p>
-                <p className="vuoto-nota">
-                  {searchParams.solo || soloMie ? (
-                    <>
-                      Nessuna voce corrisponde.{' '}
-                      <Link className="link" href={link({ da: daRichiesto, solo: null, chi: null })}>
-                        Guarda tutta l&apos;agenda
-                      </Link>
-                    </>
-                  ) : (
-                    'Nessun appuntamento e nessuna cosa da fare, né arretrata né in arrivo.'
-                  )}
-                </p>
-              </div>
-            </div>
-          )}
+          {/* Lo stesso elenco della dashboard, non una tabella sua: stesse
+              righe compatte, stessa espansione, stessi comandi. La ricerca
+              per nome, cognome, email o cellulare filtra in memoria, come su
+              Eventi Core (vedi ElencoRichieste). */}
+          <ElencoAgenda
+            vociLista={vociLista}
+            gestioni={gestioni}
+            richieste={richieste}
+            eventiPerPersona={eventiPerPersona}
+            commerciali={commerciali}
+            trattative={trattative}
+            oggi={oggi}
+            io={email}
+            operatori={operatori}
+            puoCancellare={possoCancellare}
+            sonoCommerciale={sonoCommerciale}
+            possoRiassegnare={possoRiassegnareTrattative}
+            nomiStaff={nomiStaff}
+            filtroAttivo={!!searchParams.solo || soloMie}
+            soloMieSenzaFiltro={soloMie && !searchParams.solo}
+            hrefTuttaAgenda={link({ da: daRichiesto, solo: null, chi: null })}
+          />
 
           <div className="agenda-nuova">
             <NuovaVoce
