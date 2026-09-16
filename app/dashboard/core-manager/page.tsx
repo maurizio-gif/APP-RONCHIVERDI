@@ -155,6 +155,70 @@ function media(valori: number[]): number | null {
   return valori.reduce((a, b) => a + b, 0) / valori.length
 }
 
+// ─────────────────────────────────────────── cosa dicono le note
+
+/**
+ * Sotto quanti caratteri una nota conta come «scritta di fretta»: «ok»,
+ * «fatto», «va bene» ci finiscono dentro, «non risponde» no. Non è un
+ * giudizio sulla persona — una nota corta può bastare — ma su tante righe
+ * dice se si sta scrivendo per davvero o solo per sbloccare il pulsante.
+ */
+const SOGLIA_NOTA_BREVE = 10
+
+/**
+ * Le parole troppo comuni per dire qualcosa da sole: senza filtrarle, la
+ * lista delle parole più frequenti sarebbe "non", "che", "per" — vero di
+ * ogni nota scritta in italiano, non di questo mese in particolare.
+ */
+const PAROLE_VUOTE = new Set([
+  'alle','anche','avere','buono','cerca','chiama','chiede','chiesto','coi',
+  'colui','come','comunque','cosa','così','detto','deve','devo',
+  'dice','dopo','erano','essere','fare','fatto','giorni','grazie','hanno',
+  'invece','loro','manca','mancato','mentre','mesi','molto','nessuno',
+  'niente','nostro','ogni','oggi','oppure','ottima','ottimo','ovviamente',
+  'perché','però','poco','prima','probabilmente','proprio','provato',
+  'quando','quanto','quella','quelle','quelli','quello','questa','queste',
+  'questi','questo','quindi','risponde','risposto','sarebbe','sembra',
+  'sempre','senza','stata','stati','stato','tanto','tempo','tramite',
+  'tutti','tutto','vediamo','vengono','viene','volta','volte',
+])
+
+/**
+ * Le parole significative di un testo: minuscole, senza punteggiatura,
+ * abbastanza lunghe da non essere articoli o preposizioni sfuggiti al
+ * filtro, e non fra le parole vuote qui sopra.
+ */
+function paroleSignificative(testo: string): string[] {
+  return testo
+    .toLowerCase()
+    .replace(/[^a-zàáâãäåèéêëìíîïòóôõöùúûüç0-9'\s]/gi, ' ')
+    .split(/\s+/)
+    .map((p) => p.trim())
+    .filter((p) => p.length >= 4 && !PAROLE_VUOTE.has(p))
+}
+
+/** Le parole più frequenti in un elenco di testi, con quante volte compaiono. */
+function paroleFrequenti(testi: string[], quante: number): { parola: string; volte: number }[] {
+  const conteggi = new Map<string, number>()
+  for (const testo of testi) {
+    for (const parola of paroleSignificative(testo)) {
+      conteggi.set(parola, (conteggi.get(parola) ?? 0) + 1)
+    }
+  }
+  return [...conteggi.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, quante)
+    .map(([parola, volte]) => ({ parola, volte }))
+}
+
+/** Il lunedì della settimana di un giorno, per raggruppare un periodo lungo. */
+function inizioSettimana(giorno: string): string {
+  const d = new Date(`${giorno}T00:00:00Z`)
+  const giornoSettimana = d.getUTCDay()
+  const offset = giornoSettimana === 0 ? 6 : giornoSettimana - 1
+  return giornoPiu(giorno, -offset)
+}
+
 /**
  * Gli eventi scaduti: aperti, di un giorno passato, di chiunque nel settore
  * core. Non è filtrato per periodo — un arretrato di tre settimane fa resta
@@ -255,7 +319,7 @@ export default async function CoreManagerPage({
     // quello in cui il lead è arrivato — altrimenti una vinta di oggi su un
     // lead di marzo non comparirebbe da nessuna parte.
     conColonneNuove<Record<string, any>>(
-      'assegnato_a, stato, chiuso_il, valore_euro, origine',
+      'assegnato_a, stato, chiuso_il, valore_euro, origine, motivo_perso',
       COLONNE_NOTA_VINTA,
       (colonne) =>
         supabase
@@ -269,14 +333,14 @@ export default async function CoreManagerPage({
     // cade, che è quello che conta per dire «quanti eventi hai avuto».
     supabase
       .from('task')
-      .select('assegnato_a, esito_da, stato, data, tipo, entita')
+      .select('assegnato_a, esito_da, stato, data, tipo, entita, esito, esito_tipo')
       .gte('data', inizio)
       .lte('data', oggi),
     // Le richieste del settore core sono eventi anche loro: chi le lavora fa
     // lo stesso lavoro di chi chiude un task, e contare solo i task
     // sottostimerebbe proprio chi sta al banco a smaltire i messaggi.
     conColonneNuove<Record<string, any>>(
-      'assegnato_a, esito_da, gestito_da, gestito, gestito_il, created_at, data_scelta, azione',
+      'assegnato_a, esito_da, gestito_da, gestito, gestito_il, created_at, data_scelta, azione, esito, esito_tipo',
       ['assegnato_a'],
       (colonne) =>
         supabase
@@ -318,6 +382,35 @@ export default async function CoreManagerPage({
     if (!email) return null
     if (!righeEventiPerTipo.has(email)) righeEventiPerTipo.set(email, rigaEventiPerTipoVuota(email))
     return righeEventiPerTipo.get(email)!
+  }
+
+  // Cosa dicono le note: quanto sono profonde (per consulente e nel tempo) e
+  // cosa dicono davvero — le obiezioni ricorrenti nelle perse, cosa funziona
+  // negli eventi riusciti. Nessuna IA: solo lunghezza e parole più frequenti,
+  // ma dette su tutte le note del periodo invece che lette una per una dicono
+  // già la sensazione generale.
+  const qualitaNote = new Map<string, { lunghezze: number[]; brevi: number }>()
+  const perSettimana = new Map<string, number[]>()
+  const testiObiezioni: string[] = []
+  const testiFunziona: string[] = []
+  function notaQualita(email: string | null) {
+    if (!email) return null
+    if (!qualitaNote.has(email)) qualitaNote.set(email, { lunghezze: [], brevi: 0 })
+    return qualitaNote.get(email)!
+  }
+  function registraNota(email: string | null, testo: unknown, giorno: string | null) {
+    const nota = typeof testo === 'string' ? testo.trim() : ''
+    if (!nota) return
+    const chi = notaQualita(email)
+    if (chi) {
+      chi.lunghezze.push(nota.length)
+      if (nota.length <= SOGLIA_NOTA_BREVE) chi.brevi += 1
+    }
+    if (giorno) {
+      const settimana = inizioSettimana(giorno)
+      if (!perSettimana.has(settimana)) perSettimana.set(settimana, [])
+      perSettimana.get(settimana)!.push(nota.length)
+    }
   }
 
   // Lo spaccato per canale di acquisizione: non solo da dove arrivano le
@@ -384,6 +477,11 @@ export default async function CoreManagerPage({
       const conteggi = t.entita === 'persona' ? eseguito.autonomi : eseguito.daSito
       conteggi[tipo] += 1
     }
+
+    registraNota(t.esito_da as string | null, t.esito, t.data as string | null)
+    if (t.esito_tipo === 'eseguita' && typeof t.esito === 'string' && t.esito.trim()) {
+      testiFunziona.push(t.esito)
+    }
   }
   for (const r of richieste ?? []) {
     const assegnato = riga(r.assegnato_a as string | null)
@@ -421,6 +519,15 @@ export default async function CoreManagerPage({
         if (ms !== null) eseguito.tempiGestioneMessaggi.push(ms)
       }
     }
+
+    registraNota(
+      eseguitoEmail,
+      r.esito,
+      r.gestito_il ? (r.gestito_il as string).slice(0, 10) : null
+    )
+    if (r.esito_tipo === 'eseguita' && typeof r.esito === 'string' && r.esito.trim()) {
+      testiFunziona.push(r.esito)
+    }
   }
 
   // 4: il risultato del periodo.
@@ -449,7 +556,17 @@ export default async function CoreManagerPage({
       perseTotali += 1
       if (chi) chi.perse += 1
       daProvenienza.perse += 1
+      if (typeof o.motivo_perso === 'string' && o.motivo_perso.trim()) {
+        testiObiezioni.push(o.motivo_perso)
+      }
     }
+
+    const notaChiusura = stato === 'vinto' ? o.motivo_vinto : o.motivo_perso
+    registraNota(
+      o.assegnato_a as string | null,
+      notaChiusura,
+      o.chiuso_il ? (o.chiuso_il as string).slice(0, 10) : null
+    )
   }
   // Ordinate per quante ne ha portate, non alfabeticamente: la prima riga
   // deve essere il canale che pesa di più, non "Agenda" perché comincia
@@ -465,6 +582,23 @@ export default async function CoreManagerPage({
   const nessunEventoEseguito = [...righeEventiPerTipo.values()].every(
     (e) => totaleConteggi(e.autonomi) + totaleConteggi(e.daSito) === 0
   )
+
+  // Le parole più frequenti, dalle perse (le obiezioni) e dagli eventi
+  // riusciti (cosa funziona): dodici bastano a dare il senso senza
+  // trasformare la pagina in un elenco di parole.
+  const obiezioniFrequenti = paroleFrequenti(testiObiezioni, 12)
+  const funzionaFrequenti = paroleFrequenti(testiFunziona, 12)
+
+  // L'andamento settimanale della lunghezza delle note, in ordine
+  // cronologico: dice se si sta scrivendo sempre meno (o sempre di più) mano
+  // a mano che il periodo passa, cosa che una sola media non direbbe.
+  const settimaneNote = [...perSettimana.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([settimana, lunghezze]) => ({
+      settimana,
+      media: media(lunghezze),
+      conteggio: lunghezze.length,
+    }))
 
   function link(p: ChiavePeriodo): string {
     return `/dashboard/core-manager?periodo=${p}`
@@ -913,6 +1047,162 @@ export default async function CoreManagerPage({
             precedenti, e restano senza — non si inventa a posteriori a quanto fu venduto. La
             colonna «Valore» le esclude, quindi il totale è più basso del vero fino a quando
             queste escono dal periodo.
+          </p>
+        </div>
+      )}
+
+      {/* Cosa dicono le note, non solo quante sono. Nessuna IA: la lunghezza
+          e le parole più frequenti, su tutte le note del periodo — nota,
+          esito, motivo di vinta o di persa — danno già la sensazione di come
+          si sta scrivendo e di cosa si sta sentendo al telefono, senza dover
+          rileggerle una per una. */}
+      <div className="card">
+        <div className="card-head">
+          <h2>Qualità delle note</h2>
+          <span className="muted">
+            {PERIODI.find((p) => p.chiave === periodo)?.etichetta.toLowerCase()}
+          </span>
+        </div>
+
+        <p className="card-nota muted">
+          Ogni nota scritta chiudendo un evento o una trattativa, per consulente. <strong>Note
+          brevi</strong> sono quelle sotto i {SOGLIA_NOTA_BREVE} caratteri — «ok», «fatto» — non un
+          giudizio, ma un segnale se sono tante: fra un mese una nota così non dice più niente a
+          nessuno.
+        </p>
+
+        {[...qualitaNote.values()].every((q) => q.lunghezze.length === 0) ? (
+          <p className="vuoto">Nessuna nota scritta nel periodo.</p>
+        ) : (
+          <div className="tabella-wrap">
+            <table className="tabella">
+              <thead>
+                <tr>
+                  <th>Consulente</th>
+                  <th>Note scritte</th>
+                  <th>
+                    Lunghezza media
+                    <span className="th-nota">caratteri</span>
+                  </th>
+                  <th>Note brevi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {elenco
+                  .map((r) => ({ r, q: qualitaNote.get(r.email) }))
+                  .filter(({ q }) => q && q.lunghezze.length > 0)
+                  .map(({ r, q }) => {
+                    const lunghezzaMedia = media(q!.lunghezze)
+                    const quotaBrevi = Math.round((q!.brevi / q!.lunghezze.length) * 100)
+                    return (
+                      <tr key={r.email} className={r.email === io ? 'is-mia' : undefined}>
+                        <td>
+                          {nomeDiEmail(r.email, nomiStaff)}
+                          {r.email === io && <span className="muted"> (tu)</span>}
+                        </td>
+                        <td>{q!.lunghezze.length}</td>
+                        <td>{lunghezzaMedia !== null ? Math.round(lunghezzaMedia) : '—'}</td>
+                        <td>
+                          {q!.brevi} <span className="muted">({quotaBrevi}%)</span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* L'andamento nel tempo: una sola media per tutto il periodo non dice
+          se si sta scrivendo sempre meno mano a mano che passano i giorni.
+          Solo con più di una settimana nel periodo — su "Oggi" ci sarebbe
+          una riga sola, che non è un andamento. */}
+      {settimaneNote.length > 1 && (
+        <div className="card">
+          <div className="card-head">
+            <h2>Andamento delle note</h2>
+            <span className="muted">lunghezza media, per settimana</span>
+          </div>
+          <div className="tabella-wrap">
+            <table className="tabella">
+              <thead>
+                <tr>
+                  <th>Settimana del</th>
+                  <th>Note</th>
+                  <th>
+                    Lunghezza media
+                    <span className="th-nota">caratteri</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {settimaneNote.map((s) => (
+                  <tr key={s.settimana}>
+                    <td>{dataBreve(s.settimana)}</td>
+                    <td>{s.conteggio}</td>
+                    <td>{s.media !== null ? Math.round(s.media) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Le parole più frequenti: non sostituiscono la lettura delle note,
+          ma su un mese intero dicono in un colpo d'occhio quali obiezioni
+          tornano e cosa funziona, invece di doverle scorrere una per una. */}
+      {(obiezioniFrequenti.length > 0 || funzionaFrequenti.length > 0) && (
+        <div className="card">
+          <div className="card-head">
+            <h2>Cosa dicono le note</h2>
+            <span className="muted">
+              {PERIODI.find((p) => p.chiave === periodo)?.etichetta.toLowerCase()}
+            </span>
+          </div>
+
+          <div className="form-row">
+            <div className="field" style={{ flexBasis: '48%' }}>
+              <p className="filtri-titolo muted">
+                Obiezioni ricorrenti <span className="muted">— dalle perse</span>
+              </p>
+              {obiezioniFrequenti.length === 0 ? (
+                <p className="vuoto">Nessun motivo di persa registrato nel periodo.</p>
+              ) : (
+                <div className="agenda-nav">
+                  {obiezioniFrequenti.map((p) => (
+                    <span className="tag" key={p.parola}>
+                      {p.parola} ({p.volte})
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="field" style={{ flexBasis: '48%' }}>
+              <p className="filtri-titolo muted">
+                Cosa funziona <span className="muted">— dagli eventi riusciti</span>
+              </p>
+              {funzionaFrequenti.length === 0 ? (
+                <p className="vuoto">Nessun evento eseguito con nota nel periodo.</p>
+              ) : (
+                <div className="agenda-nav">
+                  {funzionaFrequenti.map((p) => (
+                    <span className="tag" key={p.parola}>
+                      {p.parola} ({p.volte})
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <p className="card-nota muted">
+            Solo conteggio di parole, senza intelligenza artificiale: le parole troppo comuni
+            (articoli, «fatto», «detto»…) sono già escluse, ma una parola frequente può comunque
+            venire da un caso solo ripetuto tante volte nella stessa nota — resta un indizio da
+            controllare, non una statistica definitiva.
           </p>
         </div>
       )}
