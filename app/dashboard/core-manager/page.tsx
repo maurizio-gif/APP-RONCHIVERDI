@@ -8,7 +8,9 @@ import { provenienzaDiOrigine, type ChiaveProvenienza } from '@/lib/provenienza'
 import {
   CLASSE_TIPO,
   ETICHETTE_TIPO_BREVI,
+  TIPI,
   dataBreve,
+  eTipoValido,
   giornoPiu,
   oggiRoma,
   ordinaVoci,
@@ -16,6 +18,7 @@ import {
   tipoDaAzione,
   voceDaContatto,
   voceDaTask,
+  type TipoVoce,
   type VoceAgenda,
 } from '@/lib/agenda'
 import { contattiDelleVoci } from '@/lib/eventi-server'
@@ -93,7 +96,6 @@ type RigaConsulente = {
    */
   tempiGestioneMessaggi: number[]
   eventiAssegnati: number
-  eventiEseguiti: number
   vinte: number
   valore: number
   perse: number
@@ -106,11 +108,46 @@ function rigaVuota(email: string): RigaConsulente {
     attesePresa: [],
     tempiGestioneMessaggi: [],
     eventiAssegnati: 0,
-    eventiEseguiti: 0,
     vinte: 0,
     valore: 0,
     perse: 0,
   }
+}
+
+/** Quanti eventi eseguiti, per tipo — appuntamento, telefonata, task, email, whatsapp, messaggio. */
+type ConteggioTipi = Record<TipoVoce, number>
+
+function conteggiTipiVuoti(): ConteggioTipi {
+  return {
+    appuntamento_in_sede: 0,
+    appuntamento_telefonico: 0,
+    task: 0,
+    email: 0,
+    whatsapp: 0,
+    messaggio: 0,
+  }
+}
+
+/**
+ * Gli eventi eseguiti da una persona, divisi per come sono nati: quelli che
+ * si è scritta da sé (un task agganciato direttamente al contatto, senza
+ * nessuna richiesta dietro — vedi ENTITA_COLLEGAMENTO in lib/eventi.ts) e
+ * quelli arrivati dal sito o dal banco (una richiesta, o un evento nato per
+ * seguirne una). La distinzione conta perché sono due lavori diversi: il
+ * primo è iniziativa propria, il secondo è rispondere a chi ha scritto.
+ */
+type RigaEventiPerTipo = {
+  email: string
+  autonomi: ConteggioTipi
+  daSito: ConteggioTipi
+}
+
+function rigaEventiPerTipoVuota(email: string): RigaEventiPerTipo {
+  return { email, autonomi: conteggiTipiVuoti(), daSito: conteggiTipiVuoti() }
+}
+
+function totaleConteggi(c: ConteggioTipi): number {
+  return TIPI.reduce((a, t) => a + c[t], 0)
 }
 
 function media(valori: number[]): number | null {
@@ -211,7 +248,7 @@ export default async function CoreManagerPage({
     // Senza periodo, perché «quante ne hai in mano» non ne ha uno.
     supabase
       .from('opportunita')
-      .select('assegnato_a, assegnato_il, creato_il, stato')
+      .select('assegnato_a, assegnato_il, creato_il, stato, origine')
       .in('stato', ['nuovo', 'in_gestione']),
     // Le chiuse del periodo, col valore. Per `chiuso_il` e non per
     // `creato_il`: il risultato appartiene al giorno in cui si è chiuso, non a
@@ -232,7 +269,7 @@ export default async function CoreManagerPage({
     // cade, che è quello che conta per dire «quanti eventi hai avuto».
     supabase
       .from('task')
-      .select('assegnato_a, esito_da, stato, data')
+      .select('assegnato_a, esito_da, stato, data, tipo, entita')
       .gte('data', inizio)
       .lte('data', oggi),
     // Le richieste del settore core sono eventi anche loro: chi le lavora fa
@@ -273,9 +310,38 @@ export default async function CoreManagerPage({
     return righe.get(email)!
   }
 
+  const righeEventiPerTipo = new Map<string, RigaEventiPerTipo>()
+  for (const s of staffOrdinato.filter((s) => s.commerciale)) {
+    righeEventiPerTipo.set(s.email, rigaEventiPerTipoVuota(s.email))
+  }
+  function rigaEventiTipo(email: string | null): RigaEventiPerTipo | null {
+    if (!email) return null
+    if (!righeEventiPerTipo.has(email)) righeEventiPerTipo.set(email, rigaEventiPerTipoVuota(email))
+    return righeEventiPerTipo.get(email)!
+  }
+
+  // Lo spaccato per canale di acquisizione: non solo da dove arrivano le
+  // vinte e le perse, ma tutto il quadro — anche quante sono aperte adesso.
+  // Un canale che porta molte trattative ma le chiude poco si vede solo
+  // mettendo aperte e chiuse fianco a fianco, non guardando le chiuse da
+  // sole.
+  const perProvenienza = new Map<
+    ChiaveProvenienza,
+    { etichetta: string; aperte: number; vinte: number; perse: number; valore: number }
+  >()
+  function rigaProvenienza(chiave: ChiaveProvenienza, etichetta: string) {
+    if (!perProvenienza.has(chiave)) {
+      perProvenienza.set(chiave, { etichetta, aperte: 0, vinte: 0, perse: 0, valore: 0 })
+    }
+    return perProvenienza.get(chiave)!
+  }
+
   // 1 e 2: il carico di adesso e la reattività.
   let libere = 0
   for (const o of opportunita ?? []) {
+    const provenienzaAperta = provenienzaDiOrigine(o.origine as string | null)
+    rigaProvenienza(provenienzaAperta.chiave, provenienzaAperta.etichetta).aperte += 1
+
     const chi = riga(o.assegnato_a as string | null)
     if (!chi) {
       libere += 1
@@ -299,16 +365,25 @@ export default async function CoreManagerPage({
     }
   }
 
-  // 3: gli eventi, assegnati ed eseguiti. Due conteggi separati sulla stessa
-  // riga: chi esegue più di quanto ha assegnato copre i turni di qualcun
-  // altro, chi ha assegnato più di quanto esegue accumula arretrato.
+  // 3: gli eventi assegnati (il carico) e, divisi per tipo e provenienza,
+  // quelli eseguiti. Un task agganciato direttamente al contatto
+  // (entita = 'persona') non ha nessuna richiesta dietro: se l'ha scritto la
+  // segreteria, è iniziativa sua. Uno agganciato a una richiesta
+  // (entita = 'form_contatti'), e le richieste stesse, sono invece cose
+  // arrivate dal sito o dal banco — la segreteria le sta lavorando, non le
+  // ha inventate.
   let eventiSenzaAssegnatario = 0
   for (const t of task ?? []) {
     const assegnato = riga(t.assegnato_a as string | null)
     if (assegnato) assegnato.eventiAssegnati += 1
     else eventiSenzaAssegnatario += 1
-    const eseguito = riga(t.esito_da as string | null)
-    if (eseguito) eseguito.eventiEseguiti += 1
+
+    const eseguito = rigaEventiTipo(t.esito_da as string | null)
+    if (eseguito) {
+      const tipo: TipoVoce = eTipoValido(t.tipo) ? t.tipo : 'task'
+      const conteggi = t.entita === 'persona' ? eseguito.autonomi : eseguito.daSito
+      conteggi[tipo] += 1
+    }
   }
   for (const r of richieste ?? []) {
     const assegnato = riga(r.assegnato_a as string | null)
@@ -316,8 +391,16 @@ export default async function CoreManagerPage({
     else eventiSenzaAssegnatario += 1
     // `esito_da` sugli appuntamenti, `gestito_da` sui messaggi: sono le due
     // firme delle due chiusure (vedi chiudiConEsito e salvaGestione).
-    const eseguito = riga((r.esito_da as string) ?? (r.gestito_da as string) ?? null)
-    if (eseguito && r.gestito) eseguito.eventiEseguiti += 1
+    const eseguitoEmail = (r.esito_da as string) ?? (r.gestito_da as string) ?? null
+    const eseguito = riga(eseguitoEmail)
+
+    // Una richiesta dal sito o dal banco, quindi sempre «da sito»: non
+    // esiste una richiesta scritta in autonomia dalla segreteria, per
+    // definizione arriva da fuori.
+    if (r.gestito) {
+      const eseguitoTipi = rigaEventiTipo(eseguitoEmail)
+      if (eseguitoTipi) eseguitoTipi.daSito[tipoDaAzione(r.azione as string | null)] += 1
+    }
 
     // Il tempo di gestione, solo sui messaggi. Un appuntamento in sede si
     // rispetta all'ora fissata anche se la nota si scrive dopo — cronometrare
@@ -346,21 +429,6 @@ export default async function CoreManagerPage({
   let perseTotali = 0
   let vinteSenzaValore = 0
 
-  // Lo stesso risultato, ma diviso per provenienza: capire se le vinte sono
-  // trainate dal sito o dal banco (o dall'agenda) è una domanda diversa da
-  // «chi le ha chiuse», e su una tabella per consulente non si vedrebbe —
-  // otto righe raccontano il carico delle persone, non i canali.
-  const perProvenienza = new Map<
-    ChiaveProvenienza,
-    { etichetta: string; vinte: number; perse: number; valore: number }
-  >()
-  function rigaProvenienza(chiave: ChiaveProvenienza, etichetta: string) {
-    if (!perProvenienza.has(chiave)) {
-      perProvenienza.set(chiave, { etichetta, vinte: 0, perse: 0, valore: 0 })
-    }
-    return perProvenienza.get(chiave)!
-  }
-
   for (const o of chiuse ?? []) {
     const chi = riga(o.assegnato_a as string | null)
     const stato = o.stato as StatoTrattativa
@@ -387,12 +455,16 @@ export default async function CoreManagerPage({
   // deve essere il canale che pesa di più, non "Agenda" perché comincia
   // prima di "Sito" nell'alfabeto.
   const provenienze = [...perProvenienza.values()].sort(
-    (a, b) => b.vinte + b.perse - (a.vinte + a.perse)
+    (a, b) =>
+      b.aperte + b.vinte + b.perse - (a.aperte + a.vinte + a.perse)
   )
 
   const elenco = [...righe.values()].sort((a, b) => b.aperte - a.aperte || b.vinte - a.vinte)
   const apertePiuAlte = Math.max(1, ...elenco.map((r) => r.aperte))
   const totaleAperte = elenco.reduce((a, r) => a + r.aperte, 0) + libere
+  const nessunEventoEseguito = [...righeEventiPerTipo.values()].every(
+    (e) => totaleConteggi(e.autonomi) + totaleConteggi(e.daSito) === 0
+  )
 
   function link(p: ChiavePeriodo): string {
     return `/dashboard/core-manager?periodo=${p}`
@@ -560,8 +632,8 @@ export default async function CoreManagerPage({
           stessa media, ma dall&apos;arrivo del messaggio alla sua chiusura, e solo sui messaggi:
           un appuntamento in sede si rispetta all&apos;ora fissata anche se la nota si scrive dopo,
           quindi cronometrarlo misurerebbe il ritardo della nota, non quello della risposta.{' '}
-          <strong>Assegnati</strong> ed <strong>eseguiti</strong> sono due conteggi diversi di
-          proposito: chi esegue più di quanto ha assegnato sta coprendo i turni di qualcun altro.
+          <strong>Eventi assegnati</strong> è il carico di adesso; quanti e di che tipo ne ha
+          eseguiti ciascuno è nella tabella «Eventi eseguiti» qui sotto.
         </p>
 
         {elenco.length === 0 ? (
@@ -588,7 +660,6 @@ export default async function CoreManagerPage({
                     <span className="th-nota">ore di apertura</span>
                   </th>
                   <th>Eventi assegnati</th>
-                  <th>Eventi eseguiti</th>
                   <th>Vinte</th>
                   <th>Valore</th>
                   <th>Perse</th>
@@ -631,18 +702,6 @@ export default async function CoreManagerPage({
                         )}
                       </td>
                       <td>{r.eventiAssegnati}</td>
-                      <td>
-                        {r.eventiEseguiti}
-                        {/* Lo scarto fra assegnati ed eseguiti, quando c'è: è
-                            il dato che dice chi sta coprendo e chi accumula, e
-                            calcolarlo a mente su otto righe non lo si fa. */}
-                        {r.eventiEseguiti !== r.eventiAssegnati && (
-                          <span className={`scarto ${r.eventiEseguiti > r.eventiAssegnati ? 'e-su' : 'e-giu'}`}>
-                            {r.eventiEseguiti > r.eventiAssegnati ? '+' : '−'}
-                            {Math.abs(r.eventiEseguiti - r.eventiAssegnati)}
-                          </span>
-                        )}
-                      </td>
                       <td>{r.vinte}</td>
                       <td className="cella-valore">{r.valore > 0 ? euro(r.valore) : '—'}</td>
                       <td>{r.perse}</td>
@@ -657,7 +716,6 @@ export default async function CoreManagerPage({
                   <th>{durataLavorativa(media(elenco.flatMap((r) => r.attesePresa)))}</th>
                   <th>{durataLavorativa(media(elenco.flatMap((r) => r.tempiGestioneMessaggi)))}</th>
                   <th>{elenco.reduce((a, r) => a + r.eventiAssegnati, 0)}</th>
-                  <th>{elenco.reduce((a, r) => a + r.eventiEseguiti, 0)}</th>
                   <th>{elenco.reduce((a, r) => a + r.vinte, 0)}</th>
                   <th className="cella-valore">
                     {euro(elenco.reduce((a, r) => a + r.valore, 0)) ?? '—'}
@@ -682,16 +740,107 @@ export default async function CoreManagerPage({
         )}
       </div>
 
-      {/* Le stesse vinte e perse, divise per da dove è arrivata la
-          trattativa: capire se il sito o il banco stanno portando risultati
-          è una domanda sui canali, non sulle persone — su otto righe per
-          consulente non si vedrebbe. */}
+      {/* Quanti eventi ha eseguito ciascuno, e di che tipo — non il totale,
+          che da solo non dice se è stato al telefono tutto il giorno o ha
+          fatto dieci visite in sede. E divisi per come sono nati: un task
+          scritto da sé (nessuna richiesta dietro, vedi ENTITA_COLLEGAMENTO in
+          lib/eventi.ts) è iniziativa della persona; uno agganciato a una
+          richiesta, o la richiesta stessa, è lavoro arrivato dal sito o dal
+          banco — due cose diverse da vedere separate, non sommate in un
+          numero solo. */}
+      <div className="card">
+        <div className="card-head">
+          <h2>Eventi eseguiti</h2>
+          <span className="muted">
+            {PERIODI.find((p) => p.chiave === periodo)?.etichetta.toLowerCase()}, per tipo e
+            provenienza
+          </span>
+        </div>
+
+        {elenco.length === 0 ? (
+          <p className="vuoto">Nessun commerciale configurato.</p>
+        ) : nessunEventoEseguito ? (
+          <p className="vuoto">Nessun evento eseguito nel periodo.</p>
+        ) : (
+          <div className="tabella-wrap">
+            <table className="tabella">
+              <thead>
+                <tr>
+                  <th>Consulente</th>
+                  <th>Provenienza</th>
+                  {TIPI.map((tipo) => (
+                    <th key={tipo}>{ETICHETTE_TIPO_BREVI[tipo]}</th>
+                  ))}
+                  <th>Totale</th>
+                </tr>
+              </thead>
+              <tbody>
+                {elenco.flatMap((r) => {
+                  const eventi = righeEventiPerTipo.get(r.email) ?? rigaEventiPerTipoVuota(r.email)
+                  const gruppi: { chiave: string; etichetta: string; conteggi: ConteggioTipi }[] = [
+                    { chiave: 'autonomi', etichetta: 'Autonomi', conteggi: eventi.autonomi },
+                    { chiave: 'sito', etichetta: 'Sito e Guest Register', conteggi: eventi.daSito },
+                  ]
+                  // Solo le righe con qualcosa dentro: un consulente senza
+                  // eventi autonomi nel periodo non deve occupare una riga di
+                  // zeri identica per tutti.
+                  return gruppi
+                    .filter((g) => totaleConteggi(g.conteggi) > 0)
+                    .map((g) => (
+                      <tr key={`${r.email}-${g.chiave}`} className={r.email === io ? 'is-mia' : undefined}>
+                        <td>
+                          {nomeDiEmail(r.email, nomiStaff)}
+                          {r.email === io && <span className="muted"> (tu)</span>}
+                        </td>
+                        <td className="muted">{g.etichetta}</td>
+                        {TIPI.map((tipo) => (
+                          <td key={tipo}>{g.conteggi[tipo] || '—'}</td>
+                        ))}
+                        <td>
+                          <strong>{totaleConteggi(g.conteggi)}</strong>
+                        </td>
+                      </tr>
+                    ))
+                })}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th>Totale</th>
+                  <th />
+                  {TIPI.map((tipo) => (
+                    <th key={tipo}>
+                      {[...righeEventiPerTipo.values()].reduce(
+                        (a, e) => a + e.autonomi[tipo] + e.daSito[tipo],
+                        0
+                      )}
+                    </th>
+                  ))}
+                  <th>
+                    {[...righeEventiPerTipo.values()].reduce(
+                      (a, e) => a + totaleConteggi(e.autonomi) + totaleConteggi(e.daSito),
+                      0
+                    )}
+                  </th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Il quadro completo per canale di acquisizione: non solo dove
+          arrivano le vinte e le perse, ma anche quante ne ha aperte adesso.
+          Un canale che porta molte trattative ma le chiude poco si vede solo
+          mettendo le aperte accanto alle chiuse — guardare solo vinte e
+          perse lo farebbe sembrare un canale piccolo, quando è solo lento a
+          chiudere. È una domanda sui canali, non sulle persone: su otto
+          righe per consulente non si vedrebbe. */}
       {provenienze.length > 0 && (
         <div className="card">
           <div className="card-head">
             <h2>Per provenienza</h2>
             <span className="muted">
-              {PERIODI.find((p) => p.chiave === periodo)?.etichetta.toLowerCase()}
+              {PERIODI.find((p) => p.chiave === periodo)?.etichetta.toLowerCase()}, tranne le aperte
             </span>
           </div>
 
@@ -700,6 +849,10 @@ export default async function CoreManagerPage({
               <thead>
                 <tr>
                   <th>Provenienza</th>
+                  <th>
+                    Aperte
+                    <span className="th-nota">adesso, non nel periodo</span>
+                  </th>
                   <th>Vinte</th>
                   <th>Perse</th>
                   <th>
@@ -717,6 +870,7 @@ export default async function CoreManagerPage({
                   return (
                     <tr key={p.etichetta}>
                       <td>{p.etichetta}</td>
+                      <td>{p.aperte}</td>
                       <td>{p.vinte}</td>
                       <td>{p.perse}</td>
                       <td>{tasso !== null ? `${tasso}%` : '—'}</td>
@@ -728,6 +882,7 @@ export default async function CoreManagerPage({
               <tfoot>
                 <tr>
                   <th>Totale</th>
+                  <th>{provenienze.reduce((a, p) => a + p.aperte, 0)}</th>
                   <th>{provenienze.reduce((a, p) => a + p.vinte, 0)}</th>
                   <th>{provenienze.reduce((a, p) => a + p.perse, 0)}</th>
                   <th>
