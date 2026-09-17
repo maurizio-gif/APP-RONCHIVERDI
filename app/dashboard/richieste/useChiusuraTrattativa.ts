@@ -18,6 +18,9 @@ export function useChiusuraTrattativa(t: DatiTrattativa) {
   // si digita non lascia scrivere «1080,», cioè il passaggio obbligato per
   // arrivare a «1080,50». Si normalizza al salvataggio (valoreDaTesto).
   const [valore, setValore] = useState('')
+  // Solo per la vinta: si riparte da quello che c'era già, come per nota e
+  // valore — correggere una vinta non deve far perdere la spunta.
+  const [triplePack, setTriplePack] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
   const [inCorso, startTransition] = useTransition()
 
@@ -25,6 +28,7 @@ export function useChiusuraTrattativa(t: DatiTrattativa) {
     setErrore(null)
     setMotivo(motivoDi({ ...t, stato }) ?? '')
     setValore(stato === 'vinto' && t.valore_euro != null ? String(t.valore_euro) : '')
+    setTriplePack(stato === 'vinto' ? !!t.triple_pack : false)
     setChiedo(stato)
   }
 
@@ -32,6 +36,7 @@ export function useChiusuraTrattativa(t: DatiTrattativa) {
     setChiedo(null)
     setMotivo('')
     setValore('')
+    setTriplePack(false)
     setErrore(null)
   }
 
@@ -58,11 +63,24 @@ export function useChiusuraTrattativa(t: DatiTrattativa) {
 
     setErrore(null)
     startTransition(async () => {
-      const esito = await cambiaStato(t.id, chiedo, motivo, importo)
+      const esito = await cambiaStato(t.id, chiedo, motivo, importo, chiedeValore(chiedo) ? triplePack : false)
       if (esito.ok) lasciaStare()
       else setErrore(esito.errore)
     })
   }
 
-  return { chiedo, motivo, setMotivo, valore, setValore, errore, inCorso, avvia, lasciaStare, conferma }
+  return {
+    chiedo,
+    motivo,
+    setMotivo,
+    valore,
+    setValore,
+    triplePack,
+    setTriplePack,
+    errore,
+    inCorso,
+    avvia,
+    lasciaStare,
+    conferma,
+  }
 }

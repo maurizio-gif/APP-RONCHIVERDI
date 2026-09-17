@@ -14,6 +14,7 @@ import {
   type VoceAgenda,
 } from '@/lib/agenda'
 import { ATTIVITA_IN_AGENDA, COLONNE_RICHIESTA } from '@/lib/richieste'
+import { COLONNE_NOTA_VINTA, conColonneNuove } from '@/lib/migrazioni'
 import { contattiDelleVoci } from '@/lib/eventi-server'
 import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import { CalendarioAgenda } from '@/components/CalendarioAgenda'
@@ -321,13 +322,16 @@ export default async function AgendaPage({
   // altrimenti vince la chiusa più recente.
   const idPersoneVoci = [...new Set(voci.map((v) => v.personaId).filter(Boolean))] as string[]
   const { data: trattativeDellePersone } = idPersoneVoci.length
-    ? await supabase
-        .from('opportunita')
-        .select(
-          'id, persona_id, stato, assegnato_a, motivo_perso, motivo_annullato, motivo_vinto, valore_euro'
-        )
-        .in('persona_id', idPersoneVoci)
-        .order('creato_il', { ascending: true })
+    ? await conColonneNuove<Record<string, any>>(
+        'id, persona_id, stato, assegnato_a, motivo_perso, motivo_annullato, motivo_vinto, valore_euro, triple_pack',
+        COLONNE_NOTA_VINTA,
+        (colonne) =>
+          supabase
+            .from('opportunita')
+            .select(colonne)
+            .in('persona_id', idPersoneVoci)
+            .order('creato_il', { ascending: true })
+      )
     : { data: [] as Record<string, any>[] }
 
   const trattative: Record<string, DatiTrattativa> = {}
@@ -340,6 +344,7 @@ export default async function AgendaPage({
       motivo_annullato: (t.motivo_annullato as string) ?? null,
       motivo_vinto: (t.motivo_vinto as string) ?? null,
       valore_euro: (t.valore_euro as number) ?? null,
+      triple_pack: !!t.triple_pack,
     }
   }
 

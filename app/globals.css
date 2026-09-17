@@ -954,6 +954,52 @@ table.tabella tbody tr:hover {
 	white-space: nowrap;
 }
 
+/* ────────────────────────────────── report giornaliero (Core Manager) */
+
+.report-mese-nav {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 1rem;
+	margin: 1.25rem 0;
+}
+
+.report-mese-titolo {
+	min-width: 10rem;
+	color: var(--text);
+	font-weight: 600;
+	text-align: center;
+	text-transform: capitalize;
+}
+
+/* Quattordici colonne: più strette e senza andare a capo, o la tabella si
+   legge a zigzag invece che per riga. */
+.tabella-report th,
+.tabella-report td {
+	padding: 0.5rem 0.6rem;
+	font-size: var(--text-xs);
+	white-space: nowrap;
+}
+
+.tabella-report tr.is-oggi td {
+	background: var(--accent-tint);
+}
+
+.cella-obiettivo {
+	width: 3.5rem;
+	padding: 0.3rem 0.4rem;
+	background: var(--surface);
+	border: 1px solid var(--border-strong);
+	border-radius: 6px;
+	color: var(--text);
+	font-family: inherit;
+	font-size: var(--text-xs);
+}
+
+.cella-obiettivo.has-errore {
+	border-color: var(--error);
+}
+
 /* ──────────────────────────────────────────────────────── badge e messaggi */
 
 .badge {
@@ -1112,6 +1158,21 @@ table.tabella tbody tr:hover {
 .btn-grande {
 	padding: 1rem 2rem;
 	font-size: var(--text-sm);
+}
+
+/* Il pulsante del report giornaliero in Core Manager: staccato dal testo
+   sopra, largo quanto la pagina su schermo stretto — è il gesto con cui la
+   responsabile apre la pagina ogni giorno, non un rimando fra tanti. */
+.report-cta {
+	display: flex;
+	width: fit-content;
+	margin-bottom: 1.5rem;
+}
+
+@media (max-width: 640px) {
+	.report-cta {
+		width: 100%;
+	}
 }
 
 .timbratore-azioni {

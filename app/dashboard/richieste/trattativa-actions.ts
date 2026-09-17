@@ -157,7 +157,9 @@ export async function cambiaStato(
   nuovo: string,
   motivo?: string | null,
   /** Il valore del contratto, già normalizzato dal pannello (valoreDaTesto). */
-  valore?: number | null
+  valore?: number | null,
+  /** Se la vendita include un triple pack. Vive solo sulla vinta, come il valore. */
+  triplePack?: boolean
 ): Promise<Esito> {
   const { email, sonoCommerciale, possoRiassegnare, haSezione } = await dirittiCorrenti()
   if (!haSezione) return { ok: false, errore: 'Non hai accesso alle richieste Club e Family.' }
@@ -236,6 +238,9 @@ export async function cambiaStato(
       // gestione che si portasse dietro 1.080 € direbbe il falso al primo
       // conto del fatturato.
       valore_euro: valorePulito,
+      // Stessa regola: il triple pack è un fatto della vendita, e una vinta
+      // rimessa in gestione non ha ancora venduto niente.
+      triple_pack: stato === 'vinto' ? !!triplePack : false,
     })
     .eq('id', id)
 
@@ -250,6 +255,13 @@ export async function cambiaStato(
         ok: false,
         errore:
           'Manca la colonna della nota: esegui scripts/sql/2026-09-11-nota-della-vinta.sql nel SQL Editor.',
+      }
+    }
+    if (/triple_pack/.test(error.message)) {
+      return {
+        ok: false,
+        errore:
+          'Manca la colonna del triple pack: esegui scripts/sql/2026-09-17-triple-pack-e-obiettivi-giornalieri.sql nel SQL Editor.',
       }
     }
     return { ok: false, errore: error.message }

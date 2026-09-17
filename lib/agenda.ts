@@ -401,6 +401,19 @@ export function oraBreve(iso: string): string {
 }
 
 /**
+ * Il giorno di Roma in cui cade un istante, in 'YYYY-MM-DD'.
+ *
+ * Serve a raggruppare per giorno dei timestamp UTC (`created_at`,
+ * `chiuso_il`...) come li legge chi lavora al banco: un walk-in registrato
+ * alle 23:40 di sera in Italia non deve finire nel giorno dopo perché in UTC
+ * lo è già. `en-CA` è un trucco innocuo: quel locale scrive le date come
+ * YYYY-MM-DD da solo, senza doverle ricomporre a mano dalle parti.
+ */
+export function giornoDiIstante(iso: string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome' }).format(new Date(iso))
+}
+
+/**
  * Il link per aprire subito, in agenda, la voce di una trattativa appena
  * presa in carico: chi la prende deve trovarsela davanti, non tornare a
  * cercarla in un elenco.

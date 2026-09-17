@@ -36,6 +36,8 @@ export type DatiTrattativa = {
   motivo_vinto?: string | null
   /** Quanto vale il contratto, in euro. Solo sulle vinte. */
   valore_euro?: number | null
+  /** Se la vendita include un triple pack. Solo sulle vinte. */
+  triple_pack?: boolean | null
 }
 
 // Il blocco trattativa che compare sulla riga di una richiesta Club/Family.
@@ -236,6 +238,20 @@ export function Trattativa({
               </span>
             )}
 
+            {/* Il triple pack: si conta per il report giornaliero, e un
+                conteggio non si fa affidabile su un testo scritto a mano in
+                venti modi diversi dentro la nota. */}
+            {chiedeValore(chiusura.chiedo) && (
+              <label className="check-riga">
+                <input
+                  type="checkbox"
+                  checked={chiusura.triplePack}
+                  onChange={(e) => chiusura.setTriplePack(e.target.checked)}
+                />
+                <span>Triple pack</span>
+              </label>
+            )}
+
             <button
               type="button"
               className="btn btn-sm"
@@ -268,6 +284,7 @@ export function Trattativa({
             {t.stato === 'vinto' ? 'venduto: ' : t.stato === 'annullato' ? 'annullata: ' : 'motivo: '}
             {motivoDi(t)}
             {t.stato === 'vinto' && euro(t.valore_euro) && ` · ${euro(t.valore_euro)}`}
+            {t.stato === 'vinto' && t.triple_pack && ' · triple pack'}
           </p>
         )}
 
