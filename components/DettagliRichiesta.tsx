@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { ETICHETTE_ESITO, dataOra, eEsitoValido } from '@/lib/agenda'
 import { dominioDi, percorsoBreve, primoContattoDi, provenienzaRichiesta } from '@/lib/percorsoSito'
 import { nomeDiEmail } from '@/lib/staff'
@@ -43,78 +44,98 @@ export function DettagliRichiesta({
   const primoContatto = primoContattoDi(r)
   const firmaEsito = nomeDiEmail(r.esito_da, nomiStaff)
 
+  // Chiuso di default: gli altri dettagli — Marketing, da dove è arrivata,
+  // per chi, provenienza, l'esito e le note vecchie — sono un
+  // approfondimento, non la prima cosa da leggere aprendo una richiesta. Ci
+  // sono sempre, ma solo su richiesta di chi guarda.
+  const [aperti, setAperti] = useState(false)
+
   return (
     <>
+      <dl className="dettagli-lista">
+        {r.data_nascita && (
+          <>
+            <dt>Data di nascita</dt>
+            <dd>{r.data_nascita}</dd>
+          </>
+        )}
+        {minore && (
+          <>
+            <dt>Bambino/a</dt>
+            <dd>
+              {minore}
+              {r.minore_data_nascita && ` · nato/a il ${r.minore_data_nascita}`}
+            </dd>
+          </>
+        )}
+        {r.azione && (
+          <>
+            <dt>Richiesta</dt>
+            <dd>
+              {r.azione}
+              {r.data_scelta && ` · ${r.data_scelta}`}
+              {r.ora_scelta && ` ore ${String(r.ora_scelta).slice(0, 5)}`}
+            </dd>
+          </>
+        )}
+        {r.dettagli && r.dettagli.length > 0 && (
+          <>
+            {/* Per il Fitness Manager quelle righe sono le risposte a
+                domande precise (obiettivo, livello, frequenza), non le
+                caselle "cosa ti interessa" del form generico: chiamarle
+                Interessi le farebbe leggere come preferenze vaghe. */}
+            <dt>{eQuestionario ? 'Questionario' : 'Interessi'}</dt>
+            <dd>
+              {eQuestionario ? (
+                // Le risposte del questionario sono coppie domanda/valore:
+                // in fila su una riga sola si leggono come un elenco di
+                // interessi, e chi chiama deve rileggerle per capire quale
+                // e' l'obiettivo e quale la frequenza.
+                <ul className="dettagli-risposte">
+                  {ordinaRisposte(r.dettagli).map((risposta, i) => {
+                    const taglio = risposta.indexOf(':')
+                    return taglio === -1 ? (
+                      <li key={i}>{risposta}</li>
+                    ) : (
+                      <li key={i}>
+                        <span className="muted">{risposta.slice(0, taglio + 1)}</span>{' '}
+                        {risposta.slice(taglio + 1).trim()}
+                      </li>
+                    )
+                  })}
+                </ul>
+              ) : (
+                r.dettagli.join(', ')
+              )}
+            </dd>
+          </>
+        )}
+        {r.messaggio && (
+          <>
+            {/* Se la persona ha prenotato, quel testo è l'oggetto che ha
+                scritto scegliendo giorno e ora: chiamarlo "Messaggio" lo
+                farebbe sembrare un commento in più, non la ragione
+                dell'incontro. */}
+            <dt>
+              {r.azione === 'appuntamento' || r.azione === 'telefonata' ? 'Oggetto' : 'Messaggio'}
+            </dt>
+            <dd>{r.messaggio}</dd>
+          </>
+        )}
+      </dl>
+
+      <button
+        type="button"
+        className="percorso-apri"
+        onClick={() => setAperti((v) => !v)}
+        aria-expanded={aperti}
+      >
+        {aperti ? '− ' : '+ '}
+        Altri dettagli
+      </button>
+
+      {aperti && (
         <dl className="dettagli-lista">
-          {r.data_nascita && (
-            <>
-              <dt>Data di nascita</dt>
-              <dd>{r.data_nascita}</dd>
-            </>
-          )}
-          {minore && (
-            <>
-              <dt>Bambino/a</dt>
-              <dd>
-                {minore}
-                {r.minore_data_nascita && ` · nato/a il ${r.minore_data_nascita}`}
-              </dd>
-            </>
-          )}
-          {r.azione && (
-            <>
-              <dt>Richiesta</dt>
-              <dd>
-                {r.azione}
-                {r.data_scelta && ` · ${r.data_scelta}`}
-                {r.ora_scelta && ` ore ${String(r.ora_scelta).slice(0, 5)}`}
-              </dd>
-            </>
-          )}
-          {r.dettagli && r.dettagli.length > 0 && (
-            <>
-              {/* Per il Fitness Manager quelle righe sono le risposte a
-                  domande precise (obiettivo, livello, frequenza), non le
-                  caselle "cosa ti interessa" del form generico: chiamarle
-                  Interessi le farebbe leggere come preferenze vaghe. */}
-              <dt>{eQuestionario ? 'Questionario' : 'Interessi'}</dt>
-              <dd>
-                {eQuestionario ? (
-                  // Le risposte del questionario sono coppie domanda/valore:
-                  // in fila su una riga sola si leggono come un elenco di
-                  // interessi, e chi chiama deve rileggerle per capire quale
-                  // e' l'obiettivo e quale la frequenza.
-                  <ul className="dettagli-risposte">
-                    {ordinaRisposte(r.dettagli).map((risposta, i) => {
-                      const taglio = risposta.indexOf(':')
-                      return taglio === -1 ? (
-                        <li key={i}>{risposta}</li>
-                      ) : (
-                        <li key={i}>
-                          <span className="muted">{risposta.slice(0, taglio + 1)}</span>{' '}
-                          {risposta.slice(taglio + 1).trim()}
-                        </li>
-                      )
-                    })}
-                  </ul>
-                ) : (
-                  r.dettagli.join(', ')
-                )}
-              </dd>
-            </>
-          )}
-          {r.messaggio && (
-            <>
-              {/* Se la persona ha prenotato, quel testo è l'oggetto che ha
-                  scritto scegliendo giorno e ora: chiamarlo "Messaggio" lo
-                  farebbe sembrare un commento in più, non la ragione
-                  dell'incontro. */}
-              <dt>
-                {r.azione === 'appuntamento' || r.azione === 'telefonata' ? 'Oggetto' : 'Messaggio'}
-              </dt>
-              <dd>{r.messaggio}</dd>
-            </>
-          )}
           <dt>Marketing</dt>
           <dd>
             {r.marketing ? (
@@ -195,11 +216,11 @@ export function DettagliRichiesta({
             </>
           )}
         </dl>
+      )}
 
-      {/* Le pagine viste prima di scrivere. Sta dopo la lista e non dentro
-          perche' non e' una coppia etichetta/valore: e' un elenco, e in una
-          griglia a due colonne si leggerebbe male. */}
-      <PercorsoSito idRichiesta={r.id} paginaForm={r.pagina} apertoSubito />
+      {/* Le pagine viste prima di scrivere: un altro approfondimento, non
+          la prima cosa da leggere — già si apriva su richiesta, resta così. */}
+      <PercorsoSito idRichiesta={r.id} paginaForm={r.pagina} />
     </>
   )
 }
