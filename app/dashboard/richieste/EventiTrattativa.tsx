@@ -176,27 +176,36 @@ export function EventiTrattativa({
                     onClick={() => {
                       setErrore(null)
                       setInGestione(null)
-                      setInModifica(inModifica === aperto ? null : evento.id)
+                      setInModifica(inModifica === aperto ? null : evento.chiave)
                     }}
                   >
                     Modifica
                   </button>
                 )}
 
-                {daSito ? null : evento.daFare ? (
-                  <button
-                    type="button"
-                    className={`btn btn-sm${inGestione === aperto ? '' : ' btn-ghost'}`}
-                    aria-expanded={inGestione === aperto}
-                    onClick={() => {
-                      setErrore(null)
-                      setInModifica(null)
-                      setInGestione(inGestione === aperto ? null : evento.id)
-                    }}
-                  >
-                    Chiudi con esito
-                  </button>
-                ) : (
+                {/* Sulla richiesta arrivata dal sito il solo comando che resta
+                    è chiudere con esito, e solo se è un appuntamento o una
+                    telefonata davvero presi — un messaggio non si esegue e non
+                    fallisce (vedi conInterruttore in GestioneEvento.tsx). Non
+                    è un doppione del pannello di prima: quel pannello non c'è
+                    più, la chiusura della richiesta vive solo qui, dentro il
+                    suo stesso riquadro. */}
+                {evento.daFare ? (
+                  (!daSito || eAppuntamentoVero(evento.tipo)) && (
+                    <button
+                      type="button"
+                      className={`btn btn-sm${inGestione === aperto ? '' : ' btn-ghost'}`}
+                      aria-expanded={inGestione === aperto}
+                      onClick={() => {
+                        setErrore(null)
+                        setInModifica(null)
+                        setInGestione(inGestione === aperto ? null : evento.chiave)
+                      }}
+                    >
+                      Chiudi con esito
+                    </button>
+                  )
+                ) : daSito ? null : (
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm"
@@ -250,6 +259,10 @@ export function EventiTrattativa({
                   notaCorrente={evento.esito}
                   firma={nomeDiEmail(evento.esitoDa, nomiStaff)}
                   firmaIl={evento.esitoIl}
+                  // Chiudendo la richiesta stessa da qui, il passo dopo si
+                  // fissa senza cambiare pagina, come quando la si chiudeva
+                  // dal pannello che stava sopra la cronologia.
+                  seguito={daSito ? { entita: 'form_contatti', id: evento.id } : null}
                 />
               )}
             </li>
