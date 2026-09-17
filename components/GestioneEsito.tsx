@@ -1,6 +1,7 @@
 'use client'
 
-import { useId, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
+import { SelettoreAssegnatario } from '@/components/SelettoreAssegnatario'
 import {
   DURATA_PREDEFINITA,
   ETICHETTE_ESITO,
@@ -564,9 +565,6 @@ export function CampiEvento({
    */
   soloProgrammabili?: boolean
 }) {
-  // Un id per istanza: più datalist con lo stesso id sono documento invalido,
-  // e il browser non garantisce a quale si agganci l'input.
-  const idOperatori = useId()
   const tipo: TipoVoce = eTipoValido(riga.tipo) ? riga.tipo : 'task'
   // Solo gli appuntamenti hanno un'ora: gli altri tipi sono impegni della
   // giornata, e dargli un'orario occuperebbe una fascia che il sito può
@@ -642,18 +640,12 @@ export function CampiEvento({
 
         <div className="field">
           <label>Assegnato a</label>
-          <input
-            type="text"
-            list={idOperatori}
-            value={riga.assegnatoA ?? ''}
-            onChange={(e) => onCambia({ assegnatoA: e.target.value })}
-            placeholder="lascia vuoto per te"
+          <SelettoreAssegnatario
+            value={riga.assegnatoA ?? null}
+            onChange={(nuovo) => onCambia({ assegnatoA: nuovo })}
+            operatori={operatori}
+            etichettaVuoto="io"
           />
-          <datalist id={idOperatori}>
-            {operatori.map((o) => (
-              <option key={o} value={o} />
-            ))}
-          </datalist>
         </div>
 
         <div className="field" style={{ flexBasis: '100%' }}>

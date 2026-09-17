@@ -23,6 +23,7 @@ import {
 import { nomeDiEmail } from '@/lib/staff'
 import { assegnaTrattativa, cambiaStato, prendiInCarico } from './trattativa-actions'
 import { useChiusuraTrattativa } from './useChiusuraTrattativa'
+import { SelettoreAssegnatario } from '@/components/SelettoreAssegnatario'
 
 export type DatiTrattativa = {
   id: string
@@ -145,20 +146,15 @@ export function Trattativa({
           {/* L'elenco contiene solo i commerciali: assegnare a un
               responsabile di corso vorrebbe dire metterlo in una lista che
               non guarda mai. */}
-          <select
-            className="trattativa-select"
-            value={t.assegnato_a ?? ''}
+          <SelettoreAssegnatario
+            value={t.assegnato_a}
+            onChange={(nuovo) => esegui(() => assegnaTrattativa(t.id, nuovo))}
+            operatori={commerciali}
+            io={io}
+            nomiStaff={nomiStaff}
             disabled={inCorso}
-            onChange={(e) => esegui(() => assegnaTrattativa(t.id, e.target.value || null))}
-            aria-label="Assegnata a"
-          >
-            <option value="">— nessuno —</option>
-            {commerciali.map((c) => (
-              <option key={c} value={c}>
-                {c === io ? `${nomeDiEmail(c, nomiStaff)} (tu)` : nomeDiEmail(c, nomiStaff)}
-              </option>
-            ))}
-          </select>
+            ariaLabel="Assegnata a"
+          />
 
           <select
             className="trattativa-select"
