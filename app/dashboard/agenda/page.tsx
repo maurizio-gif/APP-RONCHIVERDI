@@ -311,25 +311,35 @@ export default async function AgendaPage({
     }
   }
 
-  // La trattativa aperta del contatto di ogni voce, per chiuderla da qui: si
-  // telefona, la persona dice sì, e in quel minuto si sanno entrambe le cose.
+  // La trattativa del contatto di ogni voce, per mostrarla — e dove è ancora
+  // aperta, per chiuderla da qui: si telefona, la persona dice sì, e in quel
+  // minuto si sanno entrambe le cose. Tutte, non solo le aperte: un evento
+  // già gestito riguarda quasi sempre una trattativa già chiusa, vinta o
+  // persa che sia, e senza di lei quella riga si gestiva come se dietro non
+  // ci fosse mai stata un'opportunità. In ordine di nascita: se ce n'è una
+  // ancora aperta è l'ultima creata, e scrivendo nella mappa vince lei;
+  // altrimenti vince la chiusa più recente.
   const idPersoneVoci = [...new Set(voci.map((v) => v.personaId).filter(Boolean))] as string[]
-  const { data: trattativeAperte } = idPersoneVoci.length
+  const { data: trattativeDellePersone } = idPersoneVoci.length
     ? await supabase
         .from('opportunita')
-        .select('id, persona_id, stato, assegnato_a, motivo_perso, motivo_annullato')
+        .select(
+          'id, persona_id, stato, assegnato_a, motivo_perso, motivo_annullato, motivo_vinto, valore_euro'
+        )
         .in('persona_id', idPersoneVoci)
-        .in('stato', ['nuovo', 'in_gestione'])
+        .order('creato_il', { ascending: true })
     : { data: [] as Record<string, any>[] }
 
   const trattative: Record<string, DatiTrattativa> = {}
-  for (const t of trattativeAperte ?? []) {
+  for (const t of trattativeDellePersone ?? []) {
     trattative[t.persona_id as string] = {
       id: t.id as string,
       stato: t.stato,
       assegnato_a: (t.assegnato_a as string) ?? null,
       motivo_perso: (t.motivo_perso as string) ?? null,
       motivo_annullato: (t.motivo_annullato as string) ?? null,
+      motivo_vinto: (t.motivo_vinto as string) ?? null,
+      valore_euro: (t.valore_euro as number) ?? null,
     }
   }
 
