@@ -10,6 +10,8 @@
 //
 // Nessun import server-only: usato sia dai Server Component sia dai client.
 
+import { ORIGINE_BANCO } from './provenienza'
+
 export const OPZIONI_PERIODO = [
   { valore: '7', etichetta: '7 giorni', giorni: 7 },
   { valore: '30', etichetta: '30 giorni', giorni: 30 },
@@ -104,6 +106,8 @@ export type CoppiaUtm = {
   referrer: string | null
   gclid: string | null
   fbclid: string | null
+  /** `form_contatti.origine`: distingue il Guest Register dal sito. */
+  origine: string | null
   richieste: number
 }
 
@@ -198,7 +202,15 @@ export function perCanaleTraffico(coppie: CoppiaUtm[]): Voce[] {
   const conteggi = new Map<string, number>()
 
   for (const c of coppie) {
-    let canale = classificaCanaleTraffico(c.utm_source, c.utm_medium)
+    // Chi è passato dal Guest Register è stato fisicamente al banco: non ha
+    // "traffico" da classificare, anche se la sua riga tecnicamente arriva
+    // dal sito (lo stesso form usato dalla segreteria per registrarlo). Va
+    // contato a parte, prima di guardare UTM/referrer/click id — altrimenti,
+    // non avendo campagna, finirebbe a gonfiare il "Traffico diretto".
+    let canale =
+      c.origine === ORIGINE_BANCO
+        ? 'Guest Register'
+        : classificaCanaleTraffico(c.utm_source, c.utm_medium)
 
     if (canale === 'Traffico diretto') {
       if (c.gclid) canale = 'Ricerca a pagamento'
