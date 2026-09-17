@@ -29,6 +29,7 @@ import {
   COLONNE_NOTA_VINTA,
   conColonneNuove,
 } from '@/lib/migrazioni'
+import { IconaNuovaScheda } from '@/components/IconaNuovaScheda'
 
 export const dynamic = 'force-dynamic'
 
@@ -678,8 +679,14 @@ export default async function CoreManagerPage({
                         agenda, in dashboard e in Eventi Core. */}
                     <td>
                       {v.personaId ? (
-                        <Link href={`/dashboard/persone/${v.personaId}`}>
+                        <Link
+                          href={`/dashboard/persone/${v.personaId}`}
+                          target="_blank"
+                          rel="noopener"
+                          className="link-nuova-scheda"
+                        >
                           {v.persona || v.titolo}
+                          <IconaNuovaScheda />
                         </Link>
                       ) : (
                         v.persona || v.titolo

@@ -1,3 +1,5 @@
+import { IconaNuovaScheda } from '@/components/IconaNuovaScheda'
+
 /**
  * Il pulsante che porta all'anagrafica del contatto, **uno per tutto il
  * pannello**: l'agenda, la dashboard ed Eventi Core aprono la stessa
@@ -79,6 +81,9 @@ export function SchedaContatto({
         <path d="M5 20c0-3.7 3.1-6.2 7-6.2s7 2.5 7 6.2" />
       </svg>
       Scheda contatto
+      {/* La freccia che esce dal riquadro: dice, prima di cliccare, che si
+          apre una scheda nuova e non si perde questa. */}
+      <IconaNuovaScheda />
     </a>
   )
 }

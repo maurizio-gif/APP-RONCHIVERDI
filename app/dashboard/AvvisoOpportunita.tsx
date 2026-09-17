@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { prendiInCarico } from './richieste/trattativa-actions'
 import { useAvvisoSonoro } from './useAvvisoSonoro'
+import { IconaNuovaScheda } from '@/components/IconaNuovaScheda'
 import type { AvvisoLavoro } from './opportunita-actions'
 
 // Il lavoro appena arrivato va addosso a chi lo deve fare: la richiesta delle
@@ -141,9 +142,12 @@ export function AvvisoOpportunita({ abilitato }: { abilitato: boolean }) {
               <Link
                 className="btn btn-ghost btn-sm"
                 href={`/dashboard/persone/${corrente.personaId}`}
+                target="_blank"
+                rel="noopener"
                 onClick={chiudi}
               >
                 Apri la scheda
+                <IconaNuovaScheda />
               </Link>
             )}
           </>
@@ -156,9 +160,12 @@ export function AvvisoOpportunita({ abilitato }: { abilitato: boolean }) {
               <Link
                 className="btn btn-ghost btn-sm"
                 href={`/dashboard/persone/${corrente.personaId}`}
+                target="_blank"
+                rel="noopener"
                 onClick={chiudi}
               >
                 Apri la scheda
+                <IconaNuovaScheda />
               </Link>
             )}
           </>

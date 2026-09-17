@@ -543,6 +543,20 @@ a:hover {
 	font-size: var(--text-2xs);
 }
 
+/* Il link a un nominativo che apre la sua scheda in una scheda nuova, fuori
+   da un .btn (una cella di tabella, per esempio): la freccia va allineata
+   al testo, non impilata sotto. */
+.link-nuova-scheda {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+}
+
+.icona-nuova-scheda {
+	flex: none;
+	opacity: 0.7;
+}
+
 /* ────────────────────────────────────────────────────────────────────── form */
 
 .field {
