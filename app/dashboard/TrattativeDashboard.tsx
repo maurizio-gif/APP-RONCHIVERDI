@@ -17,6 +17,7 @@ import {
 import { provenienzaTrattativa } from '@/lib/provenienza'
 import { nomeDiEmail } from '@/lib/staff'
 import { GestioneEsito } from '@/components/GestioneEsito'
+import { IconaNuovaScheda } from '@/components/IconaNuovaScheda'
 import { Trattativa, type DatiTrattativa } from './richieste/Trattativa'
 import { GestioneSemplice } from './richieste/GestioneSemplice'
 import { ContattiRapidi } from './ContattiRapidi'
@@ -392,8 +393,14 @@ function RigaOpportunita({
           {/* La storia della persona, per chi vuole sapere qualcosa in più
               prima di chiamare: da qui non si vede. */}
           {t.personaId && (
-            <Link className="btn btn-ghost btn-sm" href={`/dashboard/persone/${t.personaId}`}>
+            <Link
+              className="btn btn-ghost btn-sm"
+              href={`/dashboard/persone/${t.personaId}`}
+              target="_blank"
+              rel="noopener"
+            >
               Apri la scheda del contatto
+              <IconaNuovaScheda />
             </Link>
           )}
         </div>
