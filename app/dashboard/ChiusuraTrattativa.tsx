@@ -1,6 +1,5 @@
 'use client'
 
-import { useState, useTransition } from 'react'
 import {
   CLASSE_BADGE_STATO,
   CONFERMA_MOTIVO,
@@ -15,8 +14,8 @@ import {
   valoreDaTesto,
 } from '@/lib/pipeline'
 import { nomeDiEmail } from '@/lib/staff'
-import { cambiaStato } from './richieste/trattativa-actions'
 import type { DatiTrattativa } from './richieste/Trattativa'
+import { useChiusuraTrattativa } from './richieste/useChiusuraTrattativa'
 
 // Come è finita la trattativa, dalla gestione dell'evento.
 //
@@ -74,47 +73,15 @@ export function ChiusuraTrattativa({
   conIntestazione?: boolean
   nomiStaff?: Record<string, string>
 }) {
-  const [chiedo, setChiedo] = useState<Chiusura | null>(null)
-  const [motivo, setMotivo] = useState('')
-  // Il valore resta **testo** nello stato del componente e si normalizza al
-  // salvataggio: un input numerico controllato che rifiuta i caratteri
-  // mentre si digita non lascia scrivere «1080,» — cioè il passaggio
-  // obbligato per arrivare a «1080,50».
-  const [valore, setValore] = useState('')
-  const [errore, setErrore] = useState<string | null>(null)
-  const [inCorso, startTransition] = useTransition()
+  // Stessa nota, stesso valore, stessa validazione e stesso salvataggio
+  // della tendina in Trattativa.tsx — la logica di chiusura è un unico
+  // posto (useChiusuraTrattativa), qui cambia solo come si presenta.
+  const { chiedo, motivo, setMotivo, valore, setValore, errore, inCorso, avvia, lasciaStare, conferma } =
+    useChiusuraTrattativa(t)
 
   const diritti = { assegnatoA: t.assegnato_a, io, sonoCommerciale, possoRiassegnare }
   const possoChiudere = puoAssegnare(diritti)
   const possoAnnullarla = puoAnnullare(diritti)
-
-  function esegui(stato: Chiusura) {
-    // L'obbligo è detto qui prima che parta la richiesta: il server rifiuta
-    // comunque (vedi cambiaStato), ma scoprirlo dopo un giro di rete su un
-    // campo che si ha davanti sembra un guasto.
-    if (!motivo.trim()) {
-      return setErrore(`Scrivi la nota. ${DOMANDA_MOTIVO[stato]}`)
-    }
-
-    const importo = chiedeValore(stato) ? valoreDaTesto(valore) : null
-    if (chiedeValore(stato) && importo === null) {
-      return setErrore(
-        valore.trim()
-          ? 'Il valore non si capisce: scrivi solo cifre, con la virgola per i centesimi. Es. 1080 o 1080,50'
-          : 'Scrivi quanto vale il contratto, in euro.'
-      )
-    }
-
-    setErrore(null)
-    startTransition(async () => {
-      const esito = await cambiaStato(t.id, stato, motivo, importo)
-      if (esito.ok) {
-        setChiedo(null)
-        setMotivo('')
-        setValore('')
-      } else setErrore(esito.errore)
-    })
-  }
 
   return (
     <div className="chiusura-trattativa">
@@ -198,7 +165,7 @@ export function ChiusuraTrattativa({
               type="button"
               className="btn btn-sm"
               disabled={inCorso}
-              onClick={() => esegui(chiedo)}
+              onClick={conferma}
             >
               {inCorso ? 'Un attimo…' : CONFERMA_MOTIVO[chiedo]}
             </button>
@@ -209,11 +176,7 @@ export function ChiusuraTrattativa({
               type="button"
               className="btn btn-ghost btn-sm"
               disabled={inCorso}
-              onClick={() => {
-                setChiedo(null)
-                setMotivo('')
-                setErrore(null)
-              }}
+              onClick={lasciaStare}
             >
               Lascia stare
             </button>
@@ -230,14 +193,7 @@ export function ChiusuraTrattativa({
                 type="button"
                 className={`btn ${classe}`}
                 disabled={inCorso}
-                onClick={() => {
-                  setErrore(null)
-                  // Anche vinta chiede la nota: è l'unico esito che produce
-                  // fatturato, e «Vinta» da sola non dice che abbonamento è
-                  // stato fatto né quanto vale.
-                  setMotivo(motivoDi({ ...t, stato }) ?? '')
-                  setChiedo(stato)
-                }}
+                onClick={() => avvia(stato)}
               >
                 {etichetta}
               </button>
