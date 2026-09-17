@@ -32,10 +32,19 @@ export function DettagliRichiesta({
    * e quella vecchia, leggibile e non piu' scrivibile.
    */
   conInterruttore,
+  /**
+   * Vero dove le trattative esistono (Club e Family): là la richiesta è già
+   * il primo evento della cronologia qui sotto (vedi `cronologia` in
+   * GestioneEvento.tsx), con lo stesso tipo/data/ora e lo stesso oggetto o
+   * messaggio — ripeterli qui sopra è la stessa informazione due volte, letta
+   * in due punti diversi della stessa schermata.
+   */
+  giaInCronologia = false,
   nomiStaff = {},
 }: {
   r: Richiesta
   conInterruttore: boolean
+  giaInCronologia?: boolean
   nomiStaff?: Record<string, string>
 }) {
   const eQuestionario = r.origine === 'fitness-manager-inline'
@@ -68,7 +77,7 @@ export function DettagliRichiesta({
             </dd>
           </>
         )}
-        {r.azione && (
+        {r.azione && !giaInCronologia && (
           <>
             <dt>Richiesta</dt>
             <dd>
@@ -110,7 +119,7 @@ export function DettagliRichiesta({
             </dd>
           </>
         )}
-        {r.messaggio && (
+        {r.messaggio && !giaInCronologia && (
           <>
             {/* Se la persona ha prenotato, quel testo è l'oggetto che ha
                 scritto scegliendo giorno e ora: chiamarlo "Messaggio" lo

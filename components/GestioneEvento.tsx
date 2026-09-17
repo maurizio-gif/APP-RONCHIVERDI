@@ -201,7 +201,12 @@ export function GestioneEvento({
           stato — invece che alla fine di una lista di lunghezza variabile. */}
       <ContattiRapidi email={r.email} cellulare={r.cellulare} spiegaSeVuoto />
 
-      <DettagliRichiesta r={r} conInterruttore={conInterruttore} nomiStaff={nomiStaff} />
+      <DettagliRichiesta
+        r={r}
+        conInterruttore={conInterruttore}
+        giaInCronologia={!!trattativa}
+        nomiStaff={nomiStaff}
+      />
 
       {conInterruttore ? (
         <GestioneSemplice
