@@ -163,10 +163,10 @@ export function EventiTrattativa({
 
               {/* I comandi valgono sugli eventi **nostri**. Quello che è
                   arrivato dal sito non si modifica (non l'abbiamo scritto noi)
-                  e non si riapre da qui: è la richiesta stessa, e si gestisce
-                  dal suo pannello, sopra. Resta la chiusura con esito, ma solo
-                  se è un appuntamento davvero preso — un messaggio non si
-                  esegue e non fallisce. */}
+                  e non si riapre da qui, e non si chiude nemmeno da qui: è la
+                  richiesta stessa, e la sua gestione con l'esito sta già nel
+                  pannello sopra, subito sotto i dettagli della richiesta —
+                  ripeterla qui era lo stesso comando in due posti. */}
               <div className="evento-azioni">
                 {!daSito && (
                   <button
@@ -183,22 +183,20 @@ export function EventiTrattativa({
                   </button>
                 )}
 
-                {evento.daFare ? (
-                  (!daSito || eAppuntamentoVero(evento.tipo)) && (
-                    <button
-                      type="button"
-                      className={`btn btn-sm${inGestione === aperto ? '' : ' btn-ghost'}`}
-                      aria-expanded={inGestione === aperto}
-                      onClick={() => {
-                        setErrore(null)
-                        setInModifica(null)
-                        setInGestione(inGestione === aperto ? null : evento.id)
-                      }}
-                    >
-                      Chiudi con esito
-                    </button>
-                  )
-                ) : daSito ? null : (
+                {daSito ? null : evento.daFare ? (
+                  <button
+                    type="button"
+                    className={`btn btn-sm${inGestione === aperto ? '' : ' btn-ghost'}`}
+                    aria-expanded={inGestione === aperto}
+                    onClick={() => {
+                      setErrore(null)
+                      setInModifica(null)
+                      setInGestione(inGestione === aperto ? null : evento.id)
+                    }}
+                  >
+                    Chiudi con esito
+                  </button>
+                ) : (
                   <button
                     type="button"
                     className="btn btn-ghost btn-sm"
