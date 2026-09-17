@@ -46,6 +46,12 @@ export type OpportunitaLibera = {
   /** Cosa ha chiesto, dall'ultima sua richiesta: è ciò che apre la telefonata. */
   attivita: string | null
   messaggio: string | null
+  /**
+   * L'id della sua ultima richiesta dal sito: presa in carico la trattativa,
+   * è la voce che si apre in agenda — senza, chi la prende dovrebbe
+   * ritrovarla a mano in un elenco.
+   */
+  richiestaId: string | null
 }
 
 /** Un avviso, qualunque ne sia la sorgente: la forma che l'avviso disegna. */
@@ -63,6 +69,8 @@ export type AvvisoLavoro = {
   quando: string
   attivita: string | null
   messaggio: string | null
+  /** Solo sulle trattative: la voce da aprire in agenda una volta presa. */
+  richiestaId?: string | null
   /**
    * Di quale sezione è. Chi ha nove sezioni attive riceve avvisi di nove
    * origini diverse: senza dirlo, «Marco Rossi» in un riquadro non dice se
@@ -135,7 +143,7 @@ export async function getOpportunitaLibere(): Promise<OpportunitaLibera[]> {
     // così scrivendo nella mappa vince l'ultima letta — la più recente.
     supabase
       .from('form_contatti')
-      .select('persona_id, attivita_label, messaggio, created_at')
+      .select('id, persona_id, attivita_label, messaggio, created_at')
       .in('persona_id', personaIds)
       .order('created_at', { ascending: true }),
   ])
@@ -145,11 +153,15 @@ export async function getOpportunitaLibere(): Promise<OpportunitaLibera[]> {
   }
 
   const perPersona = new Map((persone ?? []).map((p) => [p.id as string, p]))
-  const ultimaRichiesta = new Map<string, { attivita: string | null; messaggio: string | null }>()
+  const ultimaRichiesta = new Map<
+    string,
+    { attivita: string | null; messaggio: string | null; richiestaId: string }
+  >()
   for (const r of richieste ?? []) {
     ultimaRichiesta.set(r.persona_id as string, {
       attivita: (r.attivita_label as string) ?? null,
       messaggio: (r.messaggio as string) ?? null,
+      richiestaId: r.id as string,
     })
   }
 
@@ -165,6 +177,7 @@ export async function getOpportunitaLibere(): Promise<OpportunitaLibera[]> {
       quando: t.creato_il as string,
       attivita: richiesta?.attivita ?? null,
       messaggio: richiesta?.messaggio ?? null,
+      richiestaId: richiesta?.richiestaId ?? null,
     }
   })
 }
@@ -256,6 +269,7 @@ export async function getAvvisiLavoro(): Promise<AvvisoLavoro[]> {
     quando: t.quando,
     attivita: t.attivita,
     messaggio: t.messaggio,
+    richiestaId: t.richiestaId,
     sezione: 'Eventi Core',
     href: `/dashboard/persone/${t.personaId}`,
   }))

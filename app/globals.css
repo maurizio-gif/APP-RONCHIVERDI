@@ -4048,13 +4048,12 @@ table.tabella tbody tr:hover {
 	margin-top: 0;
 }
 
-/* Dentro l'elenco il blocco trattativa non ha bisogno del suo riquadro: la
-   riga è già la sua cornice. */
+/* Dentro l'elenco il blocco trattativa resta il suo riquadro: senza, si
+   confondeva con la scheda del contatto, i recapiti e la chiusura appena
+   sotto — un badge e due tendine nello stesso flusso di tutto il resto,
+   invece di una sezione che si riconosce prima di leggerla. */
 .op-espansione .trattativa {
 	margin: 0;
-	padding: 0;
-	background: none;
-	border: none;
 }
 
 /* Il link in coda a una card: «Vedi tutte quelle libere», «Apri la tua
@@ -4798,7 +4797,8 @@ table.tabella tbody tr:hover {
 /* La riga aperta arrivando dal link di un'email. In un elenco dove più righe
    possono essere aperte insieme, questa va distinta: chi ha cliccato deve
    sapere quale delle due sullo schermo è la sua. */
-.richiesta.is-indicata {
+.richiesta.is-indicata,
+.op.is-indicata {
 	box-shadow: inset 0 0 0 2px var(--accent);
 	border-radius: 0 var(--radius) var(--radius) 0;
 }
@@ -5009,12 +5009,65 @@ table.tabella tbody tr:hover {
 
 /* Era un rettangolo grigio con un badge dentro, identico su tutte le righe:
    lo stato si leggeva, non si vedeva. Ora il blocco prende il colore del suo
-   stato — velo di fondo e banda — e porta in cima cosa chiede. */
+   stato — velo di fondo e banda — e porta in cima cosa chiede.
+
+   Colonna e non più righe che vanno a capo mescolate insieme: dentro
+   l'espansione di un evento questo blocco stava fra la scheda del contatto,
+   i recapiti e la chiusura senza distinguersi da nessuno dei tre — un badge,
+   due tendine e un pulsante nello stesso flusso di testo di tutto il resto.
+   Ora la trattativa è la sua sezione: un'intestazione che dice cos'è, e un
+   corpo dove ogni riga è una domanda sola. */
 .trattativa {
-	align-items: center;
-	gap: 0.45rem 0.6rem;
-	padding: 0.6rem 0.75rem;
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 0.75rem;
+	padding: 0.85rem 1rem;
 	border-left: 3px solid var(--border-strong);
+}
+
+.trattativa-testa {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem 0.6rem;
+	padding-bottom: 0.6rem;
+	border-bottom: 1px solid var(--border);
+}
+
+.trattativa.stato-annullato .trattativa-testa {
+	border-bottom-color: var(--border);
+}
+
+.trattativa-corpo {
+	display: flex;
+	flex-direction: column;
+	/* stretch (il default) e non flex-start: le righe e i campi devono
+	   occupare tutta la larghezza della sezione per andare a capo dentro di
+	   sé, non restringersi al loro contenuto. */
+	gap: 0.6rem;
+}
+
+.trattativa-riga {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem 0.6rem;
+}
+
+/* I due campi della trattativa, uno sopra la tendina: senza l'etichetta si
+   distingueva «chi la segue» da «a che punto è» solo dal contenuto della
+   tendina già aperta, non a colpo d'occhio. */
+.trattativa-campi {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.6rem 1rem;
+}
+
+.trattativa-campo {
+	display: flex;
+	flex-direction: column;
+	gap: 0.3rem;
 }
 
 .trattativa.stato-nuovo {
@@ -5099,14 +5152,6 @@ table.tabella tbody tr:hover {
 
 .op.riga-stato {
 	padding: 0 0 0 0.85rem;
-}
-
-/* Dentro l'espansione il blocco trattativa non ripete il velo di fondo: la
-   banda della riga dice già lo stato, e due veli sovrapposti diventano una
-   macchia. */
-.op-espansione .trattativa {
-	background: none;
-	border: none;
 }
 
 /* ─────────────── un campo che non si scrive: l'oggetto di una voce nuova

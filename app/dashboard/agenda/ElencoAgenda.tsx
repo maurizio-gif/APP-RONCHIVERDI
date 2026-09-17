@@ -36,6 +36,8 @@ export function ElencoAgenda({
   filtroAttivo,
   soloMieSenzaFiltro,
   hrefTuttaAgenda,
+  apriChiave = null,
+  apriPersonaId = null,
 }: {
   vociLista: VoceAgenda[]
   gestioni: Record<string, GestioneSemplicePerVoce>
@@ -55,6 +57,10 @@ export function ElencoAgenda({
   /** Solo la propria agenda e nessun filtro di stato: «la tua agenda è libera». */
   soloMieSenzaFiltro: boolean
   hrefTuttaAgenda: string
+  /** La voce da aprire subito, arrivando da «prendi in carico» altrove. */
+  apriChiave?: string | null
+  /** Ripiego sulla persona, quando la voce esatta non si conosce. */
+  apriPersonaId?: string | null
 }) {
   const [q, setQ] = useState('')
 
@@ -143,6 +149,8 @@ export function ElencoAgenda({
               sonoCommerciale={sonoCommerciale}
               possoRiassegnare={possoRiassegnare}
               nomiStaff={nomiStaff}
+              apriChiave={apriChiave}
+              apriPersonaId={apriPersonaId}
             />
           </div>
         )

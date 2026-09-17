@@ -65,7 +65,16 @@ const CONTATTI_NEL_FORM = 300
 export default async function AgendaPage({
   searchParams,
 }: {
-  searchParams: { vista?: string; da?: string; solo?: string; chi?: string }
+  searchParams: {
+    vista?: string
+    da?: string
+    solo?: string
+    chi?: string
+    /** La voce da aprire subito, arrivando da «prendi in carico» altrove. */
+    apri?: string
+    /** Ripiego sulla persona, quando la voce esatta non si conosce. */
+    persona?: string
+  }
 }) {
   if (!(await utenteHaSezione('agenda'))) {
     redirect('/dashboard')
@@ -73,7 +82,9 @@ export default async function AgendaPage({
 
   const oggi = oggiRoma()
   const daRichiesto = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.da ?? '') ? searchParams.da! : oggi
-  const vista = searchParams.vista === 'lista' ? 'lista' : 'calendario'
+  // Chi arriva con una voce da aprire arriva sempre alla lista: è lì che una
+  // riga si apre e si scorre, il calendario mostra solo i giorni.
+  const vista = searchParams.vista === 'lista' || searchParams.apri ? 'lista' : 'calendario'
 
   // Il calendario carica il mese che mostra; la lista una finestra intorno a
   // oggi. Le due viste chiedono al database solo quello che disegnano.
@@ -600,6 +611,8 @@ export default async function AgendaPage({
             filtroAttivo={!!searchParams.solo || soloMie}
             soloMieSenzaFiltro={soloMie && !searchParams.solo}
             hrefTuttaAgenda={link({ da: daRichiesto, solo: null, chi: null })}
+            apriChiave={searchParams.apri ?? null}
+            apriPersonaId={searchParams.persona ?? null}
           />
 
           <div className="agenda-nuova">

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { inizialiPersona, nomePersona } from '@/lib/persone'
 import { CLASSE_RIGA_STATO, eChiusa, eDaPrendere } from '@/lib/pipeline'
 import { CLASSE_URGENZA, fraseAttesa, giorniDa, urgenzaAttesa } from '@/lib/attesa'
@@ -10,6 +11,7 @@ import {
   ETICHETTE_TIPO_BREVI,
   dataBreve,
   eAppuntamentoVero,
+  hrefAgendaTrattativa,
   intervalloOrario,
   type Esito,
   type TipoVoce,
@@ -78,6 +80,13 @@ export type TrattativaConPersona = DatiTrattativa & {
   email: string | null
   cellulare: string | null
   evento: EventoDOrigine | null
+  /**
+   * Il tour in sede che il guest register crea da solo per chi si registra
+   * senza scegliere un orario: la richiesta che ha aperto la trattativa (`evento`)
+   * resta un «messaggio», è così che è arrivata, ma la tile non deve farla
+   * sembrare priva di un appuntamento quando quell'appuntamento c'è già.
+   */
+  tourInSede: { data: string; ora: string | null } | null
 }
 
 // Le trattative in dashboard, una riga per una.
@@ -178,6 +187,7 @@ function RigaOpportunita({
 }) {
   const [errore, setErrore] = useState<string | null>(null)
   const [inCorso, startTransition] = useTransition()
+  const router = useRouter()
 
   const nome = nomePersona(t)
   const giorni = giorniDa(t.creatoIl)
@@ -219,6 +229,16 @@ function RigaOpportunita({
       }`
     : null
 
+  /**
+   * Il tour in sede creato dal guest register va detto solo quando la
+   * richiesta che ha aperto la trattativa non lo dice già da sola: su un vero
+   * appuntamento in sede sarebbe la stessa informazione ripetuta due volte.
+   */
+  const mostraTour = !!t.tourInSede && evento?.tipo !== 'appuntamento_in_sede'
+  const quandoTour = t.tourInSede
+    ? `${dataBreve(t.tourInSede.data)}${t.tourInSede.ora ? ` · ${t.tourInSede.ora}` : ''}`
+    : null
+
   return (
     <li className={`op riga-stato ${CLASSE_RIGA_STATO[t.stato]}${aperta ? ' is-aperta' : ''}`}>
       <div className="op-riga">
@@ -241,16 +261,34 @@ function RigaOpportunita({
               </span>
 
               {/* Che cosa l'ha generata. Senza richiesta dietro non si
-                  inventa un tipo: lo dice la targhetta della provenienza. */}
-              {evento && (
-                <span className={`badge-tipo ${CLASSE_TIPO[evento.tipo]}`}>
-                  {ETICHETTE_TIPO_BREVI[evento.tipo]}
+                  inventa un tipo: lo dice la targhetta della provenienza.
+                  Chi si registra al banco senza scegliere un orario ha
+                  comunque un tour da fare subito, che il guest register crea
+                  da solo (vedi api/lead.ts sul sito): qui vince quello, non
+                  il «messaggio» con cui la richiesta è arrivata — la riga non
+                  deve sembrare priva di un appuntamento quando invece
+                  l'appuntamento in sede esiste già. Il tipo vero della
+                  richiesta resta comunque quello che decide come si chiude
+                  (vedi `conInterruttore` sotto): qui cambia solo l'etichetta. */}
+              {mostraTour ? (
+                <span className={`badge-tipo ${CLASSE_TIPO.appuntamento_in_sede}`}>
+                  In sede
                 </span>
+              ) : (
+                evento && (
+                  <span className={`badge-tipo ${CLASSE_TIPO[evento.tipo]}`}>
+                    {ETICHETTE_TIPO_BREVI[evento.tipo]}
+                  </span>
+                )
               )}
 
               {/* Un appuntamento con un giorno e un'ora: è il dato che
-                  cambia la giornata di chi è al banco. */}
-              {quando && <span className="op-quando muted">{quando}</span>}
+                  cambia la giornata di chi è al banco. Sul tour del guest
+                  register l'ora è quella della registrazione, non quella
+                  (assente) della richiesta che l'ha generato. */}
+              {mostraTour
+                ? quandoTour && <span className="op-quando muted">{quandoTour}</span>
+                : quando && <span className="op-quando muted">{quando}</span>}
 
               {giorniAttesa !== null && (
                 <span className={`attesa ${CLASSE_URGENZA[urgenzaAttesa(giorniAttesa)]}`}>
@@ -292,6 +330,10 @@ function RigaOpportunita({
               startTransition(async () => {
                 const esito = await prendiInCarico(t.id)
                 if (!esito.ok) setErrore(esito.errore)
+                // Presa in carico: si va dritti in agenda sulla sua voce,
+                // non si resta sul riquadro di una trattativa che non è
+                // più libera.
+                else router.push(hrefAgendaTrattativa(t.evento?.richiestaId ?? null, t.personaId))
               })
             }}
           >

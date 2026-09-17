@@ -96,182 +96,197 @@ export function Trattativa({
 
   return (
     <div className={`trattativa ${CLASSE_RIGA_STATO[t.stato]}`}>
-      {/* Il badge da solo ("In gestione") non dice di cosa: la riga è una
+      {/* L'intestazione della sezione: cos'è, prima di leggere di cosa parla.
+          Il badge da solo ("In gestione") non lo direbbe — la riga è una
           richiesta, questo blocco è l'opportunità della persona, che vale per
           tutte le sue richieste. */}
-      <span className="trattativa-etichetta">Trattativa</span>
-      <span className={`badge badge-stato badge-punto ${CLASSE_BADGE_STATO[t.stato]}`}>
-        {ETICHETTE_STATO[t.stato]}
-      </span>
-
-      {/* Tre trattini: quanti passi sono fatti e quale è quello di adesso. Un
-          badge dice dove sei; questo dice anche quanto manca, che su una
-          pipeline è metà dell'informazione — e si legge senza parole. */}
-      {passo >= 0 && (
-        <span
-          className="pipeline-passi"
-          role="img"
-          aria-label={`Passo ${passo + 1} di ${PASSI_AVANZAMENTO.length}: ${ETICHETTE_STATO[t.stato]}`}
-        >
-          {PASSI_AVANZAMENTO.map((x, i) => (
-            <span
-              key={x}
-              className={`pipeline-passo${i < passo ? ' is-fatto' : ''}${i === passo ? ' is-adesso' : ''}`}
-            />
-          ))}
+      <div className="trattativa-testa">
+        <span className="trattativa-etichetta">Trattativa</span>
+        <span className={`badge badge-stato badge-punto ${CLASSE_BADGE_STATO[t.stato]}`}>
+          {ETICHETTE_STATO[t.stato]}
         </span>
-      )}
 
-      <span className="trattativa-chi muted">
-        {t.assegnato_a
-          ? t.assegnato_a === io
-            ? 'la segui tu'
-            : `la segue ${nomeDiEmail(t.assegnato_a, nomiStaff)}`
-          : 'nessun assegnatario'}
-      </span>
-
-      {!t.assegnato_a && sonoCommerciale && (
-        <button
-          type="button"
-          className="btn btn-sm"
-          disabled={inCorso}
-          onClick={() => esegui(() => prendiInCarico(t.id))}
-        >
-          Prendi in carico
-        </button>
-      )}
-
-      {modificabile && (
-        <>
-          {/* L'elenco contiene solo i commerciali: assegnare a un
-              responsabile di corso vorrebbe dire metterlo in una lista che
-              non guarda mai. */}
-          <SelettoreAssegnatario
-            value={t.assegnato_a}
-            onChange={(nuovo) => esegui(() => assegnaTrattativa(t.id, nuovo))}
-            operatori={commerciali}
-            io={io}
-            nomiStaff={nomiStaff}
-            disabled={inCorso}
-            ariaLabel="Assegnata a"
-          />
-
-          <select
-            className="trattativa-select"
-            value={t.stato}
-            disabled={inCorso}
-            onChange={(e) => {
-              const nuovo = e.target.value as StatoTrattativa
-              // Le tre chiusure chiedono la nota prima di chiudere. Una persa
-              // senza motivo non insegna niente al prossimo che la guarda;
-              // una annullata senza motivo è una riga sparita dalla pipeline
-              // che fra un mese nessuno sa più perché non c'è più; e una
-              // vinta senza nota non dice che abbonamento è stato fatto.
-              if (chiedeMotivo(nuovo)) chiusura.avvia(nuovo)
-              else esegui(() => cambiaStato(t.id, nuovo))
-            }}
-            aria-label="Stato"
+        {/* Tre trattini: quanti passi sono fatti e quale è quello di adesso.
+            Un badge dice dove sei; questo dice anche quanto manca, che su una
+            pipeline è metà dell'informazione — e si legge senza parole. */}
+        {passo >= 0 && (
+          <span
+            className="pipeline-passi"
+            role="img"
+            aria-label={`Passo ${passo + 1} di ${PASSI_AVANZAMENTO.length}: ${ETICHETTE_STATO[t.stato]}`}
           >
-            {OPZIONI_STATO.map((o) => (
-              <option key={o.valore} value={o.valore}>
-                {o.etichetta}
-              </option>
-            ))}
-          </select>
-        </>
-      )}
-
-      {/* Discreto e in fondo: è una correzione dei dati, non un passo della
-          pipeline, e su una trattativa che sta lavorando un collega non deve
-          somigliare a un comando da usare per abitudine. */}
-      {annullaAParte && !chiusura.chiedo && (
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm"
-          disabled={inCorso}
-          onClick={() => chiusura.avvia('annullato')}
-        >
-          Annulla la trattativa
-        </button>
-      )}
-
-      {chiusura.chiedo && (
-        <span className="trattativa-motivo">
-          <input
-            type="text"
-            value={chiusura.motivo}
-            onChange={(e) => chiusura.setMotivo(e.target.value)}
-            placeholder={DOMANDA_MOTIVO[chiusura.chiedo]}
-            autoFocus
-          />
-
-          {/* Il valore, solo sulla vinta: è l'unica chiusura che produce
-              fatturato, e dentro la nota non si sommerebbe. */}
-          {chiedeValore(chiusura.chiedo) && (
-            <span className="trattativa-valore-campo">
-              <input
-                type="text"
-                inputMode="decimal"
-                value={chiusura.valore}
-                onChange={(e) => chiusura.setValore(e.target.value)}
-                placeholder="1080"
-                aria-label="Valore del contratto in euro"
+            {PASSI_AVANZAMENTO.map((x, i) => (
+              <span
+                key={x}
+                className={`pipeline-passo${i < passo ? ' is-fatto' : ''}${i === passo ? ' is-adesso' : ''}`}
               />
-              <span aria-hidden="true">€</span>
-            </span>
+            ))}
+          </span>
+        )}
+      </div>
+
+      <div className="trattativa-corpo">
+        <div className="trattativa-riga">
+          <span className="trattativa-chi muted">
+            {t.assegnato_a
+              ? t.assegnato_a === io
+                ? 'la segui tu'
+                : `la segue ${nomeDiEmail(t.assegnato_a, nomiStaff)}`
+              : 'nessun assegnatario'}
+          </span>
+
+          {!t.assegnato_a && sonoCommerciale && (
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={inCorso}
+              onClick={() => esegui(() => prendiInCarico(t.id))}
+            >
+              Prendi in carico
+            </button>
           )}
+        </div>
 
-          <button
-            type="button"
-            className="btn btn-sm"
-            // Nota e valore sono obbligatori anche di qua, non solo sul
-            // server: un pulsante che si preme e risponde con un errore è
-            // peggio di uno che dice prima che non è pronto.
-            disabled={
-              chiusura.inCorso ||
-              !chiusura.motivo.trim() ||
-              (chiedeValore(chiusura.chiedo) && valoreDaTesto(chiusura.valore) === null)
-            }
-            onClick={chiusura.conferma}
-          >
-            {CONFERMA_MOTIVO[chiusura.chiedo]}
-          </button>
-          {/* "Lascia stare" e non "Annulla": accanto a un pulsante che
-              annulla la trattativa, due «annulla» che fanno cose opposte
-              sono il modo di premere quello sbagliato. */}
-          <button type="button" className="btn btn-ghost btn-sm" onClick={chiusura.lasciaStare}>
-            Lascia stare
-          </button>
-        </span>
-      )}
+        {modificabile && (
+          <div className="trattativa-campi">
+            {/* L'elenco contiene solo i commerciali: assegnare a un
+                responsabile di corso vorrebbe dire metterlo in una lista che
+                non guarda mai. */}
+            <label className="trattativa-campo">
+              <span className="campo-etichetta">Assegnata a</span>
+              <SelettoreAssegnatario
+                value={t.assegnato_a}
+                onChange={(nuovo) => esegui(() => assegnaTrattativa(t.id, nuovo))}
+                operatori={commerciali}
+                io={io}
+                nomiStaff={nomiStaff}
+                disabled={inCorso}
+                ariaLabel="Assegnata a"
+              />
+            </label>
 
-      {/* La nota della chiusura, sotto gli occhi. Un'annullata senza il
-          perché è una riga sparita dalla pipeline senza spiegazione; una
-          vinta senza nota non dice cosa è stato venduto. */}
-      {!chiusura.chiedo && eChiusa(t.stato) && motivoDi(t) && (
-        <span className="trattativa-chi muted">
-          {t.stato === 'vinto' ? 'venduto: ' : t.stato === 'annullato' ? 'annullata: ' : 'motivo: '}
-          {motivoDi(t)}
-          {t.stato === 'vinto' && euro(t.valore_euro) && ` · ${euro(t.valore_euro)}`}
-        </span>
-      )}
+            <label className="trattativa-campo">
+              <span className="campo-etichetta">Stato</span>
+              <select
+                className="trattativa-select"
+                value={t.stato}
+                disabled={inCorso}
+                onChange={(e) => {
+                  const nuovo = e.target.value as StatoTrattativa
+                  // Le tre chiusure chiedono la nota prima di chiudere. Una
+                  // persa senza motivo non insegna niente al prossimo che la
+                  // guarda; una annullata senza motivo è una riga sparita
+                  // dalla pipeline che fra un mese nessuno sa più perché non
+                  // c'è più; e una vinta senza nota non dice che abbonamento
+                  // è stato fatto.
+                  if (chiedeMotivo(nuovo)) chiusura.avvia(nuovo)
+                  else esegui(() => cambiaStato(t.id, nuovo))
+                }}
+                aria-label="Stato"
+              >
+                {OPZIONI_STATO.map((o) => (
+                  <option key={o.valore} value={o.valore}>
+                    {o.etichetta}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
 
-      {eChiusa(t.stato) && !modificabile && (
-        <span className="trattativa-chi muted">chiusa</span>
-      )}
+        {/* Discreto e in fondo: è una correzione dei dati, non un passo della
+            pipeline, e su una trattativa che sta lavorando un collega non deve
+            somigliare a un comando da usare per abitudine. */}
+        {annullaAParte && !chiusura.chiedo && (
+          <div className="trattativa-riga">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              disabled={inCorso}
+              onClick={() => chiusura.avvia('annullato')}
+            >
+              Annulla la trattativa
+            </button>
+          </div>
+        )}
 
-      {/* Cosa chiede lo stato (AZIONE_STATO in lib/pipeline.ts): il badge dice
-          dov'è la trattativa, questa riga dice cosa farne. Su una persa il
-          motivo qui sopra è già la spiegazione, e ripeterlo sarebbe rumore. */}
-      {!(eChiusa(t.stato) && motivoDi(t)) && (
-        <p className="trattativa-azione">{AZIONE_STATO[t.stato]}</p>
-      )}
+        {chiusura.chiedo && (
+          <div className="trattativa-motivo">
+            <input
+              type="text"
+              value={chiusura.motivo}
+              onChange={(e) => chiusura.setMotivo(e.target.value)}
+              placeholder={DOMANDA_MOTIVO[chiusura.chiedo]}
+              autoFocus
+            />
 
-      {(errore ?? chiusura.errore) && (
-        <span className="field-hint" style={{ color: 'var(--error)', flexBasis: '100%' }}>
-          {errore ?? chiusura.errore}
-        </span>
-      )}
+            {/* Il valore, solo sulla vinta: è l'unica chiusura che produce
+                fatturato, e dentro la nota non si sommerebbe. */}
+            {chiedeValore(chiusura.chiedo) && (
+              <span className="trattativa-valore-campo">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={chiusura.valore}
+                  onChange={(e) => chiusura.setValore(e.target.value)}
+                  placeholder="1080"
+                  aria-label="Valore del contratto in euro"
+                />
+                <span aria-hidden="true">€</span>
+              </span>
+            )}
+
+            <button
+              type="button"
+              className="btn btn-sm"
+              // Nota e valore sono obbligatori anche di qua, non solo sul
+              // server: un pulsante che si preme e risponde con un errore è
+              // peggio di uno che dice prima che non è pronto.
+              disabled={
+                chiusura.inCorso ||
+                !chiusura.motivo.trim() ||
+                (chiedeValore(chiusura.chiedo) && valoreDaTesto(chiusura.valore) === null)
+              }
+              onClick={chiusura.conferma}
+            >
+              {CONFERMA_MOTIVO[chiusura.chiedo]}
+            </button>
+            {/* "Lascia stare" e non "Annulla": accanto a un pulsante che
+                annulla la trattativa, due «annulla» che fanno cose opposte
+                sono il modo di premere quello sbagliato. */}
+            <button type="button" className="btn btn-ghost btn-sm" onClick={chiusura.lasciaStare}>
+              Lascia stare
+            </button>
+          </div>
+        )}
+
+        {/* La nota della chiusura, sotto gli occhi. Un'annullata senza il
+            perché è una riga sparita dalla pipeline senza spiegazione; una
+            vinta senza nota non dice cosa è stato venduto. */}
+        {!chiusura.chiedo && eChiusa(t.stato) && motivoDi(t) && (
+          <p className="trattativa-chi muted">
+            {t.stato === 'vinto' ? 'venduto: ' : t.stato === 'annullato' ? 'annullata: ' : 'motivo: '}
+            {motivoDi(t)}
+            {t.stato === 'vinto' && euro(t.valore_euro) && ` · ${euro(t.valore_euro)}`}
+          </p>
+        )}
+
+        {eChiusa(t.stato) && !modificabile && <p className="trattativa-chi muted">chiusa</p>}
+
+        {/* Cosa chiede lo stato (AZIONE_STATO in lib/pipeline.ts): il badge
+            dice dov'è la trattativa, questa riga dice cosa farne. Su una
+            persa il motivo qui sopra è già la spiegazione, e ripeterlo
+            sarebbe rumore. */}
+        {!(eChiusa(t.stato) && motivoDi(t)) && (
+          <p className="trattativa-azione">{AZIONE_STATO[t.stato]}</p>
+        )}
+
+        {(errore ?? chiusura.errore) && (
+          <p className="field-hint" style={{ color: 'var(--error)' }}>
+            {errore ?? chiusura.errore}
+          </p>
+        )}
+      </div>
     </div>
   )
 }
