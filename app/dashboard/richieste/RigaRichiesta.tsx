@@ -12,7 +12,6 @@ import {
 } from '@/lib/agenda'
 import { CLASSE_BADGE_STATO, CLASSE_RIGA_STATO, ETICHETTE_STATO } from '@/lib/pipeline'
 import { provenienzaTrattativa } from '@/lib/provenienza'
-import { CLASSE_URGENZA, fraseAttesa, giorniDa, urgenzaAttesa } from '@/lib/attesa'
 import { inizialiPersona } from '@/lib/persone'
 import { nomeDiEmail } from '@/lib/staff'
 import { GestioneEvento } from '@/components/GestioneEvento'
@@ -237,11 +236,6 @@ export function RigaRichiesta({
 
   const oraScelta = r.ora_scelta ? String(r.ora_scelta).slice(0, 5) : null
 
-  // Da quanto aspetta. Su una richiesta chiusa non vuol dire niente: è
-  // storia, non una cosa che sta aspettando qualcuno.
-  const giorni = giorniDa(r.created_at)
-  const giorniAttesa = giorni !== null && !r.gestito ? giorni : null
-
   // La banda di colore. Dove le trattative non esistono (tutti i canali
   // tranne Club e Family) la riga si colora con la propria lavorazione: da
   // lavorare o chiusa, che lì è tutto il ciclo di vita.
@@ -273,15 +267,9 @@ export function RigaRichiesta({
             <strong className="richiesta-nome">{nome}</strong>
             {minore && <span className="muted"> · per {minore}</span>}
 
-            {/* Quando è arrivata e da quanto aspetta, insieme: la data da sola
-                va sottratta a mente, riga per riga. */}
+            {/* Quando è arrivata. */}
             <div className="richiesta-quando muted">
               <span>{dataOra(r.created_at)}</span>
-              {giorniAttesa !== null && (
-                <span className={`attesa ${CLASSE_URGENZA[urgenzaAttesa(giorniAttesa)]}`}>
-                  · {fraseAttesa(giorniAttesa)}
-                </span>
-              )}
             </div>
 
             {/* Le targhette: cosa è questa richiesta. Tonde e in tondo

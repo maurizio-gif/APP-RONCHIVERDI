@@ -389,6 +389,17 @@ export function intervalloOrario(ora: string | null, durataMinuti: number): stri
   return fine && fine !== inizio ? `${inizio} - ${fine}` : inizio
 }
 
+/** "17:32" — l'ora di un istante, nel fuso di Roma. Per i messaggi, che non
+ * hanno uno slot scelto ma sono arrivati in un momento preciso: "in
+ * giornata" è vero ma non dice niente, l'ora d'arrivo sì. */
+export function oraBreve(iso: string): string {
+  return new Date(iso).toLocaleTimeString('it-IT', {
+    timeZone: 'Europe/Rome',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 /**
  * Una voce inserita per un momento già passato, o per i prossimi 30 minuti, è
  * quasi certamente qualcosa che è già avvenuto e che si sta solo registrando
@@ -442,6 +453,13 @@ export type VoceAgenda = {
   dataDArrivo: boolean
   /** 'HH:MM', oppure null = entro la giornata, senza slot. */
   ora: string | null
+  /**
+   * L'ora in cui è arrivata, per i messaggi: non hanno uno slot (`ora` resta
+   * null), ma sono arrivati in un momento preciso e "in giornata" da solo non
+   * lo dice. Null sulle voci che hanno già un `ora` propria o che non sono
+   * mai arrivate da un form (i task della segreteria).
+   */
+  orarioArrivo: string | null
   durataMinuti: number
   note: string | null
   assegnatoA: string | null
@@ -509,6 +527,10 @@ export function voceDaTask(
     // Una voce della segreteria la data ce l'ha sempre: `task.data` è not null.
     dataDArrivo: false,
     ora: normalizzaOra(riga.ora),
+    // Un task lo scrive un operatore scegliendo lui giorno e ora (o
+    // lasciandola vuota apposta): non è "arrivato", quindi non ha un orario
+    // d'arrivo da recuperare.
+    orarioArrivo: null,
     durataMinuti:
       Number(riga.durata_minuti) > 0 ? Number(riga.durata_minuti) : DURATA_PREDEFINITA[tipo],
     note: riga.note ?? null,
@@ -595,6 +617,10 @@ export function voceDaContatto(riga: Riga): VoceAgenda {
     data,
     dataDArrivo: !dataScelta,
     ora: normalizzaOra(riga.ora_scelta),
+    // Solo sui messaggi: chi ha preso un appuntamento o una telefonata ha già
+    // il suo `ora`, e riscriverlo con l'ora d'arrivo direbbe una cosa diversa
+    // da quella vera (a che ora ha scritto, non a che ora viene).
+    orarioArrivo: tipo === 'messaggio' && riga.created_at ? oraBreve(riga.created_at) : null,
     durataMinuti: DURATA_PREDEFINITA[tipo],
     // Solo il testo scritto dalla persona: l'attività ha una voce sua
     // (`attivita` qui sotto) e ripeterla dentro le note la faceva comparire
