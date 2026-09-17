@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { prendiInCarico } from './richieste/trattativa-actions'
 import { useAvvisoSonoro } from './useAvvisoSonoro'
 import { IconaNuovaScheda } from '@/components/IconaNuovaScheda'
+import { hrefAgendaTrattativa } from '@/lib/agenda'
 import type { AvvisoLavoro } from './opportunita-actions'
 
 // Il lavoro appena arrivato va addosso a chi lo deve fare: la richiesta delle
@@ -33,6 +35,7 @@ export function AvvisoOpportunita({ abilitato }: { abilitato: boolean }) {
   const [errore, setErrore] = useState<string | null>(null)
   const [inCorso, startTransition] = useTransition()
   const { attivo: suonoAttivo, cambia: cambiaSuono, avvisa, provaSuono } = useAvvisoSonoro()
+  const router = useRouter()
 
   // Gli id già visti in questa sessione del browser. Il primo giro stabilisce
   // il punto di partenza **in silenzio**: senza, aprire il pannello con sei
@@ -93,8 +96,11 @@ export function AvvisoOpportunita({ abilitato }: { abilitato: boolean }) {
     setErrore(null)
     startTransition(async () => {
       const esito = await prendiInCarico(corrente.id)
-      if (esito.ok) chiudi()
-      else setErrore(esito.errore)
+      if (!esito.ok) return setErrore(esito.errore)
+      chiudi()
+      // Presa in carico: si va dritti in agenda sulla sua voce, non si
+      // lascia il popup chiuso senza sapere dove sia finita.
+      router.push(hrefAgendaTrattativa(corrente.richiestaId ?? null, corrente.personaId))
     })
   }
 

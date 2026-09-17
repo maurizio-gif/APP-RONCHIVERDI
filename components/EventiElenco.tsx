@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   CLASSE_TIPO,
   ETICHETTE_TIPO_BREVI,
@@ -65,6 +65,8 @@ export function EventiElenco({
   sonoCommerciale = false,
   possoRiassegnare = false,
   nomiStaff = {},
+  apriChiave = null,
+  apriPersonaId = null,
 }: {
   voci: VoceAgenda[]
   /** Nota e firme delle richieste dal sito, per chiave di voce. */
@@ -102,8 +104,44 @@ export function EventiElenco({
   possoRiassegnare?: boolean
   /** Email → "Nome Cognome": nel tag si legge la persona, non il suo indirizzo. */
   nomiStaff?: Record<string, string>
+  /**
+   * La chiave di una voce da aprire subito, arrivando da un altro pannello —
+   * «prendi in carico» dalla dashboard o dal popup deve portare dritti alla
+   * trattativa in agenda, non lasciarla da ritrovare a mano in un elenco di
+   * dodici voci.
+   */
+  apriChiave?: string | null
+  /**
+   * Ripiego quando non si conosce la voce esatta ma solo la persona (una
+   * trattativa nata in agenda, senza una richiesta dal sito dietro): apre la
+   * prima voce ancora da fare di quella persona, o la prima in assoluto se
+   * non ce n'è nessuna aperta.
+   */
+  apriPersonaId?: string | null
 }) {
-  const [aperta, setAperta] = useState<string | null>(null)
+  // Calcolata una sola volta, all'apertura della pagina: chi tocca «aperta»
+  // dopo (aprendo o chiudendo un'altra riga a mano) non deve vedersela
+  // ricalcolata da sotto i piedi.
+  const [aperta, setAperta] = useState<string | null>(() => {
+    if (apriChiave && voci.some((v) => v.chiave === apriChiave)) return apriChiave
+    if (apriPersonaId) {
+      const daFare = voci.find((v) => v.personaId === apriPersonaId && v.daFare)
+      const qualunque = voci.find((v) => v.personaId === apriPersonaId)
+      return (daFare ?? qualunque)?.chiave ?? null
+    }
+    return null
+  })
+
+  // La riga da aprire arriva scorrendo da un'altra pagina: senza scorrerci
+  // sopra da soli, chi arriva la trova aperta ma magari fuori dallo schermo,
+  // in fondo a un elenco di dodici voci.
+  const righe = useRef<Record<string, HTMLLIElement | null>>({})
+  useEffect(() => {
+    if (aperta) righe.current[aperta]?.scrollIntoView({ block: 'center' })
+    // Solo all'apertura della pagina: `aperta` cambia anche quando si apre o
+    // si chiude una riga a mano, e quello scorrimento non deve ripetersi.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <ul className="op-elenco">
@@ -222,7 +260,14 @@ export function EventiElenco({
 
         return (
           <li
-            className={`op riga-stato ${classeStato}${inGestione ? ' is-aperta' : ''}`}
+            ref={(el) => {
+              righe.current[voce.chiave] = el
+            }}
+            className={`op riga-stato ${classeStato}${inGestione ? ' is-aperta' : ''}${
+              apriChiave === voce.chiave || (!apriChiave && apriPersonaId === voce.personaId)
+                ? ' is-indicata'
+                : ''
+            }`}
             key={voce.chiave}
           >
             <div className="op-riga">

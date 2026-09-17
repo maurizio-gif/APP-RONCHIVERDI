@@ -401,6 +401,26 @@ export function oraBreve(iso: string): string {
 }
 
 /**
+ * Il link per aprire subito, in agenda, la voce di una trattativa appena
+ * presa in carico: chi la prende deve trovarsela davanti, non tornare a
+ * cercarla in un elenco.
+ *
+ * Con la richiesta che l'ha aperta (`richiestaId`) apre esattamente quella
+ * voce. Senza — una trattativa nata in agenda, senza nessuna richiesta dal
+ * sito dietro — ripiega sulla persona: apre la prima voce ancora da fare che
+ * la riguarda (vedi `apriPersonaId` in EventiElenco).
+ */
+export function hrefAgendaTrattativa(
+  richiestaId: string | null,
+  personaId: string | null
+): string {
+  const parametri = new URLSearchParams({ vista: 'lista' })
+  if (richiestaId) parametri.set('apri', `contatto-${richiestaId}`)
+  else if (personaId) parametri.set('persona', personaId)
+  return `/dashboard/agenda?${parametri.toString()}`
+}
+
+/**
  * Una voce inserita per un momento già passato, o per i prossimi 30 minuti, è
  * quasi certamente qualcosa che è già avvenuto e che si sta solo registrando
  * (una telefonata appena fatta, un'email appena scritta): si segna da sola

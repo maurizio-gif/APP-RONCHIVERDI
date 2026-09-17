@@ -434,8 +434,11 @@ async function trattativeDaLavorare(email: string | null) {
   const personaIds = [...new Set(scelte.map((t) => t.persona_id).filter(Boolean))] as string[]
   const trattativaIds = scelte.map((t) => t.id as string)
 
-  const [{ data: persone, error: errorePersone }, { data: richieste, error: erroreRichieste }] =
-    await Promise.all([
+  const [
+    { data: persone, error: errorePersone },
+    { data: richieste, error: erroreRichieste },
+    { data: tourInSede },
+  ] = await Promise.all([
       // Solo le colonne che `persone` ha davvero: `ultima_richiesta` sta sulla
       // vista persone_con_richieste, e chiederla qui faceva fallire la lettura
       // — con l'errore ignorato, ogni trattativa finiva intestata a «Senza
@@ -466,7 +469,21 @@ async function trattativeDaLavorare(email: string | null) {
                 .order('created_at', { ascending: true })
           )
         : Promise.resolve({ data: [] as Record<string, any>[], error: null }),
-    ])
+      // Il tour in sede che il guest register crea da solo per chi si
+      // registra senza prenotare un orario (vedi api/lead.ts sul sito): la
+      // richiesta che ha aperto la trattativa resta un «messaggio» — è
+      // proprio così che è arrivata — ma la tile non deve farla sembrare
+      // priva di un appuntamento quando quell'appuntamento esiste già,
+      // creato in automatico.
+      personaIds.length
+        ? supabase
+            .from('task')
+            .select('entita_id, data, ora, stato')
+            .eq('entita', 'persona')
+            .in('entita_id', personaIds)
+            .eq('tipo', 'appuntamento_in_sede')
+        : Promise.resolve({ data: [] as Record<string, any>[], error: null }),
+  ])
 
   // Un errore qui non svuota la pagina — le trattative si vedono comunque —
   // ma senza i nomi non si capisce di chi siano: va detto nei log invece di
@@ -525,6 +542,20 @@ async function trattativeDaLavorare(email: string | null) {
     evento.quante = quantePerTrattativa.get(idTrattativa) ?? 1
   }
 
+  // Un tour per persona: se ce n'è più di uno (un altro giorno, un'altra
+  // registrazione) vince quello ancora aperto, che è il lavoro vero — un
+  // tour già fatto non direbbe niente su cosa fare adesso.
+  const tourInSedePerPersona = new Map<string, { data: string; ora: string | null }>()
+  for (const t of tourInSede ?? []) {
+    const personaId = t.entita_id as string
+    const gia = tourInSedePerPersona.get(personaId)
+    if (gia && t.stato !== 'aperto') continue
+    tourInSedePerPersona.set(personaId, {
+      data: String(t.data).slice(0, 10),
+      ora: normalizzaOra(t.ora as string | null),
+    })
+  }
+
   function conPersona(t: Record<string, any>): TrattativaConPersona {
     const p = t.persona_id ? perId.get(t.persona_id as string) : undefined
     return {
@@ -549,6 +580,10 @@ async function trattativeDaLavorare(email: string | null) {
       // Null sulle trattative nate da un evento in agenda: là non c'è nessuna
       // richiesta dietro, e quegli eventi si lavorano nella seconda sezione.
       evento: eventoPerTrattativa.get(t.id as string) ?? null,
+      // Il tour in sede creato in automatico dal guest register, quando la
+      // registrazione era senza orario scelto: la tile lo dice, anche se
+      // l'evento che ha aperto la trattativa resta un «messaggio».
+      tourInSede: (t.persona_id && tourInSedePerPersona.get(t.persona_id as string)) || null,
     }
   }
 
