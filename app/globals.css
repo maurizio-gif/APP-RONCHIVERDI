@@ -3631,14 +3631,20 @@ table.tabella tbody tr:hover {
 	list-style: none;
 }
 
+/* Ogni evento in un riquadro suo, non separato dal successivo da una riga
+   sola: su una cronologia con più voci una divisoria sottile si perde
+   scorrendo, mentre un bordo intorno dice "qui finisce un evento, qui ne
+   comincia un altro" anche guardando la pagina di sfuggita. */
 .evento {
-	padding: 0.75rem 0;
-	border-top: 1px solid var(--border);
+	padding: 0.75rem 0.9rem;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	margin-bottom: 0.6rem;
 }
 
-.evento:first-child {
-	padding-top: 0;
-	border-top: none;
+.evento:last-child {
+	margin-bottom: 0;
 }
 
 /* Un evento chiuso resta leggibile ma smette di chiedere attenzione: in una
