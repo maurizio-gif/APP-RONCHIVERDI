@@ -69,12 +69,14 @@ export const COLONNE_ASSEGNAZIONE_RICHIESTA = ['assegnato_a', 'assegnato_il', 'a
 
 /**
  * Le colonne di `opportunita` introdotte da
- * scripts/sql/2026-09-11-nota-della-vinta.sql: quale abbonamento è stato
- * venduto, e quanto vale il contratto.
+ * scripts/sql/2026-09-11-nota-della-vinta.sql e da
+ * scripts/sql/2026-09-17-triple-pack-e-obiettivi-giornalieri.sql: quale
+ * abbonamento è stato venduto, quanto vale il contratto, e se include un
+ * triple pack.
  *
  * Solo in **lettura** si ripiega. La scrittura no: chiudere una trattativa
  * come vinta senza la sua nota vorrebbe dire salvare a metà qualcosa che è
  * appena stato dichiarato obbligatorio — cambiaStato preferisce rifiutare, e
  * dire quale migration manca.
  */
-export const COLONNE_NOTA_VINTA = ['motivo_vinto', 'valore_euro'] as const
+export const COLONNE_NOTA_VINTA = ['motivo_vinto', 'valore_euro', 'triple_pack'] as const

@@ -617,6 +617,13 @@ export default async function CoreManagerPage({
         </p>
       </div>
 
+      {/* Il pulsante che porta al report giornaliero, in evidenza e non
+          dentro una riga di testo: è la pagina che la responsabile apre ogni
+          giorno, non un rimando occasionale da queste statistiche. */}
+      <Link href="/dashboard/core-manager/report" className="btn btn-grande report-cta">
+        Report giornaliero per consulente
+      </Link>
+
       {/* Il periodo vale per tutto tranne le opportunità aperte, che sono una
           fotografia di adesso. Detto qui e ripetuto in testa alla tabella
           giusta, perché un numero col periodo sbagliato in testa è peggio di

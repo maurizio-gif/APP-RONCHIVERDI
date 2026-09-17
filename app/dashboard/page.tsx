@@ -26,7 +26,7 @@ import {
 } from '@/lib/agenda'
 import { contattiDelleVoci } from '@/lib/eventi-server'
 import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
-import { COLONNE_ASSEGNAZIONE_RICHIESTA, conColonneNuove } from '@/lib/migrazioni'
+import { COLONNE_ASSEGNAZIONE_RICHIESTA, COLONNE_NOTA_VINTA, conColonneNuove } from '@/lib/migrazioni'
 import { GuidaDashboard } from '@/components/GuidaDashboard'
 import { EventiElenco, type GestioneSemplicePerVoce } from '@/components/EventiElenco'
 import type { EventoCollegato } from './richieste/EventiTrattativa'
@@ -328,13 +328,16 @@ async function impegniDelGiorno() {
   ] as string[]
 
   const { data: trattativeDellePersone } = idPersoneVoci.length
-    ? await supabase
-        .from('opportunita')
-        .select(
-          'id, persona_id, stato, assegnato_a, motivo_perso, motivo_annullato, motivo_vinto, valore_euro'
-        )
-        .in('persona_id', idPersoneVoci)
-        .order('creato_il', { ascending: true })
+    ? await conColonneNuove<Record<string, any>>(
+        'id, persona_id, stato, assegnato_a, motivo_perso, motivo_annullato, motivo_vinto, valore_euro, triple_pack',
+        COLONNE_NOTA_VINTA,
+        (colonne) =>
+          supabase
+            .from('opportunita')
+            .select(colonne)
+            .in('persona_id', idPersoneVoci)
+            .order('creato_il', { ascending: true })
+      )
     : { data: [] as Record<string, any>[] }
 
   const trattative: Record<string, DatiTrattativa> = {}
@@ -347,6 +350,7 @@ async function impegniDelGiorno() {
       motivo_annullato: (t.motivo_annullato as string) ?? null,
       motivo_vinto: (t.motivo_vinto as string) ?? null,
       valore_euro: (t.valore_euro as number) ?? null,
+      triple_pack: !!t.triple_pack,
     }
   }
 

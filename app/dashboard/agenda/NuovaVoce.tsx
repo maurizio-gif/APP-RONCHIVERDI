@@ -27,19 +27,26 @@ export type ContattoScegliibile = {
 // Il form si apre solo su richiesta: l'agenda si guarda molto più spesso di
 // quanto ci si aggiunga qualcosa, e un form sempre aperto in cima ruberebbe
 // lo spazio alla giornata.
+//
+// Chi arriva dalla scorciatoia diretta (vedi agenda/nuova/page.tsx) sta
+// invece invertendo la frequenza: è lì solo per aggiungere una voce, e
+// trovarsela chiusa dietro lo stesso pulsante sarebbe un passo di troppo.
 export function NuovaVoce({
   giornoPredefinito,
   operatori,
   contatti,
   contattiTroncati = false,
+  apertaInizialmente = false,
 }: {
   giornoPredefinito: string
   operatori: string[]
   contatti: ContattoScegliibile[]
   /** Vero se l'elenco è stato tagliato: si dice, non si nasconde. */
   contattiTroncati?: boolean
+  /** Vero sulla pagina dedicata: il form è la ragione per cui ci si è arrivati. */
+  apertaInizialmente?: boolean
 }) {
-  const [aperto, setAperto] = useState(false)
+  const [aperto, setAperto] = useState(apertaInizialmente)
   // Dentro il calendario vince il giorno che si sta guardando: chi clicca su
   // una casella e poi "Aggiungi" intende quel giorno, non oggi.
   const giornoDalCalendario = useGiornoSelezionato()

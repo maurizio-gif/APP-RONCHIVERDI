@@ -165,7 +165,7 @@ export default async function CanalePage({
     // letture della stessa tabella, e un'ondata in più prima di disegnare.
     canale.inAgenda
       ? conColonneNuove<Record<string, any>>(
-          'id, stato, assegnato_a, motivo_perso, motivo_annullato, motivo_vinto, valore_euro',
+          'id, stato, assegnato_a, motivo_perso, motivo_annullato, motivo_vinto, valore_euro, triple_pack',
           COLONNE_NOTA_VINTA,
           (colonne) => supabase.from('opportunita').select(colonne)
         )
@@ -312,6 +312,7 @@ export default async function CanalePage({
             motivo_annullato: t.motivo_annullato as string | null,
             motivo_vinto: (t.motivo_vinto as string) ?? null,
             valore_euro: t.valore_euro != null ? Number(t.valore_euro) : null,
+            triple_pack: !!t.triple_pack,
           } satisfies DatiTrattativa,
         ])
       ),

@@ -147,7 +147,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
     // dalla sezione Club e Family, dove c'è la pipeline intorno. Qui si
     // lavorano le **richieste**, che sono il lavoro concreto di una scheda.
     conColonneNuove<Record<string, any>>(
-      'id, stato, assegnato_a, creato_il, chiuso_il, motivo_perso, motivo_annullato, motivo_vinto, valore_euro, origine',
+      'id, stato, assegnato_a, creato_il, chiuso_il, motivo_perso, motivo_annullato, motivo_vinto, valore_euro, triple_pack, origine',
       COLONNE_NOTA_VINTA,
       (colonne) =>
         supabase
@@ -182,6 +182,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
         motivo_annullato: (apertaOra.motivo_annullato as string) ?? null,
         motivo_vinto: (apertaOra.motivo_vinto as string) ?? null,
         valore_euro: apertaOra.valore_euro != null ? Number(apertaOra.valore_euro) : null,
+        triple_pack: !!apertaOra.triple_pack,
       }
     : null
 
@@ -394,6 +395,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
                       Venduto: {t.motivo_vinto ?? '—'}
                       {euro(t.valore_euro != null ? Number(t.valore_euro) : null) &&
                         ` · ${euro(Number(t.valore_euro))}`}
+                      {t.triple_pack && ' · triple pack'}
                     </span>
                   )}
                   {t.motivo_perso && <span className="voce-note muted">Motivo: {t.motivo_perso}</span>}

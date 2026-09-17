@@ -76,8 +76,20 @@ export function ChiusuraTrattativa({
   // Stessa nota, stesso valore, stessa validazione e stesso salvataggio
   // della tendina in Trattativa.tsx — la logica di chiusura è un unico
   // posto (useChiusuraTrattativa), qui cambia solo come si presenta.
-  const { chiedo, motivo, setMotivo, valore, setValore, errore, inCorso, avvia, lasciaStare, conferma } =
-    useChiusuraTrattativa(t)
+  const {
+    chiedo,
+    motivo,
+    setMotivo,
+    valore,
+    setValore,
+    triplePack,
+    setTriplePack,
+    errore,
+    inCorso,
+    avvia,
+    lasciaStare,
+    conferma,
+  } = useChiusuraTrattativa(t)
 
   const diritti = { assegnatoA: t.assegnato_a, io, sonoCommerciale, possoRiassegnare }
   const possoChiudere = puoAssegnare(diritti)
@@ -118,6 +130,7 @@ export function ChiusuraTrattativa({
           {t.stato === 'vinto' && euro(t.valore_euro) && (
             <strong className="chiusura-valore"> · {euro(t.valore_euro)}</strong>
           )}
+          {t.stato === 'vinto' && t.triple_pack && <strong className="chiusura-valore"> · triple pack</strong>}
         </p>
       ) : chiedo ? (
         <div className="chiusura-motivo-campo">
@@ -158,6 +171,14 @@ export function ChiusuraTrattativa({
                 Solo cifre, virgola per i centesimi. Niente punti delle migliaia: «1.080» e
                 «1080» si leggerebbero diversi.
               </p>
+              <label className="check-riga">
+                <input
+                  type="checkbox"
+                  checked={triplePack}
+                  onChange={(e) => setTriplePack(e.target.checked)}
+                />
+                <span>Triple pack</span>
+              </label>
             </>
           )}
           <div className="chiusura-azioni">
