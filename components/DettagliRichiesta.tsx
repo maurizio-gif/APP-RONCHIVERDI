@@ -30,6 +30,11 @@ export function DettagliRichiesta({
    * Come si chiude questa richiesta. Cambia una parola sola - «Nota» contro
    * «Nota precedente» - ma e' la differenza fra la nota che si scrive adesso
    * e quella vecchia, leggibile e non piu' scrivibile.
+   *
+   * Dove c'e' l'interruttore, cosa ha chiesto e il messaggio li mostra il
+   * pannello di Gestione qui sotto (vedi RiepilogoRichiesta in
+   * GestioneSemplice.tsx) — ripeterli qui sarebbe la stessa informazione due
+   * volte a due centimetri di distanza.
    */
   conInterruttore,
   /**
@@ -47,7 +52,6 @@ export function DettagliRichiesta({
   giaInCronologia?: boolean
   nomiStaff?: Record<string, string>
 }) {
-  const eQuestionario = r.origine === 'fitness-manager-inline'
   const minore = [r.minore_nome, r.minore_cognome].filter(Boolean).join(' ')
   const provenienza = provenienzaRichiesta(r)
   const primoContatto = primoContattoDi(r)
@@ -77,60 +81,10 @@ export function DettagliRichiesta({
             </dd>
           </>
         )}
-        {r.azione && !giaInCronologia && (
-          <>
-            <dt>Richiesta</dt>
-            <dd>
-              {r.azione}
-              {r.data_scelta && ` · ${r.data_scelta}`}
-              {r.ora_scelta && ` ore ${String(r.ora_scelta).slice(0, 5)}`}
-            </dd>
-          </>
-        )}
-        {r.dettagli && r.dettagli.length > 0 && (
-          <>
-            {/* Per il Fitness Manager quelle righe sono le risposte a
-                domande precise (obiettivo, livello, frequenza), non le
-                caselle "cosa ti interessa" del form generico: chiamarle
-                Interessi le farebbe leggere come preferenze vaghe. */}
-            <dt>{eQuestionario ? 'Questionario' : 'Interessi'}</dt>
-            <dd>
-              {eQuestionario ? (
-                // Le risposte del questionario sono coppie domanda/valore:
-                // in fila su una riga sola si leggono come un elenco di
-                // interessi, e chi chiama deve rileggerle per capire quale
-                // e' l'obiettivo e quale la frequenza.
-                <ul className="dettagli-risposte">
-                  {ordinaRisposte(r.dettagli).map((risposta, i) => {
-                    const taglio = risposta.indexOf(':')
-                    return taglio === -1 ? (
-                      <li key={i}>{risposta}</li>
-                    ) : (
-                      <li key={i}>
-                        <span className="muted">{risposta.slice(0, taglio + 1)}</span>{' '}
-                        {risposta.slice(taglio + 1).trim()}
-                      </li>
-                    )
-                  })}
-                </ul>
-              ) : (
-                r.dettagli.join(', ')
-              )}
-            </dd>
-          </>
-        )}
-        {r.messaggio && !giaInCronologia && (
-          <>
-            {/* Se la persona ha prenotato, quel testo è l'oggetto che ha
-                scritto scegliendo giorno e ora: chiamarlo "Messaggio" lo
-                farebbe sembrare un commento in più, non la ragione
-                dell'incontro. */}
-            <dt>
-              {r.azione === 'appuntamento' || r.azione === 'telefonata' ? 'Oggetto' : 'Messaggio'}
-            </dt>
-            <dd>{r.messaggio}</dd>
-          </>
-        )}
+        {/* Cosa ha chiesto e il messaggio: qui solo dove non li mostra già
+            un pannello sotto — la Gestione a interruttore (RiepilogoRichiesta
+            in GestioneSemplice.tsx) o l'evento in cronologia (trattativa). */}
+        {!conInterruttore && <RiepilogoRichiesta r={r} nascondiRichiestaEMessaggio={giaInCronologia} />}
       </dl>
 
       <button
@@ -230,6 +184,95 @@ export function DettagliRichiesta({
       {/* Le pagine viste prima di scrivere: un altro approfondimento, non
           la prima cosa da leggere — già si apriva su richiesta, resta così. */}
       <PercorsoSito idRichiesta={r.id} paginaForm={r.pagina} />
+    </>
+  )
+}
+
+/**
+ * Cosa ha chiesto: il tipo di richiesta (con data/ora se prenotata), gli
+ * interessi o il questionario, l'oggetto o il messaggio. Va dentro una
+ * `<dl className="dettagli-lista">` — di chi la chiama, non sua: gli stessi
+ * campi finiscono ora dentro DettagliRichiesta (dove nessun pannello sotto
+ * li ripete già) e dentro GestioneSemplice (dove sono l'unica cosa che
+ * l'operatore vede prima dell'interruttore), e le due liste devono restare
+ * la stessa lista scritta una volta sola.
+ */
+export function RiepilogoRichiesta({
+  r,
+  /**
+   * Vero dove Richiesta e Oggetto/Messaggio li mostra già un altro pannello
+   * (l'evento in cronologia di una trattativa): qui restano solo gli
+   * interessi/questionario, che quel pannello non porta.
+   */
+  nascondiRichiestaEMessaggio = false,
+}: {
+  /**
+   * Solo i campi che servono a dire cosa è stato chiesto: così lo stesso
+   * riepilogo si usa anche dove il tipo `Richiesta` per esteso non c'è
+   * (es. RichiestaDiPersona in RichiestePersona.tsx), senza dover portare
+   * dietro anagrafica, marketing e provenienza solo per farlo compilare.
+   */
+  r: Pick<Richiesta, 'azione' | 'data_scelta' | 'ora_scelta' | 'dettagli' | 'messaggio' | 'origine'>
+  nascondiRichiestaEMessaggio?: boolean
+}) {
+  const eQuestionario = r.origine === 'fitness-manager-inline'
+
+  return (
+    <>
+      {r.azione && !nascondiRichiestaEMessaggio && (
+        <>
+          <dt>Richiesta</dt>
+          <dd>
+            {r.azione}
+            {r.data_scelta && ` · ${r.data_scelta}`}
+            {r.ora_scelta && ` ore ${String(r.ora_scelta).slice(0, 5)}`}
+          </dd>
+        </>
+      )}
+      {r.dettagli && r.dettagli.length > 0 && (
+        <>
+          {/* Per il Fitness Manager quelle righe sono le risposte a domande
+              precise (obiettivo, livello, frequenza), non le caselle "cosa
+              ti interessa" del form generico: chiamarle Interessi le
+              farebbe leggere come preferenze vaghe. */}
+          <dt>{eQuestionario ? 'Questionario' : 'Interessi'}</dt>
+          <dd>
+            {eQuestionario ? (
+              // Le risposte del questionario sono coppie domanda/valore: in
+              // fila su una riga sola si leggono come un elenco di
+              // interessi, e chi chiama deve rileggerle per capire quale
+              // e' l'obiettivo e quale la frequenza.
+              <ul className="dettagli-risposte">
+                {ordinaRisposte(r.dettagli).map((risposta, i) => {
+                  const taglio = risposta.indexOf(':')
+                  return taglio === -1 ? (
+                    <li key={i}>{risposta}</li>
+                  ) : (
+                    <li key={i}>
+                      <span className="muted">{risposta.slice(0, taglio + 1)}</span>{' '}
+                      {risposta.slice(taglio + 1).trim()}
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              r.dettagli.join(', ')
+            )}
+          </dd>
+        </>
+      )}
+      {r.messaggio && !nascondiRichiestaEMessaggio && (
+        <>
+          {/* Se la persona ha prenotato, quel testo è l'oggetto che ha
+              scritto scegliendo giorno e ora: chiamarlo "Messaggio" lo
+              farebbe sembrare un commento in più, non la ragione
+              dell'incontro. */}
+          <dt>
+            {r.azione === 'appuntamento' || r.azione === 'telefonata' ? 'Oggetto' : 'Messaggio'}
+          </dt>
+          <dd>{r.messaggio}</dd>
+        </>
+      )}
     </>
   )
 }

@@ -210,6 +210,7 @@ export function GestioneEvento({
 
       {conInterruttore ? (
         <GestioneSemplice
+          r={r}
           id={r.id}
           gestito={r.gestito}
           nota={r.note}
