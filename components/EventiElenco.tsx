@@ -181,6 +181,30 @@ export function EventiElenco({
         // arrivato da un form, manca sulle voci scritte in segreteria.
         const richiesta = richieste[voce.chiave]
 
+        /**
+         * Il motivo di un annullamento, quando l'esito non ce l'ha.
+         *
+         * Un appuntamento annullato dal cliente (dal link nell'email di
+         * conferma) non passa da chiudiConEsito: non c'è nessuna chiusura con
+         * nota, e senza un ripiego la riga restava annullata e muta — proprio
+         * il caso in cui chi la guarda ha più bisogno di sapere il perché. Si
+         * prende dalla trattativa, quando è stata chiusa annullata anche lei
+         * con un motivo scritto, e in mancanza dal messaggio che la persona
+         * stessa aveva lasciato: è quanto di più vicino a un motivo esista.
+         */
+        const motivoAnnullato =
+          voce.stato === 'annullato'
+            ? (trattativa?.stato === 'annullato' ? trattativa.motivo_annullato : null) ??
+              voce.note
+            : null
+
+        // La nota da mostrare in chiaro sulla riga chiusa: quella della
+        // chiusura, o in mancanza quella dell'annullamento. Una riga chiusa
+        // senza niente da leggere qui sotto costringe ad aprirla solo per
+        // scoprire che non c'era nessun motivo scritto — e per un annullato,
+        // quasi sempre c'è.
+        const notaVisibile = notaEsito ?? motivoAnnullato
+
         // La banda a sinistra dice il peso della voce prima di leggerla: rossa
         // se è aperta e di un giorno passato, **verde se è stata eseguita**,
         // blu altrimenti. Prima l'arretrato si riconosceva solo da un badge
@@ -219,7 +243,10 @@ export function EventiElenco({
                     <span className="op-quando muted">
                       {dataBreve(voce.data)}
                       {' · '}
-                      {intervalloOrario(voce.ora, voce.durataMinuti) ?? 'in giornata'}
+                      {/* Un messaggio non ha uno slot, ma è arrivato in un
+                          momento preciso: "in giornata" è vero ma non dice
+                          niente, l'ora d'arrivo sì. */}
+                      {intervalloOrario(voce.ora, voce.durataMinuti) ?? voce.orarioArrivo ?? 'in giornata'}
                     </span>
 
                     {arretrato && (
@@ -310,8 +337,8 @@ export function EventiElenco({
                       costava un'apertura per riga. Per intero e non troncato:
                       una nota tagliata a metà va riaperta comunque, che è
                       esattamente il gesto che qui si voleva togliere. */}
-                  {chiusa && notaEsito && (
-                    <span className="op-esito">{notaEsito}</span>
+                  {chiusa && notaVisibile && (
+                    <span className="op-esito">{notaVisibile}</span>
                   )}
                 </span>
 
