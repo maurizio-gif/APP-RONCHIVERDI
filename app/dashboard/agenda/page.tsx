@@ -389,6 +389,19 @@ export default async function AgendaPage({
     aggiungiEvento(riga.entita_id as string, riga, null)
   }
 
+  // Un impegno programmato per una richiesta (una visita fissata, un
+  // richiamo…) apre la **stessa** richiesta quando si gestisce lui: senza,
+  // la sua riga in agenda apriva una scheda spoglia — niente trattativa in
+  // cima, solo nota ed esito — come se dietro non ci fosse nessuna
+  // opportunità da seguire. Con la richiesta agganciata, EventiElenco sceglie
+  // da solo il pannello pieno (vedi GestioneEvento) invece di quello ridotto
+  // per le voci scritte in segreteria senza una richiesta dietro.
+  for (const riga of eventiDaRichieste ?? []) {
+    const richiestaId = riga.entita_id as string | null
+    const richiesta = richiestaId ? richieste[`contatto-${richiestaId}`] : undefined
+    if (richiesta) richieste[`task-${riga.id}`] = richiesta
+  }
+
   // Nella lista del passato restano gli arretrati — che vanno recuperati — e
   // le cose fatte di recente, che sono la prova che il lavoro è stato fatto e
   // si leggono in verde con il loro esito accanto. Più indietro di due
