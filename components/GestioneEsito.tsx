@@ -1,6 +1,7 @@
 'use client'
 
-import { useId, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
+import { SelettoreAssegnatario } from '@/components/SelettoreAssegnatario'
 import {
   DURATA_PREDEFINITA,
   ETICHETTE_ESITO,
@@ -295,48 +296,70 @@ export function GestioneEsito({
         </button>
       )}
 
-      {(!chiusa || correggendo) && (
-        <div className="esito-gruppi" role="group" aria-label="Esito della lavorazione">
-          {GRUPPI.map((g) => (
-            <button
-              key={g.chiave}
-              type="button"
-              className={`btn btn-sm${gruppo === g.chiave ? '' : ' btn-ghost'}`}
-              aria-pressed={gruppo === g.chiave}
-              onClick={() => {
-                setErrore(null)
-                setGruppo(gruppo === g.chiave ? null : g.chiave)
-              }}
-            >
-              {/* Su una voce chiusa la scelta che c'è già si riconosce prima di
-                  cliccarla: senza la spunta si rischia di «correggere» in
-                  eseguita qualcosa che era già eseguita, credendo di cambiarla. */}
-              {chiusa && esitoCorrente === g.chiave && (
-                <span aria-hidden="true" style={{ marginRight: '0.35em' }}>
-                  ✓
-                </span>
-              )}
-              {g.etichetta}
-            </button>
-          ))}
-          {/* Via dalla correzione senza salvare: chi ha cliccato «Correggi»
-              per errore, o ha finito di leggere, torna al fatto e basta. */}
-          {chiusa && (
+      {/* Un passo alla volta: finché l'esito non è scelto si vedono solo i
+          quattro pulsanti; scelto uno, il gruppo si chiude in una riga sola
+          e sotto compaiono solo i campi di quel passo — non tutti e due
+          insieme, che su un telefono voleva dire scorrere oltre pulsanti già
+          decisi per arrivare alla nota da scrivere. */}
+      {(!chiusa || correggendo) &&
+        (gruppo ? (
+          <div className="esito-gruppi-scelto">
+            <span className="muted">
+              Esito: <strong>{GRUPPI.find((g) => g.chiave === gruppo)?.etichetta}</strong>
+            </span>
             <button
               type="button"
               className="btn btn-ghost btn-sm"
               onClick={() => {
-                setCorreggendo(false)
                 setGruppo(null)
                 setErrore(null)
-                setNota(notaCorrente ?? '')
               }}
             >
-              Annulla la correzione
+              Cambia
             </button>
-          )}
-        </div>
-      )}
+          </div>
+        ) : (
+          <div className="esito-gruppi" role="group" aria-label="Esito della lavorazione">
+            {GRUPPI.map((g) => (
+              <button
+                key={g.chiave}
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  setErrore(null)
+                  setGruppo(g.chiave)
+                }}
+              >
+                {/* Su una voce chiusa la scelta che c'è già si riconosce prima
+                    di cliccarla: senza la spunta si rischia di «correggere»
+                    in eseguita qualcosa che era già eseguita, credendo di
+                    cambiarla. */}
+                {chiusa && esitoCorrente === g.chiave && (
+                  <span aria-hidden="true" style={{ marginRight: '0.35em' }}>
+                    ✓
+                  </span>
+                )}
+                {g.etichetta}
+              </button>
+            ))}
+            {/* Via dalla correzione senza salvare: chi ha cliccato «Correggi»
+                per errore, o ha finito di leggere, torna al fatto e basta. */}
+            {chiusa && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  setCorreggendo(false)
+                  setGruppo(null)
+                  setErrore(null)
+                  setNota(notaCorrente ?? '')
+                }}
+              >
+                Annulla la correzione
+              </button>
+            )}
+          </div>
+        ))}
 
       {gruppo && (
         <>
@@ -564,9 +587,6 @@ export function CampiEvento({
    */
   soloProgrammabili?: boolean
 }) {
-  // Un id per istanza: più datalist con lo stesso id sono documento invalido,
-  // e il browser non garantisce a quale si agganci l'input.
-  const idOperatori = useId()
   const tipo: TipoVoce = eTipoValido(riga.tipo) ? riga.tipo : 'task'
   // Solo gli appuntamenti hanno un'ora: gli altri tipi sono impegni della
   // giornata, e dargli un'orario occuperebbe una fascia che il sito può
@@ -642,18 +662,12 @@ export function CampiEvento({
 
         <div className="field">
           <label>Assegnato a</label>
-          <input
-            type="text"
-            list={idOperatori}
-            value={riga.assegnatoA ?? ''}
-            onChange={(e) => onCambia({ assegnatoA: e.target.value })}
-            placeholder="lascia vuoto per te"
+          <SelettoreAssegnatario
+            value={riga.assegnatoA ?? null}
+            onChange={(nuovo) => onCambia({ assegnatoA: nuovo })}
+            operatori={operatori}
+            etichettaVuoto="io"
           />
-          <datalist id={idOperatori}>
-            {operatori.map((o) => (
-              <option key={o} value={o} />
-            ))}
-          </datalist>
         </div>
 
         <div className="field" style={{ flexBasis: '100%' }}>

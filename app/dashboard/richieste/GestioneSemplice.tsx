@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { salvaGestione } from './actions'
+import { RiepilogoRichiesta } from '@/components/DettagliRichiesta'
+import type { Richiesta } from './RigaRichiesta'
 
 // La gestione delle Young School e degli altri corsi: una nota e un
 // interruttore.
@@ -37,6 +39,7 @@ function dataOra(iso: string): string {
 }
 
 export function GestioneSemplice({
+  r,
   id,
   gestito,
   nota: notaSalvata,
@@ -45,6 +48,17 @@ export function GestioneSemplice({
   notaDa,
   notaIl,
 }: {
+  /**
+   * Cosa ha chiesto: qui in testa, nello stesso riquadro dell'interruttore
+   * e della nota, invece che in un pannello a parte sopra — su questi
+   * canali non c'è nient'altro da leggere prima di gestire la richiesta.
+   *
+   * Assente in dashboard trattative: là "ha chiesto" e il messaggio sono
+   * già scritti subito sopra, fuori da questo riquadro (vedi op-richiesta
+   * in TrattativeDashboard.tsx) — ripeterli qui sarebbe il doppione
+   * inverso di quello appena tolto altrove.
+   */
+  r?: Pick<Richiesta, 'azione' | 'data_scelta' | 'ora_scelta' | 'dettagli' | 'messaggio' | 'origine'>
   id: string
   gestito: boolean
   nota: string | null
@@ -106,6 +120,12 @@ export function GestioneSemplice({
 
   return (
     <div className="gestione">
+      {r && (
+        <dl className="dettagli-lista">
+          <RiepilogoRichiesta r={r} />
+        </dl>
+      )}
+
       <div className="gestione-titolo">
         Gestione
         {/* L'interruttore non salva da solo: chi lo scatta e va via crederebbe

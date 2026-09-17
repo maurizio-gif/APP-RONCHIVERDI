@@ -22,6 +22,8 @@ import {
 } from '@/lib/pipeline'
 import { nomeDiEmail } from '@/lib/staff'
 import { assegnaTrattativa, cambiaStato, prendiInCarico } from './trattativa-actions'
+import { useChiusuraTrattativa } from './useChiusuraTrattativa'
+import { SelettoreAssegnatario } from '@/components/SelettoreAssegnatario'
 
 export type DatiTrattativa = {
   id: string
@@ -61,16 +63,12 @@ export function Trattativa({
   nomiStaff?: Record<string, string>
 }) {
   const [errore, setErrore] = useState<string | null>(null)
-  // Quale chiusura sta chiedendo la nota: null = nessuna. La chiedono tutte
-  // e tre — vinta, persa, annullata — e la domanda non è la stessa, quindi il
-  // riquadro deve sapere quale delle tre sta raccogliendo.
-  const [chiedoMotivo, setChiedoMotivo] = useState<StatoTrattativa | null>(null)
-  const [motivo, setMotivo] = useState('')
-  // Testo e non numero: un campo controllato che rifiuta i caratteri mentre
-  // si digita non lascia scrivere «1080,», cioè il passaggio obbligato per
-  // arrivare a «1080,50». Si normalizza al salvataggio (valoreDaTesto).
-  const [valore, setValore] = useState('')
   const [inCorso, startTransition] = useTransition()
+
+  // La nota (ed eventuale valore) di vinta/persa/annullata: stessa domanda,
+  // stessa validazione e stesso salvataggio dei pulsanti di ChiusuraTrattativa
+  // nella scheda persona, tenuti in un unico posto invece che riscritti qui.
+  const chiusura = useChiusuraTrattativa(t)
 
   const diritti = { assegnatoA: t.assegnato_a, io, sonoCommerciale, possoRiassegnare }
   const modificabile = puoAssegnare(diritti)
@@ -88,10 +86,6 @@ export function Trattativa({
     startTransition(async () => {
       const esito = await azione()
       if (!esito.ok) setErrore(esito.errore)
-      else {
-        setChiedoMotivo(null)
-        setMotivo('')
-      }
     })
   }
 
@@ -152,20 +146,15 @@ export function Trattativa({
           {/* L'elenco contiene solo i commerciali: assegnare a un
               responsabile di corso vorrebbe dire metterlo in una lista che
               non guarda mai. */}
-          <select
-            className="trattativa-select"
-            value={t.assegnato_a ?? ''}
+          <SelettoreAssegnatario
+            value={t.assegnato_a}
+            onChange={(nuovo) => esegui(() => assegnaTrattativa(t.id, nuovo))}
+            operatori={commerciali}
+            io={io}
+            nomiStaff={nomiStaff}
             disabled={inCorso}
-            onChange={(e) => esegui(() => assegnaTrattativa(t.id, e.target.value || null))}
-            aria-label="Assegnata a"
-          >
-            <option value="">— nessuno —</option>
-            {commerciali.map((c) => (
-              <option key={c} value={c}>
-                {c === io ? `${nomeDiEmail(c, nomiStaff)} (tu)` : nomeDiEmail(c, nomiStaff)}
-              </option>
-            ))}
-          </select>
+            ariaLabel="Assegnata a"
+          />
 
           <select
             className="trattativa-select"
@@ -178,14 +167,8 @@ export function Trattativa({
               // una annullata senza motivo è una riga sparita dalla pipeline
               // che fra un mese nessuno sa più perché non c'è più; e una
               // vinta senza nota non dice che abbonamento è stato fatto.
-              if (chiedeMotivo(nuovo)) {
-                setErrore(null)
-                setMotivo(motivoDi({ ...t, stato: nuovo }) ?? '')
-                setValore(
-                  nuovo === 'vinto' && t.valore_euro != null ? String(t.valore_euro) : ''
-                )
-                setChiedoMotivo(nuovo)
-              } else esegui(() => cambiaStato(t.id, nuovo))
+              if (chiedeMotivo(nuovo)) chiusura.avvia(nuovo)
+              else esegui(() => cambiaStato(t.id, nuovo))
             }}
             aria-label="Stato"
           >
@@ -201,40 +184,36 @@ export function Trattativa({
       {/* Discreto e in fondo: è una correzione dei dati, non un passo della
           pipeline, e su una trattativa che sta lavorando un collega non deve
           somigliare a un comando da usare per abitudine. */}
-      {annullaAParte && !chiedoMotivo && (
+      {annullaAParte && !chiusura.chiedo && (
         <button
           type="button"
           className="btn btn-ghost btn-sm"
           disabled={inCorso}
-          onClick={() => {
-            setErrore(null)
-            setMotivo('')
-            setChiedoMotivo('annullato')
-          }}
+          onClick={() => chiusura.avvia('annullato')}
         >
           Annulla la trattativa
         </button>
       )}
 
-      {chiedoMotivo && (
+      {chiusura.chiedo && (
         <span className="trattativa-motivo">
           <input
             type="text"
-            value={motivo}
-            onChange={(e) => setMotivo(e.target.value)}
-            placeholder={DOMANDA_MOTIVO[chiedoMotivo]}
+            value={chiusura.motivo}
+            onChange={(e) => chiusura.setMotivo(e.target.value)}
+            placeholder={DOMANDA_MOTIVO[chiusura.chiedo]}
             autoFocus
           />
 
           {/* Il valore, solo sulla vinta: è l'unica chiusura che produce
               fatturato, e dentro la nota non si sommerebbe. */}
-          {chiedeValore(chiedoMotivo) && (
+          {chiedeValore(chiusura.chiedo) && (
             <span className="trattativa-valore-campo">
               <input
                 type="text"
                 inputMode="decimal"
-                value={valore}
-                onChange={(e) => setValore(e.target.value)}
+                value={chiusura.valore}
+                onChange={(e) => chiusura.setValore(e.target.value)}
                 placeholder="1080"
                 aria-label="Valore del contratto in euro"
               />
@@ -249,27 +228,18 @@ export function Trattativa({
             // server: un pulsante che si preme e risponde con un errore è
             // peggio di uno che dice prima che non è pronto.
             disabled={
-              inCorso ||
-              !motivo.trim() ||
-              (chiedeValore(chiedoMotivo) && valoreDaTesto(valore) === null)
+              chiusura.inCorso ||
+              !chiusura.motivo.trim() ||
+              (chiedeValore(chiusura.chiedo) && valoreDaTesto(chiusura.valore) === null)
             }
-            onClick={() =>
-              esegui(() =>
-                cambiaStato(
-                  t.id,
-                  chiedoMotivo,
-                  motivo,
-                  chiedeValore(chiedoMotivo) ? valoreDaTesto(valore) : null
-                )
-              )
-            }
+            onClick={chiusura.conferma}
           >
-            {CONFERMA_MOTIVO[chiedoMotivo]}
+            {CONFERMA_MOTIVO[chiusura.chiedo]}
           </button>
           {/* "Lascia stare" e non "Annulla": accanto a un pulsante che
               annulla la trattativa, due «annulla» che fanno cose opposte
               sono il modo di premere quello sbagliato. */}
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setChiedoMotivo(null)}>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={chiusura.lasciaStare}>
             Lascia stare
           </button>
         </span>
@@ -278,7 +248,7 @@ export function Trattativa({
       {/* La nota della chiusura, sotto gli occhi. Un'annullata senza il
           perché è una riga sparita dalla pipeline senza spiegazione; una
           vinta senza nota non dice cosa è stato venduto. */}
-      {!chiedoMotivo && eChiusa(t.stato) && motivoDi(t) && (
+      {!chiusura.chiedo && eChiusa(t.stato) && motivoDi(t) && (
         <span className="trattativa-chi muted">
           {t.stato === 'vinto' ? 'venduto: ' : t.stato === 'annullato' ? 'annullata: ' : 'motivo: '}
           {motivoDi(t)}
@@ -297,9 +267,9 @@ export function Trattativa({
         <p className="trattativa-azione">{AZIONE_STATO[t.stato]}</p>
       )}
 
-      {errore && (
+      {(errore ?? chiusura.errore) && (
         <span className="field-hint" style={{ color: 'var(--error)', flexBasis: '100%' }}>
-          {errore}
+          {errore ?? chiusura.errore}
         </span>
       )}
     </div>

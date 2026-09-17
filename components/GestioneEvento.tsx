@@ -201,10 +201,16 @@ export function GestioneEvento({
           stato — invece che alla fine di una lista di lunghezza variabile. */}
       <ContattiRapidi email={r.email} cellulare={r.cellulare} spiegaSeVuoto />
 
-      <DettagliRichiesta r={r} conInterruttore={conInterruttore} nomiStaff={nomiStaff} />
+      <DettagliRichiesta
+        r={r}
+        conInterruttore={conInterruttore}
+        giaInCronologia={!!trattativa}
+        nomiStaff={nomiStaff}
+      />
 
       {conInterruttore ? (
         <GestioneSemplice
+          r={r}
           id={r.id}
           gestito={r.gestito}
           nota={r.note}
@@ -214,33 +220,38 @@ export function GestioneEvento({
           notaIl={r.note_il}
         />
       ) : (
-        <GestioneEsito
-          origine="form_contatti"
-          id={r.id}
-          titolo={nome}
-          operatori={operatori}
-          puoCancellare={puoCancellare}
-          // Appuntamento e telefonata sono gli unici che hanno un orario: un
-          // messaggio non si sposta di ora perché non ne ha una.
-          conOrario={!!tipoAppuntamento}
-          dataCorrente={r.data_scelta}
-          oraCorrente={r.ora_scelta ? String(r.ora_scelta).slice(0, 5) : null}
-          // Già chiusa: il pannello passa da «chiudi» a «correggi», e rivedere
-          // una nota non costa una riapertura — che la rimetterebbe fra le
-          // cose da fare mentre qualcuno guarda l'elenco.
-          chiusa={r.gestito}
-          esitoCorrente={eEsitoValido(r.esito_tipo) ? r.esito_tipo : null}
-          notaCorrente={r.esito}
-          firma={firmaEsito}
-          firmaIl={r.esito_il}
-          // Chiuso l'evento, il passo dopo si fissa qui.
-          seguito={{ entita: 'form_contatti', id: r.id }}
-        />
+        !trattativa && (
+          // Un appuntamento vero senza trattativa non dovrebbe esistere (solo
+          // Club e Family prenotano un orario, e lì la trattativa c'è
+          // sempre) — resta come rete di sicurezza, non come percorso
+          // normale: quello vive dentro Eventi della trattativa qui sotto.
+          <GestioneEsito
+            origine="form_contatti"
+            id={r.id}
+            titolo={nome}
+            operatori={operatori}
+            puoCancellare={puoCancellare}
+            conOrario={!!tipoAppuntamento}
+            dataCorrente={r.data_scelta}
+            oraCorrente={r.ora_scelta ? String(r.ora_scelta).slice(0, 5) : null}
+            chiusa={r.gestito}
+            esitoCorrente={eEsitoValido(r.esito_tipo) ? r.esito_tipo : null}
+            notaCorrente={r.esito}
+            firma={firmaEsito}
+            firmaIl={r.esito_il}
+            seguito={{ entita: 'form_contatti', id: r.id }}
+          />
+        )
       )}
 
       {/* Il seguito della trattativa: cosa è già stato fatto e cosa resta.
-          Solo dove le trattative esistono — altrove il responsabile chiama e
-          chiude, e non c'è niente da programmare. */}
+          La richiesta stessa è il primo elemento della cronologia (vedi
+          `cronologia` sopra), col suo stesso riquadro e — se è un
+          appuntamento o una telefonata davvero presi — i comandi per
+          chiuderla: non un pannello a parte staccato da qui, ma la prima
+          voce di questa stessa lista. Solo dove le trattative esistono —
+          altrove il responsabile chiama e chiude, e non c'è niente da
+          programmare. */}
       {trattativa && (
         <EventiTrattativa
           eventi={cronologia}

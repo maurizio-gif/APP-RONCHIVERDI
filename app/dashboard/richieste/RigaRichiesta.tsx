@@ -298,7 +298,20 @@ export function RigaRichiesta({
                   l'interruttore è «gestita» — la stessa parola scritta sul
                   comando che la muove, o si cercherebbe un pulsante «chiudi»
                   che non c'è. */}
-              {r.gestito ? (
+              {/* Lavorazione ed esito erano due badge, ma il secondo compare
+                  solo quando il primo dice già "chiusa" — un esito non
+                  esiste su una richiesta ancora aperta (vedi
+                  esito-actions.ts, dove gestito e esito_tipo si scrivono
+                  insieme). Un badge solo, senza perdere l'informazione. */}
+              {r.gestito && eEsitoValido(r.esito_tipo) ? (
+                <span
+                  className={`badge badge-punto ${
+                    r.esito_tipo === 'eseguita' ? 'badge-ok' : 'badge-ko'
+                  }`}
+                >
+                  chiusa · {ETICHETTE_ESITO[r.esito_tipo].toLowerCase()}
+                </span>
+              ) : r.gestito ? (
                 <span className="badge badge-off badge-punto">
                   {conInterruttore ? 'gestita' : 'chiusa'}
                 </span>
@@ -312,22 +325,18 @@ export function RigaRichiesta({
                   intero — etichetta, assegnatario, tendina dei colleghi e
                   cinque pulsanti — aperto su ogni riga dell'elenco. Il
                   pannello sta nei Dettagli; in riga ne resta il fatto, che è
-                  quello che serve per scegliere quale riga aprire. */}
+                  quello che serve per scegliere quale riga aprire.
+
+                  Resta un badge a parte dalla lavorazione qui sopra: dicono
+                  cose diverse — una persona con la trattativa in gestione
+                  può avere una richiesta nuova ancora da chiudere, ed è
+                  quella la cosa da fare adesso (vedi il commento su
+                  conInterruttore più sotto). */}
               {trattativa && (
                 <span
                   className={`badge badge-stato badge-punto ${CLASSE_BADGE_STATO[trattativa.stato]}`}
                 >
                   trattativa {ETICHETTE_STATO[trattativa.stato].toLowerCase()}
-                </span>
-              )}
-
-              {eEsitoValido(r.esito_tipo) && (
-                <span
-                  className={`badge badge-punto ${
-                    r.esito_tipo === 'eseguita' ? 'badge-ok' : 'badge-ko'
-                  }`}
-                >
-                  {ETICHETTE_ESITO[r.esito_tipo]}
                 </span>
               )}
 

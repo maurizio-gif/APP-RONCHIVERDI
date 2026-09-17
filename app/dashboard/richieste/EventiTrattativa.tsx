@@ -163,10 +163,10 @@ export function EventiTrattativa({
 
               {/* I comandi valgono sugli eventi **nostri**. Quello che è
                   arrivato dal sito non si modifica (non l'abbiamo scritto noi)
-                  e non si riapre da qui: è la richiesta stessa, e si gestisce
-                  dal suo pannello, sopra. Resta la chiusura con esito, ma solo
-                  se è un appuntamento davvero preso — un messaggio non si
-                  esegue e non fallisce. */}
+                  e non si riapre da qui, e non si chiude nemmeno da qui: è la
+                  richiesta stessa, e la sua gestione con l'esito sta già nel
+                  pannello sopra, subito sotto i dettagli della richiesta —
+                  ripeterla qui era lo stesso comando in due posti. */}
               <div className="evento-azioni">
                 {!daSito && (
                   <button
@@ -176,13 +176,20 @@ export function EventiTrattativa({
                     onClick={() => {
                       setErrore(null)
                       setInGestione(null)
-                      setInModifica(inModifica === aperto ? null : evento.id)
+                      setInModifica(inModifica === aperto ? null : evento.chiave)
                     }}
                   >
                     Modifica
                   </button>
                 )}
 
+                {/* Sulla richiesta arrivata dal sito il solo comando che resta
+                    è chiudere con esito, e solo se è un appuntamento o una
+                    telefonata davvero presi — un messaggio non si esegue e non
+                    fallisce (vedi conInterruttore in GestioneEvento.tsx). Non
+                    è un doppione del pannello di prima: quel pannello non c'è
+                    più, la chiusura della richiesta vive solo qui, dentro il
+                    suo stesso riquadro. */}
                 {evento.daFare ? (
                   (!daSito || eAppuntamentoVero(evento.tipo)) && (
                     <button
@@ -192,7 +199,7 @@ export function EventiTrattativa({
                       onClick={() => {
                         setErrore(null)
                         setInModifica(null)
-                        setInGestione(inGestione === aperto ? null : evento.id)
+                        setInGestione(inGestione === aperto ? null : evento.chiave)
                       }}
                     >
                       Chiudi con esito
@@ -252,6 +259,10 @@ export function EventiTrattativa({
                   notaCorrente={evento.esito}
                   firma={nomeDiEmail(evento.esitoDa, nomiStaff)}
                   firmaIl={evento.esitoIl}
+                  // Chiudendo la richiesta stessa da qui, il passo dopo si
+                  // fissa senza cambiare pagina, come quando la si chiudeva
+                  // dal pannello che stava sopra la cronologia.
+                  seguito={daSito ? { entita: 'form_contatti', id: evento.id } : null}
                 />
               )}
             </li>
