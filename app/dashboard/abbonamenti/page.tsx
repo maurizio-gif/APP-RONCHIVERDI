@@ -3,37 +3,91 @@ import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { euro } from '@/lib/pipeline'
-import { etichettaMese, oggiRoma, primoDelMese } from '@/lib/agenda'
+import { oggiRoma } from '@/lib/agenda'
+import ObiettivoMensile from './ObiettivoMensile'
 
 export const dynamic = 'force-dynamic'
+
+type Somma = { vendite: number; fatturato: number }
+
+function sommaRighe(righe: { numero_vendite: number; fatturato: number | null }[] | null): Somma {
+  return (righe ?? []).reduce(
+    (acc, r) => ({ vendite: acc.vendite + r.numero_vendite, fatturato: acc.fatturato + Number(r.fatturato ?? 0) }),
+    { vendite: 0, fatturato: 0 }
+  )
+}
+
+// Percentuale E differenza in euro, non solo la percentuale: un +5% su un
+// mese piccolo e un +5% su un mese grande raccontano storie diverse, e la
+// direzione vuole vedere subito quanti euro sono, non solo il rapporto.
+function testoVariazione(attuale: number, precedente: number): string {
+  if (precedente <= 0) return '—'
+  const percentuale = Math.round(((attuale - precedente) / precedente) * 100)
+  const differenza = attuale - precedente
+  const segnoPercentuale = percentuale > 0 ? '+' : ''
+  const segnoEuro = differenza > 0 ? '+' : differenza < 0 ? '-' : ''
+  return `${segnoPercentuale}${percentuale}% (${segnoEuro}${euro(Math.abs(differenza))})`
+}
+
+// L'ultimo giorno valido di un mese: per il confronto "stesso periodo" un 31
+// di un mese di 30 giorni (o un 29 febbraio su un anno non bisestile) va
+// riportato all'ultimo giorno disponibile in quell'anno, non fuori mese.
+function ultimoGiornoDelMese(anno: number, mese: number): number {
+  return new Date(Date.UTC(anno, mese, 0)).getUTCDate()
+}
 
 export default async function AbbonamentiPage() {
   if (!(await utenteHaSezione('abbonamenti'))) redirect('/dashboard')
 
   const oggi = oggiRoma()
-  const meseCorrente = primoDelMese(oggi)
-  const meseAnnoScorso = `${Number(meseCorrente.slice(0, 4)) - 1}${meseCorrente.slice(4)}`
+  const annoCorrente = Number(oggi.slice(0, 4))
+  const mese = Number(oggi.slice(5, 7))
+  const giornoCorrente = Number(oggi.slice(8, 10))
+  const nomeMese = new Date(`${oggi}T12:00:00Z`).toLocaleDateString('it-IT', { month: 'long', timeZone: 'UTC' })
 
   const supabase = createSupabaseServiceClient()
-  const { data: righeMesi } = await supabase
-    .from('abbonamenti_mensili')
-    .select('mese, numero_vendite, fatturato')
-    .in('mese', [meseCorrente, meseAnnoScorso])
 
-  const sommaMese = (mese: string) =>
-    (righeMesi ?? [])
-      .filter((r) => r.mese === mese)
-      .reduce(
-        (acc, r) => ({ vendite: acc.vendite + r.numero_vendite, fatturato: acc.fatturato + Number(r.fatturato ?? 0) }),
-        { vendite: 0, fatturato: 0 }
-      )
+  // Sezione 1: stesso numero di giorni (dal 1 al giorno di oggi) messo a
+  // confronto sui tre anni — non ha senso confrontare 18 giorni di
+  // quest'anno con 30 giorni interi dell'anno scorso, quindi qui si taglia
+  // sempre allo stesso punto del mese.
+  const anniConfronto = [annoCorrente - 2, annoCorrente - 1, annoCorrente]
+  const periodiPari = await Promise.all(
+    anniConfronto.map(async (anno) => {
+      const mm = String(mese).padStart(2, '0')
+      const giornoFine = String(Math.min(giornoCorrente, ultimoGiornoDelMese(anno, mese))).padStart(2, '0')
+      const { data } = await supabase
+        .from('abbonamenti_giornalieri')
+        .select('numero_vendite, fatturato')
+        .gte('giorno', `${anno}-${mm}-01`)
+        .lte('giorno', `${anno}-${mm}-${giornoFine}`)
+      return { anno, ...sommaRighe(data) }
+    })
+  )
 
-  const mtd = sommaMese(meseCorrente)
-  const mtdAnnoScorso = sommaMese(meseAnnoScorso)
-  const variazione =
-    mtdAnnoScorso.fatturato > 0
-      ? Math.round(((mtd.fatturato - mtdAnnoScorso.fatturato) / mtdAnnoScorso.fatturato) * 100)
-      : null
+  // Sezione 2: il mese intero (non tagliato a oggi) degli ultimi due anni
+  // già conclusi — a parte apposta, per non confonderlo con il confronto a
+  // parità di giorni qui sopra: qui il mese corrente NON compare, perché non
+  // è ancora finito.
+  const anniMeseIntero = [annoCorrente - 2, annoCorrente - 1]
+  const mesiInteri = await Promise.all(
+    anniMeseIntero.map(async (anno) => {
+      const mm = String(mese).padStart(2, '0')
+      const { data } = await supabase
+        .from('abbonamenti_mensili')
+        .select('numero_vendite, fatturato')
+        .eq('mese', `${anno}-${mm}-01`)
+      return { anno, ...sommaRighe(data) }
+    })
+  )
+
+  const meseCorrenteData = `${annoCorrente}-${String(mese).padStart(2, '0')}-01`
+  const { data: obiettivoRiga } = await supabase
+    .from('abbonamenti_obiettivi_mensili')
+    .select('goal')
+    .eq('mese', meseCorrenteData)
+    .maybeSingle()
+  const fatturatoAdOggi = periodiPari[periodiPari.length - 1]?.fatturato ?? 0
 
   return (
     <div>
@@ -45,23 +99,52 @@ export default async function AbbonamentiPage() {
 
       <div className="card">
         <p className="filtri-titolo">
-          {etichettaMese(meseCorrente)} — mese in corso, dati parziali aggiornati a oggi
+          Dal 1 al {giornoCorrente} {nomeMese} — confronto a parità di giorni
         </p>
         <div className="tabella-wrap">
           <table className="tabella">
             <thead>
               <tr>
+                <th>Anno</th>
                 <th>Vendite</th>
                 <th>Fatturato</th>
-                <th>Vs stesso mese anno scorso</th>
+                <th>Var. vs anno prec.</th>
               </tr>
             </thead>
             <tbody>
+              {periodiPari.map((p, i) => (
+                <tr key={p.anno} className={p.anno === annoCorrente ? 'is-oggi' : ''}>
+                  <td>{p.anno}</td>
+                  <td>{p.vendite || '—'}</td>
+                  <td>{p.fatturato ? euro(p.fatturato) : '—'}</td>
+                  <td>{i === 0 ? '—' : testoVariazione(p.fatturato, periodiPari[i - 1].fatturato)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <ObiettivoMensile mese={meseCorrenteData} goalIniziale={obiettivoRiga?.goal ?? null} fatturatoAdOggi={fatturatoAdOggi} />
+      </div>
+
+      <div className="card">
+        <p className="filtri-titolo">Fatturato di {nomeMese}, mese intero — anni passati</p>
+        <div className="tabella-wrap">
+          <table className="tabella">
+            <thead>
               <tr>
-                <td>{mtd.vendite || '—'}</td>
-                <td>{mtd.fatturato ? euro(mtd.fatturato) : '—'}</td>
-                <td>{variazione === null ? '—' : `${variazione > 0 ? '+' : ''}${variazione}%`}</td>
+                <th>Anno</th>
+                <th>Vendite</th>
+                <th>Fatturato</th>
               </tr>
+            </thead>
+            <tbody>
+              {mesiInteri.map((m) => (
+                <tr key={m.anno}>
+                  <td>{m.anno}</td>
+                  <td>{m.vendite || '—'}</td>
+                  <td>{m.fatturato ? euro(m.fatturato) : '—'}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

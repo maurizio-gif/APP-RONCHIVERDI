@@ -1,11 +1,13 @@
 // Helper condivisi fra le pagine di reportistica abbonamenti
-// (app/dashboard/abbonamenti/**): i gruppi prodotto sono una categorizzazione
-// commerciale definita a mano da Ronchiverdi (vedi
-// scripts/sql/2026-09-18-abbonamenti-gruppi.sql), non un dato di Info4U.
+// (app/dashboard/abbonamenti/**): i gruppi prodotto e i macro settori sono
+// una categorizzazione commerciale definita a mano da Ronchiverdi (vedi
+// scripts/sql/2026-09-18-abbonamenti-gruppi.sql e
+// scripts/sql/2026-09-18-abbonamenti-macro-settori.sql), non un dato di Info4U.
 
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 
-export type Gruppo = { id: string; nome: string; ordine: number }
+export type Gruppo = { id: string; nome: string; ordine: number; macro_settore_id: string | null }
+export type MacroSettore = { id: string; nome: string; ordine: number }
 
 // Chiave sintetica per i prodotti senza un gruppo assegnato: non è l'id di
 // nessuna riga in abbonamenti_gruppi, serve solo per tenerli insieme nelle
@@ -16,6 +18,16 @@ export async function caricaGruppi(): Promise<Gruppo[]> {
   const supabase = createSupabaseServiceClient()
   const { data } = await supabase
     .from('abbonamenti_gruppi')
+    .select('id, nome, ordine, macro_settore_id')
+    .order('ordine', { ascending: true })
+    .order('nome', { ascending: true })
+  return data ?? []
+}
+
+export async function caricaMacroSettori(): Promise<MacroSettore[]> {
+  const supabase = createSupabaseServiceClient()
+  const { data } = await supabase
+    .from('abbonamenti_macro_settori')
     .select('id, nome, ordine')
     .order('ordine', { ascending: true })
     .order('nome', { ascending: true })
