@@ -1000,6 +1000,24 @@ table.tabella tbody tr:hover {
 	border-color: var(--error);
 }
 
+/* Selettore di gruppo nella pagina Gruppi prodotto
+   (app/dashboard/abbonamenti/gruppi/): stesso stile di .cella-obiettivo, ma
+   abbastanza largo da mostrare il nome di un gruppo invece di un numero. */
+.cella-gruppo {
+	min-width: 12rem;
+	padding: 0.3rem 0.4rem;
+	background: var(--surface);
+	border: 1px solid var(--border-strong);
+	border-radius: 6px;
+	color: var(--text);
+	font-family: inherit;
+	font-size: var(--text-xs);
+}
+
+.cella-gruppo.has-errore {
+	border-color: var(--error);
+}
+
 /* ──────────────────────────────────────────────────────── badge e messaggi */
 
 .badge {

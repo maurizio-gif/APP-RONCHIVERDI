@@ -163,6 +163,11 @@ const DEFINIZIONI = [
   { chiave: 'timbratura', label: 'Timbra cartellino', href: '/dashboard/timbratura', gruppo: 'Amministrazione' },
   { chiave: 'utenti', label: 'Gestione utenti', href: '/dashboard/utenti', gruppo: 'Amministrazione' },
   { chiave: 'log-operatori', label: 'Controllo operatori', href: '/dashboard/log-operatori', gruppo: 'Amministrazione' },
+  // Le vendite di abbonamenti sincronizzate da Info4U (vedi ops/sync-info4u/):
+  // report giornaliero, andamento mensile e gestione dei gruppi prodotto
+  // stanno tutti sotto questo unico permesso, come core-manager copre sia
+  // l'indice sia il suo report.
+  { chiave: 'abbonamenti', label: 'Abbonamenti', href: '/dashboard/abbonamenti', gruppo: 'Abbonamenti' },
 ] as const
 
 export type SezioneChiave = (typeof DEFINIZIONI)[number]['chiave']
