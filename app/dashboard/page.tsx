@@ -329,7 +329,7 @@ async function impegniDelGiorno() {
 
   const { data: trattativeDellePersone } = idPersoneVoci.length
     ? await conColonneNuove<Record<string, any>>(
-        'id, persona_id, stato, assegnato_a, motivo_perso, motivo_annullato, motivo_vinto, valore_euro, triple_pack',
+        'id, persona_id, stato, assegnato_a, chiuso_il, motivo_perso, motivo_annullato, motivo_vinto, valore_euro, triple_pack',
         COLONNE_NOTA_VINTA,
         (colonne) =>
           supabase
@@ -346,6 +346,7 @@ async function impegniDelGiorno() {
       id: t.id as string,
       stato: t.stato,
       assegnato_a: (t.assegnato_a as string) ?? null,
+      chiuso_il: (t.chiuso_il as string) ?? null,
       motivo_perso: (t.motivo_perso as string) ?? null,
       motivo_annullato: (t.motivo_annullato as string) ?? null,
       motivo_vinto: (t.motivo_vinto as string) ?? null,

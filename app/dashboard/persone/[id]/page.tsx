@@ -178,6 +178,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
         id: apertaOra.id as string,
         stato: apertaOra.stato as StatoTrattativa,
         assegnato_a: (apertaOra.assegnato_a as string) ?? null,
+        chiuso_il: (apertaOra.chiuso_il as string) ?? null,
         motivo_perso: (apertaOra.motivo_perso as string) ?? null,
         motivo_annullato: (apertaOra.motivo_annullato as string) ?? null,
         motivo_vinto: (apertaOra.motivo_vinto as string) ?? null,
@@ -396,6 +397,11 @@ export default async function PersonaPage({ params }: { params: { id: string } }
                       {euro(t.valore_euro != null ? Number(t.valore_euro) : null) &&
                         ` · ${euro(Number(t.valore_euro))}`}
                       {t.triple_pack && ' · triple pack'}
+                      {/* La data della vendita, non quella (spesso identica)
+                          in cui è girata la sincronizzazione: chiuso_il la
+                          porta già, per le vinte chiuse da un abbonamento
+                          sincronizzato (vedi chiudi_trattativa_da_abbonamento). */}
+                      {t.chiuso_il && ` · ${dataOra(t.chiuso_il as string)}`}
                     </span>
                   )}
                   {t.motivo_perso && <span className="voce-note muted">Motivo: {t.motivo_perso}</span>}

@@ -20,6 +20,7 @@ import {
   puoAssegnare,
   type StatoTrattativa,
 } from '@/lib/pipeline'
+import { dataBreve } from '@/lib/persone'
 import { nomeDiEmail } from '@/lib/staff'
 import { assegnaTrattativa, cambiaStato, prendiInCarico } from './trattativa-actions'
 import { useChiusuraTrattativa } from './useChiusuraTrattativa'
@@ -38,6 +39,13 @@ export type DatiTrattativa = {
   valore_euro?: number | null
   /** Se la vendita include un triple pack. Solo sulle vinte. */
   triple_pack?: boolean | null
+  /**
+   * Quando si è chiusa. Sulle vinte chiuse dalla vendita di un abbonamento
+   * (vedi chiudi_trattativa_da_abbonamento) è la data della vendita stessa,
+   * non il momento in cui è girata la sincronizzazione — mostrarla è come si
+   * vede "quando è stato venduto" senza una colonna in più.
+   */
+  chiuso_il?: string | null
 }
 
 // Il blocco trattativa che compare sulla riga di una richiesta Club/Family.
@@ -285,6 +293,7 @@ export function Trattativa({
             {motivoDi(t)}
             {t.stato === 'vinto' && euro(t.valore_euro) && ` · ${euro(t.valore_euro)}`}
             {t.stato === 'vinto' && t.triple_pack && ' · triple pack'}
+            {t.stato === 'vinto' && t.chiuso_il && ` · ${dataBreve(t.chiuso_il)}`}
           </p>
         )}
 
