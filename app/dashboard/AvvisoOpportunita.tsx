@@ -22,7 +22,9 @@ import type { AvvisoLavoro } from './opportunita-actions'
 // Due generi con due gesti diversi (vedi opportunita-actions.ts): una
 // trattativa libera si **prende in carico** da qui, una richiesta di un corso
 // si **apre nella sua sezione** — là non ci sono trattative da assegnare, c'è
-// una telefonata da fare.
+// una telefonata da fare. Vedere una trattativa libera non richiede il
+// diritto commerciale, solo la sezione Club e Family: quel diritto decide
+// soltanto se compare «Prendi in carico» (vedi `sonoCommerciale` sotto).
 //
 // Non è bloccante, al contrario dell'avviso dei messaggi interni: quello è una
 // comunicazione da confermare, questo è un'occasione da cogliere — e chi è al
@@ -33,6 +35,12 @@ const INTERVALLO_MS = 20000
 export function AvvisoOpportunita({ abilitato }: { abilitato: boolean }) {
   const [coda, setCoda] = useState<AvvisoLavoro[]>([])
   const [errore, setErrore] = useState<string | null>(null)
+  // Se chi guarda ha anche il diritto commerciale: vedere una trattativa
+  // libera non lo richiede (vedi puoRicevereAvvisoOpportunita), prenderla sì
+  // — decide solo se compare quel pulsante. Falso finché non arriva la
+  // prima risposta, così il primo giro muto (vedi `conosciute` sotto) non
+  // fa comparire per un istante un pulsante che poi sparisce.
+  const [sonoCommerciale, setSonoCommerciale] = useState(false)
   const [inCorso, startTransition] = useTransition()
   const { attivo: suonoAttivo, cambia: cambiaSuono, avvisa, provaSuono } = useAvvisoSonoro()
   const router = useRouter()
@@ -48,8 +56,14 @@ export function AvvisoOpportunita({ abilitato }: { abilitato: boolean }) {
     try {
       const risposta = await fetch('/api/interno/opportunita/libere', { cache: 'no-store' })
       if (!risposta.ok) return
-      const dati = (await risposta.json()) as { avvisi: AvvisoLavoro[] }
+      const dati = (await risposta.json()) as {
+        avvisi: AvvisoLavoro[]
+        sonoCommerciale: boolean
+      }
       const aperti = dati.avvisi ?? []
+      // Prima di ogni altra cosa, anche sul giro muto: decide se «Prendi in
+      // carico» compare, non se l'avviso stesso lo fa.
+      setSonoCommerciale(!!dati.sonoCommerciale)
 
       // Sulla chiave e non sull'id: mescolando trattative e richieste due
       // righe di tabelle diverse possono avere lo stesso id, e una
@@ -138,12 +152,21 @@ export function AvvisoOpportunita({ abilitato }: { abilitato: boolean }) {
       <div className="avviso-azioni">
         {/* «Prendi in carico» solo sulle trattative: sugli altri canali non
             c'è niente da assegnare — il responsabile è uno, ed è chi sta
-            leggendo. Là il gesto è aprire la sezione e chiamare. */}
+            leggendo. Là il gesto è aprire la sezione e chiamare.
+
+            E solo a chi ha il diritto commerciale: vedere questa trattativa
+            non lo richiede (vedi puoRicevereAvvisoOpportunita in
+            opportunita-actions.ts), ma prenderla sì, e offrire un pulsante
+            che il server rifiuterebbe comunque sarebbe un gesto a vuoto. Chi
+            non può prenderla vede comunque tutto il resto — nome, attività,
+            recapiti — e può sempre aprirne la scheda. */}
         {corrente.genere === 'trattativa' ? (
           <>
-            <button type="button" className="btn btn-sm" disabled={inCorso} onClick={prendi}>
-              {inCorso ? 'Un attimo…' : 'Prendi in carico'}
-            </button>
+            {sonoCommerciale && (
+              <button type="button" className="btn btn-sm" disabled={inCorso} onClick={prendi}>
+                {inCorso ? 'Un attimo…' : 'Prendi in carico'}
+              </button>
+            )}
             {corrente.personaId && (
               <Link
                 className="btn btn-ghost btn-sm"
