@@ -2,9 +2,11 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
+import { caricaGruppi } from '@/lib/abbonamenti'
 import { euro } from '@/lib/pipeline'
-import { oggiRoma } from '@/lib/agenda'
+import { mesePiu, oggiRoma } from '@/lib/agenda'
 import ObiettivoMensile from './ObiettivoMensile'
+import { GraficoMensile } from './GraficoMensile'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,7 +38,11 @@ function ultimoGiornoDelMese(anno: number, mese: number): number {
   return new Date(Date.UTC(anno, mese, 0)).getUTCDate()
 }
 
-export default async function AbbonamentiPage() {
+export default async function AbbonamentiPage({
+  searchParams,
+}: {
+  searchParams: { gruppi?: string }
+}) {
   if (!(await utenteHaSezione('abbonamenti'))) redirect('/dashboard')
 
   const oggi = oggiRoma()
@@ -44,6 +50,28 @@ export default async function AbbonamentiPage() {
   const mese = Number(oggi.slice(5, 7))
   const giornoCorrente = Number(oggi.slice(8, 10))
   const nomeMese = new Date(`${oggi}T12:00:00Z`).toLocaleDateString('it-IT', { month: 'long', timeZone: 'UTC' })
+
+  const gruppi = await caricaGruppi()
+  const gruppiValidi = new Set(gruppi.map((g) => g.id))
+  const gruppiSelezionati = (searchParams.gruppi ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((id) => gruppiValidi.has(id))
+  const filtroAttivo = gruppiSelezionati.length > 0
+
+  // "Tutti" azzera la selezione; ogni gruppo si accende/spegne senza toccare
+  // gli altri già selezionati — è un filtro multi-selezione, non un singolo
+  // valore come nelle altre pagine di abbonamenti.
+  function hrefToggle(id: string | null) {
+    if (id === null) return '/dashboard/abbonamenti'
+    const attivi = new Set(gruppiSelezionati)
+    if (attivi.has(id)) attivi.delete(id)
+    else attivi.add(id)
+    const params = new URLSearchParams()
+    if (attivi.size > 0) params.set('gruppi', Array.from(attivi).join(','))
+    const query = params.toString()
+    return `/dashboard/abbonamenti${query ? `?${query}` : ''}`
+  }
 
   const supabase = createSupabaseServiceClient()
 
@@ -56,11 +84,13 @@ export default async function AbbonamentiPage() {
     anniConfronto.map(async (anno) => {
       const mm = String(mese).padStart(2, '0')
       const giornoFine = String(Math.min(giornoCorrente, ultimoGiornoDelMese(anno, mese))).padStart(2, '0')
-      const { data } = await supabase
+      let query = supabase
         .from('abbonamenti_giornalieri')
         .select('numero_vendite, fatturato')
         .gte('giorno', `${anno}-${mm}-01`)
         .lte('giorno', `${anno}-${mm}-${giornoFine}`)
+      if (filtroAttivo) query = query.in('gruppo_id', gruppiSelezionati)
+      const { data } = await query
       return { anno, ...sommaRighe(data) }
     })
   )
@@ -73,20 +103,42 @@ export default async function AbbonamentiPage() {
   const mesiInteri = await Promise.all(
     anniMeseIntero.map(async (anno) => {
       const mm = String(mese).padStart(2, '0')
-      const { data } = await supabase
+      let query = supabase
         .from('abbonamenti_mensili')
         .select('numero_vendite, fatturato')
         .eq('mese', `${anno}-${mm}-01`)
+      if (filtroAttivo) query = query.in('gruppo_id', gruppiSelezionati)
+      const { data } = await query
       return { anno, ...sommaRighe(data) }
     })
   )
 
+  // Sezione 3: gli ultimi 12 mesi (compreso quello in corso, parziale) per
+  // il grafico a barre — stessi filtri delle sezioni sopra.
   const meseCorrenteData = `${annoCorrente}-${String(mese).padStart(2, '0')}-01`
-  const { data: obiettivoRiga } = await supabase
-    .from('abbonamenti_obiettivi_mensili')
-    .select('goal')
-    .eq('mese', meseCorrenteData)
-    .maybeSingle()
+  const ultimi12Mesi = Array.from({ length: 12 }, (_, i) => mesePiu(meseCorrenteData, i - 11))
+  let queryMensile = supabase
+    .from('abbonamenti_mensili')
+    .select('mese, numero_vendite, fatturato')
+    .gte('mese', ultimi12Mesi[0])
+  if (filtroAttivo) queryMensile = queryMensile.in('gruppo_id', gruppiSelezionati)
+  const { data: righeUltimi12 } = await queryMensile
+
+  const fatturatoPerMese = new Map<string, number>()
+  for (const r of righeUltimi12 ?? []) {
+    fatturatoPerMese.set(r.mese, (fatturatoPerMese.get(r.mese) ?? 0) + Number(r.fatturato ?? 0))
+  }
+  const serieMensile = ultimi12Mesi.map((m) => ({ mese: m, fatturato: fatturatoPerMese.get(m) ?? 0 }))
+
+  const obiettivoRiga = filtroAttivo
+    ? null
+    : (
+        await supabase
+          .from('abbonamenti_obiettivi_mensili')
+          .select('goal')
+          .eq('mese', meseCorrenteData)
+          .maybeSingle()
+      ).data
   const fatturatoAdOggi = periodiPari[periodiPari.length - 1]?.fatturato ?? 0
 
   return (
@@ -95,6 +147,26 @@ export default async function AbbonamentiPage() {
         <p className="eyebrow">Vendite</p>
         <h1>Abbonamenti</h1>
         <p className="muted">Le vendite di abbonamenti sincronizzate da Info4U, con reportistica giornaliera e mensile.</p>
+      </div>
+
+      <div className="filtri">
+        <p className="filtri-titolo">Gruppo (selezione multipla)</p>
+        <div className="filtri-gruppi">
+          <fieldset className="filtro-gruppo">
+            <Link href={hrefToggle(null)} className={`chip${!filtroAttivo ? ' is-attivo' : ''}`}>
+              Tutti
+            </Link>
+            {gruppi.map((g) => (
+              <Link
+                key={g.id}
+                href={hrefToggle(g.id)}
+                className={`chip${gruppiSelezionati.includes(g.id) ? ' is-attivo' : ''}`}
+              >
+                {g.nome}
+              </Link>
+            ))}
+          </fieldset>
+        </div>
       </div>
 
       <div className="card">
@@ -123,7 +195,13 @@ export default async function AbbonamentiPage() {
             </tbody>
           </table>
         </div>
-        <ObiettivoMensile mese={meseCorrenteData} goalIniziale={obiettivoRiga?.goal ?? null} fatturatoAdOggi={fatturatoAdOggi} />
+        {!filtroAttivo && (
+          <ObiettivoMensile
+            mese={meseCorrenteData}
+            goalIniziale={obiettivoRiga?.goal ?? null}
+            fatturatoAdOggi={fatturatoAdOggi}
+          />
+        )}
       </div>
 
       <div className="card">
@@ -151,8 +229,16 @@ export default async function AbbonamentiPage() {
       </div>
 
       <div className="card">
+        <p className="filtri-titolo">Andamento ultimi 12 mesi</p>
+        <GraficoMensile serie={serieMensile} />
+      </div>
+
+      <div className="card">
         <p className="filtri-titolo">Report</p>
         <div className="form-row">
+          <Link href="/dashboard/abbonamenti/giorno" className="btn btn-grande">
+            Dettaglio abbonamenti del giorno
+          </Link>
           <Link href="/dashboard/abbonamenti/report" className="btn btn-grande">
             Report giornaliero
           </Link>
