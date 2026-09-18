@@ -3,6 +3,7 @@
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, getSezioniConsentite } from '@/lib/auth/sezioni-server'
 import { rigaStaffCorrente } from '@/lib/auth/staff-server'
+import { eCommerciale } from '@/lib/auth/permessi'
 import { nomePersona } from '@/lib/persone'
 import { canaleDiRichiesta } from '@/lib/richieste'
 
@@ -17,9 +18,11 @@ import { canaleDiRichiesta } from '@/lib/richieste'
 // Due generi, perché sono due lavori diversi:
 //
 //  - **trattativa** — Club e Family. La richiesta crea una trattativa senza
-//    titolare, e la cosa da fare è prendersela. Va a chi ha il diritto
-//    commerciale: prendere in carico è suo (vedi puoAssegnare in
-//    lib/pipeline.ts), e suonare a chi non può agire sarebbe rumore.
+//    titolare, e la cosa da fare è prendersela. Vederla — nome, attività,
+//    recapiti — serve a chiunque ha quella sezione, non solo a chi può
+//    prendersela: il diritto commerciale (vedi puoAssegnare in
+//    lib/pipeline.ts) resta l'unica cosa che serve per **prendere in
+//    carico**, e decide solo se compare quel pulsante (vedi getStatoAvvisi).
 //
 //  - **richiesta** — tutti gli altri canali (Young School, Summer Camp,
 //    Chinesis, padel, Fitness Manager). Lì non esistono trattative: il
@@ -82,31 +85,35 @@ export type AvvisoLavoro = {
 }
 
 /**
- * Chi riceve l'avviso delle **trattative libere**: chi ha il diritto
- * commerciale e la sezione Club e Family.
+ * Chi vede l'avviso delle **trattative libere**: chi ha la sezione Club e
+ * Family.
  *
- * Il diritto commerciale è ciò che permette di prendere in carico (vedi
- * puoAssegnare in lib/pipeline.ts): suonare a chi non può agire sarebbe un
- * rumore e nient'altro. La sezione serve perché l'avviso porta lì.
+ * Non serve il diritto commerciale. Sapere chi ha appena scritto — nome,
+ * attività, recapiti — è la stessa cosa che dice l'elenco della sezione
+ * (vedi [canale]/page.tsx, dove l'assegnazione filtra solo la vista, mai i
+ * dati): chi risponde al banco o al telefono deve poter dire «un attimo che
+ * guardo» anche senza il diritto di prendersela. Il diritto commerciale (vedi
+ * puoAssegnare in lib/pipeline.ts) resta l'unica cosa che serve per
+ * **prendere in carico** — è quello che decide se il pulsante compare (vedi
+ * getStatoAvvisi) e il server lo pretende di nuovo comunque
+ * (trattativa-actions.ts), quindi nasconderlo qui non è l'unica difesa.
  */
 export async function puoRicevereAvvisoOpportunita(): Promise<boolean> {
   const riga = await rigaStaffCorrente(emailCorrente())
-  return !!riga?.commerciale && (riga?.sezioni_consentite ?? []).includes('richieste-club')
+  return (riga?.sezioni_consentite ?? []).includes('richieste-club')
 }
 
 /**
- * Chi riceve **qualche** avviso: chi può prendersi le trattative, o chi ha
- * almeno un canale di richieste fra le sue sezioni.
+ * Chi riceve **qualche** avviso: chi ha almeno un canale di richieste fra le
+ * proprie sezioni, Club e Family compreso — è sempre una chiave che comincia
+ * per `richieste-`.
  *
  * Serve al layout per decidere se accendere il polling: a chi non riceverà
  * mai niente non si fa chiedere l'elenco ogni venti secondi.
  */
 export async function puoRicevereAvvisi(): Promise<boolean> {
-  const [trattative, sezioni] = await Promise.all([
-    puoRicevereAvvisoOpportunita(),
-    getSezioniConsentite(emailCorrente()),
-  ])
-  return trattative || sezioni.some((s) => s.startsWith('richieste-'))
+  const sezioni = await getSezioniConsentite(emailCorrente())
+  return sezioni.some((s) => s.startsWith('richieste-'))
 }
 
 export async function getOpportunitaLibere(): Promise<OpportunitaLibera[]> {
@@ -275,4 +282,24 @@ export async function getAvvisiLavoro(): Promise<AvvisoLavoro[]> {
   }))
 
   return [...daTrattative, ...richieste].sort((a, b) => b.quando.localeCompare(a.quando))
+}
+
+/**
+ * L'avviso, più il solo fatto che decide come disegnarlo: se chi guarda può
+ * anche prendersi una trattativa libera.
+ *
+ * Vederla non richiede il diritto commerciale (vedi
+ * puoRicevereAvvisoOpportunita qui sopra), ma il pulsante «Prendi in carico»
+ * sì — mostrarlo a chi poi riceverebbe solo l'errore del server sarebbe
+ * offrire un gesto che non porta a niente.
+ */
+export async function getStatoAvvisi(): Promise<{
+  avvisi: AvvisoLavoro[]
+  sonoCommerciale: boolean
+}> {
+  const [avvisi, sonoCommerciale] = await Promise.all([
+    getAvvisiLavoro(),
+    eCommerciale(emailCorrente()),
+  ])
+  return { avvisi, sonoCommerciale }
 }

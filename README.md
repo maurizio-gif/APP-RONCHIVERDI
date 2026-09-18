@@ -162,10 +162,14 @@ nome, attività, recapiti e la frase che la persona ha scritto — che è ciò c
 decide come si apre la telefonata — più **Prendi in carico** e **Apri la
 scheda**. Insieme al riquadro suona un avviso di due note.
 
-**Solo per i commerciali**, e solo con la sezione Club e Family: prendere in
-carico richiede il diritto commerciale (`puoAssegnare` in
-[`lib/pipeline.ts`](lib/pipeline.ts)), e avvisare chi non può agire sarebbe
-rumore. Il filtro è lato server, in `puoRicevereAvvisoOpportunita`.
+**A chiunque abbia la sezione Club e Family**, commerciale o no: vedere chi ha
+appena scritto — nome, attività, recapiti — non richiede il diritto
+commerciale, è la stessa cosa che dice già l'elenco della sezione. Quel
+diritto (`puoAssegnare` in [`lib/pipeline.ts`](lib/pipeline.ts)) resta l'unica
+cosa che serve per **prendere in carico**, e decide solo se compare quel
+pulsante — a chi non lo ha resta comunque «Apri la scheda». Il filtro è lato
+server, in `puoRicevereAvvisoOpportunita` e `getStatoAvvisi`
+(`app/dashboard/opportunita-actions.ts`).
 
 Tre scelte che vale la pena conoscere:
 
@@ -766,9 +770,10 @@ il telefono a pannello chiuso, gli altri due come si vede e come suona questo
 schermo adesso.
 
 **Il campanello compare solo a chi qualcosa può sentirlo.** L'avviso sonoro
-suona per le trattative da prendere in carico, che è un diritto dei
-commerciali (`puoRicevereAvvisoOpportunita`): un interruttore che governa un
-suono che non arriverà mai è una domanda senza risposta.
+suona per il lavoro appena arrivato di **qualunque** sezione di richieste sul
+proprio profilo, Club e Family compreso (`puoRicevereAvvisi`): un
+interruttore che governa un suono che non arriverà mai è una domanda senza
+risposta.
 
 **Gli interruttori del campanello sono due, e leggono la stessa preferenza.**
 Quello dentro il popup dell'avviso c'era già ed è giusto che resti — chi vuole

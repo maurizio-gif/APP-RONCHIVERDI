@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getAvvisiLavoro } from '@/app/dashboard/opportunita-actions'
+import { getStatoAvvisi } from '@/app/dashboard/opportunita-actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,10 +8,13 @@ export const dynamic = 'force-dynamic'
 // POST alla pagina aperta e finisce nella coda del router davanti alle
 // navigazioni, quindi ogni giro di polling rallenterebbe il cambio di pagina.
 //
-// I permessi li controlla getAvvisiLavoro, che legge l'operatore corrente
+// I permessi li controlla getStatoAvvisi, che legge l'operatore corrente
 // dall'header scritto dal middleware e tiene solo le sezioni che ha sul
 // profilo: chi non ne ha nessuna riceve un elenco vuoto, non un errore.
+// `sonoCommerciale` viaggia insieme agli avvisi perché decide, lato client,
+// se offrire «Prendi in carico»: vedere una trattativa libera non richiede
+// quel diritto, prenderla sì.
 export async function GET() {
-  const avvisi = await getAvvisiLavoro()
-  return NextResponse.json({ avvisi }, { headers: { 'cache-control': 'no-store' } })
+  const { avvisi, sonoCommerciale } = await getStatoAvvisi()
+  return NextResponse.json({ avvisi, sonoCommerciale }, { headers: { 'cache-control': 'no-store' } })
 }
