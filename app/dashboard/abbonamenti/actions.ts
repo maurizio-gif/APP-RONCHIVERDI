@@ -3,8 +3,29 @@
 import { revalidatePath } from 'next/cache'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
+import { percorsoDiPersona } from '@/lib/percorsoVendita-server'
+import type { Percorso } from '@/lib/percorsoVendita'
 
 export type Esito = { ok: true } | { ok: false; errore: string }
+
+export type EsitoPercorso = { ok: true; percorso: Percorso } | { ok: false; errore: string }
+
+/**
+ * Il percorso di una vendita: letto solo quando si apre — vedi
+ * app/dashboard/abbonamenti/PercorsoVendita.tsx, e il perché in
+ * lib/percorsoVendita.ts.
+ */
+export async function percorsoDellaVendita(personaId: string, dataVendita: string): Promise<EsitoPercorso> {
+  if (!(await utenteHaSezione('abbonamenti'))) {
+    return { ok: false, errore: 'Non hai accesso a questa sezione.' }
+  }
+  const id = String(personaId ?? '').trim()
+  if (!id) return { ok: false, errore: 'Questa vendita non è agganciata a un contatto del CRM.' }
+
+  const supabase = createSupabaseServiceClient()
+  const percorso = await percorsoDiPersona(supabase, id, dataVendita)
+  return { ok: true, percorso }
+}
 
 function erroreMigrazioneObiettivo(messaggio: string): string {
   if (/abbonamenti_obiettivi_mensili|gruppo_id/.test(messaggio)) {
