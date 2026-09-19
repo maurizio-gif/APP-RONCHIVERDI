@@ -6,16 +6,23 @@ import { euro } from '@/lib/pipeline'
 
 export default function ObiettivoMensile({
   mese,
+  gruppoId,
+  etichettaContesto,
   goalIniziale,
   fatturatoAdOggi,
 }: {
   mese: string
+  /** Null sul generale (il totale): la stessa data ha una riga per il generale e una per ogni gruppo. */
+  gruppoId: string | null
+  /** Il nome del gruppo per cui si sta impostando l'obiettivo, es. "CORE". Null sul generale. */
+  etichettaContesto: string | null
   goalIniziale: number | null
   fatturatoAdOggi: number
 }) {
   const [valore, setValore] = useState(goalIniziale != null ? String(goalIniziale) : '')
   const [inCorso, startTransition] = useTransition()
   const [errore, setErrore] = useState(false)
+  const idCampo = `obiettivo-mensile-${gruppoId ?? 'generale'}`
 
   function salva() {
     const testo = valore.trim()
@@ -26,7 +33,7 @@ export default function ObiettivoMensile({
     }
     setErrore(false)
     startTransition(async () => {
-      const esito = await salvaObiettivoMensile(mese, numero)
+      const esito = await salvaObiettivoMensile(mese, gruppoId, numero)
       if (!esito.ok) setErrore(true)
     })
   }
@@ -37,9 +44,9 @@ export default function ObiettivoMensile({
 
   return (
     <div className="field">
-      <label htmlFor="obiettivo-mensile">Obiettivo del mese (€)</label>
+      <label htmlFor={idCampo}>Obiettivo del mese (€){etichettaContesto ? ` — ${etichettaContesto}` : ''}</label>
       <input
-        id="obiettivo-mensile"
+        id={idCampo}
         type="number"
         min={0}
         step={100}
