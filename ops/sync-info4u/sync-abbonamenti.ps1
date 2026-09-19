@@ -68,9 +68,12 @@ function Get-DataPulita {
 function Get-IstantePulito {
     param($Valore)
     if ($null -eq $Valore -or $Valore -is [System.DBNull]) { return $null }
-    # "o" e' il round-trip ISO 8601 che Postgres legge senza ambiguita' di
-    # fuso: il server Windows scrive in ora locale, e "o" la porta con se'.
-    return ([datetime]$Valore).ToString("o")
+    # SQL Server restituisce un datetime "naive" (Kind Unspecified): senza
+    # marcarlo come locale, "o" non porta con se' nessun offset di fuso, e
+    # Postgres legge la stringa come se fosse gia' UTC - sfalsando l'orario
+    # di venduto di due ore (il fuso di Roma in CEST, uno in CET).
+    $locale = [datetime]::SpecifyKind([datetime]$Valore, [System.DateTimeKind]::Local)
+    return $locale.ToString("o")
 }
 
 function Get-NumeroPulito {
