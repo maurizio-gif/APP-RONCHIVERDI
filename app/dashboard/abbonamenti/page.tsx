@@ -130,15 +130,18 @@ export default async function AbbonamentiPage({
   }
   const serieMensile = ultimi12Mesi.map((m) => ({ mese: m, fatturato: fatturatoPerMese.get(m) ?? 0 }))
 
-  const obiettivoRiga = filtroAttivo
-    ? null
-    : (
-        await supabase
-          .from('abbonamenti_obiettivi_mensili')
-          .select('goal')
-          .eq('mese', meseCorrenteData)
-          .maybeSingle()
-      ).data
+  // L'obiettivo segue lo stesso filtro delle statistiche sopra: "Tutti" mostra
+  // il generale, un solo gruppo selezionato mostra e permette di impostare il
+  // suo. Più gruppi insieme sono una combinazione qualunque, senza una riga
+  // sua nella tabella (vedi la migration) — lì il campo resta nascosto invece
+  // di sommare obiettivi di gruppi diversi come se fosse un dato solo.
+  const gruppoSingolo = gruppiSelezionati.length === 1 ? gruppiSelezionati[0] : null
+  const nomeGruppoSingolo = gruppoSingolo ? (gruppi.find((g) => g.id === gruppoSingolo)?.nome ?? null) : null
+  const mostraObiettivo = !filtroAttivo || gruppoSingolo !== null
+
+  let queryObiettivo = supabase.from('abbonamenti_obiettivi_mensili').select('goal').eq('mese', meseCorrenteData)
+  queryObiettivo = gruppoSingolo ? queryObiettivo.eq('gruppo_id', gruppoSingolo) : queryObiettivo.is('gruppo_id', null)
+  const obiettivoRiga = mostraObiettivo ? (await queryObiettivo.maybeSingle()).data : null
   const fatturatoAdOggi = periodiPari[periodiPari.length - 1]?.fatturato ?? 0
 
   return (
@@ -195,12 +198,21 @@ export default async function AbbonamentiPage({
             </tbody>
           </table>
         </div>
-        {!filtroAttivo && (
+        {mostraObiettivo ? (
           <ObiettivoMensile
+            // Forza un nuovo componente (e quindi lo stato iniziale giusto)
+            // quando cambia il contesto: senza key, passare da un gruppo
+            // all'altro riuserebbe l'istanza e il valore mostrato resterebbe
+            // quello del gruppo precedente finché non si tocca il campo.
+            key={gruppoSingolo ?? 'generale'}
             mese={meseCorrenteData}
+            gruppoId={gruppoSingolo}
+            etichettaContesto={nomeGruppoSingolo}
             goalIniziale={obiettivoRiga?.goal ?? null}
             fatturatoAdOggi={fatturatoAdOggi}
           />
+        ) : (
+          <p className="muted">Seleziona un solo gruppo per vedere o impostare il suo obiettivo del mese.</p>
         )}
       </div>
 
