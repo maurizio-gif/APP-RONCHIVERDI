@@ -117,6 +117,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
     { data: persona },
     { data: richieste },
     { data: trattative },
+    { data: abbonamenti },
     percorso,
     possoCancellare,
     { data: staff },
@@ -156,6 +157,16 @@ export default async function PersonaPage({ params }: { params: { id: string } }
           .eq('persona_id', params.id)
           .order('creato_il', { ascending: false })
     ),
+    // Le vendite sincronizzate da Info4U, dalla più recente: è lo storico
+    // acquisti della persona, indipendente dalle richieste dal sito — un
+    // contatto arrivato solo da Info4U (mai una richiesta) ne ha comunque.
+    supabase
+      .from('abbonamenti')
+      .select(
+        'id, abbonamento, variante, periodo, durata, totale, data_vendita, data_inizio, data_fine, operatore_nome, data_disdetta, motivo_disdetta'
+      )
+      .eq('persona_id', params.id)
+      .order('data_vendita', { ascending: false, nullsFirst: false }),
     pagineVisitate(supabase, params.id),
     haDirittoDiCancellare(email),
     supabase.from('staff_users').select('email, nome, cognome'),
@@ -422,6 +433,69 @@ export default async function PersonaPage({ params }: { params: { id: string } }
           </ul>
         </div>
       )}
+
+      {/* Le vendite sincronizzate da Info4U: indipendenti dalle richieste dal
+          sito, quindi le ha anche un contatto arrivato solo da lì (nessuna
+          richiesta, nessuna trattativa). Chiusa di default e dentro un
+          <details>, come lo storico eventi qui sotto: chi ha comprato più
+          volte non deve riempire la scheda da solo appena la si apre. */}
+      <div className="card">
+        <div className="card-head">
+          <h2>Abbonamenti</h2>
+          <span className="muted">
+            {(abbonamenti ?? []).length > 0
+              ? `${(abbonamenti ?? []).length} ${(abbonamenti ?? []).length === 1 ? 'abbonamento' : 'abbonamenti'}`
+              : 'nessuno'}
+          </span>
+        </div>
+
+        {(abbonamenti ?? []).length === 0 ? (
+          <p className="vuoto">Nessun abbonamento sincronizzato da Info4U per questa persona.</p>
+        ) : (
+          <details className="storico-gruppo">
+            <summary className="storico-gruppo-testa">
+              <span>Elenco abbonamenti, dal più recente</span>
+              <span className="storico-gruppo-apri" aria-hidden="true" />
+            </summary>
+            <div className="storico-gruppo-corpo">
+              <ul className="voci">
+                {(abbonamenti ?? []).map((a) => (
+                  <li className="voce" key={a.id as string}>
+                    <span className="voce-ora">{dataOra(a.data_vendita as string | null)}</span>
+                    <span className="voce-corpo">
+                      <span className="voce-titolo">
+                        {(a.abbonamento as string) || 'Abbonamento'}
+                        {a.variante ? ` — ${a.variante}` : ''}
+                      </span>
+                      <span className="voce-note muted">
+                        {euro(a.totale != null ? Number(a.totale) : null) ?? 'importo non registrato'}
+                        {a.periodo ? ` · ${a.periodo}` : a.durata ? ` · ${a.durata} giorni` : ''}
+                        {a.data_inizio && a.data_fine
+                          ? ` · validità ${dataBreve(a.data_inizio as string)} – ${dataBreve(a.data_fine as string)}`
+                          : a.data_inizio
+                            ? ` · dal ${dataBreve(a.data_inizio as string)}`
+                            : a.data_fine
+                              ? ` · fino al ${dataBreve(a.data_fine as string)}`
+                              : ''}
+                        {a.operatore_nome && ` · ${a.operatore_nome}`}
+                      </span>
+                      {/* La disdetta è un fatto della vendita, non del
+                          contratto in generale: senza dirlo qui, un
+                          abbonamento disdetto sembra ancora attivo. */}
+                      {a.data_disdetta && (
+                        <span className="voce-note muted">
+                          Disdetto il {dataBreve(a.data_disdetta as string)}
+                          {a.motivo_disdetta ? ` — ${a.motivo_disdetta}` : ''}
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </details>
+        )}
+      </div>
 
       {/* Le pagine del sito che ha guardato, in ordine cronologico.
           Prima qui c'erano la correzione del nome e una nota generica della
