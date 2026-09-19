@@ -1038,49 +1038,75 @@ table.tabella tbody tr:hover {
 	color: var(--ok);
 }
 
-/* ────────────────────── tag "lavorato" nelle liste di vendite (abbonamenti) */
-/* Un <details> invece di uno stato client: il tag è già lì, l'apertura è a
-   costo zero e non serve caricare la cronistoria di ogni vendita per una
-   lista che nessuno espanderà. */
-.tag-cronistoria {
+/* ─────────────────── il percorso di una vendita (abbonamenti, "come Athlon") */
+/* «Se dipende da qualche azione»: si legge aprendo — vedi PercorsoVendita.tsx.
+   Il riepilogo (una frase) prima, il dettaglio (le tappe) dopo: chi verifica
+   una vendita non vuole leggere una cronologia intera, vuole sapere in una
+   riga se questa persona è arrivata da sola o se qualcuno l'ha lavorata. */
+.percorso-vendita {
 	display: inline-block;
 	margin-left: 0.5rem;
 	vertical-align: middle;
 }
 
-.tag-cronistoria > summary {
-	display: inline-block;
-	cursor: pointer;
-	list-style: none;
+.percorso-toggle {
+	margin-top: 0.3rem;
 }
 
-.tag-cronistoria > summary::-webkit-details-marker {
-	display: none;
-}
-
-.tag-cronistoria > summary::after {
-	content: '▾';
-	display: inline-block;
-	margin-left: 0.3rem;
-	font-size: 0.7em;
-	opacity: 0.7;
-}
-
-.tag-cronistoria[open] > summary::after {
-	content: '▴';
-}
-
-.cronistoria-mini {
-	margin: 0.4rem 0 0.2rem;
+.percorso {
+	display: block;
+	margin-top: 0.4rem;
 	padding-left: 0.6rem;
-	list-style: none;
-	font-size: var(--text-xs);
-	line-height: 1.6;
 	border-left: 2px solid var(--border);
+	font-size: var(--text-xs);
 }
 
-.cronistoria-mini li + li {
-	margin-top: 0.1rem;
+/* Ogni pezzo è uno <span> (deve stare dentro il testo di una cella di
+   tabella, non in un <div>) ma va impilato come un blocco: senza, un bordo o
+   un padding su uno <span> inline si spezza per ogni riga di testo che
+   avvolge invece di disegnare un rettangolo solo. */
+.percorso-frase,
+.percorso-tappe,
+.percorso-tappa,
+.percorso-tappa-corpo {
+	display: block;
+}
+
+.percorso-frase {
+	line-height: 1.5;
+}
+
+.percorso-pastiglie {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+	margin: 0.35rem 0;
+}
+
+.percorso-tappe {
+	margin-top: 0.4rem;
+}
+
+.percorso-tappa {
+	padding: 0.35rem 0;
+	border-top: 1px solid var(--border);
+}
+
+.percorso-tappa:first-child {
+	border-top: 0;
+	padding-top: 0;
+}
+
+.percorso-tappa-testa {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.4rem;
+	margin-bottom: 0.15rem;
+}
+
+.percorso-tappa-corpo {
+	overflow-wrap: anywhere;
 }
 
 .badge-warn {

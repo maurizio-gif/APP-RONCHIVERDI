@@ -3,7 +3,8 @@ import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { caricaGruppi, NON_CATEGORIZZATO } from '@/lib/abbonamenti'
-import { caricaAttivitaCommerciale } from '@/lib/attivitaCommerciale'
+import { caricaDateAzioniDesk } from '@/lib/percorsoVendita-server'
+import { eLavorata } from '@/lib/percorsoVendita'
 import { euro } from '@/lib/pipeline'
 import {
   etichettaMese,
@@ -48,20 +49,20 @@ export default async function ReportAbbonamentiPage({
     // Query diretta e non la vista aggregata sopra: qui serve il persona_id
     // riga per riga per classificare la vendita, e un mese resta poche
     // centinaia di righe — non l'intero storico che ha reso necessarie le
-    // viste (vedi lib/attivitaCommerciale.ts).
+    // viste (vedi lib/percorsoVendita-server.ts).
     supabase
       .from('abbonamenti')
-      .select('persona_id')
+      .select('persona_id, data_vendita')
       .gte('data_vendita', mezzanotteRoma(primo))
       .lt('data_vendita', mezzanotteRoma(giornoPiu(ultimo, 1))),
   ])
 
-  const attivitaMese = await caricaAttivitaCommerciale(
+  const dateAzioniMese = await caricaDateAzioniDesk(
     supabase,
     (venditeDelMese ?? []).map((v) => v.persona_id)
   )
   const venditeLavorate = (venditeDelMese ?? []).filter(
-    (v) => v.persona_id && attivitaMese.get(v.persona_id)?.lavorata
+    (v) => v.persona_id && eLavorata(v.data_vendita as string, dateAzioniMese.get(v.persona_id) ?? [])
   ).length
   const totaleVenditeDelMese = (venditeDelMese ?? []).length
 
@@ -102,9 +103,8 @@ export default async function ReportAbbonamentiPage({
         </p>
         {totaleVenditeDelMese > 0 && (
           <p className="muted">
-            <span className="badge badge-info">Lavorate</span> {venditeLavorate} di {totaleVenditeDelMese}{' '}
-            vendite avevano una richiesta, una trattativa o un&apos;azione della segreteria prima dell&apos;acquisto
-            — {Math.round((venditeLavorate / totaleVenditeDelMese) * 100)}%.
+            <span className="badge badge-info">Lavorate</span> {venditeLavorate} di {totaleVenditeDelMese} vendite
+            avevano almeno un contatto della segreteria nei 30 giorni prima dell&apos;acquisto — {Math.round((venditeLavorate / totaleVenditeDelMese) * 100)}%.
           </p>
         )}
         <Link href="/dashboard/abbonamenti" className="muted">

@@ -4,7 +4,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { euro } from '@/lib/pipeline'
 import { dataBreve, giornoPiu, mezzanotteRoma, oggiRoma, oraBreve } from '@/lib/agenda'
-import { caricaAttivitaCommerciale, formattaVoceData } from '@/lib/attivitaCommerciale'
+import { PercorsoVendita } from '../PercorsoVendita'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,12 +34,6 @@ export default async function DettaglioGiornoPage({ searchParams }: { searchPara
 
   const vendite = (data ?? []) as unknown as RigaVendita[]
   const totaleGiorno = vendite.reduce((s, v) => s + Number(v.totale ?? 0), 0)
-  // Solo per le persone di queste vendite, non per l'anagrafica intera (vedi
-  // lib/attivitaCommerciale.ts): un giorno ne porta al massimo qualche decina.
-  const attivita = await caricaAttivitaCommerciale(
-    supabase,
-    vendite.map((v) => v.persona_id)
-  )
 
   return (
     <div>
@@ -98,43 +92,23 @@ export default async function DettaglioGiornoPage({ searchParams }: { searchPara
                 </tr>
               </thead>
               <tbody>
-                {vendite.map((v, i) => {
-                  const storia = v.persona_id ? attivita.get(v.persona_id) : undefined
-                  return (
-                    <tr key={i}>
-                      <td className="cella-nowrap">{oraBreve(v.data_vendita)}</td>
-                      <td>
-                        {v.abbonamento ?? '—'}
-                        {v.variante && <span className="muted"> · {v.variante}</span>}
-                      </td>
-                      <td>
-                        {v.persone ? `${v.persone.nome ?? ''} ${v.persone.cognome ?? ''}`.trim() || '—' : '—'}
-                        {/* In evidenza solo se c'è stato un lavoro — una vendita
-                            senza storia (un rinnovo al banco, un walk-in mai
-                            passato dal sito) non porta nessun tag, invece di un
-                            "non lavorato" che affollerebbe la lista senza dire
-                            niente di più della sua stessa assenza. */}
-                        {storia?.lavorata && (
-                          <details className="tag-cronistoria">
-                            <summary className="badge badge-info">
-                              Lavorato · {storia.cronistoria.length}
-                            </summary>
-                            <ul className="cronistoria-mini">
-                              {storia.cronistoria.map((voce) => (
-                                <li key={voce.id}>
-                                  <span className="muted">{formattaVoceData(voce.data)}</span> — {voce.etichetta}
-                                  {voce.dettaglio && <span className="muted"> · {voce.dettaglio}</span>}
-                                </li>
-                              ))}
-                            </ul>
-                          </details>
-                        )}
-                      </td>
-                      <td>{v.operatore_nome ?? '—'}</td>
-                      <td>{v.totale ? euro(v.totale) : '—'}</td>
-                    </tr>
-                  )
-                })}
+                {vendite.map((v, i) => (
+                  <tr key={i}>
+                    <td className="cella-nowrap">{oraBreve(v.data_vendita)}</td>
+                    <td>
+                      {v.abbonamento ?? '—'}
+                      {v.variante && <span className="muted"> · {v.variante}</span>}
+                    </td>
+                    <td>
+                      {v.persone ? `${v.persone.nome ?? ''} ${v.persone.cognome ?? ''}`.trim() || '—' : '—'}
+                      {/* «Se dipende da qualche azione»: si legge aprendo,
+                          non da un tag precalcolato — vedi PercorsoVendita. */}
+                      <PercorsoVendita personaId={v.persona_id} dataVendita={v.data_vendita} />
+                    </td>
+                    <td>{v.operatore_nome ?? '—'}</td>
+                    <td>{v.totale ? euro(v.totale) : '—'}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
