@@ -198,6 +198,7 @@ export function dataOra(iso: string | null): string {
     timeZone: 'Europe/Rome',
     day: 'numeric',
     month: 'short',
+    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   })
