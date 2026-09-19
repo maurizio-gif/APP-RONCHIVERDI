@@ -293,8 +293,8 @@ export function dataBreve(giorno: string): string {
 }
 
 /**
- * "11 set, 15:21" — un **istante**, non un giorno: quando è arrivata una
- * richiesta, quando è stata firmata una nota.
+ * "11 set 2026, 15:21" — un **istante**, non un giorno: quando è arrivata
+ * una richiesta, quando è stata firmata una nota.
  *
  * Fuso di Roma e non UTC, al contrario di dataBreve: là il giorno è già
  * scritto come stringa e va solo formattato, qui c'è un timestamp vero, e
@@ -305,6 +305,7 @@ export function dataOra(iso: string): string {
     timeZone: 'Europe/Rome',
     day: 'numeric',
     month: 'short',
+    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   })

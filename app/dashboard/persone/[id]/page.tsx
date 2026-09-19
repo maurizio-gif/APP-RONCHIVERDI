@@ -8,7 +8,13 @@ import {
   puoRiassegnare,
 } from '@/lib/auth/permessi'
 import { emailCorrente } from '@/lib/auth/sezioni-server'
-import { ETICHETTA_MANUALE, dataOra, eInseritoAMano, nomePersona } from '@/lib/persone'
+import {
+  ETICHETTA_MANUALE,
+  dataOra,
+  eInseritoAMano,
+  nomePersona,
+  dataBreve as dataBreveAnno,
+} from '@/lib/persone'
 import { dataOraDi, oraDi, percorsoBreve } from '@/lib/percorsoSito'
 import { mappaNomiStaff, ordinaPerCognome, nomeDiEmail, type RigaStaff } from '@/lib/staff'
 import {
@@ -470,12 +476,17 @@ export default async function PersonaPage({ params }: { params: { id: string } }
                       <span className="voce-note muted">
                         {euro(a.totale != null ? Number(a.totale) : null) ?? 'importo non registrato'}
                         {a.periodo ? ` · ${a.periodo}` : a.durata ? ` · ${a.durata} giorni` : ''}
+                        {/* dataBreveAnno, non la dataBreve dell'agenda: qui la
+                            validità può cadere in un anno qualunque dei tanti
+                            portati dallo storico Info4U, non nei prossimi
+                            giorni come in agenda — senza l'anno due vendite a
+                            distanza di anni si leggono con la stessa data. */}
                         {a.data_inizio && a.data_fine
-                          ? ` · validità ${dataBreve(a.data_inizio as string)} – ${dataBreve(a.data_fine as string)}`
+                          ? ` · validità ${dataBreveAnno(a.data_inizio as string)} – ${dataBreveAnno(a.data_fine as string)}`
                           : a.data_inizio
-                            ? ` · dal ${dataBreve(a.data_inizio as string)}`
+                            ? ` · dal ${dataBreveAnno(a.data_inizio as string)}`
                             : a.data_fine
-                              ? ` · fino al ${dataBreve(a.data_fine as string)}`
+                              ? ` · fino al ${dataBreveAnno(a.data_fine as string)}`
                               : ''}
                         {a.operatore_nome && ` · ${a.operatore_nome}`}
                       </span>
@@ -484,7 +495,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
                           abbonamento disdetto sembra ancora attivo. */}
                       {a.data_disdetta && (
                         <span className="voce-note muted">
-                          Disdetto il {dataBreve(a.data_disdetta as string)}
+                          Disdetto il {dataBreveAnno(a.data_disdetta as string)}
                           {a.motivo_disdetta ? ` — ${a.motivo_disdetta}` : ''}
                         </span>
                       )}

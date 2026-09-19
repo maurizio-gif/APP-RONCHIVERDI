@@ -1333,8 +1333,8 @@ table.tabella tbody tr:hover {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: baseline;
-	gap: 0.75rem 1rem;
-	padding: 0.75rem 0;
+	gap: 0.5rem 1rem;
+	padding: 0.6rem 0;
 	border-top: 1px solid var(--border);
 }
 
@@ -1350,12 +1350,19 @@ table.tabella tbody tr:hover {
 	opacity: 0.55;
 }
 
+/* La data è un'etichetta secondaria, non il titolo della riga: prima era più
+   grande e più a contrasto del titolo stesso (serif a text-md contro un
+   sans a text-base, stesso colore) e finiva per leggersi come l'elemento
+   principale della voce invece del suo contenuto — la lista sembrava piatta
+   perché non c'era una vera gerarchia fra "quando" e "cosa". */
 .voce-ora {
 	flex-shrink: 0;
-	width: 105px;
+	width: 140px;
 	font-family: var(--font-serif);
-	font-size: var(--text-md);
+	font-size: var(--text-xs);
+	color: var(--text-muted);
 	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
 }
 
 .voce-corpo {
@@ -1363,15 +1370,18 @@ table.tabella tbody tr:hover {
 	min-width: 200px;
 	display: flex;
 	flex-direction: column;
-	gap: 0.2rem;
+	gap: 0.25rem;
 }
 
 .voce-titolo {
 	font-size: var(--text-base);
+	font-weight: 600;
+	line-height: 1.35;
 }
 
 .voce-note {
 	font-size: var(--text-xs);
+	line-height: 1.5;
 	/* Nelle note di una voce finiscono messaggi e indirizzi scritti da altri:
 	   roba che non si sa quanto è lunga né dove si spezza. */
 	overflow-wrap: anywhere;
