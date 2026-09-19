@@ -1038,6 +1038,51 @@ table.tabella tbody tr:hover {
 	color: var(--ok);
 }
 
+/* ────────────────────── tag "lavorato" nelle liste di vendite (abbonamenti) */
+/* Un <details> invece di uno stato client: il tag è già lì, l'apertura è a
+   costo zero e non serve caricare la cronistoria di ogni vendita per una
+   lista che nessuno espanderà. */
+.tag-cronistoria {
+	display: inline-block;
+	margin-left: 0.5rem;
+	vertical-align: middle;
+}
+
+.tag-cronistoria > summary {
+	display: inline-block;
+	cursor: pointer;
+	list-style: none;
+}
+
+.tag-cronistoria > summary::-webkit-details-marker {
+	display: none;
+}
+
+.tag-cronistoria > summary::after {
+	content: '▾';
+	display: inline-block;
+	margin-left: 0.3rem;
+	font-size: 0.7em;
+	opacity: 0.7;
+}
+
+.tag-cronistoria[open] > summary::after {
+	content: '▴';
+}
+
+.cronistoria-mini {
+	margin: 0.4rem 0 0.2rem;
+	padding-left: 0.6rem;
+	list-style: none;
+	font-size: var(--text-xs);
+	line-height: 1.6;
+	border-left: 2px solid var(--border);
+}
+
+.cronistoria-mini li + li {
+	margin-top: 0.1rem;
+}
+
 .badge-warn {
 	background: var(--warn-tint);
 	color: var(--warn);
@@ -2932,6 +2977,41 @@ table.tabella tbody tr:hover {
 .grafico-massimo {
 	margin: 0.5rem 0 0;
 	font-size: var(--text-2xs);
+}
+
+/* Split lavorato/non lavorato (vedi GraficoMensile, abbonamenti): stesso oro
+   già usato per una barra sola altrove — qui vuol dire la stessa cosa,
+   "questo è il segmento che conta" — contro un grigio spento per il resto. */
+.grafico-barra-lavorato {
+	fill: var(--accent);
+}
+
+.grafico-barra-non-lavorato {
+	fill: var(--fill-strong);
+}
+
+.grafico-legenda {
+	display: flex;
+	gap: 1rem;
+	margin-top: 0.5rem;
+	font-size: var(--text-2xs);
+}
+
+.grafico-legenda-pallino {
+	display: inline-block;
+	width: 0.55rem;
+	height: 0.55rem;
+	border-radius: 50%;
+	margin-right: 0.3rem;
+	vertical-align: middle;
+}
+
+.grafico-legenda-pallino-lavorato {
+	background: var(--accent);
+}
+
+.grafico-legenda-pallino-non-lavorato {
+	background: var(--fill-strong);
 }
 
 /* Le card statistiche dell'Analytics portano anche il badge di variazione:

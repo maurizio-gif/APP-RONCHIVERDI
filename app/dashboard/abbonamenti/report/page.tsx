@@ -3,11 +3,14 @@ import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { caricaGruppi, NON_CATEGORIZZATO } from '@/lib/abbonamenti'
+import { caricaAttivitaCommerciale } from '@/lib/attivitaCommerciale'
 import { euro } from '@/lib/pipeline'
 import {
   etichettaMese,
+  giornoPiu,
   giorniDelMese,
   mesePiu,
+  mezzanotteRoma,
   oggiRoma,
   primoDelMese,
   ultimoDelMese,
@@ -35,14 +38,32 @@ export default async function ReportAbbonamentiPage({
   const giorni = giorniDelMese(meseRichiesto)
 
   const supabase = createSupabaseServiceClient()
-  const [gruppi, { data: righeGrezze, error: erroreVista }] = await Promise.all([
+  const [gruppi, { data: righeGrezze, error: erroreVista }, { data: venditeDelMese }] = await Promise.all([
     caricaGruppi(),
     supabase
       .from('abbonamenti_giornalieri')
       .select('giorno, gruppo_id, numero_vendite, fatturato')
       .gte('giorno', primo)
       .lte('giorno', ultimo),
+    // Query diretta e non la vista aggregata sopra: qui serve il persona_id
+    // riga per riga per classificare la vendita, e un mese resta poche
+    // centinaia di righe — non l'intero storico che ha reso necessarie le
+    // viste (vedi lib/attivitaCommerciale.ts).
+    supabase
+      .from('abbonamenti')
+      .select('persona_id')
+      .gte('data_vendita', mezzanotteRoma(primo))
+      .lt('data_vendita', mezzanotteRoma(giornoPiu(ultimo, 1))),
   ])
+
+  const attivitaMese = await caricaAttivitaCommerciale(
+    supabase,
+    (venditeDelMese ?? []).map((v) => v.persona_id)
+  )
+  const venditeLavorate = (venditeDelMese ?? []).filter(
+    (v) => v.persona_id && attivitaMese.get(v.persona_id)?.lavorata
+  ).length
+  const totaleVenditeDelMese = (venditeDelMese ?? []).length
 
   const righe = new Map<string, RigaGiorno>(
     giorni.map((g) => [g, { data: g, perGruppo: new Map(), fatturato: 0 }])
@@ -79,6 +100,13 @@ export default async function ReportAbbonamentiPage({
           Abbonamenti venduti giorno per giorno, divisi per gruppo prodotto. {venditeMese} vendite,{' '}
           {euro(totaleMese)} di fatturato in {etichettaMese(meseRichiesto)}.
         </p>
+        {totaleVenditeDelMese > 0 && (
+          <p className="muted">
+            <span className="badge badge-info">Lavorate</span> {venditeLavorate} di {totaleVenditeDelMese}{' '}
+            vendite avevano una richiesta, una trattativa o un&apos;azione della segreteria prima dell&apos;acquisto
+            — {Math.round((venditeLavorate / totaleVenditeDelMese) * 100)}%.
+          </p>
+        )}
         <Link href="/dashboard/abbonamenti" className="muted">
           ← Torna ad Abbonamenti
         </Link>

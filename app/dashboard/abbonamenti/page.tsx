@@ -114,21 +114,30 @@ export default async function AbbonamentiPage({
   )
 
   // Sezione 3: gli ultimi 12 mesi (compreso quello in corso, parziale) per
-  // il grafico a barre — stessi filtri delle sezioni sopra.
+  // il grafico a barre — stessi filtri delle sezioni sopra, più lo split fra
+  // vendite lavorate (una richiesta, una trattativa o un'azione della
+  // segreteria dietro) e non (vedi abbonamenti_mensili_lavorati e
+  // lib/attivitaCommerciale.ts per la stessa classificazione altrove).
   const meseCorrenteData = `${annoCorrente}-${String(mese).padStart(2, '0')}-01`
   const ultimi12Mesi = Array.from({ length: 12 }, (_, i) => mesePiu(meseCorrenteData, i - 11))
   let queryMensile = supabase
-    .from('abbonamenti_mensili')
-    .select('mese, numero_vendite, fatturato')
+    .from('abbonamenti_mensili_lavorati')
+    .select('mese, lavorata, numero_vendite, fatturato')
     .gte('mese', ultimi12Mesi[0])
   if (filtroAttivo) queryMensile = queryMensile.in('gruppo_id', gruppiSelezionati)
   const { data: righeUltimi12 } = await queryMensile
 
-  const fatturatoPerMese = new Map<string, number>()
+  const fatturatoPerMese = new Map<string, { lavorato: number; nonLavorato: number }>()
   for (const r of righeUltimi12 ?? []) {
-    fatturatoPerMese.set(r.mese, (fatturatoPerMese.get(r.mese) ?? 0) + Number(r.fatturato ?? 0))
+    const voce = fatturatoPerMese.get(r.mese) ?? { lavorato: 0, nonLavorato: 0 }
+    if (r.lavorata) voce.lavorato += Number(r.fatturato ?? 0)
+    else voce.nonLavorato += Number(r.fatturato ?? 0)
+    fatturatoPerMese.set(r.mese, voce)
   }
-  const serieMensile = ultimi12Mesi.map((m) => ({ mese: m, fatturato: fatturatoPerMese.get(m) ?? 0 }))
+  const serieMensile = ultimi12Mesi.map((m) => {
+    const v = fatturatoPerMese.get(m) ?? { lavorato: 0, nonLavorato: 0 }
+    return { mese: m, lavorato: v.lavorato, nonLavorato: v.nonLavorato }
+  })
 
   // L'obiettivo segue lo stesso filtro delle statistiche sopra: "Tutti" mostra
   // il generale, un solo gruppo selezionato mostra e permette di impostare il
