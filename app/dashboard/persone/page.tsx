@@ -16,12 +16,16 @@ export default async function PersonePage() {
   }
 
   const supabase = createSupabaseServiceClient()
-  const [{ data, error }, { data: manuali }] = await Promise.all([
+  const [{ data, error }, { data: manuali }, { count: totalePersone }] = await Promise.all([
     supabase
       .from('persone_con_richieste')
       .select('id, nome, cognome, email, cellulare, note, richieste, richieste_da_lavorare, prima_richiesta, ultima_richiesta')
       // Chi ha scritto più di recente sta in cima: è l'ordine con cui si
-      // guarda un'anagrafica di lavoro, non l'alfabetico.
+      // guarda un'anagrafica di lavoro, non l'alfabetico. Con l'arrivo dei
+      // contatti Info4U (senza nessuna richiesta dal sito, quindi in fondo a
+      // questo ordinamento) questo elenco è "attività recente", non "tutti":
+      // chi non c'è si trova con la ricerca, che guarda l'anagrafica intera
+      // (vedi RicercaPersone/cercaPersone).
       .order('ultima_richiesta', { ascending: false, nullsFirst: false })
       .limit(MAX_PERSONE),
     // Chi è stato inserito a mano dalla segreteria. La fonte non sta nella
@@ -30,6 +34,10 @@ export default async function PersonePage() {
     // spiegato — altrimenti si legge come una riga rotta. Si chiedono solo i
     // manuali, che sono pochi, e non la fonte di tutti.
     supabase.from('persone').select('id').eq('fonte', FONTE_MANUALE),
+    // Il vero totale, non le sole 500 caricate: senza, la statistica
+    // "In anagrafica" mentirebbe proprio sul numero che i contatti storici
+    // importati da Info4U hanno reso sbagliato.
+    supabase.from('persone').select('id', { count: 'exact', head: true }),
   ])
 
   if (error) console.error('Anagrafica non letta:', error.message)
@@ -46,16 +54,18 @@ export default async function PersonePage() {
         <p className="eyebrow">Anagrafica</p>
         <h1>Contatti</h1>
         <p className="muted">
-          Una scheda per persona, con tutte le sue richieste. Si popola da sé: il database riconosce
-          chi ha già scritto dall’email o dal cellulare, anche scritti in modo diverso. Chi non ha
-          mai scritto — arrivato al telefono o al banco — lo aggiunge la segreteria fissandogli
-          qualcosa in agenda, ed è segnato «inserito a mano».
+          Una scheda per persona, con tutte le sue richieste e i suoi abbonamenti. Si popola da sé: il
+          database riconosce chi ha già scritto dall’email o dal cellulare, anche scritti in modo
+          diverso, e chi ha comprato un abbonamento in Info4U anche se non ha mai scritto dal sito.
+          Chi non ha mai scritto — arrivato al telefono o al banco — lo aggiunge la segreteria
+          fissandogli qualcosa in agenda, ed è segnato «inserito a mano». L’elenco qui sotto mostra
+          l’attività più recente: per uno storico, cerca il suo nome.
         </p>
       </div>
 
       <div className="griglia-stat">
         <div className="stat">
-          <span className="stat-valore">{persone.length}</span>
+          <span className="stat-valore">{totalePersone ?? persone.length}</span>
           <span className="stat-label">In anagrafica</span>
         </div>
         <div className="stat">
