@@ -142,6 +142,16 @@ quel caso lo script aggancia quella esistente invece di duplicarla).
   se la rivedesse — ma lo script non ripassa mai su un `IDIscrizione` già
   sotto il watermark. Se serve rincorrere le correzioni tardive, se ne
   parla quando capita).
-- Non fa nessuna automazione *sulla* tabella `abbonamenti` (rinnovi,
-  scadenze, collegamento alle trattative) — quello è il prossimo passo,
-  una volta che i dati sono dentro e li guardiamo insieme.
+- Non fa nessuna automazione sui rinnovi o sulle scadenze.
+
+## Collegamento alle trattative
+
+Ogni riga che questo script scrive in `abbonamenti` chiude da sola, come
+**vinta**, la trattativa Club/Family ancora aperta della stessa persona (se
+c'è) — con nome del prodotto e valore incassato come nota, e la data della
+vendita stessa come data di chiusura. Non è nello script: è un trigger sul
+lato Supabase, `abbonamenti_chiude_trattativa`
+(`scripts/sql/2026-09-18-abbonamento-venduto-chiude-la-trattativa.sql`), che
+scatta a ogni insert indipendentemente da come la riga ci arriva. I dettagli
+e perché non tocca le vendite più vecchie di una trattativa aperta oggi
+stanno nei commenti di quella migration.

@@ -13,6 +13,7 @@ import {
   puoAssegnare,
   valoreDaTesto,
 } from '@/lib/pipeline'
+import { dataBreve } from '@/lib/persone'
 import { nomeDiEmail } from '@/lib/staff'
 import type { DatiTrattativa } from './richieste/Trattativa'
 import { useChiusuraTrattativa } from './richieste/useChiusuraTrattativa'
@@ -131,6 +132,9 @@ export function ChiusuraTrattativa({
             <strong className="chiusura-valore"> · {euro(t.valore_euro)}</strong>
           )}
           {t.stato === 'vinto' && t.triple_pack && <strong className="chiusura-valore"> · triple pack</strong>}
+          {t.stato === 'vinto' && t.chiuso_il && (
+            <strong className="chiusura-valore"> · {dataBreve(t.chiuso_il)}</strong>
+          )}
         </p>
       ) : chiedo ? (
         <div className="chiusura-motivo-campo">
