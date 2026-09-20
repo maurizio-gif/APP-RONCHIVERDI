@@ -48,8 +48,8 @@ export function PercorsoVendita({ personaId, dataVendita }: { personaId: string 
 
   return (
     <span className="percorso-vendita">
-      <button type="button" className="btn btn-ghost btn-sm percorso-toggle" aria-expanded={aperto} onClick={apri}>
-        {aperto ? '−' : '+'} {aperto ? 'Nascondi' : 'Mostra'} il percorso
+      <button type="button" className="percorso-toggle" aria-expanded={aperto} onClick={apri}>
+        {aperto ? '−' : '+'} {aperto ? 'Nascondi' : 'Mostra'} dettagli
       </button>
 
       {aperto && (
@@ -90,7 +90,7 @@ function Contenuto({
             ))}
           </span>
 
-          <button type="button" className="btn btn-ghost btn-sm percorso-toggle" aria-expanded={dettaglioAperto} onClick={onDettaglio}>
+          <button type="button" className="percorso-toggle" aria-expanded={dettaglioAperto} onClick={onDettaglio}>
             {dettaglioAperto ? '−' : '+'} {dettaglioAperto ? 'Nascondi' : 'Mostra'} le {r.quante} tappe
           </button>
 
