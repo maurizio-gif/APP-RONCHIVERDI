@@ -1049,8 +1049,26 @@ table.tabella tbody tr:hover {
 	vertical-align: middle;
 }
 
+/* Un link di testo e non un .btn: un bottone bordato e maiuscolo, ripetuto su
+   ogni riga della lista, è grosso quanto il resto della riga — su un
+   telefono "MOSTRA IL PERCORSO" andava a capo su tre righe. Qui deve pesare
+   meno del dato che accompagna, non di più. */
 .percorso-toggle {
+	display: inline-block;
 	margin-top: 0.3rem;
+	padding: 0;
+	background: none;
+	border: none;
+	color: var(--accent);
+	font-family: inherit;
+	font-size: var(--text-xs);
+	text-decoration: underline;
+	text-underline-offset: 2px;
+	cursor: pointer;
+}
+
+.percorso-toggle:hover {
+	color: var(--accent-hover);
 }
 
 .percorso {
