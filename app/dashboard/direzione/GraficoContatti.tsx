@@ -92,8 +92,8 @@ export function GraficoContatti({ serie }: { serie: VoceContattiMese[] }) {
           <span className="grafico-legenda-pallino grafico-legenda-pallino-sito" aria-hidden="true" /> Sito
         </span>
         <span>
-          <span className="grafico-legenda-pallino grafico-legenda-pallino-sede" aria-hidden="true" /> In sede (Guest
-          Register)
+          <span className="grafico-legenda-pallino grafico-legenda-pallino-sede" aria-hidden="true" /> In sede
+          (Walk-in)
         </span>
       </div>
     </div>

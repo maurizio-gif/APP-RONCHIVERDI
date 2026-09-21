@@ -74,7 +74,7 @@ function piattaformaDaReferrer(referrer: string): string | null {
  * lib/analytics.ts: non ha una campagna, è stato fisicamente in sede.
  */
 export function canaleGranulare(c: CoppiaUtm): string {
-  if (c.origine === ORIGINE_BANCO) return 'Guest Register'
+  if (c.origine === ORIGINE_BANCO) return 'Walk-in'
 
   const s = String(c.utm_source ?? '').trim().toLowerCase()
   const m = String(c.utm_medium ?? '').trim().toLowerCase()

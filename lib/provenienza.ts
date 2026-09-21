@@ -64,7 +64,10 @@ const SITO: Provenienza = {
 
 const GUEST_REGISTER: Provenienza = {
   chiave: 'guest-register',
-  etichetta: 'Guest Register',
+  // Il commerciale chiama questo canale "Walk-in", non "Guest Register": la
+  // chiave interna resta invariata (è quella salvata ovunque, dal database
+  // alle classi CSS), cambia solo l'etichetta che si legge in giro.
+  etichetta: 'Walk-in',
   classe: 'da-banco',
   spiegazione: 'Registrato al banco: è già stato qui e ha parlato con la segreteria.',
 }

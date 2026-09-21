@@ -927,7 +927,7 @@ export default async function CoreManagerPage({
                   const eventi = righeEventiPerTipo.get(r.email) ?? rigaEventiPerTipoVuota(r.email)
                   const gruppi: { chiave: string; etichetta: string; conteggi: ConteggioTipi }[] = [
                     { chiave: 'autonomi', etichetta: 'Autonomi', conteggi: eventi.autonomi },
-                    { chiave: 'sito', etichetta: 'Sito e Guest Register', conteggi: eventi.daSito },
+                    { chiave: 'sito', etichetta: 'Sito e Walk-in', conteggi: eventi.daSito },
                   ]
                   // Solo le righe con qualcosa dentro: un consulente senza
                   // eventi autonomi nel periodo non deve occupare una riga di

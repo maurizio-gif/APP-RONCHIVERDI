@@ -19,7 +19,7 @@ export function GuidaDashboard() {
         <h3>Le righe si aprono</h3>
         <p>
           Ogni riga dice a colpo d&apos;occhio le cose che servono a scegliere chi chiamare per
-          primo: il <strong>nome</strong>, <strong>da dove arriva</strong> — Sito, Guest Register,
+          primo: il <strong>nome</strong>, <strong>da dove arriva</strong> — Sito, Walk-in,
           Agenda — <strong>che tipo di contatto</strong> l&apos;ha generata e{' '}
           <strong>da quanto aspetta</strong>. Aprila e trovi il messaggio, i pulsanti per chiamare o
           scrivere, e i comandi per chiuderla: <em>da qui si lavora, senza cambiare pagina</em>.

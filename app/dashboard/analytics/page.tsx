@@ -171,7 +171,7 @@ export default async function AnalyticsPage({
             titolo="Richieste per canale di traffico"
             voci={traffico}
             totale={s.richieste}
-            nota="Un click id o un referrer senza UTM non contano come traffico diretto: la campagna non aveva i parametri, non è arrivata da sola. Chi si è registrato al banco (Guest Register) è a parte: non ha nessuna campagna, è stato fisicamente in sede."
+            nota="Un click id o un referrer senza UTM non contano come traffico diretto: la campagna non aveva i parametri, non è arrivata da sola. Chi si è registrato al banco (Walk-in) è a parte: non ha nessuna campagna, è stato fisicamente in sede."
           />
 
           <Ripartizione

@@ -209,7 +209,7 @@ export function perCanaleTraffico(coppie: CoppiaUtm[]): Voce[] {
     // non avendo campagna, finirebbe a gonfiare il "Traffico diretto".
     let canale =
       c.origine === ORIGINE_BANCO
-        ? 'Guest Register'
+        ? 'Walk-in'
         : classificaCanaleTraffico(c.utm_source, c.utm_medium)
 
     if (canale === 'Traffico diretto') {

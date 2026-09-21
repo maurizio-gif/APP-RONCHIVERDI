@@ -290,7 +290,7 @@ export default async function DirezionePage({
             percentuale={variazionePercentuale(contattiYTD.richieste, contattiYTDPrec.richieste)}
           />
         </div>
-        <p className="filtri-titolo">Sito vs in sede (Guest Register) — da inizio anno</p>
+        <p className="filtri-titolo">Sito vs in sede (Walk-in) — da inizio anno</p>
         <SplitCanali voci={splitContattiYTD} totale={contattiYTD.richieste} />
         <p className="filtri-titolo">Andamento ultimi 12 mesi</p>
         <GraficoContatti serie={serieContattiMensile} />

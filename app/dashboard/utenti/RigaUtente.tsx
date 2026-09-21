@@ -150,7 +150,7 @@ export function RigaUtente({
             <TogglePermesso
               email={u.email}
               valoreIniziale={u.operatore_segreteria}
-              etichetta="Operatore di segreteria (guest register)"
+              etichetta="Operatore di segreteria (walk-in)"
               azione={impostaOperatoreSegreteria}
               disabilitato={!amministra}
               motivoDisabilitato="Serve il permesso di amministrare"
