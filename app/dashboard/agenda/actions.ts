@@ -6,7 +6,7 @@ import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { puoCancellare } from '@/lib/auth/permessi'
 import { registraLog } from '@/lib/audit'
 import { preparaEvento, type EventoDaProgrammare, type ModoEvento } from '@/lib/eventi'
-import { AVVISO_TRATTATIVA, trattativaPerEvento } from '@/lib/trattative-server'
+import { AVVISO_TRATTATIVA, AVVISO_TRATTATIVA_LIBERA, trattativaPerEvento } from '@/lib/trattative-server'
 import {
   FONTE_MANUALE,
   nomePersona,
@@ -23,8 +23,17 @@ import {
 // «nuovo» che in anagrafica c'era già.
 export type Esito = { ok: true; avviso?: string } | { ok: false; errore: string }
 
+// Anche chi arriva da una delle scorciatoie (Aggiungi in agenda, Phone In /
+// Email In) deve poter salvare: quei permessi aprono pagine che finiscono
+// tutte su questa stessa azione, e un utente con solo uno di loro (senza
+// 'agenda' generico) non deve trovarsi un salvataggio rifiutato dopo aver
+// compilato il form.
 async function autorizzato(): Promise<boolean> {
-  return utenteHaSezione('agenda')
+  return (
+    (await utenteHaSezione('agenda')) ||
+    (await utenteHaSezione('agenda-nuova')) ||
+    (await utenteHaSezione('phone-email-in'))
+  )
 }
 
 /**
@@ -65,6 +74,9 @@ export async function creaVoce(formData: FormData): Promise<Esito> {
 
   const modoGrezzo = String(formData.get('modo') ?? 'programma')
   const modo: ModoEvento = modoGrezzo === 'registra' ? 'registra' : 'programma'
+  // Phone In / Email In: la trattativa che si apre non va a chi la registra,
+  // resta da assegnare — vedi trattativaPerEvento più sotto.
+  const nonAssegnare = String(formData.get('trattativa_da_assegnare') ?? '') === '1'
 
   const evento: EventoDaProgrammare = {
     titolo: String(formData.get('titolo') ?? ''),
@@ -125,7 +137,12 @@ export async function creaVoce(formData: FormData): Promise<Esito> {
   // un evento che poi non si salva lascerebbe in pipeline una persona che
   // nessuno ha messo in agenda. Non blocca il salvataggio se fallisce — vedi
   // trattativaPerEvento.
-  const azioneTrattativa = await trattativaPerEvento(contatto.id, email)
+  //
+  // Operatore nullo quando non va assegnata (Phone In / Email In): la
+  // funzione SQL, senza operatore, apre la trattativa ma la lascia "da
+  // assegnare" invece di intestarla a chi scrive — stessa logica dei walk-in
+  // dal Guest Register del sito.
+  const azioneTrattativa = await trattativaPerEvento(contatto.id, nonAssegnare ? null : email)
 
   await registraLog(email, modo === 'registra' ? 'evento_registrato' : 'agenda_voce_creata', {
     entita: 'persona',
@@ -154,7 +171,8 @@ export async function creaVoce(formData: FormData): Promise<Esito> {
   // la trattativa aperta dall'evento. Separate da uno spazio invece che
   // scegliendone una — sono due sorprese diverse, e tacerne una perché ce
   // n'è un'altra è il modo di non farla scoprire a nessuno.
-  const avvisi = [contatto.avviso, azioneTrattativa && AVVISO_TRATTATIVA[azioneTrattativa]]
+  const mappaAvvisoTrattativa = nonAssegnare ? AVVISO_TRATTATIVA_LIBERA : AVVISO_TRATTATIVA
+  const avvisi = [contatto.avviso, azioneTrattativa && mappaAvvisoTrattativa[azioneTrattativa]]
     .filter(Boolean)
     .join(' ')
   return avvisi ? { ok: true, avviso: avvisi } : { ok: true }

@@ -72,6 +72,18 @@ const DEFINIZIONI = [
     href: '/dashboard/agenda/nuova',
     gruppo: 'Segreteria',
   },
+  // Telefonate ed email arrivate quando nessun commerciale era disponibile:
+  // a differenza di "Aggiungi in agenda", qui si registra soltanto (mai una
+  // programmazione futura), solo questi due tipi, e la trattativa che si apre
+  // resta da assegnare invece di andare a chi la scrive — come già succede
+  // per i walk-in dal Guest Register del sito (vedi NuovaVoce.tsx e
+  // creaVoce in app/dashboard/agenda/actions.ts).
+  {
+    chiave: 'phone-email-in',
+    label: 'Phone In / Email In',
+    href: '/dashboard/agenda/phone-email-in',
+    gruppo: 'Segreteria',
+  },
   {
     chiave: 'richieste-tennis-scuola',
     label: 'Young School Tennis — Scuola',

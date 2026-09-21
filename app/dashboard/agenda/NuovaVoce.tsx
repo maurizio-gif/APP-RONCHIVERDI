@@ -8,6 +8,7 @@ import {
   eAppuntamentoVero,
   eSoloRegistrato,
   eTipoValido,
+  type TipoVoce,
 } from '@/lib/agenda'
 import { ETICHETTE_MODO, MODI, SPIEGAZIONI_MODO, type ModoEvento } from '@/lib/eventi'
 import { nomePersona, testoRicerca, validaNuovoContatto } from '@/lib/persone'
@@ -37,6 +38,9 @@ export function NuovaVoce({
   contatti,
   contattiTroncati = false,
   apertaInizialmente = false,
+  tipiConsentiti,
+  soloRegistrazione = false,
+  trattativaDaAssegnare = false,
 }: {
   giornoPredefinito: string
   operatori: string[]
@@ -45,6 +49,25 @@ export function NuovaVoce({
   contattiTroncati?: boolean
   /** Vero sulla pagina dedicata: il form è la ragione per cui ci si è arrivati. */
   apertaInizialmente?: boolean
+  /**
+   * Se presente, limita la tendina "Tipo" a questo sottoinsieme — per Phone
+   * In / Email In, solo telefonata ed email: chi chiama o scrive non si è
+   * presentato in sede, e offrire "Visita in sede" qui direbbe il falso.
+   */
+  tipiConsentiti?: TipoVoce[]
+  /**
+   * Vero dove non ha senso "programmare": si registra solo qualcosa già
+   * avvenuto (una telefonata ricevuta, un'email arrivata). Nasconde il
+   * gruppo Programma/Registra — non c'è scelta da fare — e forza "registra"
+   * come modoEffettivo, come già succede scegliendo email/whatsapp.
+   */
+  soloRegistrazione?: boolean
+  /**
+   * Vero dove la trattativa aperta da questo evento non deve andare a chi lo
+   * scrive: resta da assegnare, come i walk-in dal Guest Register del sito.
+   * Aggiunge solo il campo hidden che creaVoce legge — la logica sta lì.
+   */
+  trattativaDaAssegnare?: boolean
 }) {
   const [aperto, setAperto] = useState(apertaInizialmente)
   // Dentro il calendario vince il giorno che si sta guardando: chi clicca su
@@ -52,7 +75,7 @@ export function NuovaVoce({
   const giornoDalCalendario = useGiornoSelezionato()
   const giorno = giornoDalCalendario ?? giornoPredefinito
   const [modo, setModo] = useState<ModoEvento>('programma')
-  const [tipo, setTipo] = useState('appuntamento_in_sede')
+  const [tipo, setTipo] = useState<string>(tipiConsentiti?.[0] ?? 'appuntamento_in_sede')
   const [filtro, setFiltro] = useState('')
   const [personaId, setPersonaId] = useState('')
   // Elenco o contatto nuovo: due strade dichiarate, non un campo che cambia
@@ -88,8 +111,11 @@ export function NuovaVoce({
   // l'altro pulsante sparisce, invece di restare lì a promettere qualcosa che
   // il server rifiuterebbe.
   const soloRegistrabile = eTipoValido(tipo) && eSoloRegistrato(tipo)
-  const modoEffettivo: ModoEvento = soloRegistrabile ? 'registra' : modo
-  const tipiOfferti = modoEffettivo === 'registra' ? OPZIONI_TIPO : OPZIONI_TIPO_PROGRAMMABILI
+  const modoEffettivo: ModoEvento = soloRegistrabile || soloRegistrazione ? 'registra' : modo
+  const tipiBase = modoEffettivo === 'registra' ? OPZIONI_TIPO : OPZIONI_TIPO_PROGRAMMABILI
+  const tipiOfferti = tipiConsentiti
+    ? tipiBase.filter((o) => tipiConsentiti.includes(o.valore as TipoVoce))
+    : tipiBase
 
   // Un campo di ricerca sopra la tendina invece di una tendina lunghissima:
   // i contatti crescono con le richieste dal sito, e scorrerne trecento per
@@ -192,22 +218,24 @@ export function NuovaVoce({
             restava «da fare», e un impegno fissato per stamattina nasceva
             già chiuso. */}
         <input type="hidden" name="modo" value={modoEffettivo} />
-        <div className="modo-evento">
-          <div className="esito-gruppi" role="group" aria-label="Programma o registra">
-            {MODI.filter((m) => !(soloRegistrabile && m === 'programma')).map((m) => (
-              <button
-                key={m}
-                type="button"
-                className={`btn btn-sm${modoEffettivo === m ? '' : ' btn-ghost'}`}
-                aria-pressed={modoEffettivo === m}
-                onClick={() => setModo(m)}
-              >
-                {ETICHETTE_MODO[m]}
-              </button>
-            ))}
+        {!soloRegistrazione && (
+          <div className="modo-evento">
+            <div className="esito-gruppi" role="group" aria-label="Programma o registra">
+              {MODI.filter((m) => !(soloRegistrabile && m === 'programma')).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  className={`btn btn-sm${modoEffettivo === m ? '' : ' btn-ghost'}`}
+                  aria-pressed={modoEffettivo === m}
+                  onClick={() => setModo(m)}
+                >
+                  {ETICHETTE_MODO[m]}
+                </button>
+              ))}
+            </div>
+            <p className="field-hint">{SPIEGAZIONI_MODO[modoEffettivo]}</p>
           </div>
-          <p className="field-hint">{SPIEGAZIONI_MODO[modoEffettivo]}</p>
-        </div>
+        )}
 
         {/* Il contatto è obbligatorio: una voce senza contatto non compare
             nella scheda di nessuno, e in agenda è un titolo senza il perché.
@@ -217,6 +245,7 @@ export function NuovaVoce({
             non ha mai compilato un form, e prima l'unico modo di fissarle un
             appuntamento era mandarla sul sito a scrivere una richiesta. */}
         <input type="hidden" name="contatto_modo" value={contattoNuovo ? 'nuovo' : 'elenco'} />
+        {trattativaDaAssegnare && <input type="hidden" name="trattativa_da_assegnare" value="1" />}
         <div className="modo-evento">
           <div className="esito-gruppi" role="group" aria-label="Contatto in elenco o nuovo">
             <button

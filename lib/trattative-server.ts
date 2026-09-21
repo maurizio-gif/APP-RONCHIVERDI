@@ -44,6 +44,18 @@ export const AVVISO_TRATTATIVA: Record<AzioneTrattativa, string | null> = {
 }
 
 /**
+ * Come AVVISO_TRATTATIVA, ma per chi registra senza intestarsi la trattativa
+ * (Phone In / Email In — vedi NuovaVoce.tsx): con `p_operatore` nullo la
+ * funzione SQL non assegna mai nessuno, quindi qui "in gestione a te" sarebbe
+ * falso. `presa_in_carico` non compare: la SQL la sceglie solo quando
+ * l'operatore non è nullo, quindi con questo flusso non può accadere.
+ */
+export const AVVISO_TRATTATIVA_LIBERA: Partial<Record<AzioneTrattativa, string>> = {
+  creata: 'Aperta anche la trattativa di questo contatto: resta da assegnare, la prende chi se ne occupa.',
+  avviata: 'La trattativa di questo contatto è passata in gestione, ma resta da assegnare.',
+}
+
+/**
  * Assicura che la persona abbia una trattativa aperta, e la restituisce.
  *
  * **Non fallisce mai in modo rumoroso**, ed è voluto: l'evento è già scritto
