@@ -39,13 +39,10 @@ const DISEGNI: Record<string, React.ReactNode> = {
       <path d="M3 10h18M8 3v4M16 3v4" />
     </>
   ),
-  // Aggiungi in agenda: lo stesso calendario, con un più al posto delle
-  // righe — è un impegno solo, non tutta la giornata.
-  'agenda-nuova': (
-    <>
-      <rect x="3" y="5" width="18" height="16" rx="2" />
-      <path d="M3 10h18M8 3v4M16 3v4M12 13.5v6M9 16.5h6" />
-    </>
+  // Phone In / Email In: la cornetta, per una telefonata o un'email arrivate
+  // quando nessun commerciale era disponibile.
+  'phone-email-in': (
+    <path d="M4 5c0 8.5 6.5 15 15 15l2-4-5-2-1.5 1.5A11.6 11.6 0 0 1 9 10.5L10.5 9 8.5 4 4 5z" />
   ),
   // Club e Family: la stella dell'abbonamento, la voce di punta.
   'richieste-club': <path d="M12 3.5l2.6 5.5 6 .8-4.4 4.2 1.1 6-5.3-2.9-5.3 2.9 1.1-6L3.4 9.8l6-.8z" />,

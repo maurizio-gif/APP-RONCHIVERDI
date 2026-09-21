@@ -60,24 +60,16 @@ const DEFINIZIONI = [
     href: '/dashboard/voucher',
     gruppo: 'Segreteria',
   },
-  // Una scorciatoia diretta al form di NuovaVoce, senza passare
-  // dall'agenda intera: chi deve solo fissare un impegno — un richiamo, una
-  // visita — non deve aprire calendario e lista per trovare un pulsante in
-  // fondo alla pagina. Permesso suo, distinto da 'agenda': la segreteria ha
-  // entrambi, ma un responsabile a cui serve solo aggiungere una voce (senza
-  // dover vedere tutta l'agenda del club) può avere questo soltanto.
-  {
-    chiave: 'agenda-nuova',
-    label: 'Aggiungi in agenda',
-    href: '/dashboard/agenda/nuova',
-    gruppo: 'Segreteria',
-  },
   // Telefonate ed email arrivate quando nessun commerciale era disponibile:
-  // a differenza di "Aggiungi in agenda", qui si registra soltanto (mai una
-  // programmazione futura), solo questi due tipi, e la trattativa che si apre
-  // resta da assegnare invece di andare a chi la scrive — come già succede
-  // per i walk-in dal Guest Register del sito (vedi NuovaVoce.tsx e
-  // creaVoce in app/dashboard/agenda/actions.ts).
+  // si registra soltanto (mai una programmazione futura), solo questi due
+  // tipi, e la trattativa che si apre resta da assegnare invece di andare a
+  // chi la scrive — come già succede per i walk-in dal Guest Register del
+  // sito (vedi NuovaVoce.tsx e creaVoce in app/dashboard/agenda/actions.ts).
+  //
+  // Sostituisce la vecchia scorciatoia "Aggiungi in agenda"
+  // (chiave 'agenda-nuova', rimossa): quella copriva anche la programmazione
+  // di un impegno futuro, che questa pagina non fa — chi ne ha bisogno apre
+  // l'agenda intera.
   {
     chiave: 'phone-email-in',
     label: 'Phone In / Email In',

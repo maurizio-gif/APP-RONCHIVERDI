@@ -23,17 +23,12 @@ import {
 // «nuovo» che in anagrafica c'era già.
 export type Esito = { ok: true; avviso?: string } | { ok: false; errore: string }
 
-// Anche chi arriva da una delle scorciatoie (Aggiungi in agenda, Phone In /
-// Email In) deve poter salvare: quei permessi aprono pagine che finiscono
-// tutte su questa stessa azione, e un utente con solo uno di loro (senza
-// 'agenda' generico) non deve trovarsi un salvataggio rifiutato dopo aver
-// compilato il form.
+// Anche chi arriva dalla scorciatoia Phone In / Email In deve poter salvare:
+// quel permesso apre una pagina che finisce su questa stessa azione, e un
+// utente che ha solo quello (senza 'agenda' generico) non deve trovarsi un
+// salvataggio rifiutato dopo aver compilato il form.
 async function autorizzato(): Promise<boolean> {
-  return (
-    (await utenteHaSezione('agenda')) ||
-    (await utenteHaSezione('agenda-nuova')) ||
-    (await utenteHaSezione('phone-email-in'))
-  )
+  return (await utenteHaSezione('agenda')) || (await utenteHaSezione('phone-email-in'))
 }
 
 /**
