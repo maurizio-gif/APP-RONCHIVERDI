@@ -23,6 +23,7 @@ import { GraficoPerGruppo } from '@/app/dashboard/abbonamenti/GraficoPerGruppo'
 import { StatCard } from './StatCard'
 import { SplitCanali, type VoceCanale } from './SplitCanali'
 import { GraficoContatti, type VoceContattiMese } from './GraficoContatti'
+import { GraficoVisiteSito, type VoceVisiteMese } from './GraficoVisiteSito'
 
 export const dynamic = 'force-dynamic'
 
@@ -224,6 +225,18 @@ export default async function DirezionePage({
   }
   const serieContattiMensile = ultimi12Mesi.map((m) => contattiPerMese.get(m) ?? { mese: m, sito: 0, sede: 0 })
 
+  // Accessi singoli e sessioni del sito, ultimi 12 mesi: sessioni ha già
+  // decine di migliaia di righe (a differenza di form_contatti), quindi
+  // l'aggregazione per mese arriva già pronta da sessioni_mensili invece
+  // che da una select grezza — vedi scripts/sql/2026-09-21-sessioni-mensili.sql.
+  const { data: sessioniMensiliRighe, error: erroreSessioniMensili } = await supabase
+    .from('sessioni_mensili')
+    .select('mese, sessioni, persone')
+    .gte('mese', ultimi12Mesi[0])
+  const sessioniPerMese = new Map<string, VoceVisiteMese>()
+  for (const r of sessioniMensiliRighe ?? []) sessioniPerMese.set(r.mese, { mese: r.mese, persone: r.persone, sessioni: r.sessioni })
+  const serieVisiteMensile = ultimi12Mesi.map((m) => sessioniPerMese.get(m) ?? { mese: m, persone: 0, sessioni: 0 })
+
   // ──────────────────────────────────────────────── Vendite per primo canale
 
   const rigaCanaleVendita = await supabase
@@ -354,7 +367,7 @@ export default async function DirezionePage({
       ) : (
         <div className="card">
           <div className="card-head">
-            <h2>Andamento ultimi 12 mesi, per gruppo</h2>
+            <h2>Fatturato mensile per gruppo</h2>
           </div>
           <GraficoPerGruppo
             serie={serieFatturatoMensile}
@@ -374,7 +387,7 @@ export default async function DirezionePage({
       ) : (
         <div className="card">
           <div className="card-head">
-            <h2>Andamento abbonati attivi, fine mese</h2>
+            <h2>Numero soci attivi per mese</h2>
           </div>
           <p className="muted">
             Per gruppo — passa il mouse (o il focus da tastiera) su una barra per il dettaglio. L&apos;ultimo mese è
@@ -392,6 +405,9 @@ export default async function DirezionePage({
         <div className="card-head">
           <h2>Contatti acquisiti</h2>
         </div>
+        <p className="muted">
+          In questa sezione è possibile verificare il numero di lead acquisiti tra web e Walk-in.
+        </p>
         <div className="griglia-stat">
           <StatCard
             label="Contatti MTD"
@@ -410,6 +426,17 @@ export default async function DirezionePage({
         <SplitCanali voci={splitContattiYTD} totale={contattiYTD.richieste} />
         <p className="filtri-titolo">Andamento ultimi 12 mesi</p>
         <GraficoContatti serie={serieContattiMensile} />
+        {erroreSessioniMensili && /sessioni_mensili/.test(erroreSessioniMensili.message) ? (
+          <p className="vuoto">
+            Manca la vista sessioni_mensili: esegui scripts/sql/2026-09-21-sessioni-mensili.sql nel SQL Editor di
+            Supabase.
+          </p>
+        ) : (
+          <>
+            <p className="filtri-titolo">Accessi al sito, ultimi 12 mesi</p>
+            <GraficoVisiteSito serie={serieVisiteMensile} />
+          </>
+        )}
       </div>
 
       <Ripartizione

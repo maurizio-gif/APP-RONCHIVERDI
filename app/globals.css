@@ -3341,6 +3341,27 @@ table.tabella tbody tr:hover {
 	background: var(--accent);
 }
 
+/* Accessi singoli/sessioni (vedi GraficoVisiteSito, dashboard direzionale):
+   due barre affiancate, non impilate — non sono una partizione dello
+   stesso totale come sito/in sede. L'oro è il numero che conta (le teste
+   diverse), il colore spento è il totale delle visite, ritorni compresi —
+   stessa convenzione di .grafico-barra-lavorato/.grafico-barra-non-lavorato. */
+.grafico-barra-visite-persone {
+	fill: var(--accent);
+}
+
+.grafico-barra-visite-sessioni {
+	fill: var(--fill-strong);
+}
+
+.grafico-legenda-pallino-visite-persone {
+	background: var(--accent);
+}
+
+.grafico-legenda-pallino-visite-sessioni {
+	background: var(--fill-strong);
+}
+
 /* Le card statistiche dell'Analytics portano anche il badge di variazione:
    incolonnare tutto a sinistra tiene allineati numero, etichetta e delta. */
 .griglia-stat .stat .badge {
