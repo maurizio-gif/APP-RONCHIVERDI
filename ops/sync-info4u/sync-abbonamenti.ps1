@@ -98,6 +98,18 @@ $config = Get-Content $ConfigPath -Raw | ConvertFrom-Json
 $batchSize = if ($config.BatchSize) { [int]$config.BatchSize } else { 500 }
 $maxBatches = if ($config.MaxBatchesPerRun) { [int]$config.MaxBatchesPerRun } else { 20 }
 
+# Il watermark su IDIscrizione (sopra) intercetta solo le vendite NUOVE: una
+# vendita gia' sincronizzata che in Info4U riceve poi una sospensione (sposta
+# DataFine in avanti), una disdetta, o una correzione, resta silenziosamente
+# ferma alla versione vista la prima volta — lo script non ripassa mai su un
+# IDIscrizione sotto il watermark. Il refresh periodico piu' sotto
+# (Get-RigheAperteDaSincronizzare) rimedia riprocessando, ogni tot ore, tutte
+# le vendite ancora "aperte" secondo Info4U in quel momento (non secondo la
+# nostra copia, che potrebbe essere proprio quella non aggiornata).
+$refreshApertiOgniOre = if ($config.RefreshApertiOgniOre) { [double]$config.RefreshApertiOgniOre } else { 20 }
+$refreshApertiGiorniIndietro = if ($config.RefreshApertiGiorniIndietro) { [int]$config.RefreshApertiGiorniIndietro } else { 400 }
+$maxBatchesRefreshAperti = if ($config.MaxBatchesRefreshAperti) { [int]$config.MaxBatchesRefreshAperti } else { 50 }
+
 $supabaseHeaders = @{
     "apikey"        = $config.Supabase.ServiceRoleKey
     "Authorization" = "Bearer $($config.Supabase.ServiceRoleKey)"
@@ -115,6 +127,27 @@ function Get-UltimoIdSincronizzato {
     $risposta = Invoke-RestMethod -Uri $url -Headers $supabaseHeaders -Method Get
     if ($risposta.Count -gt 0) { return [int]$risposta[0].source_iscrizione_id }
     return 0
+}
+
+# Quando e' stato fatto l'ultimo refresh delle vendite aperte — a differenza
+# del watermark sopra non e' un MAX() su una colonna di abbonamenti, quindi
+# vive nella sua tabellina di stato (vedi 2026-09-21-sync-info4u-stato.sql),
+# non sul disco locale: stesso motivo per cui il watermark principale non e'
+# un file, se lo script gira su un'altra macchina non riparte da zero.
+function Get-UltimoRefreshAperti {
+    $url = "$($config.Supabase.Url)/rest/v1/sync_info4u_stato?chiave=eq.refresh_aperti&select=valore"
+    $risposta = Invoke-RestMethod -Uri $url -Headers $supabaseHeaders -Method Get
+    if ($risposta.Count -gt 0) { return [datetime]$risposta[0].valore }
+    return $null
+}
+
+function Set-UltimoRefreshAperti {
+    param([datetime]$Quando)
+    $corpo = @{ chiave = "refresh_aperti"; valore = $Quando.ToString("o") } | ConvertTo-Json
+    $headers = $supabaseHeaders.Clone()
+    $headers["Prefer"] = "resolution=merge-duplicates"
+    Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/sync_info4u_stato?on_conflict=chiave" `
+        -Headers $headers -Method Post -Corpo $corpo | Out-Null
 }
 
 # ────────────────────────────────────────────────────────────── upsert
@@ -303,6 +336,12 @@ function Send-AbbonamentiUpsert {
             data_inizio_sospensione  = Get-DataPulita $r.DataInizioSospensione
             data_fine_sospensione    = Get-DataPulita $r.DataFineSospensione
             note                     = Get-TestoPulito $r.Note
+            # Qualunque riga arrivi qui e' stata appena letta da una query
+            # live su Info4U: per definizione esiste ancora la', quindi ogni
+            # upsert normale azzera un'eventuale cancellato_il messo da un
+            # giro precedente di Compare-CancellazioniOrigine (caso raro:
+            # una vendita segnata cancellata che poi ricompare).
+            cancellato_il            = $null
         }
     }
     if (-not $abbonamenti) { return }
@@ -317,7 +356,11 @@ function Send-AbbonamentiUpsert {
 
 # ─────────────────────────────────────────────────────────────── query
 
-$query = @"
+# Senza WHERE: la stessa SELECT/JOIN serve sia al giro incrementale (nuove
+# vendite) sia al refresh periodico delle vendite ancora aperte (sotto) — un
+# solo posto dove tenere allineato l'elenco colonne, invece di due query che
+# possono scivolare fuori sincrono fra loro.
+$querySelectBase = @"
 SELECT
     ai.IDIscrizione, ai.IDUtente, ai.IDDurata, ad.IDAbbonamento,
     ai.DataOperazione AS DataVendita,
@@ -339,22 +382,23 @@ FROM dbo.AbbonamentiIscrizione ai
 INNER JOIN dbo.Utenti u ON u.IDUtente = ai.IDUtente
 LEFT JOIN dbo.AbbonamentiDurata ad ON ad.IDDurata = ai.IDDurata
 LEFT JOIN dbo.Abbonamenti a ON a.IDAbbonamento = ad.IDAbbonamento
-WHERE ai.IDIscrizione > @LastId
 "@
 
-function Get-RigheDaSincronizzare {
-    param([int]$LastId, [int]$Top)
+# Esegue una query su dbgym e restituisce le righe gia' convertite in
+# PSCustomObject. Fattorizzata perche' sia il giro incrementale sia il
+# refresh delle vendite aperte ne hanno bisogno, identica in tutto tranne il
+# testo della query e i parametri.
+function Invoke-QueryDbgym {
+    param([string]$CommandText, [hashtable]$Parametri)
 
     $connessione = New-Object System.Data.SqlClient.SqlConnection $connectionString
     try {
         $connessione.Open()
         $comando = $connessione.CreateCommand()
-        # TOP dentro il SELECT vero, non su una sottoquery: una ORDER BY in
-        # una derived table senza TOP al suo interno e' un errore in SQL
-        # Server ("The ORDER BY clause is invalid in ... derived tables ...
-        # unless TOP ... is also specified").
-        $comando.CommandText = ($query -replace '^SELECT', "SELECT TOP ($Top)") + "`nORDER BY ai.IDIscrizione ASC"
-        $comando.Parameters.AddWithValue("@LastId", $LastId) | Out-Null
+        $comando.CommandText = $CommandText
+        foreach ($nome in $Parametri.Keys) {
+            $comando.Parameters.AddWithValue($nome, $Parametri[$nome]) | Out-Null
+        }
 
         $lettore = $comando.ExecuteReader()
         $tabella = New-Object System.Data.DataTable
@@ -378,6 +422,104 @@ function Get-RigheDaSincronizzare {
     finally {
         $connessione.Close()
     }
+}
+
+function Get-RigheDaSincronizzare {
+    param([int]$LastId, [int]$Top)
+
+    # TOP dentro il SELECT vero, non su una sottoquery: una ORDER BY in una
+    # derived table senza TOP al suo interno e' un errore in SQL Server
+    # ("The ORDER BY clause is invalid in ... derived tables ... unless
+    # TOP ... is also specified").
+    $comandoText = ($querySelectBase -replace '^SELECT', "SELECT TOP ($Top)") +
+        "`nWHERE ai.IDIscrizione > @LastId`nORDER BY ai.IDIscrizione ASC"
+
+    return Invoke-QueryDbgym -CommandText $comandoText -Parametri @{ "@LastId" = $LastId }
+}
+
+# Rilegge le vendite ancora "aperte" (DataFine null o non troppo nel
+# passato) secondo Info4U IN QUESTO MOMENTO — non secondo la copia che
+# abbiamo su Supabase, che e' proprio quella potenzialmente ferma a prima di
+# una sospensione/disdetta/correzione tardiva (vedi commento sul watermark
+# piu' sopra). @LastId qui non e' un watermark persistente: pagina solo
+# all'interno di UN giro di refresh, riparte da 0 al prossimo.
+function Get-RigheAperteDaSincronizzare {
+    param([int]$LastId, [int]$Top, [datetime]$Soglia)
+
+    $comandoText = ($querySelectBase -replace '^SELECT', "SELECT TOP ($Top)") +
+        "`nWHERE ai.IDIscrizione > @LastId AND (ai.DataFine IS NULL OR ai.DataFine >= @Soglia)`nORDER BY ai.IDIscrizione ASC"
+
+    return Invoke-QueryDbgym -CommandText $comandoText -Parametri @{ "@LastId" = $LastId; "@Soglia" = $Soglia }
+}
+
+# Una vendita gia' sincronizzata puo' anche sparire del tutto da Info4U — un
+# operatore la annulla/cancella dopo che il giro dei 5 minuti l'ha gia'
+# scritta su Supabase. Nessuna query per IDIscrizione la ripesca piu' (non
+# c'e' nessun ID nuovo da confrontare), quindi qui si fa il percorso
+# inverso: si prendono gli ID che SECONDO SUPABASE risultano ancora aperti,
+# e si controlla quali di quegli ID esistono ancora in Info4U — quelli che
+# non ci sono piu' vengono segnati cancellato_il (mai una DELETE, vedi
+# 2026-09-21-abbonamenti-cancellati.sql). Va di pari passo con il refresh
+# sopra: stessa soglia, stessa cadenza, cosi' un ID che e' semplicemente
+# uscito dalla finestra "aperta" per una disdetta legittima (non cancellato,
+# solo chiuso prima) viene comunque aggiornato correttamente li' prima di
+# arrivare qui.
+function Compare-CancellazioniOrigine {
+    param([datetime]$Soglia)
+
+    $sogliaTesto = $Soglia.ToString("yyyy-MM-dd")
+    $idCandidati = [System.Collections.Generic.List[int]]::new()
+    $scorrimento = 0
+    do {
+        $filtro = "cancellato_il=is.null&or=(data_fine.is.null,data_fine.gte.$sogliaTesto)" +
+            "&select=source_iscrizione_id&order=source_iscrizione_id.asc&limit=1000&offset=$scorrimento"
+        $pagina = @(Invoke-RestMethod -Uri "$($config.Supabase.Url)/rest/v1/abbonamenti?$filtro" -Headers $supabaseHeaders -Method Get)
+        foreach ($r in $pagina) { $idCandidati.Add([int]$r.source_iscrizione_id) }
+        $scorrimento += 1000
+    } while ($pagina.Count -eq 1000)
+
+    if ($idCandidati.Count -eq 0) {
+        Write-Log "Riconciliazione cancellazioni: nessuna vendita aperta da ricontrollare."
+        return
+    }
+
+    Write-Log "Riconciliazione cancellazioni: $($idCandidati.Count) vendite aperte da ricontrollare contro Info4U."
+
+    $idCancellati = [System.Collections.Generic.List[int]]::new()
+    $connessione = New-Object System.Data.SqlClient.SqlConnection $connectionString
+    try {
+        $connessione.Open()
+        for ($i = 0; $i -lt $idCandidati.Count; $i += 1000) {
+            $blocco = $idCandidati.GetRange($i, [Math]::Min(1000, $idCandidati.Count - $i))
+            # Sono tutti [int] appena letti da Supabase, non testo esterno:
+            # costruire l'IN(...) per concatenazione qui e' sicuro.
+            $elenco = ($blocco -join ",")
+            $comando = $connessione.CreateCommand()
+            $comando.CommandText = "SELECT IDIscrizione FROM dbo.AbbonamentiIscrizione WHERE IDIscrizione IN ($elenco)"
+            $lettore = $comando.ExecuteReader()
+            $trovati = [System.Collections.Generic.HashSet[int]]::new()
+            while ($lettore.Read()) { $trovati.Add([int]$lettore["IDIscrizione"]) | Out-Null }
+            $lettore.Close()
+
+            foreach ($id in $blocco) {
+                if (-not $trovati.Contains($id)) { $idCancellati.Add($id) }
+            }
+        }
+    }
+    finally {
+        $connessione.Close()
+    }
+
+    if ($idCancellati.Count -eq 0) {
+        Write-Log "Riconciliazione cancellazioni: nessuna vendita risulta cancellata in Info4U."
+        return
+    }
+
+    Write-Log "Riconciliazione cancellazioni: $($idCancellati.Count) vendite non trovate piu' in Info4U, le segno cancellate." "WARN"
+    $elencoIdCancellati = ($idCancellati -join ",")
+    $corpo = @{ cancellato_il = (Get-Date).ToString("o") } | ConvertTo-Json
+    Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/abbonamenti?source_iscrizione_id=in.($elencoIdCancellati)" `
+        -Headers $supabaseHeaders -Method Patch -Corpo $corpo | Out-Null
 }
 
 # ─────────────────────────────────────────────────────────────────── run
@@ -411,6 +553,52 @@ try {
     }
 
     Write-Log "Fine: $totaleRighe righe sincronizzate in questa esecuzione."
+
+    # Refresh delle vendite aperte + riconciliazione cancellazioni: non a
+    # ogni giro da 5 minuti (costerebbe una scansione di tutte le vendite
+    # aperte ogni volta per un beneficio che cambia raramente), ma ogni
+    # $refreshApertiOgniOre — il watermark che decide "e' ora?" vive su
+    # Supabase (Get-UltimoRefreshAperti), non sull'orologio del task
+    # schedulato, cosi' resta corretto anche se il task salta un giro o gira
+    # a orari irregolari.
+    $ultimoRefreshAperti = Get-UltimoRefreshAperti
+    $orePassate = if ($ultimoRefreshAperti) { (New-TimeSpan -Start $ultimoRefreshAperti -End (Get-Date)).TotalHours } else { [double]::PositiveInfinity }
+
+    if ($orePassate -ge $refreshApertiOgniOre) {
+        Write-Log "Refresh vendite aperte: ultimo giro $(if ($ultimoRefreshAperti) { "$([math]::Round($orePassate,1)) ore fa" } else { 'mai fatto' }) (soglia ${refreshApertiOgniOre}h) — riparto."
+
+        $soglia = (Get-Date).Date.AddDays(-$refreshApertiGiorniIndietro)
+        $lastIdAperti = 0
+        $totaleRigheAperte = 0
+
+        for ($batch = 1; $batch -le $maxBatchesRefreshAperti; $batch++) {
+            $righe = Get-RigheAperteDaSincronizzare -LastId $lastIdAperti -Top $batchSize -Soglia $soglia
+            if ($righe.Count -eq 0) {
+                Write-Log "Refresh vendite aperte: nessuna riga rimasta da riprocessare."
+                break
+            }
+
+            $mappaPersone = Send-PersoneUpsert -Righe $righe
+            Send-AbbonamentiUpsert -Righe $righe -MappaPersone $mappaPersone
+
+            $ultimaRiga = $righe[$righe.Count - 1]
+            $lastIdAperti = [int]$ultimaRiga.IDIscrizione
+            $totaleRigheAperte += $righe.Count
+            Write-Log "Refresh vendite aperte, batch ${batch}: $($righe.Count) righe."
+
+            if ($righe.Count -lt $batchSize) { break }
+        }
+
+        Write-Log "Refresh vendite aperte: $totaleRigheAperte righe riprocessate in questa esecuzione."
+
+        Compare-CancellazioniOrigine -Soglia $soglia
+
+        # Aggiornato solo a refresh completato (incluse le eventuali
+        # cancellazioni): se lo script si interrompe a meta', il prossimo
+        # giro riprova da capo invece di segnare un refresh che non c'e'
+        # mai stato per intero.
+        Set-UltimoRefreshAperti -Quando (Get-Date)
+    }
 }
 catch {
     # $_.Exception.Message da solo, per un errore HTTP, e' solo "(500)

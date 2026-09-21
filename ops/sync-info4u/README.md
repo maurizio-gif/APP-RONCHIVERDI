@@ -64,9 +64,16 @@ riempilo:
     "ServiceRoleKey": "la service role key del progetto Ronchiverdi"
   },
   "BatchSize": 500,
-  "MaxBatchesPerRun": 20
+  "MaxBatchesPerRun": 20,
+  "RefreshApertiOgniOre": 20,
+  "RefreshApertiGiorniIndietro": 400,
+  "MaxBatchesRefreshAperti": 50
 }
 ```
+
+Le ultime tre chiavi sono per il refresh periodico delle vendite ancora
+aperte (vedi sotto, "Cosa fa, in breve") — tutte opzionali, lo script usa
+questi stessi valori come default se le ometti.
 
 La service role key la trovi in `.env.local` di questo progetto
 (`SUPABASE_SERVICE_ROLE_KEY`). **Non committare mai `config.json`** — è già
@@ -134,14 +141,28 @@ quel caso lo script aggancia quella esistente invece di duplicarla).
   `MaxBatchesPerRun` blocchi in una singola esecuzione (per non far girare
   un'esecuzione all'infinito se lo storico da recuperare è enorme — il giro
   dopo riparte da dove si è fermato).
+- Ogni `RefreshApertiOgniOre` ore (default 20 — il watermark di quando è
+  stato fatto l'ultimo giro vive su Supabase, tabella `sync_info4u_stato`,
+  non sull'orologio del task schedulato): rilegge da Info4U **tutte** le
+  vendite ancora "aperte" in quel momento (`DataFine` nulla o non più
+  vecchia di `RefreshApertiGiorniIndietro` giorni, default 400) e le
+  riscrive — non solo quelle nuove. Serve a intercettare le modifiche a
+  vendite già sincronizzate: una sospensione concessa dopo il primo sync
+  sposta `DataFine` in avanti in Info4U, ma il watermark su `IDIscrizione`
+  da solo non se ne accorgerebbe mai (non ripassa su un ID già sotto il
+  watermark). Stesso discorso per una disdetta o una correzione tardiva.
+- Nello stesso giro, confronta gli ID delle vendite che secondo Supabase
+  risultano ancora aperte con quelli che Info4U restituisce davvero in quel
+  momento: quelli che non ci sono più (un operatore li ha cancellati in
+  Info4U dopo che il sync li aveva già scritti) vengono segnati
+  `cancellato_il` — mai una `DELETE`, resta lo storico di cosa è stato
+  sincronizzato e poi ritirato. `abbonamenti_attivi_al()` (vedi
+  `2026-09-21-abbonamenti-attivi.sql`) le esclude già dal conteggio; le
+  altre viste di reportistica (vendite mensili/giornaliere...) per ora no —
+  vedi la nota in `2026-09-21-abbonamenti-cancellati.sql`.
 
 ## Cosa NON fa (ancora)
 
-- Non aggiorna una vendita se in Info4U viene corretta dopo il primo
-  sync (l'upsert su `source_iscrizione_id` *aggiornerebbe* comunque la riga
-  se la rivedesse — ma lo script non ripassa mai su un `IDIscrizione` già
-  sotto il watermark. Se serve rincorrere le correzioni tardive, se ne
-  parla quando capita).
 - Non fa nessuna automazione sui rinnovi o sulle scadenze.
 
 ## Collegamento alle trattative

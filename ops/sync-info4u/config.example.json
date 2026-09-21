@@ -11,5 +11,8 @@
     "ServiceRoleKey": "METTI_QUI_LA_SERVICE_ROLE_KEY"
   },
   "BatchSize": 500,
-  "MaxBatchesPerRun": 20
+  "MaxBatchesPerRun": 20,
+  "RefreshApertiOgniOre": 20,
+  "RefreshApertiGiorniIndietro": 400,
+  "MaxBatchesRefreshAperti": 50
 }
