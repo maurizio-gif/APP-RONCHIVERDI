@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { assegnaProdotto, impostaNoAbbonamento } from './actions'
 import type { Gruppo } from '@/lib/abbonamenti'
+import AiutoTooltip from '@/app/components/AiutoTooltip'
 
 export default function RigaProdotto({
   prodotto,
@@ -12,6 +13,7 @@ export default function RigaProdotto({
   gruppi,
   noAbbonamento,
   varianti,
+  importoListinoTesto,
   attiviOra,
 }: {
   prodotto: string
@@ -21,6 +23,11 @@ export default function RigaProdotto({
   gruppi: Gruppo[]
   noAbbonamento: boolean
   varianti: string[]
+  // Prezzo di listino dell'ultima vendita di questo prodotto, già
+  // formattato lato server — un indizio in più (oltre al nome e alle
+  // varianti) per riconoscere di cosa si tratta quando si categorizza.
+  // null se non disponibile (importo_listino non valorizzato in Info4U).
+  importoListinoTesto: string | null
   // Presente solo nella vista "solo attivi" (?solo=attivi): quanti abbonati
   // attivi oggi ha questo prodotto, la priorità per cui vale la pena
   // sistemarlo. undefined nella vista normale — niente colonna in più lì.
@@ -56,12 +63,11 @@ export default function RigaProdotto({
     <tr>
       <td>
         {varianti.length > 0 ? (
-          <span className="th-aiuto" title={`Varianti: ${varianti.join(', ')}`}>
-            {prodotto}
-          </span>
+          <AiutoTooltip testo={`Varianti: ${varianti.join(', ')}`}>{prodotto}</AiutoTooltip>
         ) : (
           prodotto
         )}
+        {importoListinoTesto && <span className="muted"> · {importoListinoTesto}</span>}
       </td>
       {attiviOra !== undefined && <td>{attiviOra}</td>}
       <td>{numeroVendite}</td>

@@ -48,6 +48,18 @@ export function GraficoPerGruppo({
   etichettaAria?: string
 }) {
   const [indiceAttivo, setIndiceAttivo] = useState<number | null>(null)
+  // Posizione del tooltip in pixel (coordinate del viewport, non del
+  // contenitore): il tooltip è `position: fixed` per non venire tagliato
+  // dallo scroll orizzontale del grafico (vedi il commento su
+  // .grafico-attivi-tooltip in globals.css), quindi va ricalcolata sulla
+  // colonna effettivamente sotto il cursore/focus a ogni attivazione.
+  const [posizioneTooltip, setPosizioneTooltip] = useState<{ left: number; top: number } | null>(null)
+
+  function attivaColonna(i: number, elemento: SVGGElement) {
+    const rettangolo = elemento.getBoundingClientRect()
+    setPosizioneTooltip({ left: rettangolo.left + rettangolo.width / 2, top: rettangolo.top })
+    setIndiceAttivo(i)
+  }
 
   if (serie.length === 0) return null
 
@@ -107,9 +119,9 @@ export function GraficoPerGruppo({
                   <g
                     key={m.mese}
                     className={`grafico-attivi-colonna${indiceAttivo === i ? ' is-attiva' : ''}`}
-                    onMouseEnter={() => setIndiceAttivo(i)}
+                    onMouseEnter={(e) => attivaColonna(i, e.currentTarget)}
                     onMouseLeave={() => setIndiceAttivo(null)}
-                    onFocus={() => setIndiceAttivo(i)}
+                    onFocus={(e) => attivaColonna(i, e.currentTarget)}
                     onBlur={() => setIndiceAttivo(null)}
                     tabIndex={0}
                     role="button"
@@ -138,7 +150,7 @@ export function GraficoPerGruppo({
 
             <div
               className={`grafico-attivi-tooltip${meseAttivo ? ' is-visibile' : ''}`}
-              style={indiceAttivo !== null ? { left: `${(indiceAttivo + 0.5) * larghezzaBarra}%` } : undefined}
+              style={posizioneTooltip ?? undefined}
               aria-hidden={!meseAttivo}
             >
               {meseAttivo && (

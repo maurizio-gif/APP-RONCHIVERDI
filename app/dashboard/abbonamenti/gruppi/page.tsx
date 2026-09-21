@@ -4,8 +4,10 @@ import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { caricaGruppi } from '@/lib/abbonamenti'
 import { dataBreve as dataBreveAnno } from '@/lib/persone'
+import { euro } from '@/lib/pipeline'
 import NuovoGruppoForm from './NuovoGruppoForm'
 import RigaProdotto from './RigaProdotto'
+import AiutoTooltip from '@/app/components/AiutoTooltip'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +37,9 @@ export default async function GruppiAbbonamentiPage({
   const soloAttivi = searchParams.solo === 'attivi'
 
   const supabase = createSupabaseServiceClient()
-  let queryProdotti = supabase.from('abbonamenti_prodotti').select('prodotto, numero_vendite, ultima_vendita, varianti')
+  let queryProdotti = supabase
+    .from('abbonamenti_prodotti')
+    .select('prodotto, numero_vendite, ultima_vendita, varianti, importo_listino_recente')
   queryProdotti = ordinaPerData
     ? queryProdotti.order('ultima_vendita', { ascending: direzioneAttuale === 'asc', nullsFirst: direzioneAttuale === 'asc' })
     : queryProdotti.order('prodotto')
@@ -174,12 +178,9 @@ export default async function GruppiAbbonamentiPage({
                     </th>
                     <th>Gruppo</th>
                     <th>
-                      <span
-                        className="th-aiuto"
-                        title="Segna Sì per un prodotto che non è un vero abbonamento (visita medica, quota d'iscrizione, omaggio, tesseramento...): esce dal conteggio degli utenti attivi e dal report scadenze/rinnovi, sia come voce propria sia come possibile «rinnovo» di un'altra vendita."
-                      >
+                      <AiutoTooltip testo="Segna Sì per un prodotto che non è un vero abbonamento (visita medica, quota d'iscrizione, omaggio, tesseramento...): esce dal conteggio degli utenti attivi e dal report scadenze/rinnovi, sia come voce propria sia come possibile «rinnovo» di un'altra vendita.">
                         No abbonamento
-                      </span>
+                      </AiutoTooltip>
                     </th>
                   </tr>
                 </thead>
@@ -194,6 +195,7 @@ export default async function GruppiAbbonamentiPage({
                       gruppi={gruppi}
                       noAbbonamento={mappaNoAbbonamento.get(p.prodotto) ?? false}
                       varianti={p.varianti ?? []}
+                      importoListinoTesto={euro(p.importo_listino_recente)}
                       attiviOra={soloAttivi ? (mappaAttiviNonCategorizzati.get(p.prodotto) ?? 0) : undefined}
                     />
                   ))}
