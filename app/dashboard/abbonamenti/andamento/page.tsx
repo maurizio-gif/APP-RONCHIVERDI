@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { caricaGruppi } from '@/lib/abbonamenti'
-import { euro } from '@/lib/pipeline'
+import { euro, variazionePercentuale } from '@/lib/pipeline'
 import { oggiRoma } from '@/lib/agenda'
 
 export const dynamic = 'force-dynamic'
@@ -124,8 +124,8 @@ export default async function AndamentoAbbonamentiPage({
                   const ultimoAnno = perAnno[perAnno.length - 1]
                   const annoPrecedente = perAnno[perAnno.length - 2]
                   const variazione =
-                    ultimoAnno && annoPrecedente && annoPrecedente.fatturato > 0
-                      ? Math.round(((ultimoAnno.fatturato - annoPrecedente.fatturato) / annoPrecedente.fatturato) * 100)
+                    ultimoAnno && annoPrecedente
+                      ? variazionePercentuale(ultimoAnno.fatturato, annoPrecedente.fatturato)
                       : null
 
                   return (

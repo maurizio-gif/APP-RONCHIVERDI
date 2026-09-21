@@ -3058,6 +3058,25 @@ table.tabella tbody tr:hover {
 	background: var(--fill-strong);
 }
 
+/* Split sito/in sede (vedi GraficoContatti, dashboard direzionale): stessi
+   colori delle targhette .tag-provenienza, così un canale si riconosce
+   identico sia nella targhetta sia nel grafico. */
+.grafico-barra-sito {
+	fill: var(--info);
+}
+
+.grafico-barra-sede {
+	fill: var(--accent);
+}
+
+.grafico-legenda-pallino-sito {
+	background: var(--info);
+}
+
+.grafico-legenda-pallino-sede {
+	background: var(--accent);
+}
+
 /* Le card statistiche dell'Analytics portano anche il badge di variazione:
    incolonnare tutto a sinistra tiene allineati numero, etichetta e delta. */
 .griglia-stat .stat .badge {
@@ -3067,6 +3086,61 @@ table.tabella tbody tr:hover {
 .griglia-stat .stat {
 	display: flex;
 	flex-direction: column;
+}
+
+/* ───────────────────────────────────── split di canali (dashboard direzionale) */
+/* Due o tre numeri affiancati, ciascuno con la sua quota, più una barra a
+   segmenti proporzionali sotto — per canali di grandezza paragonabile (sito
+   vs in sede). I colori dei segmenti sono gli stessi delle targhette
+   .tag-provenienza, così lo stesso canale si riconosce identico ovunque
+   compaia in dashboard. */
+.split-canali {
+	margin-top: 0.75rem;
+}
+
+.split-canali-numeri {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1.5rem;
+	margin-bottom: 0.6rem;
+}
+
+.split-canali-voce {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+}
+
+.split-canali-barra {
+	display: flex;
+	height: 10px;
+	overflow: hidden;
+	background: var(--fill-soft);
+	border-radius: 999px;
+}
+
+.split-canali-segmento {
+	height: 100%;
+}
+
+.split-canali-segmento.da-sito {
+	background: var(--info);
+}
+
+.split-canali-segmento.da-banco {
+	background: var(--accent);
+}
+
+.split-canali-segmento.da-agenda {
+	background: var(--fill-strong);
+}
+
+.split-canali-segmento.da-altro {
+	background: var(--warn);
+}
+
+.split-canali-segmento.da-non-attribuito {
+	background: var(--border-strong);
 }
 
 /* ─────────────────────────────────────────────────── controllo operatori */
@@ -4693,6 +4767,16 @@ table.tabella tbody tr:hover {
 	background: var(--warn-tint);
 	border-color: var(--warn-border);
 	color: var(--warn);
+}
+
+/* Nessuna richiesta nel CRM dietro la vendita (rinnovo, acquisto in
+   reception): tratteggiata apposta, per non leggersi come un canale come gli
+   altri — è l'assenza di un dato, non un dato. */
+.tag-provenienza.da-non-attribuito {
+	background: transparent;
+	border-color: var(--border-strong);
+	border-style: dashed;
+	color: var(--text-muted);
 }
 
 /* Una fila di targhette va a capo per intero, non spezzata dentro la

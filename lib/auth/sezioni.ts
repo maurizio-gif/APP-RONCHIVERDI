@@ -168,6 +168,11 @@ const DEFINIZIONI = [
   // stanno tutti sotto questo unico permesso, come core-manager copre sia
   // l'indice sia il suo report.
   { chiave: 'abbonamenti', label: 'Abbonamenti', href: '/dashboard/abbonamenti', gruppo: 'Abbonamenti' },
+  // Il report sintetico per la direzione (MTD/YTD su abbonamenti venduti,
+  // contatti acquisiti, campagne, primo canale delle vendite) e la sua pagina
+  // di gestione campagne stanno sotto lo stesso permesso, come abbonamenti
+  // copre sia il report sia /gruppi.
+  { chiave: 'direzione', label: 'Dashboard direzionale', href: '/dashboard/direzione', gruppo: 'Direzione' },
 ] as const
 
 export type SezioneChiave = (typeof DEFINIZIONI)[number]['chiave']

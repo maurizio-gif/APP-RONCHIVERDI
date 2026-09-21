@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { caricaGruppi } from '@/lib/abbonamenti'
-import { euro } from '@/lib/pipeline'
+import { euro, testoVariazione } from '@/lib/pipeline'
 import { mesePiu, oggiRoma } from '@/lib/agenda'
 import ObiettivoMensile from './ObiettivoMensile'
 import { GraficoMensile } from './GraficoMensile'
@@ -17,18 +17,6 @@ function sommaRighe(righe: { numero_vendite: number; fatturato: number | null }[
     (acc, r) => ({ vendite: acc.vendite + r.numero_vendite, fatturato: acc.fatturato + Number(r.fatturato ?? 0) }),
     { vendite: 0, fatturato: 0 }
   )
-}
-
-// Percentuale E differenza in euro, non solo la percentuale: un +5% su un
-// mese piccolo e un +5% su un mese grande raccontano storie diverse, e la
-// direzione vuole vedere subito quanti euro sono, non solo il rapporto.
-function testoVariazione(attuale: number, precedente: number): string {
-  if (precedente <= 0) return '—'
-  const percentuale = Math.round(((attuale - precedente) / precedente) * 100)
-  const differenza = attuale - precedente
-  const segnoPercentuale = percentuale > 0 ? '+' : ''
-  const segnoEuro = differenza > 0 ? '+' : differenza < 0 ? '-' : ''
-  return `${segnoPercentuale}${percentuale}% (${segnoEuro}${euro(Math.abs(differenza))})`
 }
 
 // L'ultimo giorno valido di un mese: per il confronto "stesso periodo" un 31

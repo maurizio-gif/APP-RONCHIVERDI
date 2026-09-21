@@ -153,6 +153,32 @@ export function euro(valore: number | null | undefined): string | null {
   }).format(Number(valore))
 }
 
+/**
+ * La variazione percentuale fra due valori, arrotondata. `null` quando il
+ * precedente non è positivo: un confronto contro zero o contro un dato
+ * mancante non è una percentuale, è un'affermazione falsa («+∞%», «+100%» su
+ * un solo caso in più).
+ *
+ * Usata dove basta il numero nudo (badge, tabelle di conteggi) — quando serve
+ * anche la differenza in euro vedi `testoVariazione`.
+ */
+export function variazionePercentuale(attuale: number, precedente: number): number | null {
+  if (precedente <= 0) return null
+  return Math.round(((attuale - precedente) / precedente) * 100)
+}
+
+// Percentuale E differenza in euro, non solo la percentuale: un +5% su un
+// mese piccolo e un +5% su un mese grande raccontano storie diverse, e chi
+// legge il report vuole vedere subito quanti euro sono, non solo il rapporto.
+export function testoVariazione(attuale: number, precedente: number): string {
+  const percentuale = variazionePercentuale(attuale, precedente)
+  if (percentuale === null) return '—'
+  const differenza = attuale - precedente
+  const segnoPercentuale = percentuale > 0 ? '+' : ''
+  const segnoEuro = differenza > 0 ? '+' : differenza < 0 ? '-' : ''
+  return `${segnoPercentuale}${percentuale}% (${segnoEuro}${euro(Math.abs(differenza))})`
+}
+
 /** Il verbo del pulsante che conferma la chiusura. */
 export const CONFERMA_MOTIVO: Partial<Record<StatoTrattativa, string>> = {
   vinto: 'Segna vinta',
