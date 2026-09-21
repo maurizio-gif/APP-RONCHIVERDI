@@ -78,6 +78,17 @@ export function GraficoPerGruppo({
 
   const meseAttivo = indiceAttivo !== null ? serie[indiceAttivo] : null
 
+  // Le etichette sopra la barra (es. "68%") non stanno dentro l'<svg>: il
+  // viewBox è 100×34 con preserveAspectRatio="none", quindi viene stirato
+  // in modo diverso in orizzontale e in verticale (il grafico è molto più
+  // largo che alto) — un <text> dentro quel sistema di coordinate viene
+  // deformato con lui, letteralmente "troppo largo e schiacciato". Le
+  // etichette sono invece un overlay HTML, posizionato in percentuale
+  // sullo stesso riquadro (l'unità x del viewBox è già una percentuale,
+  // essendo largo 100; l'unità y va convertita da una scala 0-34), dove il
+  // testo segue le proporzioni normali del font.
+  const etichetteSopra: { mese: string; xCentro: number; yTop: number; testo: string }[] = []
+
   return (
     <div className="grafico grafico-attivi">
       {/* Su schermo stretto le barre non si stringono fino a diventare
@@ -115,6 +126,15 @@ export function GraficoPerGruppo({
                   )
                 })
 
+                if (m.etichettaSopra) {
+                  etichetteSopra.push({
+                    mese: m.mese,
+                    xCentro: x + larghezza / 2,
+                    yTop: Math.max(ySopraUltimo, 3),
+                    testo: m.etichettaSopra,
+                  })
+                }
+
                 return (
                   <g
                     key={m.mese}
@@ -132,21 +152,25 @@ export function GraficoPerGruppo({
                         segmenti (che per un gruppo piccolo sono pochissimi). */}
                     <rect x={i * larghezzaBarra} y="0" width={larghezzaBarra} height="34" fill="transparent" />
                     {rettangoli}
-                    {m.etichettaSopra && (
-                      <text
-                        x={x + larghezza / 2}
-                        y={Math.max(ySopraUltimo - 1, 3)}
-                        textAnchor="middle"
-                        className="grafico-attivi-etichetta-sopra"
-                      >
-                        {m.etichettaSopra}
-                      </text>
-                    )}
                   </g>
                 )
               })}
               <line x1="0" y1="32" x2="100" y2="32" className="grafico-asse" />
             </svg>
+
+            {etichetteSopra.length > 0 && (
+              <div className="grafico-attivi-etichette-sopra" aria-hidden="true">
+                {etichetteSopra.map((e) => (
+                  <span
+                    key={e.mese}
+                    className="grafico-attivi-etichetta-sopra"
+                    style={{ left: `${e.xCentro}%`, top: `${(e.yTop / 34) * 100}%` }}
+                  >
+                    {e.testo}
+                  </span>
+                ))}
+              </div>
+            )}
 
             <div
               className={`grafico-attivi-tooltip${meseAttivo ? ' is-visibile' : ''}`}
