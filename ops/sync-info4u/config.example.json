@@ -6,6 +6,14 @@
     "User": "n8n_sync_ro",
     "Password": "METTI_QUI_LA_PASSWORD_VERA"
   },
+  "SqlServerScrittura": {
+    "Server": "localhost",
+    "Port": 1433,
+    "Database": "dbgym",
+    "User": "n8n_sync_rw",
+    "Password": "METTI_QUI_LA_PASSWORD_VERA"
+  },
+  "IDClub": 1,
   "Supabase": {
     "Url": "https://upoiasekisojikbzsymq.supabase.co",
     "ServiceRoleKey": "METTI_QUI_LA_SERVICE_ROLE_KEY"
@@ -14,5 +22,6 @@
   "MaxBatchesPerRun": 20,
   "RefreshApertiOgniOre": 20,
   "RefreshApertiGiorniIndietro": 400,
-  "MaxBatchesRefreshAperti": 50
+  "MaxBatchesRefreshAperti": 50,
+  "MaxRigheOgniGiro": 50
 }
