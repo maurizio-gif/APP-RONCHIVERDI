@@ -67,7 +67,7 @@ export type VoceMeseStack = {
 
 export type VoceLegendaStack = { chiave: string; nome: string; colore: string }
 
-function etichettaMeseBreve(mese: string): string {
+export function etichettaMeseBreve(mese: string): string {
   return new Date(`${mese}T12:00:00Z`).toLocaleDateString('it-IT', { month: 'short', year: '2-digit', timeZone: 'UTC' })
 }
 

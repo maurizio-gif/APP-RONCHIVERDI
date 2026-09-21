@@ -2,11 +2,18 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
-import { caricaAndamentoPerGruppo, caricaGruppi } from '@/lib/abbonamenti'
+import { caricaAndamentoPerGruppo, caricaGruppi, etichettaMeseBreve, type VoceGruppoStack, type VoceLegendaStack, type VoceMeseStack } from '@/lib/abbonamenti'
 import { euro, testoVariazione } from '@/lib/pipeline'
 import { etichettaMese, mesePiu, oggiRoma, primoDelMese } from '@/lib/agenda'
 import ObiettivoMensile from './ObiettivoMensile'
 import { GraficoPerGruppo } from './GraficoPerGruppo'
+
+// Rinnovati/non rinnovati sono uno stato (buono/da seguire), non
+// un'identità di gruppo: colori di stato — gli stessi di badge-ok/badge-warn
+// già usati nella tabella di dettaglio — non la palette categorica a 8
+// colori usata per i gruppi prodotto negli altri due grafici qui sotto.
+const COLORE_RINNOVATO = 'var(--ok)'
+const COLORE_NON_RINNOVATO = 'var(--warn)'
 
 export const dynamic = 'force-dynamic'
 
@@ -156,6 +163,57 @@ export default async function AbbonamentiPage({
     return `/dashboard/abbonamenti/scadenze?${params.toString()}`
   }
 
+  // Andamento rinnovi, ultimi 12 mesi: stessa vista aggregata della card
+  // scadenze sopra, stessa definizione di "rinnovato" (stesso gruppo, entro
+  // 30 giorni dalla scadenza — vedi scripts/sql/2026-09-21-abbonamenti-
+  // scadenze-30-giorni.sql), ma sui 12 mesi passati invece dei 4 futuri.
+  // Due colori di STATO (rinnovato/non rinnovato), non la palette dei
+  // gruppi: qui non si distinguono identità diverse, si distingue buono da
+  // "da seguire" — stessi colori del badge nella pagina di dettaglio.
+  let queryRinnovi = supabase
+    .from('abbonamenti_scadenze_mensili')
+    .select('mese, gruppo_id, rinnovato, numero')
+    .gte('mese', ultimi12Mesi[0])
+    .lt('mese', mesePiu(meseCorrenteData, 1))
+  if (filtroAttivo) queryRinnovi = queryRinnovi.in('gruppo_id', gruppiSelezionati)
+  const { data: rinnoviGrezzi, error: erroreRinnovi } = await queryRinnovi
+
+  const rinnoviPerMese = new Map<string, { rinnovati: number; nonRinnovati: number }>()
+  for (const r of rinnoviGrezzi ?? []) {
+    const meseRiga = primoDelMese(r.mese)
+    const voce = rinnoviPerMese.get(meseRiga) ?? { rinnovati: 0, nonRinnovati: 0 }
+    if (r.rinnovato) voce.rinnovati += r.numero
+    else voce.nonRinnovati += r.numero
+    rinnoviPerMese.set(meseRiga, voce)
+  }
+
+  const serieRinnoviMensile: VoceMeseStack[] = ultimi12Mesi.map((m) => {
+    const voce = rinnoviPerMese.get(m) ?? { rinnovati: 0, nonRinnovati: 0 }
+    const voci: VoceGruppoStack[] = [
+      {
+        gruppoId: 'rinnovati',
+        nome: 'Rinnovati',
+        colore: COLORE_RINNOVATO,
+        valore: voce.rinnovati,
+        valoreTesto: String(voce.rinnovati),
+      },
+      {
+        gruppoId: 'non-rinnovati',
+        nome: 'Non ancora rinnovati',
+        colore: COLORE_NON_RINNOVATO,
+        valore: voce.nonRinnovati,
+        valoreTesto: String(voce.nonRinnovati),
+      },
+    ]
+    const totale = voce.rinnovati + voce.nonRinnovati
+    return { mese: m, etichetta: etichettaMeseBreve(m), gruppi: voci, totale, totaleTesto: String(totale) }
+  })
+
+  const legendaRinnovi: VoceLegendaStack[] = [
+    { chiave: 'rinnovati', nome: 'Rinnovati', colore: COLORE_RINNOVATO },
+    { chiave: 'non-rinnovati', nome: 'Non ancora rinnovati', colore: COLORE_NON_RINNOVATO },
+  ]
+
   // L'obiettivo segue lo stesso filtro delle statistiche sopra: "Tutti" mostra
   // il generale, un solo gruppo selezionato mostra e permette di impostare il
   // suo. Più gruppi insieme sono una combinazione qualunque, senza una riga
@@ -270,6 +328,29 @@ export default async function AbbonamentiPage({
               )
             })}
           </div>
+        </div>
+      )}
+
+      {erroreRinnovi && /abbonamenti_scadenze/.test(erroreRinnovi.message) ? (
+        <div className="card">
+          <p className="vuoto">
+            Manca la vista delle scadenze: esegui scripts/sql/2026-09-21-abbonamenti-scadenze.sql (e la migration
+            successiva, sui 30 giorni) nel SQL Editor di Supabase.
+          </p>
+        </div>
+      ) : (
+        <div className="card">
+          <p className="filtri-titolo">Andamento rinnovi, ultimi 12 mesi</p>
+          <p className="muted">
+            Abbonamenti scaduti ogni mese, rinnovati o no entro 30 giorni dalla scadenza (stesso gruppo prodotto). Il
+            mese più recente può risultare sottostimato: se la scadenza è a meno di 30 giorni da oggi, la finestra di
+            rinnovo non si è ancora chiusa.
+          </p>
+          <GraficoPerGruppo
+            serie={serieRinnoviMensile}
+            legenda={legendaRinnovi}
+            etichettaAria="Abbonamenti scaduti, rinnovati o no entro 30 giorni, ultimi 12 mesi"
+          />
         </div>
       )}
 
