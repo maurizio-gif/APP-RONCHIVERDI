@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { logout } from '@/app/login/actions'
+import { LogoutButton } from '@/app/login/LogoutButton'
 import { SEZIONI, soloAccessoEsterno } from '@/lib/auth/sezioni'
 import { SEZIONE_NOTIFICHE } from '@/lib/notifiche'
 import { IconaMenu } from './IconeMenu'
@@ -159,9 +160,7 @@ export function Sidebar({
 
       <div className="sidebar-footer">
         <form action={logout}>
-          <button type="submit" className="btn btn-ghost btn-block btn-sm">
-            Esci
-          </button>
+          <LogoutButton />
         </form>
       </div>
     </aside>
