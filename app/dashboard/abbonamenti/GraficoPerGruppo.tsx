@@ -143,6 +143,11 @@ export function GraficoPerGruppo({
                 ))}
               </ul>
               <p className="grafico-attivi-tooltip-totale">Totale: {meseAttivo.totaleTesto}</p>
+              {meseAttivo.etichettaSopra && (
+                <p className="grafico-attivi-tooltip-percentuale">
+                  {meseAttivo.etichettaSopra} rinnovati sul totale scaduto quel mese
+                </p>
+              )}
             </>
           )}
         </div>

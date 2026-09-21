@@ -3192,6 +3192,15 @@ table.tabella tbody tr:hover {
 	color: var(--text-muted-on-dark);
 }
 
+/* Spiega cosa significa la percentuale sopra la barra (es. "68%"): senza
+   questa riga il numero nel grafico resta senza contesto una volta staccato
+   dalla barra colorata sotto. */
+.grafico-attivi-tooltip-percentuale {
+	margin: 0.3rem 0 0;
+	font-size: var(--text-2xs);
+	color: var(--text-muted-on-dark);
+}
+
 /* Etichetta sopra la barra (es. "68%" nell'Andamento rinnovi): un valore
    calcolato, mai il colore di uno dei due stati sotto — il testo resta
    sempre inchiostro, l'identità la portano i segmenti colorati. */
