@@ -41,6 +41,9 @@ export function NuovaVoce({
   tipiConsentiti,
   soloRegistrazione = false,
   trattativaDaAssegnare = false,
+  assegnazioneVoceFissa = false,
+  notaUnica = false,
+  placeholderNote,
 }: {
   giornoPredefinito: string
   operatori: string[]
@@ -68,6 +71,28 @@ export function NuovaVoce({
    * Aggiunge solo il campo hidden che creaVoce legge — la logica sta lì.
    */
   trattativaDaAssegnare?: boolean
+  /**
+   * Vero dove chi ha registrato la voce non si sceglie: è sempre chi sta
+   * scrivendo, e un campo "Assegnata a" qui sarebbe fuorviante — sembrerebbe
+   * la stessa cosa dell'assegnazione della trattativa (che invece resta
+   * apposta da assegnare, vedi trattativaDaAssegnare), mentre è solo la
+   * responsabilità di questa singola registrazione. Nasconde il campo:
+   * lasciato vuoto, il server assegna comunque a chi scrive (vedi
+   * campiEvento in lib/eventi.ts), quindi resta comunque chiaro chi è stato.
+   */
+  assegnazioneVoceFissa?: boolean
+  /**
+   * Vero dove chiedere due note separate — quella della voce e quella
+   * dell'esito — è chiedere due volte la stessa cosa: in un flusso che
+   * registra sempre qualcosa di già concluso in un colpo solo (una
+   * telefonata, un'email) non esiste un "prima" da preparare, solo un "com'è
+   * andata" da scrivere. Nasconde il campo "Nota" dell'esito e vi copia
+   * dentro lo stesso testo scritto in "Note": il server continua a ricevere
+   * entrambi i campi, ma chi scrive ne vede — e ne scrive — uno solo.
+   */
+  notaUnica?: boolean
+  /** Sovrascrive il placeholder del campo "Note", per un contesto diverso da quello generico. */
+  placeholderNote?: string
 }) {
   const [aperto, setAperto] = useState(apertaInizialmente)
   // Dentro il calendario vince il giorno che si sta guardando: chi clicca su
@@ -84,6 +109,10 @@ export function NuovaVoce({
   const [contattoNuovo, setContattoNuovo] = useState(false)
 
   const [nuovo, setNuovo] = useState({ nome: '', cognome: '', email: '', cellulare: '' })
+  // Serve solo a rispecchiare il testo nel campo hidden "nota_esito" quando
+  // notaUnica è vera (vedi sotto): il campo resta comunque non controllato
+  // ovunque notaUnica sia falsa, cioè ovunque tranne qui.
+  const [note, setNote] = useState('')
 
   /**
    * L'oggetto della voce: **sempre** il nome del contatto.
@@ -171,6 +200,7 @@ export function NuovaVoce({
         setModo('programma')
         setContattoNuovo(false)
         setNuovo({ nome: '', cognome: '', email: '', cellulare: '' })
+        setNote('')
         // Un contatto «nuovo» che in anagrafica c'era già va detto: la voce è
         // salvata, ma sulla scheda di quella persona lì.
         setAvviso(esito.avviso ?? null)
@@ -460,22 +490,24 @@ export function NuovaVoce({
         </div>
 
         <div className="form-row">
-          <div className="field">
-            <label htmlFor="assegnato_a">Assegnata a</label>
-            <input
-              id="assegnato_a"
-              name="assegnato_a"
-              type="text"
-              list="elenco-operatori"
-              placeholder="lascia vuoto per te"
-              autoComplete="off"
-            />
-            <datalist id="elenco-operatori">
-              {operatori.map((o) => (
-                <option key={o} value={o} />
-              ))}
-            </datalist>
-          </div>
+          {!assegnazioneVoceFissa && (
+            <div className="field">
+              <label htmlFor="assegnato_a">Assegnata a</label>
+              <input
+                id="assegnato_a"
+                name="assegnato_a"
+                type="text"
+                list="elenco-operatori"
+                placeholder="lascia vuoto per te"
+                autoComplete="off"
+              />
+              <datalist id="elenco-operatori">
+                {operatori.map((o) => (
+                  <option key={o} value={o} />
+                ))}
+              </datalist>
+            </div>
+          )}
           <div className="field" style={{ flexBasis: '100%' }}>
             <label htmlFor="note">
               Note <span aria-hidden="true">*</span>
@@ -486,7 +518,12 @@ export function NuovaVoce({
               type="text"
               required
               autoComplete="off"
-              placeholder="Cosa serve sapere prima: cosa ha chiesto, cosa portargli, dove eravamo rimasti"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder={
+                placeholderNote ??
+                'Cosa serve sapere prima: cosa ha chiesto, cosa portargli, dove eravamo rimasti'
+              }
             />
             {/* Obbligatorie, e sono la parte utile della riga: l'oggetto dice
                 solo **chi**, quindi senza note una voce d'agenda è un nome e
@@ -511,18 +548,22 @@ export function NuovaVoce({
                 <option value="fallita">{tipo === 'appuntamento_in_sede' ? 'No-show' : 'Fallita'}</option>
               </select>
             </div>
-            <div className="field" style={{ flexBasis: '100%' }}>
-              <label htmlFor="nota_esito">
-                Nota <span aria-hidden="true">*</span>
-              </label>
-              <textarea
-                id="nota_esito"
-                name="nota_esito"
-                rows={2}
-                required
-                placeholder="Cosa è stato detto e cosa succede adesso"
-              />
-            </div>
+            {notaUnica ? (
+              <input type="hidden" name="nota_esito" value={note} />
+            ) : (
+              <div className="field" style={{ flexBasis: '100%' }}>
+                <label htmlFor="nota_esito">
+                  Nota <span aria-hidden="true">*</span>
+                </label>
+                <textarea
+                  id="nota_esito"
+                  name="nota_esito"
+                  rows={2}
+                  required
+                  placeholder="Cosa è stato detto e cosa succede adesso"
+                />
+              </div>
+            )}
           </div>
         )}
 
