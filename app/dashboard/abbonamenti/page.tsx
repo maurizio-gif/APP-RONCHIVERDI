@@ -396,7 +396,7 @@ export default async function AbbonamentiPage({
         </div>
       ) : (
         <div className="card">
-          <p className="filtri-titolo">Andamento ultimi 12 mesi, per gruppo</p>
+          <p className="filtri-titolo">Andamento VENDUTO ultimi 12 mesi, per gruppo</p>
           <GraficoPerGruppo
             serie={serieFatturatoMensile}
             legenda={legendaFatturato}
