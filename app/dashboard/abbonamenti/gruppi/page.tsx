@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 export default async function GruppiAbbonamentiPage({
   searchParams,
 }: {
-  searchParams: { ordina?: string; dir?: string; solo?: string }
+  searchParams: { ordina?: string; dir?: string; solo?: string; cerca?: string }
 }) {
   if (!(await utenteHaSezione('abbonamenti'))) redirect('/dashboard')
 
@@ -26,7 +26,6 @@ export default async function GruppiAbbonamentiPage({
   const ordinaPerData = searchParams.ordina === 'ultima_vendita'
   const direzioneAttuale = searchParams.dir === 'asc' ? 'asc' : 'desc'
   const prossimaDirezione = ordinaPerData && direzioneAttuale === 'desc' ? 'asc' : 'desc'
-  const hrefOrdinaData = `/dashboard/abbonamenti/gruppi?ordina=ultima_vendita&dir=${prossimaDirezione}`
 
   // "Solo attivi": non tutti i 350+ prodotti da categorizzare, solo quelli
   // che hanno almeno un abbonato attivo adesso — molti prodotti da
@@ -35,6 +34,36 @@ export default async function GruppiAbbonamentiPage({
   // quelli sì. Vedi abbonamenti_prodotti_attivi_non_categorizzati,
   // scripts/sql/2026-09-21-abbonamenti-prodotti-attivi-non-categorizzati.sql.
   const soloAttivi = searchParams.solo === 'attivi'
+  // "Solo non categorizzati": tutti quelli senza gruppo, a prescindere da
+  // se hanno abbonati attivi ora — un filtro più largo di "solo attivi",
+  // per chi vuole ripulire l'intero elenco e non solo l'urgenza del
+  // momento.
+  const soloNonCategorizzati = searchParams.solo === 'non_categorizzati'
+  const cercaValore = (searchParams.cerca ?? '').trim()
+
+  // Un unico costruttore di URL per tutti i link di filtro/ordinamento
+  // della pagina, così cambiare uno stato (es. il chip "Non
+  // categorizzati") non fa perdere gli altri già attivi (es. una ricerca
+  // in corso) — ognuno riparte dai parametri correnti e sovrascrive solo
+  // quello che gli interessa.
+  function costruisciHref(
+    override: { ordina?: boolean; dir?: 'asc' | 'desc'; solo?: string | null; cerca?: string | null } = {},
+  ) {
+    const params = new URLSearchParams()
+    const usaOrdinamento = override.ordina ?? ordinaPerData
+    if (usaOrdinamento) {
+      params.set('ordina', 'ultima_vendita')
+      params.set('dir', override.dir ?? direzioneAttuale)
+    }
+    const solo = override.solo !== undefined ? override.solo : (searchParams.solo ?? null)
+    if (solo) params.set('solo', solo)
+    const cerca = override.cerca !== undefined ? override.cerca : cercaValore || null
+    if (cerca) params.set('cerca', cerca)
+    const query = params.toString()
+    return `/dashboard/abbonamenti/gruppi${query ? `?${query}` : ''}`
+  }
+
+  const hrefOrdinaData = costruisciHref({ ordina: true, dir: prossimaDirezione })
 
   const supabase = createSupabaseServiceClient()
   let queryProdotti = supabase
@@ -68,32 +97,30 @@ export default async function GruppiAbbonamentiPage({
   const daCategorizzare = tuttiIProdotti.filter((p) => !mappaGruppo.get(p.prodotto)).length
   const daCategorizzareAttivi = mappaAttiviNonCategorizzati.size
 
+  // Filtro di stato (tutti / non categorizzati / con abbonati attivi),
+  // poi la ricerca per nome sopra il risultato — i due si combinano,
+  // ognuno restringe ulteriormente quello che ha lasciato l'altro.
+  let prodotti = tuttiIProdotti
+  if (soloAttivi) {
+    prodotti = prodotti.filter((p) => mappaAttiviNonCategorizzati.has(p.prodotto))
+  } else if (soloNonCategorizzati) {
+    prodotti = prodotti.filter((p) => !mappaGruppo.get(p.prodotto))
+  }
+  if (cercaValore) {
+    const query = cercaValore.toLowerCase()
+    prodotti = prodotti.filter((p) => p.prodotto.toLowerCase().includes(query))
+  }
   // Ordinati per priorità (più abbonati attivi prima), non alfabetico: qui
   // lo scopo è "quale sistemo per primo", non "trova un prodotto per nome".
-  const prodotti = soloAttivi
-    ? tuttiIProdotti
-        .filter((p) => mappaAttiviNonCategorizzati.has(p.prodotto))
-        .sort((a, b) => (mappaAttiviNonCategorizzati.get(b.prodotto) ?? 0) - (mappaAttiviNonCategorizzati.get(a.prodotto) ?? 0))
-    : tuttiIProdotti
+  if (soloAttivi) {
+    prodotti = [...prodotti].sort(
+      (a, b) => (mappaAttiviNonCategorizzati.get(b.prodotto) ?? 0) - (mappaAttiviNonCategorizzati.get(a.prodotto) ?? 0),
+    )
+  }
 
-  const hrefTutti = (() => {
-    const params = new URLSearchParams()
-    if (ordinaPerData) {
-      params.set('ordina', 'ultima_vendita')
-      params.set('dir', direzioneAttuale)
-    }
-    const query = params.toString()
-    return `/dashboard/abbonamenti/gruppi${query ? `?${query}` : ''}`
-  })()
-  const hrefSoloAttivi = (() => {
-    const params = new URLSearchParams()
-    params.set('solo', 'attivi')
-    if (ordinaPerData) {
-      params.set('ordina', 'ultima_vendita')
-      params.set('dir', direzioneAttuale)
-    }
-    return `/dashboard/abbonamenti/gruppi?${params.toString()}`
-  })()
+  const hrefTutti = costruisciHref({ solo: null })
+  const hrefSoloNonCategorizzati = costruisciHref({ solo: 'non_categorizzati' })
+  const hrefSoloAttivi = costruisciHref({ solo: 'attivi' })
 
   return (
     <div>
@@ -135,24 +162,57 @@ export default async function GruppiAbbonamentiPage({
           </div>
 
           <div className="card">
-            {daCategorizzare > 0 && (
-              <p className="muted">
-                {daCategorizzare} prodott{daCategorizzare === 1 ? 'o' : 'i'} ancora da categorizzare
-                {daCategorizzareAttivi > 0 && !soloAttivi && (
-                  <>
-                    {' '}
-                    — <Link href={hrefSoloAttivi}>{daCategorizzareAttivi} con abbonati attivi ora</Link>
-                  </>
-                )}
-                .
-              </p>
-            )}
-            {soloAttivi && (
-              <p className="muted">
-                Solo i {daCategorizzareAttivi} prodotti non categorizzati con almeno un abbonato attivo oggi, dal più
-                urgente. <Link href={hrefTutti}>Mostra tutti i prodotti</Link>
-              </p>
-            )}
+            <div className="filtri-gruppi">
+              <Link href={hrefTutti} className={`chip${!soloAttivi && !soloNonCategorizzati ? ' is-attivo' : ''}`}>
+                Tutti <span className="chip-conteggio">{tuttiIProdotti.length}</span>
+              </Link>
+              <Link href={hrefSoloNonCategorizzati} className={`chip${soloNonCategorizzati ? ' is-attivo' : ''}`}>
+                Non categorizzati <span className="chip-conteggio">{daCategorizzare}</span>
+              </Link>
+              <Link href={hrefSoloAttivi} className={`chip${soloAttivi ? ' is-attivo' : ''}`}>
+                Con abbonati attivi ora <span className="chip-conteggio">{daCategorizzareAttivi}</span>
+              </Link>
+            </div>
+
+            {/* GET semplice, niente JS: ricaricare la pagina con ?cerca=...
+                è coerente con come funzionano già gli altri filtri qui
+                (ordinamento, stato) — tutti link/form, non stato client. Gli
+                input nascosti portano avanti lo stato/l'ordinamento
+                correnti, così la ricerca si combina con loro invece di
+                azzerarli. */}
+            <form action="/dashboard/abbonamenti/gruppi" method="get" className="form-row">
+              {ordinaPerData && (
+                <>
+                  <input type="hidden" name="ordina" value="ultima_vendita" />
+                  <input type="hidden" name="dir" value={direzioneAttuale} />
+                </>
+              )}
+              {searchParams.solo && <input type="hidden" name="solo" value={searchParams.solo} />}
+              <div className="field">
+                <input type="search" name="cerca" placeholder="Cerca prodotto…" defaultValue={cercaValore} />
+              </div>
+              <button type="submit" className="btn btn-ghost btn-sm">
+                Cerca
+              </button>
+              {cercaValore && (
+                <Link href={costruisciHref({ cerca: null })} className="muted">
+                  Cancella ricerca
+                </Link>
+              )}
+            </form>
+
+            <p className="muted">
+              {prodotti.length} prodott{prodotti.length === 1 ? 'o' : 'i'}
+              {soloAttivi && ' non categorizzati con almeno un abbonato attivo oggi, dal più urgente'}
+              {soloNonCategorizzati && ' ancora da categorizzare'}
+              {cercaValore && (
+                <>
+                  {' '}
+                  per “{cercaValore}”
+                </>
+              )}
+              .
+            </p>
             {erroreProdottiAttivi && /abbonamenti_prodotti_attivi_non_categorizzati/.test(erroreProdottiAttivi.message) && (
               <p className="vuoto">
                 Manca la vista di priorità: esegui
