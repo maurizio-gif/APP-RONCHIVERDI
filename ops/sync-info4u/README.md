@@ -165,6 +165,93 @@ quel caso lo script aggancia quella esistente invece di duplicarla).
 
 - Non fa nessuna automazione sui rinnovi o sulle scadenze.
 
+## Scrittura verso Info4U: vendite da un front-end esterno
+
+Tutto quanto sopra è a senso unico, Info4U → Supabase. Se invece si vuole
+vendere abbonamenti con un front-end esterno (un negozio online costruito da
+noi o da terzi, non Info4U) e far sì che, a pagamento avvenuto, la vendita
+compaia come vendita vera in Info4U — non solo su Supabase — serve anche il
+percorso inverso. Il pezzo che lo fa è **`scrivi-vendite.ps1`**, da mettere
+accanto a `sync-abbonamenti.ps1` sullo stesso `SRVTEAMSYSTEM`.
+
+Il giro completo, in quattro passi:
+
+1. Il front-end esterno, a pagamento confermato, chiama `POST
+   /api/vendite-esterne` di questo pannello (vedi
+   `app/api/vendite-esterne/route.ts`) con un header `x-rv-shared-secret`
+   (la stessa stringa di `VENDITE_ESTERNE_SHARED_SECRET`, mai esposta al
+   browser) e il corpo della vendita — anagrafica, `source_durata_id` (**l'id
+   vero della durata/prodotto in Info4U**, vedi il limite sotto), `totale`,
+   `riferimento_esterno` (l'id dell'ordine lato loro, per l'idempotenza).
+2. Quella richiesta scrive UNA riga su `vendite_esterne` (Supabase), con
+   `stato = 'in_attesa'`. La route non tocca mai Info4U direttamente.
+3. `scrivi-vendite.ps1`, schedulato con lo stesso meccanismo di
+   `sync-abbonamenti.ps1` (Task Scheduler, "non avviare una nuova istanza se
+   ne è già in esecuzione una"), legge le righe `in_attesa`, trova la
+   persona in `dbo.Utenti` (per codice fiscale, poi email, poi cellulare) e
+   crea la vendita in `dbo.AbbonamentiIscrizione`. Segna la riga `scritto`
+   (con l'`IDIscrizione` assegnato) o `errore` (col motivo, senza ritentare
+   da sola).
+4. Da lì la vendita rientra per la strada normale: al giro successivo
+   `sync-abbonamenti.ps1` la ritrova in Info4U come farebbe con una vendita
+   fatta al banco, e popola `persone`/`abbonamenti` — chiudendo anche
+   un'eventuale trattativa aperta, come per qualunque altra vendita (vedi
+   "Collegamento alle trattative" sotto).
+
+### Setup, in aggiunta a quanto sopra
+
+1. Migration `scripts/sql/2026-09-21-vendite-esterne.sql` sul SQL Editor di
+   Supabase (crea `vendite_esterne`; RLS attiva senza policy, ci scrivono
+   solo la route con la service role key e questo script).
+2. `VENDITE_ESTERNE_SHARED_SECRET` su Vercel (Project Settings → Environment
+   Variables): una stringa lunga e casuale, es. `openssl rand -hex 32`.
+   Comunicala solo al sistema esterno che vende gli abbonamenti.
+3. **Un secondo login SQL, di sola scrittura**, distinto da `n8n_sync_ro`:
+   questo script non deve avere gli stessi permessi ampi (`db_datareader`)
+   del sync in lettura, gli basta poter inserire in una tabella sola.
+
+   ```sql
+   USE master;
+   CREATE LOGIN n8n_sync_rw WITH PASSWORD = 'un'altra password forte';
+   USE dbgym;
+   CREATE USER n8n_sync_rw FOR LOGIN n8n_sync_rw;
+   GRANT INSERT ON dbo.AbbonamentiIscrizione TO n8n_sync_rw;
+   ```
+4. Nel `config.json` (lo stesso file di `sync-abbonamenti.ps1`), il blocco
+   `SqlServerScrittura` con quelle credenziali, più `IDClub` — l'id del club
+   Info4U a cui assegnare le vendite online (vedi `config.example.json`).
+5. Un secondo Task Scheduler per `scrivi-vendite.ps1`, stessa impostazione
+   di non sovrapporre le esecuzioni. Il suo log è `scrivi-vendite.log`,
+   nella stessa cartella.
+
+### Limiti noti — da risolvere prima di andare in produzione sul serio
+
+- **Non crea persone nuove in Info4U.** Se chi compra sul front-end esterno
+  non esiste ancora in `dbo.Utenti` (codice fiscale/email/cellulare senza
+  corrispondenza), la riga finisce `errore` invece di un `INSERT` alla
+  cieca: non conosciamo tutti i vincoli di quella tabella (campi
+  obbligatori, iscrizione a un club, numero tessera...) per rischiare
+  un'anagrafica creata a metà. Va creata a mano in Info4U, poi la riga si
+  rimette a `in_attesa`.
+- **Il front-end deve già conoscere l'`IDDurata` vero di Info4U** del
+  prodotto che vende: oggi non esiste una sincronizzazione in lettura del
+  catalogo (`Abbonamenti`/`AbbonamentiDurata`) verso Supabase che gliela
+  offra, quindi la mappatura prodotto-esterno → `IDDurata` è manuale.
+  Costruire quel catalogo in sola lettura (stesso pattern di
+  `sync-abbonamenti.ps1`, ma su `Abbonamenti`/`AbbonamentiDurata` invece che
+  su `AbbonamentiIscrizione`) è il prossimo passo naturale, non ancora
+  fatto.
+- **L'elenco colonne scritte in `AbbonamentiIscrizione` non è verificato
+  contro lo schema reale.** Viene da quello che `sync-abbonamenti.ps1`
+  legge già (quindi sappiamo che quelle colonne esistono), ma una colonna
+  NOT NULL senza DEFAULT che il sync in lettura non seleziona non la
+  vedremmo comunque. Prima di schedulare `scrivi-vendite.ps1` sul serio,
+  verificalo con SSMS — o meglio, prova un `INSERT` a mano dentro una
+  transazione e fai `ROLLBACK`.
+- `ImportoListino`/`ImportoCategoria` restano `NULL`: non sappiamo il
+  prezzo di listino separato da quanto è stato davvero incassato
+  (`Totale`), e un numero indovinato sarebbe peggio di un vuoto.
+
 ## Collegamento alle trattative
 
 Ogni riga che questo script scrive in `abbonamenti` chiude da sola, come
