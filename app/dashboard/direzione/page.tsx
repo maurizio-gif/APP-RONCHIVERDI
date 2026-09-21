@@ -303,6 +303,13 @@ export default async function DirezionePage({
         nota="Piattaforma e organico/a pagamento separati (es. «Meta organico» vs «Meta ADV»): più dettagliato del canale di traffico di Analytics, che li accorpa."
       />
 
+      <Ripartizione
+        titolo="Contatti per attività di interesse — da inizio anno"
+        voci={contattiYTD.attivita}
+        totale={contattiYTD.richieste}
+        nota="L'attività scelta nel form del sito (Tennis, Nuoto, Padel...); chi si registra al banco senza specificarla conta come «(non indicata)»."
+      />
+
       <div className="card">
         <div className="card-head">
           <h2>Vendite per primo canale di acquisizione</h2>
