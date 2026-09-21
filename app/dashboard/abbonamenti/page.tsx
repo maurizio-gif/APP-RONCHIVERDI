@@ -206,7 +206,14 @@ export default async function AbbonamentiPage({
       },
     ]
     const totale = voce.rinnovati + voce.nonRinnovati
-    return { mese: m, etichetta: etichettaMeseBreve(m), gruppi: voci, totale, totaleTesto: String(totale) }
+    return {
+      mese: m,
+      etichetta: etichettaMeseBreve(m),
+      gruppi: voci,
+      totale,
+      totaleTesto: String(totale),
+      etichettaSopra: totale > 0 ? `${Math.round((voce.rinnovati / totale) * 100)}%` : undefined,
+    }
   })
 
   const legendaRinnovi: VoceLegendaStack[] = [

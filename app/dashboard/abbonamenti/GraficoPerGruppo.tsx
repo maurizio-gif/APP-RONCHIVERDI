@@ -20,6 +20,11 @@ export type VoceMeseStack = {
   gruppi: VoceGruppoStack[]
   totale: number
   totaleTesto: string
+  // Facoltativa: un testo corto sopra la barra (es. "68%") — ha senso per
+  // uno stack a due stati come rinnovati/non rinnovati (la % è il numero
+  // che conta), non per un fatturato o un conteggio per gruppo, quindi
+  // resta assente per quei due grafici invece di forzarla ovunque.
+  etichettaSopra?: string
 }
 
 export type VoceLegendaStack = { chiave: string; nome: string; colore: string }
@@ -52,6 +57,12 @@ export function GraficoPerGruppo({
   // stack: separa i gruppi anche quando i colori sono vicini, senza
   // ricorrere a un bordo (che aggiungerebbe inchiostro che non è dato).
   const scarto = 0.4
+  // Con l'etichetta sopra la barra le barre restano un po' più basse (26
+  // invece di 30 unità), altrimenti sulla colonna più alta il testo
+  // finirebbe fuori dal viewBox. Le altre due grafiche di questa pagina non
+  // passano etichettaSopra: restano esattamente come prima.
+  const haEtichetteSopra = serie.some((m) => m.etichettaSopra)
+  const altezzaMassimaBarra = haEtichetteSopra ? 26 : 30
 
   const meseAttivo = indiceAttivo !== null ? serie[indiceAttivo] : null
 
@@ -65,12 +76,14 @@ export function GraficoPerGruppo({
             const segmenti = m.gruppi.filter((g) => g.valore > 0)
 
             let yCorrente = 32
+            let ySopraUltimo = 32
             const rettangoli = segmenti.map((g, gi) => {
-              const altezza = massimo > 0 ? (g.valore / massimo) * 30 : 0
+              const altezza = massimo > 0 ? (g.valore / massimo) * altezzaMassimaBarra : 0
               const altezzaResa = Math.max(altezza, 0.6)
               const yTop = yCorrente - altezzaResa
               const ultimoSegmento = gi === segmenti.length - 1
               yCorrente = yTop - scarto
+              if (ultimoSegmento) ySopraUltimo = yTop
               return (
                 <rect
                   key={g.gruppoId ?? 'non-categorizzato'}
@@ -94,13 +107,18 @@ export function GraficoPerGruppo({
                 onBlur={() => setIndiceAttivo(null)}
                 tabIndex={0}
                 role="button"
-                aria-label={`${m.etichetta}: ${m.totaleTesto} in totale`}
+                aria-label={`${m.etichetta}: ${m.totaleTesto} in totale${m.etichettaSopra ? `, ${m.etichettaSopra}` : ''}`}
               >
                 {/* Rettangolo pieno e invisibile: l'area di hover/focus è
                     tutta la colonna del mese, non solo i pixel dipinti dei
                     segmenti (che per un gruppo piccolo sono pochissimi). */}
                 <rect x={i * larghezzaBarra} y="0" width={larghezzaBarra} height="34" fill="transparent" />
                 {rettangoli}
+                {m.etichettaSopra && (
+                  <text x={x + larghezza / 2} y={Math.max(ySopraUltimo - 1, 3)} textAnchor="middle" className="grafico-attivi-etichetta-sopra">
+                    {m.etichettaSopra}
+                  </text>
+                )}
               </g>
             )
           })}
