@@ -91,7 +91,7 @@ export default async function ScadenzeAbbonamentiPage({
         <h1>Abbonamenti in scadenza</h1>
         <p className="muted">
           {totale} in scadenza in {etichettaMese(meseRichiesto)}
-          {totale > 0 && ` — ${daRichiamare} da richiamare, ${totale - daRichiamare} già rinnovati`}.
+          {totale > 0 && ` — ${daRichiamare} non ancora rinnovati, ${totale - daRichiamare} già rinnovati`}.
         </p>
         <Link href="/dashboard/abbonamenti" className="muted">
           ← Torna ad Abbonamenti
@@ -158,7 +158,7 @@ export default async function ScadenzeAbbonamentiPage({
                       {r.rinnovato ? (
                         <span className="badge badge-ok">Rinnovato</span>
                       ) : (
-                        <span className="badge badge-warn">Da richiamare</span>
+                        <span className="badge badge-warn">Non ancora rinnovato</span>
                       )}
                     </td>
                   </tr>

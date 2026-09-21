@@ -265,7 +265,7 @@ export default async function AbbonamentiPage({
                     <span className="stat-label">{etichettaMese(m)}</span>
                   </span>
                   <span className="stat-valore">{voce.totale}</span>
-                  {voce.daRichiamare > 0 && <span className="stat-nota">{voce.daRichiamare} da richiamare</span>}
+                  {voce.daRichiamare > 0 && <span className="stat-nota">{voce.daRichiamare} non ancora rinnovati</span>}
                 </Link>
               )
             })}
