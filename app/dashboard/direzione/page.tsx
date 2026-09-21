@@ -426,17 +426,6 @@ export default async function DirezionePage({
         <SplitCanali voci={splitContattiYTD} totale={contattiYTD.richieste} />
         <p className="filtri-titolo">Andamento ultimi 12 mesi</p>
         <GraficoContatti serie={serieContattiMensile} />
-        {erroreSessioniMensili && /sessioni_mensili/.test(erroreSessioniMensili.message) ? (
-          <p className="vuoto">
-            Manca la vista sessioni_mensili: esegui scripts/sql/2026-09-21-sessioni-mensili.sql nel SQL Editor di
-            Supabase.
-          </p>
-        ) : (
-          <>
-            <p className="filtri-titolo">Accessi al sito, ultimi 12 mesi</p>
-            <GraficoVisiteSito serie={serieVisiteMensile} />
-          </>
-        )}
       </div>
 
       <Ripartizione
@@ -464,6 +453,20 @@ export default async function DirezionePage({
           oggi è la maggioranza dello storico.
         </p>
         <RipartizioneCanaliVendita voci={canaliVendita} totaleFatturato={fatturatoTotaleCanali} />
+      </div>
+
+      <div className="card">
+        <div className="card-head">
+          <h2>Accessi al sito, ultimi 12 mesi</h2>
+        </div>
+        {erroreSessioniMensili && /sessioni_mensili/.test(erroreSessioniMensili.message) ? (
+          <p className="vuoto">
+            Manca la vista sessioni_mensili: esegui scripts/sql/2026-09-21-sessioni-mensili.sql nel SQL Editor di
+            Supabase.
+          </p>
+        ) : (
+          <GraficoVisiteSito serie={serieVisiteMensile} />
+        )}
       </div>
     </div>
   )
