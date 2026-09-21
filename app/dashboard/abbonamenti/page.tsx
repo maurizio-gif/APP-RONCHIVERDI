@@ -254,7 +254,12 @@ export default async function AbbonamentiPage({
         </div>
       ) : (
         <div className="card">
-          <p className="filtri-titolo">Utenti attivi per gruppo, a oggi</p>
+          <p className="filtri-titolo">
+            <span className="numero-sezione" aria-hidden="true">
+              1
+            </span>
+            Utenti attivi per gruppo, a oggi
+          </p>
           <p className="muted">Persone con almeno un abbonamento in corso, non scaduto — non conta le vendite.</p>
           <div className="griglia-stat">
             {!filtroAttivo && (
@@ -299,7 +304,12 @@ export default async function AbbonamentiPage({
         </div>
       ) : (
         <div className="card">
-          <p className="filtri-titolo">Abbonamenti in scadenza</p>
+          <p className="filtri-titolo">
+            <span className="numero-sezione" aria-hidden="true">
+              2
+            </span>
+            Abbonamenti in scadenza
+          </p>
           <p className="muted">
             Mese corrente e i tre successivi — clicca un mese per l&apos;elenco e chi deve ancora rinnovare.
           </p>
@@ -329,7 +339,12 @@ export default async function AbbonamentiPage({
         </div>
       ) : (
         <div className="card">
-          <p className="filtri-titolo">Andamento rinnovi, ultimi 12 mesi</p>
+          <p className="filtri-titolo">
+            <span className="numero-sezione" aria-hidden="true">
+              3
+            </span>
+            Andamento rinnovi, ultimi 12 mesi
+          </p>
           <p className="muted">
             Abbonamenti scaduti ogni mese, rinnovati o no entro 30 giorni dalla scadenza (stesso gruppo prodotto). Il
             mese più recente può risultare sottostimato: se la scadenza è a meno di 30 giorni da oggi, la finestra di
@@ -345,6 +360,9 @@ export default async function AbbonamentiPage({
 
       <div className="card">
         <p className="filtri-titolo">
+          <span className="numero-sezione" aria-hidden="true">
+            4
+          </span>
           Dal 1 al {giornoCorrente} {nomeMese} — confronto a parità di giorni
         </p>
         <div className="tabella-wrap">
@@ -396,7 +414,12 @@ export default async function AbbonamentiPage({
         </div>
       ) : (
         <div className="card">
-          <p className="filtri-titolo">Andamento VENDUTO ultimi 12 mesi, per gruppo</p>
+          <p className="filtri-titolo">
+            <span className="numero-sezione" aria-hidden="true">
+              5
+            </span>
+            Andamento VENDUTO ultimi 12 mesi, per gruppo
+          </p>
           <GraficoPerGruppo
             serie={serieFatturatoMensile}
             legenda={legendaFatturato}
@@ -414,7 +437,12 @@ export default async function AbbonamentiPage({
         </div>
       ) : (
         <div className="card">
-          <p className="filtri-titolo">Andamento abbonati attivi, fine mese</p>
+          <p className="filtri-titolo">
+            <span className="numero-sezione" aria-hidden="true">
+              6
+            </span>
+            Andamento abbonati attivi, fine mese
+          </p>
           <p className="muted">
             Per gruppo — passa il mouse (o il focus da tastiera) su una barra per il dettaglio. L&apos;ultimo mese è
             il conteggio di oggi, non ancora congelato.

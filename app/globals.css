@@ -3109,6 +3109,20 @@ table.tabella tbody tr:hover {
    grafici della pagina qui i colori sono dinamici (uno per gruppo, decisi
    lato server) e serve un pannello vero, non il <title> nativo, perché
    un'animazione al passaggio del mouse è parte della richiesta. */
+/* Barre + etichette dei mesi scorrono insieme in orizzontale quando non
+   entrano: stesso trattamento di .tabella-wrap per le tabelle larghe, non
+   uno stringimento delle barre fino a diventare illeggibili su telefono. La
+   legenda resta fuori (non ha bisogno di allinearsi alle barre) e non
+   scorre. */
+.grafico-scroll {
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+}
+
+.grafico-scroll-contenuto {
+	min-width: 640px;
+}
+
 .grafico-attivi-corpo {
 	position: relative;
 }
@@ -3165,6 +3179,26 @@ table.tabella tbody tr:hover {
 .grafico-attivi-tooltip.is-visibile {
 	opacity: 1;
 	transform: translate(-50%, 0);
+}
+
+/* Su telefono il tooltip non segue più la barra (potrebbe uscire dai bordi
+   dello schermo se la barra è vicina al margine, specie ora che il grafico
+   scorre in orizzontale): resta fermo al centro dello schermo, sempre
+   visibile per intero. `left` arriva anche da uno style inline (la
+   posizione calcolata sulla barra) — !important lo sovrascrive apposta. */
+@media (max-width: 640px) {
+	.grafico-attivi-tooltip {
+		position: fixed;
+		left: 50% !important;
+		top: 50%;
+		bottom: auto;
+		transform: translate(-50%, -50%);
+		max-width: calc(100vw - 2rem);
+	}
+
+	.grafico-attivi-tooltip.is-visibile {
+		transform: translate(-50%, -50%);
+	}
 }
 
 .grafico-attivi-tooltip-mese {
@@ -3332,6 +3366,26 @@ table.tabella tbody tr:hover {
 	font-size: var(--text-2xs);
 	letter-spacing: 0.1em;
 	text-transform: uppercase;
+}
+
+/* Numero di sezione ben visibile davanti al titolo di una card (pagina
+   Abbonamenti): non un dettaglio, un punto di riferimento — "la sezione 3"
+   deve leggersi a colpo d'occhio, non essere dedotta contando le card. */
+.numero-sezione {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.4em;
+	height: 1.4em;
+	margin-right: 0.5em;
+	background: var(--accent);
+	color: var(--text-on-accent);
+	border-radius: 50%;
+	font-size: 1em;
+	font-weight: 600;
+	letter-spacing: normal;
+	text-transform: none;
+	vertical-align: -0.3em;
 }
 
 /* La correzione di un timbro apre un campo data/ora accanto ai pulsanti:

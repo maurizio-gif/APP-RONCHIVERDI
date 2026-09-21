@@ -68,95 +68,112 @@ export function GraficoPerGruppo({
 
   return (
     <div className="grafico grafico-attivi">
-      <div className="grafico-attivi-corpo">
-        <svg viewBox="0 0 100 34" preserveAspectRatio="none" role="img" aria-label={etichettaAria}>
-          {serie.map((m, i) => {
-            const x = i * larghezzaBarra + larghezzaBarra * 0.15
-            const larghezza = larghezzaBarra * 0.7
-            const segmenti = m.gruppi.filter((g) => g.valore > 0)
+      {/* Su schermo stretto le barre non si stringono fino a diventare
+          illeggibili: il grafico (barre + etichette dei mesi, insieme
+          perché devono restare allineate) prende una larghezza minima e
+          scorre in orizzontale, come una tabella larga. */}
+      <div className="grafico-scroll">
+        <div className="grafico-scroll-contenuto">
+          <div className="grafico-attivi-corpo">
+            <svg viewBox="0 0 100 34" preserveAspectRatio="none" role="img" aria-label={etichettaAria}>
+              {serie.map((m, i) => {
+                const x = i * larghezzaBarra + larghezzaBarra * 0.15
+                const larghezza = larghezzaBarra * 0.7
+                const segmenti = m.gruppi.filter((g) => g.valore > 0)
 
-            let yCorrente = 32
-            let ySopraUltimo = 32
-            const rettangoli = segmenti.map((g, gi) => {
-              const altezza = massimo > 0 ? (g.valore / massimo) * altezzaMassimaBarra : 0
-              const altezzaResa = Math.max(altezza, 0.6)
-              const yTop = yCorrente - altezzaResa
-              const ultimoSegmento = gi === segmenti.length - 1
-              yCorrente = yTop - scarto
-              if (ultimoSegmento) ySopraUltimo = yTop
-              return (
-                <rect
-                  key={g.gruppoId ?? 'non-categorizzato'}
-                  x={x}
-                  y={yTop}
-                  width={larghezza}
-                  height={altezzaResa}
-                  rx={ultimoSegmento ? 0.6 : 0}
-                  style={{ fill: g.colore }}
-                />
-              )
-            })
+                let yCorrente = 32
+                let ySopraUltimo = 32
+                const rettangoli = segmenti.map((g, gi) => {
+                  const altezza = massimo > 0 ? (g.valore / massimo) * altezzaMassimaBarra : 0
+                  const altezzaResa = Math.max(altezza, 0.6)
+                  const yTop = yCorrente - altezzaResa
+                  const ultimoSegmento = gi === segmenti.length - 1
+                  yCorrente = yTop - scarto
+                  if (ultimoSegmento) ySopraUltimo = yTop
+                  return (
+                    <rect
+                      key={g.gruppoId ?? 'non-categorizzato'}
+                      x={x}
+                      y={yTop}
+                      width={larghezza}
+                      height={altezzaResa}
+                      rx={ultimoSegmento ? 0.6 : 0}
+                      style={{ fill: g.colore }}
+                    />
+                  )
+                })
 
-            return (
-              <g
-                key={m.mese}
-                className={`grafico-attivi-colonna${indiceAttivo === i ? ' is-attiva' : ''}`}
-                onMouseEnter={() => setIndiceAttivo(i)}
-                onMouseLeave={() => setIndiceAttivo(null)}
-                onFocus={() => setIndiceAttivo(i)}
-                onBlur={() => setIndiceAttivo(null)}
-                tabIndex={0}
-                role="button"
-                aria-label={`${m.etichetta}: ${m.totaleTesto} in totale${m.etichettaSopra ? `, ${m.etichettaSopra}` : ''}`}
-              >
-                {/* Rettangolo pieno e invisibile: l'area di hover/focus è
-                    tutta la colonna del mese, non solo i pixel dipinti dei
-                    segmenti (che per un gruppo piccolo sono pochissimi). */}
-                <rect x={i * larghezzaBarra} y="0" width={larghezzaBarra} height="34" fill="transparent" />
-                {rettangoli}
-                {m.etichettaSopra && (
-                  <text x={x + larghezza / 2} y={Math.max(ySopraUltimo - 1, 3)} textAnchor="middle" className="grafico-attivi-etichetta-sopra">
-                    {m.etichettaSopra}
-                  </text>
-                )}
-              </g>
-            )
-          })}
-          <line x1="0" y1="32" x2="100" y2="32" className="grafico-asse" />
-        </svg>
+                return (
+                  <g
+                    key={m.mese}
+                    className={`grafico-attivi-colonna${indiceAttivo === i ? ' is-attiva' : ''}`}
+                    onMouseEnter={() => setIndiceAttivo(i)}
+                    onMouseLeave={() => setIndiceAttivo(null)}
+                    onFocus={() => setIndiceAttivo(i)}
+                    onBlur={() => setIndiceAttivo(null)}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`${m.etichetta}: ${m.totaleTesto} in totale${m.etichettaSopra ? `, ${m.etichettaSopra}` : ''}`}
+                  >
+                    {/* Rettangolo pieno e invisibile: l'area di hover/focus è
+                        tutta la colonna del mese, non solo i pixel dipinti dei
+                        segmenti (che per un gruppo piccolo sono pochissimi). */}
+                    <rect x={i * larghezzaBarra} y="0" width={larghezzaBarra} height="34" fill="transparent" />
+                    {rettangoli}
+                    {m.etichettaSopra && (
+                      <text
+                        x={x + larghezza / 2}
+                        y={Math.max(ySopraUltimo - 1, 3)}
+                        textAnchor="middle"
+                        className="grafico-attivi-etichetta-sopra"
+                      >
+                        {m.etichettaSopra}
+                      </text>
+                    )}
+                  </g>
+                )
+              })}
+              <line x1="0" y1="32" x2="100" y2="32" className="grafico-asse" />
+            </svg>
 
-        <div
-          className={`grafico-attivi-tooltip${meseAttivo ? ' is-visibile' : ''}`}
-          style={indiceAttivo !== null ? { left: `${(indiceAttivo + 0.5) * larghezzaBarra}%` } : undefined}
-          aria-hidden={!meseAttivo}
-        >
-          {meseAttivo && (
-            <>
-              <p className="grafico-attivi-tooltip-mese">{meseAttivo.etichetta}</p>
-              <ul className="grafico-attivi-tooltip-elenco">
-                {meseAttivo.gruppi.map((g) => (
-                  <li key={g.gruppoId ?? 'non-categorizzato'}>
-                    <span className="grafico-attivi-tooltip-swatch" style={{ background: g.colore }} aria-hidden="true" />
-                    <span className="grafico-attivi-tooltip-valore">{g.valoreTesto}</span>
-                    <span className="grafico-attivi-tooltip-nome">{g.nome}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="grafico-attivi-tooltip-totale">Totale: {meseAttivo.totaleTesto}</p>
-              {meseAttivo.etichettaSopra && (
-                <p className="grafico-attivi-tooltip-percentuale">
-                  {meseAttivo.etichettaSopra} rinnovati sul totale scaduto quel mese
-                </p>
+            <div
+              className={`grafico-attivi-tooltip${meseAttivo ? ' is-visibile' : ''}`}
+              style={indiceAttivo !== null ? { left: `${(indiceAttivo + 0.5) * larghezzaBarra}%` } : undefined}
+              aria-hidden={!meseAttivo}
+            >
+              {meseAttivo && (
+                <>
+                  <p className="grafico-attivi-tooltip-mese">{meseAttivo.etichetta}</p>
+                  <ul className="grafico-attivi-tooltip-elenco">
+                    {meseAttivo.gruppi.map((g) => (
+                      <li key={g.gruppoId ?? 'non-categorizzato'}>
+                        <span
+                          className="grafico-attivi-tooltip-swatch"
+                          style={{ background: g.colore }}
+                          aria-hidden="true"
+                        />
+                        <span className="grafico-attivi-tooltip-valore">{g.valoreTesto}</span>
+                        <span className="grafico-attivi-tooltip-nome">{g.nome}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="grafico-attivi-tooltip-totale">Totale: {meseAttivo.totaleTesto}</p>
+                  {meseAttivo.etichettaSopra && (
+                    <p className="grafico-attivi-tooltip-percentuale">
+                      {meseAttivo.etichettaSopra} rinnovati sul totale scaduto quel mese
+                    </p>
+                  )}
+                </>
               )}
-            </>
-          )}
-        </div>
-      </div>
+            </div>
+          </div>
 
-      <div className="grafico-etichette muted">
-        {serie.map((m) => (
-          <span key={m.mese}>{m.etichetta}</span>
-        ))}
+          <div className="grafico-etichette muted">
+            {serie.map((m) => (
+              <span key={m.mese}>{m.etichetta}</span>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="grafico-legenda muted">
