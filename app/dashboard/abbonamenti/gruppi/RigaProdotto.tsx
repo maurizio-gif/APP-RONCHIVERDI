@@ -50,11 +50,12 @@ export default function RigaProdotto({
   return (
     <tr>
       <td>
-        {prodotto}
-        {varianti.length > 0 && (
-          <div className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
-            Varianti: {varianti.join(', ')}
-          </div>
+        {varianti.length > 0 ? (
+          <span className="th-aiuto" title={`Varianti: ${varianti.join(', ')}`}>
+            {prodotto}
+          </span>
+        ) : (
+          prodotto
         )}
       </td>
       <td>{numeroVendite}</td>
