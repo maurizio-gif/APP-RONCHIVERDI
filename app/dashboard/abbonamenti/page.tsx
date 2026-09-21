@@ -2,11 +2,11 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
-import { caricaGruppi } from '@/lib/abbonamenti'
+import { caricaAndamentoPerGruppo, caricaGruppi } from '@/lib/abbonamenti'
 import { euro, testoVariazione } from '@/lib/pipeline'
 import { mesePiu, oggiRoma } from '@/lib/agenda'
 import ObiettivoMensile from './ObiettivoMensile'
-import { GraficoMensile } from './GraficoMensile'
+import { GraficoPerGruppo } from './GraficoPerGruppo'
 
 export const dynamic = 'force-dynamic'
 
@@ -101,31 +101,28 @@ export default async function AbbonamentiPage({
     })
   )
 
-  // Sezione 3: gli ultimi 12 mesi (compreso quello in corso, parziale) per
-  // il grafico a barre — stessi filtri delle sezioni sopra, più lo split fra
-  // vendite lavorate (una richiesta, una trattativa o un'azione della
-  // segreteria dietro) e non (vedi abbonamenti_mensili_lavorati e
-  // lib/attivitaCommerciale.ts per la stessa classificazione altrove).
+  // Sezione 3: gli ultimi 12 mesi (compreso quello in corso, parziale), per
+  // due grafici a barre impilate per gruppo — fatturato delle vendite e
+  // abbonati attivi a fine mese. Logica condivisa con la Dashboard
+  // Direzionale (vedi lib/abbonamenti.ts, caricaAndamentoPerGruppo): stessi
+  // colori, stessa definizione di "attivo", un solo posto da aggiornare.
   const meseCorrenteData = `${annoCorrente}-${String(mese).padStart(2, '0')}-01`
   const ultimi12Mesi = Array.from({ length: 12 }, (_, i) => mesePiu(meseCorrenteData, i - 11))
-  let queryMensile = supabase
-    .from('abbonamenti_mensili_lavorati')
-    .select('mese, lavorata, numero_vendite, fatturato')
-    .gte('mese', ultimi12Mesi[0])
-  if (filtroAttivo) queryMensile = queryMensile.in('gruppo_id', gruppiSelezionati)
-  const { data: righeUltimi12 } = await queryMensile
 
-  const fatturatoPerMese = new Map<string, { lavorato: number; nonLavorato: number }>()
-  for (const r of righeUltimi12 ?? []) {
-    const voce = fatturatoPerMese.get(r.mese) ?? { lavorato: 0, nonLavorato: 0 }
-    if (r.lavorata) voce.lavorato += Number(r.fatturato ?? 0)
-    else voce.nonLavorato += Number(r.fatturato ?? 0)
-    fatturatoPerMese.set(r.mese, voce)
-  }
-  const serieMensile = ultimi12Mesi.map((m) => {
-    const v = fatturatoPerMese.get(m) ?? { lavorato: 0, nonLavorato: 0 }
-    return { mese: m, lavorato: v.lavorato, nonLavorato: v.nonLavorato }
-  })
+  const {
+    attiviOggiPerGruppo,
+    erroreAttiviOggi,
+    serieFatturatoMensile,
+    legendaFatturato,
+    erroreFatturatoMensile,
+    serieAttiviMensile,
+    legendaAttivi,
+    erroreStoricoAttivi,
+  } = await caricaAndamentoPerGruppo(supabase, gruppi, gruppiSelezionati, filtroAttivo, meseCorrenteData, ultimi12Mesi)
+
+  const gruppiAttiviMostrati = filtroAttivo ? gruppi.filter((g) => gruppiSelezionati.includes(g.id)) : gruppi
+  const nonCategorizzatoAttivi = attiviOggiPerGruppo.get(null) ?? 0
+  const totaleAttivi = Array.from(attiviOggiPerGruppo.values()).reduce((tot, n) => tot + n, 0)
 
   // L'obiettivo segue lo stesso filtro delle statistiche sopra: "Tutti" mostra
   // il generale, un solo gruppo selezionato mostra e permette di impostare il
@@ -168,6 +165,51 @@ export default async function AbbonamentiPage({
           </fieldset>
         </div>
       </div>
+
+      {erroreAttiviOggi && /abbonamenti_attivi_oggi/.test(erroreAttiviOggi.message) ? (
+        <div className="card">
+          <p className="vuoto">
+            Manca la vista degli utenti attivi: esegui scripts/sql/2026-09-21-abbonamenti-attivi.sql (e le migration
+            successive con lo stesso prefisso) nel SQL Editor di Supabase.
+          </p>
+        </div>
+      ) : (
+        <div className="card">
+          <p className="filtri-titolo">Utenti attivi per gruppo, a oggi</p>
+          <p className="muted">Persone con almeno un abbonamento in corso, non scaduto — non conta le vendite.</p>
+          <div className="griglia-stat">
+            {!filtroAttivo && (
+              <div className={`stat${totaleAttivi > 0 ? '' : ' is-vuoto'}`}>
+                <span className="stat-testa">
+                  <span className="stat-label">Totale</span>
+                </span>
+                <span className="stat-valore">{totaleAttivi}</span>
+                <span className="stat-nota">In tutti i gruppi</span>
+              </div>
+            )}
+            {gruppiAttiviMostrati.map((g) => {
+              const valore = attiviOggiPerGruppo.get(g.id) ?? 0
+              return (
+                <div key={g.id} className={`stat${valore > 0 ? '' : ' is-vuoto'}`}>
+                  <span className="stat-testa">
+                    <span className="stat-label">{g.nome}</span>
+                  </span>
+                  <span className="stat-valore">{valore}</span>
+                </div>
+              )
+            })}
+            {!filtroAttivo && nonCategorizzatoAttivi > 0 && (
+              <Link href="/dashboard/abbonamenti/gruppi" className="stat stat-warn">
+                <span className="stat-testa">
+                  <span className="stat-label">Non categorizzato</span>
+                </span>
+                <span className="stat-valore">{nonCategorizzatoAttivi}</span>
+                <span className="stat-nota">Assegna un gruppo ai prodotti mancanti</span>
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <p className="filtri-titolo">
@@ -237,10 +279,45 @@ export default async function AbbonamentiPage({
         </div>
       </div>
 
-      <div className="card">
-        <p className="filtri-titolo">Andamento ultimi 12 mesi</p>
-        <GraficoMensile serie={serieMensile} />
-      </div>
+      {erroreFatturatoMensile && /abbonamenti_mensili/.test(erroreFatturatoMensile.message) ? (
+        <div className="card">
+          <p className="vuoto">
+            Manca la vista di reportistica: esegui scripts/sql/2026-09-18-abbonamenti-gruppi.sql nel SQL Editor di
+            Supabase.
+          </p>
+        </div>
+      ) : (
+        <div className="card">
+          <p className="filtri-titolo">Andamento ultimi 12 mesi, per gruppo</p>
+          <GraficoPerGruppo
+            serie={serieFatturatoMensile}
+            legenda={legendaFatturato}
+            etichettaAria="Fatturato per gruppo, ultimi 12 mesi"
+          />
+        </div>
+      )}
+
+      {erroreStoricoAttivi && /abbonamenti_attivi_storico/.test(erroreStoricoAttivi.message) ? (
+        <div className="card">
+          <p className="vuoto">
+            Manca lo storico degli attivi: esegui scripts/sql/2026-09-21-abbonamenti-attivi.sql nel SQL Editor di
+            Supabase.
+          </p>
+        </div>
+      ) : (
+        <div className="card">
+          <p className="filtri-titolo">Andamento abbonati attivi, fine mese</p>
+          <p className="muted">
+            Per gruppo — passa il mouse (o il focus da tastiera) su una barra per il dettaglio. L&apos;ultimo mese è
+            il conteggio di oggi, non ancora congelato.
+          </p>
+          <GraficoPerGruppo
+            serie={serieAttiviMensile}
+            legenda={legendaAttivi}
+            etichettaAria="Abbonati attivi per gruppo, a fine mese, ultimi 12 mesi"
+          />
+        </div>
+      )}
 
       <div className="card">
         <p className="filtri-titolo">Report</p>

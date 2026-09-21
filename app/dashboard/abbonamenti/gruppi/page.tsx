@@ -3,22 +3,38 @@ import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { caricaGruppi } from '@/lib/abbonamenti'
-import { dataBreve, giornoDiIstante } from '@/lib/agenda'
+import { dataBreve as dataBreveAnno } from '@/lib/persone'
 import NuovoGruppoForm from './NuovoGruppoForm'
 import RigaProdotto from './RigaProdotto'
 
 export const dynamic = 'force-dynamic'
 
-export default async function GruppiAbbonamentiPage() {
+export default async function GruppiAbbonamentiPage({
+  searchParams,
+}: {
+  searchParams: { ordina?: string; dir?: string }
+}) {
   if (!(await utenteHaSezione('abbonamenti'))) redirect('/dashboard')
 
+  // Solo la colonna Ultima vendita è ordinabile per ora (l'unica per cui è
+  // stata chiesta): di default la tabella resta alfabetica per prodotto,
+  // come prima. Il default della prima volta che si clicca è "dal più
+  // recente" (desc) — è il verso che serve per trovare in fretta i prodotti
+  // rimasti fermi da anni, guardando in fondo.
+  const ordinaPerData = searchParams.ordina === 'ultima_vendita'
+  const direzioneAttuale = searchParams.dir === 'asc' ? 'asc' : 'desc'
+  const prossimaDirezione = ordinaPerData && direzioneAttuale === 'desc' ? 'asc' : 'desc'
+  const hrefOrdinaData = `/dashboard/abbonamenti/gruppi?ordina=ultima_vendita&dir=${prossimaDirezione}`
+
   const supabase = createSupabaseServiceClient()
+  let queryProdotti = supabase.from('abbonamenti_prodotti').select('prodotto, numero_vendite, ultima_vendita')
+  queryProdotti = ordinaPerData
+    ? queryProdotti.order('ultima_vendita', { ascending: direzioneAttuale === 'asc', nullsFirst: direzioneAttuale === 'asc' })
+    : queryProdotti.order('prodotto')
+
   const [gruppi, prodottiRisposta, mappaturaRisposta] = await Promise.all([
     caricaGruppi(),
-    supabase
-      .from('abbonamenti_prodotti')
-      .select('prodotto, numero_vendite, ultima_vendita')
-      .order('prodotto'),
+    queryProdotti,
     supabase.from('abbonamenti_mappatura').select('prodotto, gruppo_id'),
   ])
 
@@ -81,7 +97,16 @@ export default async function GruppiAbbonamentiPage() {
                   <tr>
                     <th>Prodotto (da Info4U)</th>
                     <th>Vendite totali</th>
-                    <th>Ultima vendita</th>
+                    <th>
+                      <Link href={hrefOrdinaData} className="th-ordina">
+                        Ultima vendita
+                        {ordinaPerData && (
+                          <span className="th-ordina-freccia" aria-hidden="true">
+                            {direzioneAttuale === 'asc' ? '▲' : '▼'}
+                          </span>
+                        )}
+                      </Link>
+                    </th>
                     <th>Gruppo</th>
                   </tr>
                 </thead>
@@ -91,7 +116,7 @@ export default async function GruppiAbbonamentiPage() {
                       key={p.prodotto}
                       prodotto={p.prodotto}
                       numeroVendite={p.numero_vendite}
-                      ultimaVenditaTesto={p.ultima_vendita ? dataBreve(giornoDiIstante(p.ultima_vendita)) : '—'}
+                      ultimaVenditaTesto={dataBreveAnno(p.ultima_vendita)}
                       gruppoId={mappaGruppo.get(p.prodotto) ?? null}
                       gruppi={gruppi}
                     />

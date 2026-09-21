@@ -342,6 +342,22 @@ export function mesePiu(giorno: string, mesi: number): string {
   return chiaveGiorno(Math.floor(totale / 12), totale % 12, 1)
 }
 
+/**
+ * Stesso giorno del mese, N mesi indietro (o avanti, con N positivo) —
+ * per i confronti "stesso giorno del mese/anno scorso" (es. Soci attivi
+ * nella dashboard direzionale). A differenza di mesePiu non si ferma al
+ * primo del mese: se il giorno non esiste nel mese di destinazione (es. 31
+ * gennaio meno un mese) si ferma all'ultimo giorno valido, non trabocca nel
+ * mese dopo.
+ */
+export function stessoGiornoMesiFa(giorno: string, mesi: number): string {
+  const giornoDelMese = Number(giorno.slice(8, 10))
+  const primoMeseDestinazione = mesePiu(giorno, mesi)
+  const ultimoGiornoDestinazione = Number(ultimoDelMese(primoMeseDestinazione).slice(8, 10))
+  const giornoClampato = Math.min(giornoDelMese, ultimoGiornoDestinazione)
+  return `${primoMeseDestinazione.slice(0, 8)}${String(giornoClampato).padStart(2, '0')}`
+}
+
 /** Ultimo giorno del mese: il "giorno 0" del mese dopo. */
 export function ultimoDelMese(giorno: string): string {
   const [anno, mese] = giorno.split('-').map(Number)

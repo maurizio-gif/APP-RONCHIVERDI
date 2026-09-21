@@ -3,13 +3,23 @@ import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { euro, variazionePercentuale } from '@/lib/pipeline'
-import { caricaGruppi } from '@/lib/abbonamenti'
-import { oggiRoma, dataBreve, mesePiu, mezzanotteRoma, primoDelMese, giornoDiIstante } from '@/lib/agenda'
+import { caricaAndamentoPerGruppo, caricaGruppi } from '@/lib/abbonamenti'
+import {
+  oggiRoma,
+  dataBreve,
+  mesePiu,
+  mezzanotteRoma,
+  primoDelMese,
+  giornoDiIstante,
+  stessoGiornoMesiFa,
+} from '@/lib/agenda'
 import { rangeMTD, rangeYTD, canaleVendita, type ProvenienzaVendita, type RangePeriodo } from '@/lib/direzione'
+import { dataBreve as dataBreveAnno } from '@/lib/persone'
 import { provenienzaDiOrigine } from '@/lib/provenienza'
 import { canaleGranulare } from '@/lib/canaliTraffico'
 import { percentuale, STATISTICHE_VUOTE, type CoppiaUtm, type Statistiche, type Voce } from '@/lib/analytics'
 import { Ripartizione } from '@/app/dashboard/analytics/Ripartizione'
+import { GraficoPerGruppo } from '@/app/dashboard/abbonamenti/GraficoPerGruppo'
 import { StatCard } from './StatCard'
 import { SplitCanali, type VoceCanale } from './SplitCanali'
 import { GraficoContatti, type VoceContattiMese } from './GraficoContatti'
@@ -137,6 +147,44 @@ export default async function DirezionePage({
     sommaGiornalieri(mtdPrec),
     sommaGiornalieri(ytd),
     sommaGiornalieri(ytdPrec),
+  ])
+
+  // Andamento ultimi 12 mesi per gruppo (fatturato e abbonati attivi a fine
+  // mese): stessa logica e stesso filtro gruppo della pagina Abbonamenti,
+  // vedi lib/abbonamenti.ts — caricaAndamentoPerGruppo.
+  const meseCorrenteAbbonamenti = primoDelMese(oggiRoma())
+  const ultimi12MesiAbbonamenti = Array.from({ length: 12 }, (_, i) => mesePiu(meseCorrenteAbbonamenti, i - 11))
+  const { serieFatturatoMensile, legendaFatturato, erroreFatturatoMensile, serieAttiviMensile, legendaAttivi, erroreStoricoAttivi } =
+    await caricaAndamentoPerGruppo(
+      supabase,
+      gruppi,
+      gruppiSelezionati,
+      filtroGruppoAttivo,
+      meseCorrenteAbbonamenti,
+      ultimi12MesiAbbonamenti
+    )
+
+  // Soci attivi: stesso giorno confrontato con un mese fa e un anno fa — non
+  // una vendita, una fotografia (abbonamenti_attivi_al, vedi
+  // scripts/sql/2026-09-21-abbonamenti-attivi.sql). A differenza dello
+  // storico mensile congelato, la funzione risponde per qualunque data
+  // passata: qui serve il giorno esatto, non l'ultimo del mese.
+  const oggiSoci = oggiRoma()
+  const unMeseFaSoci = stessoGiornoMesiFa(oggiSoci, -1)
+  const unAnnoFaSoci = stessoGiornoMesiFa(oggiSoci, -12)
+
+  async function totaleAttiviAl(giorno: string): Promise<number> {
+    const { data } = await supabase.rpc('abbonamenti_attivi_al', { p_data: giorno })
+    const righe = (data ?? []) as { gruppo_id: string | null; numero_attivi: number }[]
+    return righe
+      .filter((r) => !filtroGruppoAttivo || gruppiSelezionati.includes(r.gruppo_id ?? ''))
+      .reduce((tot, r) => tot + r.numero_attivi, 0)
+  }
+
+  const [sociAttiviOggi, sociAttiviMeseFa, sociAttiviAnnoFa] = await Promise.all([
+    totaleAttiviAl(oggiSoci),
+    totaleAttiviAl(unMeseFaSoci),
+    totaleAttiviAl(unAnnoFaSoci),
   ])
 
   // ─────────────────────────────────────────────────────────── Contatti acquisiti
@@ -271,6 +319,74 @@ export default async function DirezionePage({
           />
         </div>
       </div>
+
+      <div className="card">
+        <div className="card-head">
+          <h2>Soci attivi</h2>
+          <span className="muted">Persone con almeno un abbonamento in corso, non scaduto — stesso filtro gruppo qui sopra</span>
+        </div>
+        <div className="griglia-stat">
+          <StatCard label="Oggi" valore={String(sociAttiviOggi)} nota={dataBreveAnno(oggiSoci)} />
+          <StatCard
+            label="Un mese fa"
+            valore={String(sociAttiviMeseFa)}
+            nota={dataBreveAnno(unMeseFaSoci)}
+            percentuale={variazionePercentuale(sociAttiviOggi, sociAttiviMeseFa)}
+            suffissoBadge="vs oggi"
+          />
+          <StatCard
+            label="Un anno fa"
+            valore={String(sociAttiviAnnoFa)}
+            nota={dataBreveAnno(unAnnoFaSoci)}
+            percentuale={variazionePercentuale(sociAttiviOggi, sociAttiviAnnoFa)}
+            suffissoBadge="vs oggi"
+          />
+        </div>
+      </div>
+
+      {erroreFatturatoMensile && /abbonamenti_mensili/.test(erroreFatturatoMensile.message) ? (
+        <div className="card">
+          <p className="vuoto">
+            Manca la vista di reportistica: esegui scripts/sql/2026-09-18-abbonamenti-gruppi.sql nel SQL Editor di
+            Supabase.
+          </p>
+        </div>
+      ) : (
+        <div className="card">
+          <div className="card-head">
+            <h2>Andamento ultimi 12 mesi, per gruppo</h2>
+          </div>
+          <GraficoPerGruppo
+            serie={serieFatturatoMensile}
+            legenda={legendaFatturato}
+            etichettaAria="Fatturato per gruppo, ultimi 12 mesi"
+          />
+        </div>
+      )}
+
+      {erroreStoricoAttivi && /abbonamenti_attivi_storico/.test(erroreStoricoAttivi.message) ? (
+        <div className="card">
+          <p className="vuoto">
+            Manca lo storico degli attivi: esegui scripts/sql/2026-09-21-abbonamenti-attivi.sql nel SQL Editor di
+            Supabase.
+          </p>
+        </div>
+      ) : (
+        <div className="card">
+          <div className="card-head">
+            <h2>Andamento abbonati attivi, fine mese</h2>
+          </div>
+          <p className="muted">
+            Per gruppo — passa il mouse (o il focus da tastiera) su una barra per il dettaglio. L&apos;ultimo mese è
+            il conteggio di oggi, non ancora congelato.
+          </p>
+          <GraficoPerGruppo
+            serie={serieAttiviMensile}
+            legenda={legendaAttivi}
+            etichettaAria="Abbonati attivi per gruppo, a fine mese, ultimi 12 mesi"
+          />
+        </div>
+      )}
 
       <div className="card">
         <div className="card-head">

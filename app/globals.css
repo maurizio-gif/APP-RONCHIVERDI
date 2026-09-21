@@ -954,6 +954,28 @@ table.tabella tbody tr:hover {
 	white-space: nowrap;
 }
 
+/* Intestazione di colonna cliccabile per ordinare la tabella (vedi
+   "Ultima vendita" in /dashboard/abbonamenti/gruppi): eredita il colore e le
+   maiuscole di table.tabella th, non un link "blu" in mezzo a un'intestazione
+   spenta — solo la freccetta segnala che è interattiva. */
+.th-ordina {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	color: inherit;
+	text-decoration: none;
+}
+
+.th-ordina:hover,
+.th-ordina:focus-visible {
+	color: var(--text);
+}
+
+.th-ordina-freccia {
+	font-size: 0.7em;
+	color: var(--accent);
+}
+
 /* ────────────────────────────────── report giornaliero (Core Manager) */
 
 .report-mese-nav {
@@ -3056,6 +3078,118 @@ table.tabella tbody tr:hover {
 
 .grafico-legenda-pallino-non-lavorato {
 	background: var(--fill-strong);
+}
+
+/* Andamento abbonati attivi (vedi GraficoAttivi, abbonamenti): stack per
+   gruppo con dettaglio al passaggio del mouse — a differenza degli altri
+   grafici della pagina qui i colori sono dinamici (uno per gruppo, decisi
+   lato server) e serve un pannello vero, non il <title> nativo, perché
+   un'animazione al passaggio del mouse è parte della richiesta. */
+.grafico-attivi-corpo {
+	position: relative;
+}
+
+.grafico-attivi-colonna {
+	cursor: pointer;
+}
+
+.grafico-attivi-colonna:focus-visible {
+	outline: none;
+}
+
+.grafico-attivi-colonna:focus-visible rect:not([fill='transparent']) {
+	outline: 1.5px solid var(--text);
+	outline-offset: 1px;
+}
+
+/* Il segmento risponde al passaggio del mouse — leggermente più chiaro,
+   mai un bordo aggiunto: lo stesso principio di "niente inchiostro che non
+   sia dato" degli altri grafici. */
+.grafico-attivi-colonna rect:not([fill='transparent']) {
+	transition: opacity 0.15s ease;
+}
+
+.grafico-attivi-colonna:hover rect:not([fill='transparent']),
+.grafico-attivi-colonna.is-attiva rect:not([fill='transparent']) {
+	opacity: 0.85;
+}
+
+/* Pannello di dettaglio: nascosto e leggermente sceso finché non c'è un
+   mese attivo, poi sale e appare — la stessa animazione (opacità +
+   traslazione) che il resto del pannello usa per i menu a comparsa, non
+   un effetto inventato apposta. Ancorato in percentuale sulla x della
+   colonna sotto il cursore (stesso sistema di coordinate dello svg, che è
+   width:100%), non calcolato in pixel via JS. */
+.grafico-attivi-tooltip {
+	position: absolute;
+	bottom: calc(100% + 0.5rem);
+	transform: translate(-50%, 4px);
+	min-width: 9rem;
+	padding: 0.6rem 0.75rem;
+	background: var(--bg-dark);
+	color: var(--text-on-dark);
+	border-radius: var(--radius);
+	box-shadow: 0 6px 20px rgba(28, 28, 24, 0.22);
+	opacity: 0;
+	pointer-events: none;
+	transition:
+		opacity 0.15s ease,
+		transform 0.15s ease;
+	z-index: 2;
+}
+
+.grafico-attivi-tooltip.is-visibile {
+	opacity: 1;
+	transform: translate(-50%, 0);
+}
+
+.grafico-attivi-tooltip-mese {
+	margin: 0 0 0.4rem;
+	font-size: var(--text-xs);
+	font-weight: 600;
+	text-transform: capitalize;
+}
+
+.grafico-attivi-tooltip-elenco {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.grafico-attivi-tooltip-elenco li {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	font-size: var(--text-2xs);
+}
+
+.grafico-attivi-tooltip-swatch {
+	flex-shrink: 0;
+	width: 0.6rem;
+	height: 0.6rem;
+	border-radius: 2px;
+}
+
+/* Il valore guida, il nome del gruppo segue: chi legge il tooltip ha già il
+   colore/la colonna sotto il cursore, cerca il numero. */
+.grafico-attivi-tooltip-valore {
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.grafico-attivi-tooltip-nome {
+	color: var(--text-muted-on-dark);
+}
+
+.grafico-attivi-tooltip-totale {
+	margin: 0.4rem 0 0;
+	padding-top: 0.4rem;
+	border-top: 1px solid var(--border-dark);
+	font-size: var(--text-2xs);
+	color: var(--text-muted-on-dark);
 }
 
 /* Split sito/in sede (vedi GraficoContatti, dashboard direzionale): stessi
