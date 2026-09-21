@@ -91,3 +91,33 @@ export async function assegnaProdotto(prodotto: string, gruppoId: string | null)
   rivalidaReport()
   return { ok: true }
 }
+
+// "No abbonamento": prodotti come "VISITA MEDICA" o "QUOTA ISCRIZIONE" che
+// Info4U registra come una vendita qualunque ma non sono un vero
+// abbonamento — flaggati qui escono dal conteggio utenti attivi e dal
+// report scadenze/rinnovi (vedi 2026-09-21-abbonamenti-no-abbonamento.sql).
+// Upsert per prodotto come assegnaProdotto: un prodotto mai categorizzato
+// prima (nessuna riga in abbonamenti_mappatura) può comunque essere
+// flaggato senza dover prima scegliergli un gruppo.
+export async function impostaNoAbbonamento(prodotto: string, valore: boolean): Promise<Esito> {
+  if (!(await utenteHaSezione('abbonamenti'))) {
+    return { ok: false, errore: 'Non hai accesso a questa sezione.' }
+  }
+
+  const supabase = createSupabaseServiceClient()
+  const { error } = await supabase
+    .from('abbonamenti_mappatura')
+    .upsert({ prodotto, no_abbonamento: valore, aggiornato_il: new Date().toISOString() }, { onConflict: 'prodotto' })
+  if (error) {
+    if (/no_abbonamento/.test(error.message)) {
+      return {
+        ok: false,
+        errore: 'Manca la colonna no_abbonamento: esegui scripts/sql/2026-09-21-abbonamenti-no-abbonamento.sql nel SQL Editor.',
+      }
+    }
+    return { ok: false, errore: error.message }
+  }
+
+  rivalidaReport()
+  return { ok: true }
+}

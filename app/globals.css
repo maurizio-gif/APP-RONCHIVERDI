@@ -976,6 +976,15 @@ table.tabella tbody tr:hover {
 	color: var(--accent);
 }
 
+/* Intestazione di colonna con una spiegazione al passaggio del mouse (il
+   tooltip nativo del browser, via l'attributo title — stesso meccanismo di
+   PushToggleNavItem, non un componente nuovo): il sottolineato a puntini è
+   l'unico indizio visivo che lì sotto c'è altro da leggere. */
+.th-aiuto {
+	cursor: help;
+	border-bottom: 1px dotted var(--text-muted);
+}
+
 /* ────────────────────────────────── report giornaliero (Core Manager) */
 
 .report-mese-nav {
@@ -1038,6 +1047,21 @@ table.tabella tbody tr:hover {
 
 .cella-gruppo.has-errore {
 	border-color: var(--error);
+}
+
+.cella-centrata {
+	text-align: center;
+}
+
+.cella-centrata input[type='checkbox'] {
+	width: 1.1rem;
+	height: 1.1rem;
+	accent-color: var(--accent);
+}
+
+.cella-centrata input[type='checkbox'].has-errore {
+	outline: 1.5px solid var(--error);
+	outline-offset: 2px;
 }
 
 /* ──────────────────────────────────────────────────────── badge e messaggi */

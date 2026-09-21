@@ -27,7 +27,7 @@ export default async function GruppiAbbonamentiPage({
   const hrefOrdinaData = `/dashboard/abbonamenti/gruppi?ordina=ultima_vendita&dir=${prossimaDirezione}`
 
   const supabase = createSupabaseServiceClient()
-  let queryProdotti = supabase.from('abbonamenti_prodotti').select('prodotto, numero_vendite, ultima_vendita')
+  let queryProdotti = supabase.from('abbonamenti_prodotti').select('prodotto, numero_vendite, ultima_vendita, varianti')
   queryProdotti = ordinaPerData
     ? queryProdotti.order('ultima_vendita', { ascending: direzioneAttuale === 'asc', nullsFirst: direzioneAttuale === 'asc' })
     : queryProdotti.order('prodotto')
@@ -35,14 +35,18 @@ export default async function GruppiAbbonamentiPage({
   const [gruppi, prodottiRisposta, mappaturaRisposta] = await Promise.all([
     caricaGruppi(),
     queryProdotti,
-    supabase.from('abbonamenti_mappatura').select('prodotto, gruppo_id'),
+    supabase.from('abbonamenti_mappatura').select('prodotto, gruppo_id, no_abbonamento'),
   ])
 
   const erroreViste = prodottiRisposta.error
   const prodotti = prodottiRisposta.data ?? []
 
   const mappaGruppo = new Map<string, string | null>()
-  for (const riga of mappaturaRisposta.data ?? []) mappaGruppo.set(riga.prodotto, riga.gruppo_id)
+  const mappaNoAbbonamento = new Map<string, boolean>()
+  for (const riga of mappaturaRisposta.data ?? []) {
+    mappaGruppo.set(riga.prodotto, riga.gruppo_id)
+    mappaNoAbbonamento.set(riga.prodotto, riga.no_abbonamento ?? false)
+  }
 
   const daCategorizzare = prodotti.filter((p) => !mappaGruppo.get(p.prodotto)).length
 
@@ -108,6 +112,14 @@ export default async function GruppiAbbonamentiPage({
                       </Link>
                     </th>
                     <th>Gruppo</th>
+                    <th>
+                      <span
+                        className="th-aiuto"
+                        title="Segna Sì per un prodotto che non è un vero abbonamento (visita medica, quota d'iscrizione, omaggio, tesseramento...): esce dal conteggio degli utenti attivi e dal report scadenze/rinnovi, sia come voce propria sia come possibile «rinnovo» di un'altra vendita."
+                      >
+                        No abbonamento
+                      </span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -119,6 +131,8 @@ export default async function GruppiAbbonamentiPage({
                       ultimaVenditaTesto={dataBreveAnno(p.ultima_vendita)}
                       gruppoId={mappaGruppo.get(p.prodotto) ?? null}
                       gruppi={gruppi}
+                      noAbbonamento={mappaNoAbbonamento.get(p.prodotto) ?? false}
+                      varianti={p.varianti ?? []}
                     />
                   ))}
                 </tbody>
