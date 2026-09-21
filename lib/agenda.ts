@@ -162,12 +162,25 @@ export function eEsitoValido(valore: string | null | undefined): valore is Esito
 }
 
 /**
+ * L'etichetta di un esito, condizionata al tipo di evento: il commerciale
+ * chiama "No-show" una visita in sede a cui la persona non si è presentata —
+ * "Fallita" lì suonerebbe come un errore di chi doveva riceverla, non come
+ * un'assenza di chi doveva venire. Su una telefonata o un messaggio "fallita"
+ * resta invariata: lì vuol dire un'altra cosa (non ha risposto, per esempio),
+ * e "no-show" non avrebbe senso — nessuno doveva presentarsi da nessuna parte.
+ */
+export function etichettaEsito(esito: Esito, tipo?: TipoVoce | null): string {
+  if (esito === 'fallita' && tipo === 'appuntamento_in_sede') return 'No-show'
+  return ETICHETTE_ESITO[esito]
+}
+
+/**
  * L'etichetta da mostrare: su una voce chiusa vince l'esito, perché "Fatto" su
  * qualcosa che è andata male direbbe il falso. Senza esito (voci chiuse prima
  * che gli esiti esistessero) resta l'etichetta dello stato.
  */
-export function etichettaStato(stato: Stato, esitoTipo: Esito | null): string {
-  if (stato === 'completato' && esitoTipo) return ETICHETTE_ESITO[esitoTipo]
+export function etichettaStato(stato: Stato, esitoTipo: Esito | null, tipo?: TipoVoce | null): string {
+  if (stato === 'completato' && esitoTipo) return etichettaEsito(esitoTipo, tipo)
   return ETICHETTE_STATO[stato]
 }
 

@@ -2,10 +2,10 @@
 
 import { useState, useTransition } from 'react'
 import {
-  ETICHETTE_ESITO,
   dataOra,
   eAppuntamentoVero,
   eEsitoValido,
+  etichettaEsito,
   tipoDaAzione,
   voceDaContatto,
 } from '@/lib/agenda'
@@ -142,7 +142,7 @@ export function GestioneEvento({
             <span className="badge badge-off badge-punto">
               {conInterruttore ? 'gestita' : 'chiusa'}
             </span>{' '}
-            {eEsitoValido(r.esito_tipo) && <strong>{ETICHETTE_ESITO[r.esito_tipo]}</strong>}
+            {eEsitoValido(r.esito_tipo) && <strong>{etichettaEsito(r.esito_tipo, tipo)}</strong>}
             {eEsitoValido(r.esito_tipo) && ' · '}
             <span className="muted">
               {chiusaDa ? `da ${chiusaDa}` : 'firma non registrata'}
@@ -231,6 +231,7 @@ export function GestioneEvento({
             titolo={nome}
             operatori={operatori}
             puoCancellare={puoCancellare}
+            tipo={tipo}
             conOrario={!!tipoAppuntamento}
             dataCorrente={r.data_scelta}
             oraCorrente={r.ora_scelta ? String(r.ora_scelta).slice(0, 5) : null}

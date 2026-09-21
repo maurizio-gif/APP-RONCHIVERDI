@@ -479,7 +479,7 @@ export function NuovaVoce({
               <label htmlFor="esito">Com&apos;è andata</label>
               <select id="esito" name="esito" defaultValue="eseguita">
                 <option value="eseguita">Eseguita</option>
-                <option value="fallita">Fallita</option>
+                <option value="fallita">{tipo === 'appuntamento_in_sede' ? 'No-show' : 'Fallita'}</option>
               </select>
             </div>
             <div className="field" style={{ flexBasis: '100%' }}>

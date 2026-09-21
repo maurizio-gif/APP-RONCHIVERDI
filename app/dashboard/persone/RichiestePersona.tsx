@@ -285,6 +285,7 @@ export function RichiestePersona({
                       titolo={nome}
                       operatori={operatori}
                       puoCancellare={puoCancellare}
+                      tipo={tipo}
                       conOrario
                       dataCorrente={r.data_scelta}
                       oraCorrente={r.ora_scelta ? String(r.ora_scelta).slice(0, 5) : null}

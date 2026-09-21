@@ -311,7 +311,7 @@ export function EventiElenco({
                           eseguita ? 'badge-ok' : fallita ? 'badge-ko' : 'badge-off'
                         }`}
                       >
-                        {etichettaStato(voce.stato, voce.esitoTipo)}
+                        {etichettaStato(voce.stato, voce.esitoTipo, voce.tipo)}
                       </span>
                     )}
 
@@ -448,6 +448,7 @@ export function EventiElenco({
                       titolo={voce.titolo}
                       operatori={operatori}
                       puoCancellare={puoCancellare}
+                      tipo={voce.tipo}
                       conOrario={eAppuntamentoVero(voce.tipo)}
                       dataCorrente={voce.data}
                       oraCorrente={voce.ora}

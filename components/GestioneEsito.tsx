@@ -4,10 +4,10 @@ import { useState, useTransition } from 'react'
 import { SelettoreAssegnatario } from '@/components/SelettoreAssegnatario'
 import {
   DURATA_PREDEFINITA,
-  ETICHETTE_ESITO,
   OPZIONI_TIPO,
   OPZIONI_TIPO_PROGRAMMABILI,
   eAppuntamentoVero,
+  etichettaEsito,
   eTipoValido,
   giornoPiu,
   oggiRoma,
@@ -68,6 +68,17 @@ const GRUPPI: { chiave: Gruppo; etichetta: string }[] = [
   { chiave: 'annullata', etichetta: 'Annullata' },
 ]
 
+/**
+ * L'etichetta di un gruppo, come per etichettaEsito in lib/agenda.ts: su una
+ * visita in sede "fallita" si legge "No-show", il linguaggio del commerciale
+ * per chi non si è presentato. Riprogrammata e annullata non sono esiti (vedi
+ * il tipo `Gruppo`) e restano invariate in ogni caso.
+ */
+function etichettaGruppo(chiave: Gruppo, inSede: boolean): string {
+  if (chiave === 'fallita' && inSede) return 'No-show'
+  return GRUPPI.find((g) => g.chiave === chiave)!.etichetta
+}
+
 /** "3 set 14:20" — quando una nota è stata scritta, accanto a chi l'ha scritta. */
 function dataOraBreve(iso: string): string {
   return new Date(iso).toLocaleString('it-IT', {
@@ -85,6 +96,7 @@ export function GestioneEsito({
   titolo,
   operatori,
   puoCancellare,
+  tipo = null,
   conOrario = false,
   dataCorrente,
   oraCorrente,
@@ -101,6 +113,12 @@ export function GestioneEsito({
   titolo: string
   operatori: string[]
   puoCancellare: boolean
+  /**
+   * Il tipo dell'evento che si chiude: decide come si chiama un esito
+   * "fallita" — su una visita in sede è "No-show" (vedi etichettaEsito in
+   * lib/agenda.ts). Assente sulle chiusure che non hanno un tipo a monte.
+   */
+  tipo?: TipoVoce | null
   /** Se la voce è un appuntamento vero: solo quelli si spostano anche di ora. */
   conOrario?: boolean
   /** Giorno e ora attuali, come punto di partenza della riprogrammazione. */
@@ -135,6 +153,7 @@ export function GestioneEsito({
    */
   seguito?: CollegamentoEvento | null
 }) {
+  const inSede = tipo === 'appuntamento_in_sede'
   const [gruppo, setGruppo] = useState<Gruppo | null>(null)
   // Su una voce chiusa i pulsanti non si vedono finché non li si chiede
   // esplicitamente: vederli accanto a un esito già scritto fa credere che ci
@@ -275,7 +294,7 @@ export function GestioneEsito({
           correggere lo fa dopo aver visto cosa c'era. */}
       {chiusa && (
         <p className="esito-firma">
-          {esitoCorrente ? ETICHETTE_ESITO[esitoCorrente] : 'Chiusa senza esito'}
+          {esitoCorrente ? etichettaEsito(esitoCorrente, tipo) : 'Chiusa senza esito'}
           {firma ? ` da ${firma}` : ''}
           {firmaIl ? ` il ${dataOraBreve(firmaIl)}` : ''}
           {!firma && !firmaIl && ' — firma non registrata'}
@@ -305,7 +324,7 @@ export function GestioneEsito({
         (gruppo ? (
           <div className="esito-gruppi-scelto">
             <span className="muted">
-              Esito: <strong>{GRUPPI.find((g) => g.chiave === gruppo)?.etichetta}</strong>
+              Esito: <strong>{etichettaGruppo(gruppo, inSede)}</strong>
             </span>
             <button
               type="button"
@@ -339,7 +358,7 @@ export function GestioneEsito({
                     ✓
                   </span>
                 )}
-                {g.etichetta}
+                {etichettaGruppo(g.chiave, inSede)}
               </button>
             ))}
             {/* Via dalla correzione senza salvare: chi ha cliccato «Correggi»
@@ -374,7 +393,9 @@ export function GestioneEsito({
               onChange={(e) => setNota(e.target.value)}
               placeholder={
                 gruppo === 'fallita'
-                  ? 'Perché non è andata: non ha risposto, non è più interessato…'
+                  ? inSede
+                    ? 'Perché non si è presentato/a: non ha risposto neanche prima, imprevisto dell’ultimo minuto…'
+                    : 'Perché non è andata: non ha risposto, non è più interessato…'
                   : gruppo === 'annullata'
                     ? 'Perché la rimuovi: creata per errore, prova, doppione…'
                     : gruppo === 'riprogrammata'
@@ -454,8 +475,8 @@ export function GestioneEsito({
                   {inCorso
                     ? 'Salvataggio…'
                     : chiusa
-                      ? `Salva: ${gruppo}`
-                      : `Chiudi ${gruppo}`}
+                      ? `Salva: ${etichettaGruppo(gruppo, inSede).toLowerCase()}`
+                      : `Chiudi ${etichettaGruppo(gruppo, inSede).toLowerCase()}`}
                 </button>
 
                 {chiusa && (

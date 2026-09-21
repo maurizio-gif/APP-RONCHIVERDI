@@ -714,7 +714,7 @@ function VoceStorico({
               voce.daFare ? 'badge-warn' : voce.esitoTipo === 'fallita' ? 'badge-ko' : 'badge-ok'
             }`}
           >
-            {etichettaStato(voce.stato, voce.esitoTipo)}
+            {etichettaStato(voce.stato, voce.esitoTipo, voce.tipo)}
           </span>
           <span className="muted" style={{ marginLeft: '0.5rem', fontSize: 'var(--text-sm)' }}>
             {voce.assegnatoA

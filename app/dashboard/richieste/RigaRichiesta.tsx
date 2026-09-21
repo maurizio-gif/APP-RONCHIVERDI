@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react'
 import {
-  ETICHETTE_ESITO,
   ETICHETTE_TIPO_BREVI,
   dataBreve,
   dataOra,
   eAppuntamentoVero,
   eEsitoValido,
+  etichettaEsito,
   tipoDaAzione,
 } from '@/lib/agenda'
 import { CLASSE_BADGE_STATO, CLASSE_RIGA_STATO, ETICHETTE_STATO } from '@/lib/pipeline'
@@ -297,7 +297,7 @@ export function RigaRichiesta({
                     r.esito_tipo === 'eseguita' ? 'badge-ok' : 'badge-ko'
                   }`}
                 >
-                  chiusa · {ETICHETTE_ESITO[r.esito_tipo].toLowerCase()}
+                  chiusa · {etichettaEsito(r.esito_tipo, tipo).toLowerCase()}
                 </span>
               ) : r.gestito ? (
                 <span className="badge badge-off badge-punto">

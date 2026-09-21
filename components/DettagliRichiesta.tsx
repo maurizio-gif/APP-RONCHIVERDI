@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ETICHETTE_ESITO, dataOra, eEsitoValido } from '@/lib/agenda'
+import { dataOra, eEsitoValido, etichettaEsito, tipoDaAzione } from '@/lib/agenda'
 import { dominioDi, percorsoBreve, primoContattoDi, provenienzaRichiesta } from '@/lib/percorsoSito'
 import { nomeDiEmail } from '@/lib/staff'
 import { PercorsoSito } from '@/components/PercorsoSito'
@@ -53,6 +53,7 @@ export function DettagliRichiesta({
   nomiStaff?: Record<string, string>
 }) {
   const minore = [r.minore_nome, r.minore_cognome].filter(Boolean).join(' ')
+  const tipo = tipoDaAzione(r.azione)
   const provenienza = provenienzaRichiesta(r)
   const primoContatto = primoContattoDi(r)
   const firmaEsito = nomeDiEmail(r.esito_da, nomiStaff)
@@ -149,7 +150,7 @@ export function DettagliRichiesta({
           {eEsitoValido(r.esito_tipo) && (
             <>
               <dt>Esito</dt>
-              <dd>{ETICHETTE_ESITO[r.esito_tipo]}</dd>
+              <dd>{etichettaEsito(r.esito_tipo, tipo)}</dd>
             </>
           )}
           {r.esito && (

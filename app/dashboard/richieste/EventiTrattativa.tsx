@@ -139,7 +139,7 @@ export function EventiTrattativa({
                 <span className="evento-titolo">{evento.titolo}</span>
 
                 <span className={`badge ${classeStato(evento)}`}>
-                  {etichettaStato(evento.stato, evento.esitoTipo)}
+                  {etichettaStato(evento.stato, evento.esitoTipo, evento.tipo)}
                 </span>
               </div>
 
@@ -247,6 +247,7 @@ export function EventiTrattativa({
                   titolo={evento.titolo}
                   operatori={operatori}
                   puoCancellare={puoCancellare}
+                  tipo={evento.tipo}
                   conOrario={eAppuntamentoVero(evento.tipo)}
                   dataCorrente={evento.data}
                   oraCorrente={evento.ora}
@@ -388,7 +389,7 @@ function ModuloEvento({
               onChange={(e) => setBozza((b) => ({ ...b, esito: e.target.value }))}
             >
               <option value="eseguita">Eseguita</option>
-              <option value="fallita">Fallita</option>
+              <option value="fallita">{bozza.tipo === 'appuntamento_in_sede' ? 'No-show' : 'Fallita'}</option>
             </select>
           </div>
           <div className="field" style={{ flexBasis: '100%' }}>
@@ -401,7 +402,9 @@ function ModuloEvento({
               onChange={(e) => setBozza((b) => ({ ...b, notaEsito: e.target.value }))}
               placeholder={
                 bozza.esito === 'fallita'
-                  ? 'Perché non è andata: non ha risposto, non è più interessato…'
+                  ? bozza.tipo === 'appuntamento_in_sede'
+                    ? 'Perché non si è presentato/a: non ha risposto neanche prima, imprevisto dell’ultimo minuto…'
+                    : 'Perché non è andata: non ha risposto, non è più interessato…'
                   : 'Cosa è stato detto e cosa succede adesso'
               }
             />

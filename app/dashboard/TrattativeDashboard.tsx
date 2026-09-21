@@ -415,6 +415,7 @@ function RigaOpportunita({
                   titolo={nome}
                   operatori={operatori}
                   puoCancellare={puoCancellare}
+                  tipo={evento.tipo}
                   conOrario
                   dataCorrente={evento.data}
                   oraCorrente={evento.ora}
