@@ -90,24 +90,6 @@ export default async function AbbonamentiPage({
     })
   )
 
-  // Sezione 2: il mese intero (non tagliato a oggi) degli ultimi due anni
-  // già conclusi — a parte apposta, per non confonderlo con il confronto a
-  // parità di giorni qui sopra: qui il mese corrente NON compare, perché non
-  // è ancora finito.
-  const anniMeseIntero = [annoCorrente - 2, annoCorrente - 1]
-  const mesiInteri = await Promise.all(
-    anniMeseIntero.map(async (anno) => {
-      const mm = String(mese).padStart(2, '0')
-      let query = supabase
-        .from('abbonamenti_mensili')
-        .select('numero_vendite, fatturato')
-        .eq('mese', `${anno}-${mm}-01`)
-      if (filtroAttivo) query = query.in('gruppo_id', gruppiSelezionati)
-      const { data } = await query
-      return { anno, ...sommaRighe(data) }
-    })
-  )
-
   // Sezione 3: gli ultimi 12 mesi (compreso quello in corso, parziale), per
   // due grafici a barre impilate per gruppo — fatturato delle vendite e
   // abbonati attivi a fine mese. Logica condivisa con la Dashboard
@@ -403,30 +385,6 @@ export default async function AbbonamentiPage({
         ) : (
           <p className="muted">Seleziona un solo gruppo per vedere o impostare il suo obiettivo del mese.</p>
         )}
-      </div>
-
-      <div className="card">
-        <p className="filtri-titolo">Fatturato di {nomeMese}, mese intero — anni passati</p>
-        <div className="tabella-wrap">
-          <table className="tabella">
-            <thead>
-              <tr>
-                <th>Anno</th>
-                <th>Vendite</th>
-                <th>Fatturato</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mesiInteri.map((m) => (
-                <tr key={m.anno}>
-                  <td>{m.anno}</td>
-                  <td>{m.vendite || '—'}</td>
-                  <td>{m.fatturato ? euro(m.fatturato) : '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </div>
 
       {erroreFatturatoMensile && /abbonamenti_mensili/.test(erroreFatturatoMensile.message) ? (
