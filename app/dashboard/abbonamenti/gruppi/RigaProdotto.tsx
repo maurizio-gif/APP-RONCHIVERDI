@@ -12,6 +12,7 @@ export default function RigaProdotto({
   gruppi,
   noAbbonamento,
   varianti,
+  attiviOra,
 }: {
   prodotto: string
   numeroVendite: number
@@ -20,6 +21,10 @@ export default function RigaProdotto({
   gruppi: Gruppo[]
   noAbbonamento: boolean
   varianti: string[]
+  // Presente solo nella vista "solo attivi" (?solo=attivi): quanti abbonati
+  // attivi oggi ha questo prodotto, la priorità per cui vale la pena
+  // sistemarlo. undefined nella vista normale — niente colonna in più lì.
+  attiviOra?: number
 }) {
   const [valore, setValore] = useState(gruppoId ?? '')
   const [inCorso, startTransition] = useTransition()
@@ -58,6 +63,7 @@ export default function RigaProdotto({
           prodotto
         )}
       </td>
+      {attiviOra !== undefined && <td>{attiviOra}</td>}
       <td>{numeroVendite}</td>
       <td>{ultimaVenditaTesto}</td>
       <td>

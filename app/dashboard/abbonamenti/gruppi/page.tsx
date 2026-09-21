@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 export default async function GruppiAbbonamentiPage({
   searchParams,
 }: {
-  searchParams: { ordina?: string; dir?: string }
+  searchParams: { ordina?: string; dir?: string; solo?: string }
 }) {
   if (!(await utenteHaSezione('abbonamenti'))) redirect('/dashboard')
 
@@ -26,20 +26,29 @@ export default async function GruppiAbbonamentiPage({
   const prossimaDirezione = ordinaPerData && direzioneAttuale === 'desc' ? 'asc' : 'desc'
   const hrefOrdinaData = `/dashboard/abbonamenti/gruppi?ordina=ultima_vendita&dir=${prossimaDirezione}`
 
+  // "Solo attivi": non tutti i 350+ prodotti da categorizzare, solo quelli
+  // che hanno almeno un abbonato attivo adesso — molti prodotti da
+  // categorizzare sono storici (es. "ESTATE RAGAZZI 2007") e non pesano sul
+  // numero "Non categorizzato" del riquadro Utenti attivi in questo momento,
+  // quelli sì. Vedi abbonamenti_prodotti_attivi_non_categorizzati,
+  // scripts/sql/2026-09-21-abbonamenti-prodotti-attivi-non-categorizzati.sql.
+  const soloAttivi = searchParams.solo === 'attivi'
+
   const supabase = createSupabaseServiceClient()
   let queryProdotti = supabase.from('abbonamenti_prodotti').select('prodotto, numero_vendite, ultima_vendita, varianti')
   queryProdotti = ordinaPerData
     ? queryProdotti.order('ultima_vendita', { ascending: direzioneAttuale === 'asc', nullsFirst: direzioneAttuale === 'asc' })
     : queryProdotti.order('prodotto')
 
-  const [gruppi, prodottiRisposta, mappaturaRisposta] = await Promise.all([
+  const [gruppi, prodottiRisposta, mappaturaRisposta, prodottiAttiviRisposta] = await Promise.all([
     caricaGruppi(),
     queryProdotti,
     supabase.from('abbonamenti_mappatura').select('prodotto, gruppo_id, no_abbonamento'),
+    supabase.from('abbonamenti_prodotti_attivi_non_categorizzati').select('prodotto, numero_attivi'),
   ])
 
   const erroreViste = prodottiRisposta.error
-  const prodotti = prodottiRisposta.data ?? []
+  const erroreProdottiAttivi = prodottiAttiviRisposta.error
 
   const mappaGruppo = new Map<string, string | null>()
   const mappaNoAbbonamento = new Map<string, boolean>()
@@ -48,7 +57,39 @@ export default async function GruppiAbbonamentiPage({
     mappaNoAbbonamento.set(riga.prodotto, riga.no_abbonamento ?? false)
   }
 
-  const daCategorizzare = prodotti.filter((p) => !mappaGruppo.get(p.prodotto)).length
+  const mappaAttiviNonCategorizzati = new Map<string, number>()
+  for (const riga of prodottiAttiviRisposta.data ?? []) mappaAttiviNonCategorizzati.set(riga.prodotto, riga.numero_attivi)
+
+  const tuttiIProdotti = prodottiRisposta.data ?? []
+  const daCategorizzare = tuttiIProdotti.filter((p) => !mappaGruppo.get(p.prodotto)).length
+  const daCategorizzareAttivi = mappaAttiviNonCategorizzati.size
+
+  // Ordinati per priorità (più abbonati attivi prima), non alfabetico: qui
+  // lo scopo è "quale sistemo per primo", non "trova un prodotto per nome".
+  const prodotti = soloAttivi
+    ? tuttiIProdotti
+        .filter((p) => mappaAttiviNonCategorizzati.has(p.prodotto))
+        .sort((a, b) => (mappaAttiviNonCategorizzati.get(b.prodotto) ?? 0) - (mappaAttiviNonCategorizzati.get(a.prodotto) ?? 0))
+    : tuttiIProdotti
+
+  const hrefTutti = (() => {
+    const params = new URLSearchParams()
+    if (ordinaPerData) {
+      params.set('ordina', 'ultima_vendita')
+      params.set('dir', direzioneAttuale)
+    }
+    const query = params.toString()
+    return `/dashboard/abbonamenti/gruppi${query ? `?${query}` : ''}`
+  })()
+  const hrefSoloAttivi = (() => {
+    const params = new URLSearchParams()
+    params.set('solo', 'attivi')
+    if (ordinaPerData) {
+      params.set('ordina', 'ultima_vendita')
+      params.set('dir', direzioneAttuale)
+    }
+    return `/dashboard/abbonamenti/gruppi?${params.toString()}`
+  })()
 
   return (
     <div>
@@ -92,7 +133,26 @@ export default async function GruppiAbbonamentiPage({
           <div className="card">
             {daCategorizzare > 0 && (
               <p className="muted">
-                {daCategorizzare} prodott{daCategorizzare === 1 ? 'o' : 'i'} ancora da categorizzare.
+                {daCategorizzare} prodott{daCategorizzare === 1 ? 'o' : 'i'} ancora da categorizzare
+                {daCategorizzareAttivi > 0 && !soloAttivi && (
+                  <>
+                    {' '}
+                    — <Link href={hrefSoloAttivi}>{daCategorizzareAttivi} con abbonati attivi ora</Link>
+                  </>
+                )}
+                .
+              </p>
+            )}
+            {soloAttivi && (
+              <p className="muted">
+                Solo i {daCategorizzareAttivi} prodotti non categorizzati con almeno un abbonato attivo oggi, dal più
+                urgente. <Link href={hrefTutti}>Mostra tutti i prodotti</Link>
+              </p>
+            )}
+            {erroreProdottiAttivi && /abbonamenti_prodotti_attivi_non_categorizzati/.test(erroreProdottiAttivi.message) && (
+              <p className="vuoto">
+                Manca la vista di priorità: esegui
+                scripts/sql/2026-09-21-abbonamenti-prodotti-attivi-non-categorizzati.sql nel SQL Editor di Supabase.
               </p>
             )}
             <div className="tabella-wrap">
@@ -100,6 +160,7 @@ export default async function GruppiAbbonamentiPage({
                 <thead>
                   <tr>
                     <th>Prodotto (da Info4U)</th>
+                    {soloAttivi && <th>Attivi ora</th>}
                     <th>Vendite totali</th>
                     <th>
                       <Link href={hrefOrdinaData} className="th-ordina">
@@ -133,6 +194,7 @@ export default async function GruppiAbbonamentiPage({
                       gruppi={gruppi}
                       noAbbonamento={mappaNoAbbonamento.get(p.prodotto) ?? false}
                       varianti={p.varianti ?? []}
+                      attiviOra={soloAttivi ? (mappaAttiviNonCategorizzati.get(p.prodotto) ?? 0) : undefined}
                     />
                   ))}
                 </tbody>

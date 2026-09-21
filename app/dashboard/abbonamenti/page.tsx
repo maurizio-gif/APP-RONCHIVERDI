@@ -283,7 +283,7 @@ export default async function AbbonamentiPage({
               )
             })}
             {!filtroAttivo && nonCategorizzatoAttivi > 0 && (
-              <Link href="/dashboard/abbonamenti/gruppi" className="stat stat-warn">
+              <Link href="/dashboard/abbonamenti/gruppi?solo=attivi" className="stat stat-warn">
                 <span className="stat-testa">
                   <span className="stat-label">Non categorizzato</span>
                 </span>
