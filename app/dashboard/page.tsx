@@ -458,7 +458,15 @@ async function trattativeDaLavorare(email: string | null) {
   // lavoro che nessuno ha in mano.
   const libere = aperte.filter((t) => !t.assegnato_a)
 
-  const scelte = [...mie, ...libere].slice(0, TRATTATIVE_IN_ELENCO * 2)
+  // Esattamente le righe che finiscono in pagina — vedi `mie.slice(...)` e
+  // `libere.slice(...)` più sotto, nel return — non un taglio unico sulle due
+  // liste concatenate: con quello, chi ha 24 o più trattative proprie (`mie`)
+  // esauriva da solo il conto e le «libere» restavano fuori dal recupero di
+  // nome/cognome/email/cellulare pur comparendo comunque in elenco — ogni
+  // trattativa da prendere in carico appariva come «Senza nome», con la
+  // provenienza sbagliata (Agenda invece di Sito/Guest Register) perché senza
+  // l'evento agganciato sembrava nata senza nessuna richiesta dietro.
+  const scelte = [...mie.slice(0, TRATTATIVE_IN_ELENCO), ...libere.slice(0, TRATTATIVE_IN_ELENCO)]
   const personaIds = [...new Set(scelte.map((t) => t.persona_id).filter(Boolean))] as string[]
   const trattativaIds = scelte.map((t) => t.id as string)
 
