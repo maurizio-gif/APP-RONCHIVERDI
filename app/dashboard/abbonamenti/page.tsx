@@ -4,7 +4,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { caricaAndamentoPerGruppo, caricaGruppi } from '@/lib/abbonamenti'
 import { euro, testoVariazione } from '@/lib/pipeline'
-import { mesePiu, oggiRoma } from '@/lib/agenda'
+import { etichettaMese, mesePiu, oggiRoma, primoDelMese } from '@/lib/agenda'
 import ObiettivoMensile from './ObiettivoMensile'
 import { GraficoPerGruppo } from './GraficoPerGruppo'
 
@@ -124,6 +124,38 @@ export default async function AbbonamentiPage({
   const nonCategorizzatoAttivi = attiviOggiPerGruppo.get(null) ?? 0
   const totaleAttivi = Array.from(attiviOggiPerGruppo.values()).reduce((tot, n) => tot + n, 0)
 
+  // Scadenze: mese corrente e i tre successivi, con quante di quelle
+  // vendite hanno già un rinnovo nello stesso gruppo. Vista GIÀ aggregata
+  // (abbonamenti_scadenze_mensili) e non le righe grezze: un mese di punta
+  // (settembre, oltre 1500 scadenze) supera il limite di 1000 righe che
+  // PostgREST impone comunque a una select, `.limit()` del client o no —
+  // aggregando lato database il risultato resta poche righe, mai vicino al
+  // limite. Il dettaglio persona per persona si legge nella pagina
+  // /scadenze (vedi scripts/sql/2026-09-21-abbonamenti-scadenze.sql).
+  const mesiScadenza = Array.from({ length: 4 }, (_, i) => mesePiu(meseCorrenteData, i))
+  let queryScadenze = supabase
+    .from('abbonamenti_scadenze_mensili')
+    .select('mese, gruppo_id, rinnovato, numero')
+    .gte('mese', mesiScadenza[0])
+    .lt('mese', mesePiu(meseCorrenteData, 4))
+  if (filtroAttivo) queryScadenze = queryScadenze.in('gruppo_id', gruppiSelezionati)
+  const { data: scadenzeGrezze, error: erroreScadenze } = await queryScadenze
+
+  const scadenzePerMese = new Map<string, { totale: number; daRichiamare: number }>()
+  for (const r of scadenzeGrezze ?? []) {
+    const meseRiga = primoDelMese(r.mese)
+    const voce = scadenzePerMese.get(meseRiga) ?? { totale: 0, daRichiamare: 0 }
+    voce.totale += r.numero
+    if (!r.rinnovato) voce.daRichiamare += r.numero
+    scadenzePerMese.set(meseRiga, voce)
+  }
+
+  function hrefScadenze(m: string) {
+    const params = new URLSearchParams({ mese: m })
+    if (filtroAttivo) params.set('gruppi', gruppiSelezionati.join(','))
+    return `/dashboard/abbonamenti/scadenze?${params.toString()}`
+  }
+
   // L'obiettivo segue lo stesso filtro delle statistiche sopra: "Tutti" mostra
   // il generale, un solo gruppo selezionato mostra e permette di impostare il
   // suo. Più gruppi insieme sono una combinazione qualunque, senza una riga
@@ -207,6 +239,36 @@ export default async function AbbonamentiPage({
                 <span className="stat-nota">Assegna un gruppo ai prodotti mancanti</span>
               </Link>
             )}
+          </div>
+        </div>
+      )}
+
+      {erroreScadenze && /abbonamenti_scadenze/.test(erroreScadenze.message) ? (
+        <div className="card">
+          <p className="vuoto">
+            Manca la vista delle scadenze: esegui scripts/sql/2026-09-21-abbonamenti-scadenze.sql nel SQL Editor di
+            Supabase.
+          </p>
+        </div>
+      ) : (
+        <div className="card">
+          <p className="filtri-titolo">Abbonamenti in scadenza</p>
+          <p className="muted">
+            Mese corrente e i tre successivi — clicca un mese per l&apos;elenco e chi deve ancora rinnovare.
+          </p>
+          <div className="griglia-stat">
+            {mesiScadenza.map((m) => {
+              const voce = scadenzePerMese.get(m) ?? { totale: 0, daRichiamare: 0 }
+              return (
+                <Link key={m} href={hrefScadenze(m)} className={`stat${voce.totale > 0 ? '' : ' is-vuoto'}`}>
+                  <span className="stat-testa">
+                    <span className="stat-label">{etichettaMese(m)}</span>
+                  </span>
+                  <span className="stat-valore">{voce.totale}</span>
+                  {voce.daRichiamare > 0 && <span className="stat-nota">{voce.daRichiamare} da richiamare</span>}
+                </Link>
+              )
+            })}
           </div>
         </div>
       )}
