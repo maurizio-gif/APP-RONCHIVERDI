@@ -31,9 +31,18 @@ const MIN_CARATTERI_RICERCA_SERVER = 2
 // importati da Info4U — lì semplicemente non c'è. Da due caratteri in su la
 // ricerca passa al server (cercaPersone), che interroga l'anagrafica intera:
 // è l'unico modo di trovare chi non è fra le righe già caricate.
-export function RicercaPersone({ persone }: { persone: Persona[] }) {
+export function RicercaPersone({
+  persone,
+  idInGestione,
+}: {
+  persone: Persona[]
+  /** Chi ha una trattativa in gestione, su tutta l'anagrafica (vedi PersonePage). */
+  idInGestione: string[]
+}) {
   const [q, setQ] = useState('')
   const [soloDaLavorare, setSoloDaLavorare] = useState(false)
+  const [soloInGestione, setSoloInGestione] = useState(false)
+  const inGestione = useMemo(() => new Set(idInGestione), [idInGestione])
   const [risultatiServer, setRisultatiServer] = useState<Persona[] | null>(null)
   const [errore, setErrore] = useState<string | null>(null)
   const [inCorso, startTransition] = useTransition()
@@ -75,15 +84,19 @@ export function RicercaPersone({ persone }: { persone: Persona[] }) {
     return indice
       .filter(({ p, testo }) => {
         if (soloDaLavorare && !p.richieste_da_lavorare) return false
+        if (soloInGestione && !inGestione.has(p.id)) return false
         // Tutti i termini devono comparire, in qualunque ordine: "rossi
         // mario" e "mario rossi" devono trovare la stessa persona.
         return termini.every((t) => testo.includes(t))
       })
       .map(({ p }) => p)
-  }, [indice, q, soloDaLavorare])
+  }, [indice, q, soloDaLavorare, soloInGestione, inGestione])
 
   const filtrate = inRicercaServer
-    ? (risultatiServer ?? []).filter((p) => !soloDaLavorare || p.richieste_da_lavorare > 0)
+    ? (risultatiServer ?? []).filter(
+        (p) =>
+          (!soloDaLavorare || p.richieste_da_lavorare > 0) && (!soloInGestione || inGestione.has(p.id))
+      )
     : filtrateLocali
 
   return (
@@ -114,6 +127,14 @@ export function RicercaPersone({ persone }: { persone: Persona[] }) {
                 onChange={(e) => setSoloDaLavorare(e.target.checked)}
               />
               <span>Solo con richieste da lavorare</span>
+            </label>
+            <label className="check-riga" style={{ marginTop: '0.5rem' }}>
+              <input
+                type="checkbox"
+                checked={soloInGestione}
+                onChange={(e) => setSoloInGestione(e.target.checked)}
+              />
+              <span>Solo con trattative in gestione</span>
             </label>
           </div>
         </div>
@@ -156,6 +177,11 @@ export function RicercaPersone({ persone }: { persone: Persona[] }) {
                       {p.richieste_da_lavorare > 0 && (
                         <span className="badge badge-warn" style={{ marginLeft: '0.5rem' }}>
                           {p.richieste_da_lavorare} da lavorare
+                        </span>
+                      )}
+                      {inGestione.has(p.id) && (
+                        <span className="badge badge-info" style={{ marginLeft: '0.5rem' }}>
+                          In gestione
                         </span>
                       )}
                       {/* Inserito a mano dalla segreteria: è la riga con zero

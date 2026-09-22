@@ -16,7 +16,7 @@ export default async function PersonePage() {
   }
 
   const supabase = createSupabaseServiceClient()
-  const [{ data, error }, { data: manuali }, { count: totalePersone }] = await Promise.all([
+  const [{ data, error }, { data: manuali }, { count: totalePersone }, { data: inGestione }] = await Promise.all([
     supabase
       .from('persone_con_richieste')
       .select('id, nome, cognome, email, cellulare, note, richieste, richieste_da_lavorare, prima_richiesta, ultima_richiesta')
@@ -38,12 +38,37 @@ export default async function PersonePage() {
     // "In anagrafica" mentirebbe proprio sul numero che i contatti storici
     // importati da Info4U hanno reso sbagliato.
     supabase.from('persone').select('id', { count: 'exact', head: true }),
+    // Chi ha una trattativa in gestione, per il filtro omonimo. Si chiedono
+    // gli id delle persone e non le trattative intere: al filtro serve solo
+    // sapere chi, non a che punto.
+    supabase.from('opportunita').select('persona_id').eq('stato', 'in_gestione'),
   ])
 
   if (error) console.error('Anagrafica non letta:', error.message)
 
+  const idInGestione = Array.from(
+    new Set((inGestione ?? []).map((t) => t.persona_id as string | null).filter((id): id is string => !!id))
+  )
+
+  // Una trattativa in gestione non vuol dire una richiesta recente: chi è
+  // arrivato al banco o da Info4U può stare fuori dalle 500 caricate, e il
+  // filtro «in gestione» lo perderebbe proprio mentre qualcuno lo segue. Chi
+  // manca si carica a parte e si accoda.
+  const caricate = (data ?? []) as unknown as Persona[]
+  const giaCaricati = new Set(caricate.map((p) => p.id))
+  const mancanti = idInGestione.filter((id) => !giaCaricati.has(id))
+  let aggiunte: Persona[] = []
+  if (mancanti.length > 0) {
+    const { data: extra, error: erroreExtra } = await supabase
+      .from('persone_con_richieste')
+      .select('id, nome, cognome, email, cellulare, note, richieste, richieste_da_lavorare, prima_richiesta, ultima_richiesta')
+      .in('id', mancanti)
+    if (erroreExtra) console.error('Contatti in gestione non letti:', erroreExtra.message)
+    aggiunte = (extra ?? []) as unknown as Persona[]
+  }
+
   const idManuali = new Set((manuali ?? []).map((p) => p.id as string))
-  const persone = ((data ?? []) as unknown as Persona[]).map((p) =>
+  const persone = [...caricate, ...aggiunte].map((p) =>
     idManuali.has(p.id) ? { ...p, fonte: FONTE_MANUALE } : p
   )
   const daLavorare = persone.filter((p) => p.richieste_da_lavorare > 0).length
@@ -72,9 +97,13 @@ export default async function PersonePage() {
           <span className="stat-valore">{daLavorare}</span>
           <span className="stat-label">Con richieste da lavorare</span>
         </div>
+        <div className="stat">
+          <span className="stat-valore">{idInGestione.length}</span>
+          <span className="stat-label">Con trattative in gestione</span>
+        </div>
       </div>
 
-      <RicercaPersone persone={persone} />
+      <RicercaPersone persone={persone} idInGestione={idInGestione} />
     </>
   )
 }
