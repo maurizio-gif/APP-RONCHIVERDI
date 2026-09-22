@@ -11,6 +11,7 @@ import {
   testoRicerca,
   type Persona,
 } from '@/lib/persone'
+import { ETICHETTE_STATO, type StatoTrattativa } from '@/lib/pipeline'
 import { cercaPersone } from './actions'
 
 /** Quanto aspettare dopo l'ultimo tasto prima di interrogare il server. */
@@ -24,6 +25,9 @@ const RITARDO_RICERCA_MS = 300
  */
 const MIN_CARATTERI_RICERCA_SERVER = 2
 
+/** Valore del filtro assegnatario per «trattativa aperta ma senza nessuno». */
+const NESSUN_ASSEGNATARIO = '__nessuno__'
+
 // Due ricerche, non una: l'elenco caricato in pagina (attività recente, le
 // persone con richieste più di recente) resta filtrato in memoria mentre si
 // digita, senza un giro di rete per lettera — ma è solo un sottoinsieme
@@ -31,9 +35,38 @@ const MIN_CARATTERI_RICERCA_SERVER = 2
 // importati da Info4U — lì semplicemente non c'è. Da due caratteri in su la
 // ricerca passa al server (cercaPersone), che interroga l'anagrafica intera:
 // è l'unico modo di trovare chi non è fra le righe già caricate.
-export function RicercaPersone({ persone }: { persone: Persona[] }) {
+export function RicercaPersone({
+  persone,
+  statoTrattativa,
+  assegnatarioTrattativa,
+  assegnatari,
+  ciSonoTrattativeLibere,
+  nomiStaff,
+}: {
+  persone: Persona[]
+  /**
+   * Chi ha una trattativa aperta (da prendere in carico o già in gestione),
+   * su tutta l'anagrafica — non solo le persone caricate in pagina (vedi
+   * PersonePage). Chiave l'id persona, valore lo stato della trattativa.
+   */
+  statoTrattativa: Record<string, StatoTrattativa>
+  /**
+   * Chi segue quella trattativa aperta: email, o null se è ancora libera.
+   * Stessa chiave e stesso perimetro di statoTrattativa — una persona senza
+   * trattativa aperta non compare qui.
+   */
+  assegnatarioTrattativa: Record<string, string | null>
+  /** Le opzioni del filtro: solo chi ha davvero almeno una trattativa da seguire. */
+  assegnatari: { email: string; nome: string }[]
+  /** Se mostrare l'opzione «Nessuno» nel filtro assegnatario. */
+  ciSonoTrattativeLibere: boolean
+  nomiStaff: Record<string, string>
+}) {
   const [q, setQ] = useState('')
   const [soloDaLavorare, setSoloDaLavorare] = useState(false)
+  const [soloInGestione, setSoloInGestione] = useState(false)
+  const [assegnatarioFiltro, setAssegnatarioFiltro] = useState('')
+  const inGestione = useMemo(() => new Set(Object.keys(statoTrattativa)), [statoTrattativa])
   const [risultatiServer, setRisultatiServer] = useState<Persona[] | null>(null)
   const [errore, setErrore] = useState<string | null>(null)
   const [inCorso, startTransition] = useTransition()
@@ -70,20 +103,39 @@ export function RicercaPersone({ persone }: { persone: Persona[] }) {
     return () => clearTimeout(timer)
   }, [q])
 
+  // Chi non ha nessuna trattativa aperta (chiave assente in
+  // assegnatarioTrattativa) non compare mai quando il filtro è attivo, a
+  // prescindere dalla scelta: senza una trattativa non ha un assegnatario da
+  // confrontare.
+  const passaFiltroAssegnatario = (id: string) => {
+    if (!assegnatarioFiltro) return true
+    if (!(id in assegnatarioTrattativa)) return false
+    const assegnatario = assegnatarioTrattativa[id]
+    return assegnatarioFiltro === NESSUN_ASSEGNATARIO ? assegnatario === null : assegnatario === assegnatarioFiltro
+  }
+
   const filtrateLocali = useMemo(() => {
     const termini = q.trim().toLowerCase().split(/\s+/).filter(Boolean)
     return indice
       .filter(({ p, testo }) => {
         if (soloDaLavorare && !p.richieste_da_lavorare) return false
+        if (soloInGestione && !inGestione.has(p.id)) return false
+        if (!passaFiltroAssegnatario(p.id)) return false
         // Tutti i termini devono comparire, in qualunque ordine: "rossi
         // mario" e "mario rossi" devono trovare la stessa persona.
         return termini.every((t) => testo.includes(t))
       })
       .map(({ p }) => p)
-  }, [indice, q, soloDaLavorare])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [indice, q, soloDaLavorare, soloInGestione, inGestione, assegnatarioFiltro, assegnatarioTrattativa])
 
   const filtrate = inRicercaServer
-    ? (risultatiServer ?? []).filter((p) => !soloDaLavorare || p.richieste_da_lavorare > 0)
+    ? (risultatiServer ?? []).filter(
+        (p) =>
+          (!soloDaLavorare || p.richieste_da_lavorare > 0) &&
+          (!soloInGestione || inGestione.has(p.id)) &&
+          passaFiltroAssegnatario(p.id)
+      )
     : filtrateLocali
 
   return (
@@ -115,7 +167,33 @@ export function RicercaPersone({ persone }: { persone: Persona[] }) {
               />
               <span>Solo con richieste da lavorare</span>
             </label>
+            <label className="check-riga" style={{ marginTop: '0.5rem' }}>
+              <input
+                type="checkbox"
+                checked={soloInGestione}
+                onChange={(e) => setSoloInGestione(e.target.checked)}
+              />
+              <span>Solo con trattativa aperta</span>
+            </label>
           </div>
+          {assegnatari.length > 0 && (
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label htmlFor="assegnatario">Assegnatario trattativa</label>
+              <select
+                id="assegnatario"
+                value={assegnatarioFiltro}
+                onChange={(e) => setAssegnatarioFiltro(e.target.value)}
+              >
+                <option value="">Tutti</option>
+                {ciSonoTrattativeLibere && <option value={NESSUN_ASSEGNATARIO}>Nessuno</option>}
+                {assegnatari.map((a) => (
+                  <option key={a.email} value={a.email}>
+                    {a.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
         {errore && <p className="error-banner">{errore}</p>}
       </div>
@@ -156,6 +234,13 @@ export function RicercaPersone({ persone }: { persone: Persona[] }) {
                       {p.richieste_da_lavorare > 0 && (
                         <span className="badge badge-warn" style={{ marginLeft: '0.5rem' }}>
                           {p.richieste_da_lavorare} da lavorare
+                        </span>
+                      )}
+                      {statoTrattativa[p.id] && (
+                        <span className="badge badge-info" style={{ marginLeft: '0.5rem' }}>
+                          {ETICHETTE_STATO[statoTrattativa[p.id]]}
+                          {assegnatarioTrattativa[p.id] &&
+                            ` · ${nomiStaff[assegnatarioTrattativa[p.id]!] ?? assegnatarioTrattativa[p.id]}`}
                         </span>
                       )}
                       {/* Inserito a mano dalla segreteria: è la riga con zero
