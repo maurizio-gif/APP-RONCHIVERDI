@@ -132,7 +132,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
   ] = await Promise.all([
     supabase
       .from('persone')
-      .select('id, nome, cognome, email, cellulare, note, creato_il, fonte')
+      .select('id, nome, cognome, email, cellulare, note, creato_il, fonte, conflitto_con_persona_id, conflitto_campo')
       .eq('id', params.id)
       .maybeSingle(),
     // Tutte le colonne che servono a **lavorare** la richiesta, non solo a
@@ -205,6 +205,30 @@ export default async function PersonaPage({ params }: { params: { id: string } }
     : null
 
   if (!persona) notFound()
+
+  // Conflitti email/cellulare con la sincronizzazione Info4U (vedi
+  // scripts/sql/2026-09-22-persone-conflitto-info4u.sql e
+  // ops/sync-info4u/sync-abbonamenti.ps1): questa persona non viene MAI
+  // toccata quando un utente Info4U condivide per caso il suo recapito, ma
+  // lo staff deve poterlo vedere, in entrambe le direzioni.
+  //   - conflittoVerso: questa persona È la riga separata creata per un
+  //     utente Info4U, e punta a chi possiede davvero il recapito mancante.
+  //   - personeInConflitto: uno o più utenti Info4U hanno provato a
+  //     prendere un recapito di questa persona e sono finiti in una scheda
+  //     a parte, che punta qui.
+  const [{ data: conflittoVerso }, { data: personeInConflitto }] = await Promise.all([
+    persona.conflitto_con_persona_id
+      ? supabase
+          .from('persone')
+          .select('id, nome, cognome, email, cellulare')
+          .eq('id', persona.conflitto_con_persona_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabase
+      .from('persone')
+      .select('id, nome, cognome, email, cellulare, conflitto_campo')
+      .eq('conflitto_con_persona_id', params.id),
+  ])
 
   const elenco = richieste ?? []
   const daLavorare = elenco.filter((r) => !r.gestito).length
@@ -359,6 +383,31 @@ export default async function PersonaPage({ params }: { params: { id: string } }
           )}
         </div>
       </div>
+
+      {(conflittoVerso || (personeInConflitto ?? []).length > 0) && (
+        <div className="card card-avviso">
+          <div className="card-head">
+            <h3 className="card-titolo">Email o cellulare condivisi con un&apos;altra anagrafica</h3>
+          </div>
+          {conflittoVerso && (
+            <p className="card-nota muted">
+              {persona.conflitto_campo === 'cellulare' ? 'Il cellulare' : "L'email"} di questa scheda
+              (sincronizzata da Info4U) coincide con quella di{' '}
+              <Link href={`/dashboard/persone/${conflittoVerso.id}`}>{nomePersona(conflittoVerso)}</Link>:
+              per non sovrascrivere quel contatto non sono state unite automaticamente. Verifica se è la
+              stessa persona.
+            </p>
+          )}
+          {(personeInConflitto ?? []).map((p) => (
+            <p className="card-nota muted" key={p.id as string}>
+              Un&apos;anagrafica sincronizzata da Info4U (
+              <Link href={`/dashboard/persone/${p.id}`}>{nomePersona(p)}</Link>) condivide{' '}
+              {p.conflitto_campo === 'cellulare' ? 'il cellulare' : "l'email"} di questo contatto: non è
+              stata unita automaticamente per non sovrascriverlo.
+            </p>
+          ))}
+        </div>
+      )}
 
       <div className="griglia-stat">
         <div className="stat">

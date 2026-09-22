@@ -198,14 +198,35 @@ function Invoke-SupabaseScrittura {
 # cellulare_norm, dalla deduplicazione dei lead del sito (vedi
 # scripts/sql/2026-09-02-persone.sql) — e un utente Info4U puo' avere la
 # stessa email o lo stesso numero di un contatto che ha gia' scritto dal
-# sito. `ON CONFLICT (source_utente_id)` non protegge da quello: Postgres
-# alzerebbe comunque una violazione sull'altro indice, e in un upsert
-# multi-riga farebbe fallire l'intero batch per una riga sola.
+# sito o dal Guest Register, o inserito a mano.
 #
-# Quindi: prima si prova l'inserimento normale; se va in conflitto su
-# email/cellulare invece che su source_utente_id, si cerca la persona che
-# gia' li ha e si aggiorna quella, agganciandole il source_utente_id — non
-# se ne crea una seconda con gli stessi recapiti.
+# REGOLA: un contatto di fonte diversa da 'info4u' non si tocca MAI. Nome,
+# cognome, email e cellulare sono il dato che quella persona ha dato, non un
+# campo da "correggere" con quello che dice Info4U — anche quando
+# un'email/un cellulare coincidono per puro caso (indirizzo di famiglia, un
+# fisso condiviso) con un utente Info4U del tutto diverso. Prima di questa
+# versione, un conflitto del genere finiva per riscrivere silenziosamente
+# quella riga con i dati di Info4U, cambiando identita' a ogni trattativa
+# collegata.
+#
+# Quindi, per ogni IDUtente:
+#   1. Si cerca PRIMA la sua eventuale riga gia' sincronizzata
+#      (source_utente_id): se esiste, si aggiorna solo quella, escludendo
+#      dal corpo il campo lasciato vuoto l'ultima volta per un conflitto
+#      (vedi conflitto_campo) — altrimenti l'update ripeterebbe lo stesso
+#      valore in conflitto e fallirebbe di nuovo, identico, ogni 5 minuti.
+#   2. Se non esiste, si prova un inserimento nuovo. Se va in conflitto
+#      sull'indice univoco di email o cellulare_norm:
+#        - se la persona che gia' li possiede e' anch'essa 'info4u' (due
+#          IDUtente Info4U con lo stesso recapito: capita), ci si aggancia
+#          come prima di questa modifica — qui non c'e' nessun contatto
+#          esterno da proteggere;
+#        - altrimenti si crea comunque la riga di questo IDUtente, ma SENZA
+#          il campo in conflitto, con un puntatore
+#          (conflitto_con_persona_id/conflitto_campo, vedi
+#          scripts/sql/2026-09-22-persone-conflitto-info4u.sql) alla persona
+#          che possiede davvero quel recapito — la scheda di entrambe lo
+#          segnala con un link, la decisione se unirle resta a uno staff.
 function Send-PersonaUpsert {
     param($Riga)
 
@@ -229,13 +250,33 @@ function Send-PersonaUpsert {
         fonte               = "info4u"
     }
 
-    $headers = $supabaseHeaders.Clone()
-    $headers["Prefer"] = "resolution=merge-duplicates,return=representation"
+    # Passo 1: questo IDUtente ha gia' una sua riga? In tal caso si aggiorna
+    # solo quella — mai un inserimento nuovo per un IDUtente gia' noto, che
+    # violerebbe l'unicita' di source_utente_id.
+    $filtroUtente = "source_utente_id=eq.$([int]$Riga.IDUtente)"
+    $propria = Invoke-RestMethod -Uri "$($config.Supabase.Url)/rest/v1/persone?$filtroUtente&select=id,conflitto_campo" `
+        -Headers $supabaseHeaders -Method Get
 
+    if ($propria -and $propria.Count -gt 0) {
+        $corpoAggiornamento = $corpoPersona.Clone()
+        if ($propria[0].conflitto_campo) {
+            $corpoAggiornamento.Remove($propria[0].conflitto_campo)
+        }
+        $corpoJson = $corpoAggiornamento | ConvertTo-Json -Depth 5
+        Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/persone?id=eq.$($propria[0].id)" `
+            -Headers $supabaseHeaders -Method Patch -Corpo $corpoJson | Out-Null
+        return $propria[0].id
+    }
+
+    # Passo 2: IDUtente nuovo, si prova un inserimento diretto (niente
+    # on_conflict: sappiamo gia', dal passo 1, che questo source_utente_id
+    # non esiste ancora).
+    $headers = $supabaseHeaders.Clone()
+    $headers["Prefer"] = "return=representation"
     $corpoJson = @($corpoPersona) | ConvertTo-Json -Depth 5
 
     try {
-        $risposta = Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/persone?on_conflict=source_utente_id" `
+        $risposta = Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/persone" `
             -Headers $headers -Method Post -Corpo $corpoJson
         return $risposta[0].id
     }
@@ -245,30 +286,58 @@ function Send-PersonaUpsert {
             throw
         }
 
-        Write-Log "IDUtente $($Riga.IDUtente): email/cellulare gia' di un'altra persona, aggancio quella invece di duplicarla." "WARN"
-
         # Si cerca la persona che gia' possiede l'email o il cellulare: chi
         # dei due ha causato il conflitto non lo sappiamo dal messaggio
-        # d'errore, quindi si prova prima l'uno poi l'altro.
+        # d'errore, quindi si prova prima l'uno poi l'altro — l'email con
+        # precedenza, stessa convenzione di trova_o_crea_persona in SQL.
+        $campoConflitto = $null
         $trovata = $null
         if ($corpoPersona.email) {
             $filtro = "email=eq." + [uri]::EscapeDataString($corpoPersona.email)
-            $trovata = Invoke-RestMethod -Uri "$($config.Supabase.Url)/rest/v1/persone?$filtro&select=id" -Headers $supabaseHeaders -Method Get
+            $trovata = Invoke-RestMethod -Uri "$($config.Supabase.Url)/rest/v1/persone?$filtro&select=id,fonte" -Headers $supabaseHeaders -Method Get
+            if ($trovata -and $trovata.Count -gt 0) { $campoConflitto = "email" }
         }
         if ((-not $trovata -or $trovata.Count -eq 0) -and $corpoPersona.cellulare) {
             $filtro = "cellulare=eq." + [uri]::EscapeDataString($corpoPersona.cellulare)
-            $trovata = Invoke-RestMethod -Uri "$($config.Supabase.Url)/rest/v1/persone?$filtro&select=id" -Headers $supabaseHeaders -Method Get
+            $trovata = Invoke-RestMethod -Uri "$($config.Supabase.Url)/rest/v1/persone?$filtro&select=id,fonte" -Headers $supabaseHeaders -Method Get
+            if ($trovata -and $trovata.Count -gt 0) { $campoConflitto = "cellulare" }
         }
         if (-not $trovata -or $trovata.Count -eq 0) {
             Write-Log "IDUtente $($Riga.IDUtente): non trovo la persona in conflitto, salto l'anagrafica per questa vendita." "WARN"
             return $null
         }
 
-        $idEsistente = $trovata[0].id
-        $corpoAggiornamento = $corpoPersona | ConvertTo-Json -Depth 5
-        Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/persone?id=eq.$idEsistente" `
-            -Headers $supabaseHeaders -Method Patch -Corpo $corpoAggiornamento | Out-Null
-        return $idEsistente
+        $personaTrovata = $trovata[0]
+
+        if ($personaTrovata.fonte -eq "info4u") {
+            # Un altro IDUtente Info4U ha gia' questo stesso recapito: qui
+            # non c'e' nessun contatto esterno da proteggere, ci si aggancia
+            # come si faceva prima di questa modifica.
+            Write-Log "IDUtente $($Riga.IDUtente): $campoConflitto gia' di un'altra persona Info4U, aggancio quella invece di duplicarla." "WARN"
+            $corpoAggiornamento = $corpoPersona | ConvertTo-Json -Depth 5
+            Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/persone?id=eq.$($personaTrovata.id)" `
+                -Headers $supabaseHeaders -Method Patch -Corpo $corpoAggiornamento | Out-Null
+            return $personaTrovata.id
+        }
+
+        # Il recapito e' gia' di un contatto nato altrove (sito, Guest
+        # Register, inserimento a mano): quella riga non si tocca. Si crea
+        # comunque l'anagrafica di questo IDUtente, ma senza il campo in
+        # conflitto (altrimenti l'inserimento fallirebbe di nuovo sullo
+        # stesso indice univoco), con un puntatore a chi possiede davvero
+        # quel recapito, cosi' la scheda di entrambe puo' segnalarlo con un
+        # link — vedi persone_conflitto_con_idx.
+        Write-Log "IDUtente $($Riga.IDUtente): $campoConflitto gia' di un contatto non-Info4U (persona $($personaTrovata.id)), creo una scheda separata senza quel campo invece di sovrascriverlo." "WARN"
+
+        $corpoSeparato = $corpoPersona.Clone()
+        $corpoSeparato.Remove($campoConflitto)
+        $corpoSeparato["conflitto_con_persona_id"] = $personaTrovata.id
+        $corpoSeparato["conflitto_campo"] = $campoConflitto
+
+        $corpoSeparatoJson = @($corpoSeparato) | ConvertTo-Json -Depth 5
+        $rispostaSeparata = Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/persone" `
+            -Headers $headers -Method Post -Corpo $corpoSeparatoJson
+        return $rispostaSeparata[0].id
     }
 }
 

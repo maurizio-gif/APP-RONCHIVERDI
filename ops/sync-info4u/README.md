@@ -126,17 +126,26 @@ Apri **Utilità di pianificazione** (Task Scheduler):
 Da qui in poi il log (`sync.log`) è il primo posto dove guardare se qualcosa
 non torna: ogni riga dice quante vendite ha processato, a che
 `source_iscrizione_id` è arrivato, e — se capita — quale persona era già in
-anagrafica con la stessa email o lo stesso cellulare di un utente Info4U (in
-quel caso lo script aggancia quella esistente invece di duplicarla).
+anagrafica con la stessa email o lo stesso cellulare di un utente Info4U. In
+quel caso lo script NON tocca mai quella persona se non è a sua volta
+`fonte = 'info4u'` (cioè se è nata da un lead del sito, dal Guest Register o
+da un inserimento a mano): crea invece una scheda separata per l'utente
+Info4U, senza il campo in conflitto, con un puntatore
+(`conflitto_con_persona_id`/`conflitto_campo`, vedi
+scripts/sql/2026-09-22-persone-conflitto-info4u.sql) a chi possiede davvero
+quel recapito — la scheda di entrambe lo segnala in
+/dashboard/persone/[id] con un link, ed è uno staff a decidere se sono la
+stessa persona.
 
 ## Cosa fa, in breve
 
 - Legge `MAX(source_iscrizione_id)` da `abbonamenti` su Supabase.
 - Interroga `dbgym` per le vendite con `IDIscrizione` più alto di quello, a
   blocchi.
-- Per ogni vendita: upsert della persona (per `source_utente_id`, con
-  fallback su email/cellulare se quella persona esiste già da un lead del
-  sito) e poi upsert della vendita (per `source_iscrizione_id`).
+- Per ogni vendita: upsert della persona (per `source_utente_id`; se quella
+  persona non esiste ancora ed email/cellulare risultano già di un contatto
+  di un'altra fonte, quel contatto non si tocca — vedi sopra) e poi upsert
+  della vendita (per `source_iscrizione_id`).
 - Si ferma da solo quando non trova più righe nuove, o dopo
   `MaxBatchesPerRun` blocchi in una singola esecuzione (per non far girare
   un'esecuzione all'infinito se lo storico da recuperare è enorme — il giro
