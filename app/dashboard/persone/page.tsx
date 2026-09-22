@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { FONTE_MANUALE, type Persona } from '@/lib/persone'
+import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import { RicercaPersone } from './RicercaPersone'
 
 export const dynamic = 'force-dynamic'
@@ -16,33 +17,39 @@ export default async function PersonePage() {
   }
 
   const supabase = createSupabaseServiceClient()
-  const [{ data, error }, { data: manuali }, { count: totalePersone }, { data: inGestione }] = await Promise.all([
-    supabase
-      .from('persone_con_richieste')
-      .select('id, nome, cognome, email, cellulare, note, richieste, richieste_da_lavorare, prima_richiesta, ultima_richiesta')
-      // Chi ha scritto più di recente sta in cima: è l'ordine con cui si
-      // guarda un'anagrafica di lavoro, non l'alfabetico. Con l'arrivo dei
-      // contatti Info4U (senza nessuna richiesta dal sito, quindi in fondo a
-      // questo ordinamento) questo elenco è "attività recente", non "tutti":
-      // chi non c'è si trova con la ricerca, che guarda l'anagrafica intera
-      // (vedi RicercaPersone/cercaPersone).
-      .order('ultima_richiesta', { ascending: false, nullsFirst: false })
-      .limit(MAX_PERSONE),
-    // Chi è stato inserito a mano dalla segreteria. La fonte non sta nella
-    // vista dei conteggi, e serve a una cosa sola: un contatto con zero
-    // richieste, in un'anagrafica che si popola dalle richieste del sito, va
-    // spiegato — altrimenti si legge come una riga rotta. Si chiedono solo i
-    // manuali, che sono pochi, e non la fonte di tutti.
-    supabase.from('persone').select('id').eq('fonte', FONTE_MANUALE),
-    // Il vero totale, non le sole 500 caricate: senza, la statistica
-    // "In anagrafica" mentirebbe proprio sul numero che i contatti storici
-    // importati da Info4U hanno reso sbagliato.
-    supabase.from('persone').select('id', { count: 'exact', head: true }),
-    // Chi ha una trattativa aperta (da prendere in carico o già in
-    // gestione), per il filtro omonimo. Si chiede anche lo stato, non solo
-    // l'id: la riga mostra a che punto è, non solo che ce n'è una.
-    supabase.from('opportunita').select('persona_id, stato').in('stato', ['nuovo', 'in_gestione']),
-  ])
+  const [{ data, error }, { data: manuali }, { count: totalePersone }, { data: inGestione }, { data: staff }] =
+    await Promise.all([
+      supabase
+        .from('persone_con_richieste')
+        .select('id, nome, cognome, email, cellulare, note, richieste, richieste_da_lavorare, prima_richiesta, ultima_richiesta')
+        // Chi ha scritto più di recente sta in cima: è l'ordine con cui si
+        // guarda un'anagrafica di lavoro, non l'alfabetico. Con l'arrivo dei
+        // contatti Info4U (senza nessuna richiesta dal sito, quindi in fondo a
+        // questo ordinamento) questo elenco è "attività recente", non "tutti":
+        // chi non c'è si trova con la ricerca, che guarda l'anagrafica intera
+        // (vedi RicercaPersone/cercaPersone).
+        .order('ultima_richiesta', { ascending: false, nullsFirst: false })
+        .limit(MAX_PERSONE),
+      // Chi è stato inserito a mano dalla segreteria. La fonte non sta nella
+      // vista dei conteggi, e serve a una cosa sola: un contatto con zero
+      // richieste, in un'anagrafica che si popola dalle richieste del sito, va
+      // spiegato — altrimenti si legge come una riga rotta. Si chiedono solo i
+      // manuali, che sono pochi, e non la fonte di tutti.
+      supabase.from('persone').select('id').eq('fonte', FONTE_MANUALE),
+      // Il vero totale, non le sole 500 caricate: senza, la statistica
+      // "In anagrafica" mentirebbe proprio sul numero che i contatti storici
+      // importati da Info4U hanno reso sbagliato.
+      supabase.from('persone').select('id', { count: 'exact', head: true }),
+      // Chi ha una trattativa aperta (da prendere in carico o già in
+      // gestione), per il filtro omonimo. Si chiede anche lo stato e
+      // l'assegnatario: la riga mostra a che punto è, e il filtro per
+      // assegnatario guarda solo qui — una trattativa chiusa non è più lavoro
+      // di nessuno.
+      supabase.from('opportunita').select('persona_id, stato, assegnato_a').in('stato', ['nuovo', 'in_gestione']),
+      // Per tradurre l'email dell'assegnatario in nome e per l'elenco delle
+      // opzioni del filtro (vedi lib/staff.ts).
+      supabase.from('staff_users').select('email, nome, cognome'),
+    ])
 
   if (error) console.error('Anagrafica non letta:', error.message)
 
@@ -50,14 +57,33 @@ export default async function PersonePage() {
   // lib/trattative-server.ts): se mai ce ne fossero due, «in gestione» vince
   // su «da prendere in carico», perché è lo stato più avanzato.
   const statoTrattativaAperta = new Map<string, 'nuovo' | 'in_gestione'>()
+  const assegnatarioTrattativa = new Map<string, string | null>()
   for (const t of inGestione ?? []) {
     const id = t.persona_id as string | null
     if (!id) continue
     if (t.stato === 'in_gestione' || !statoTrattativaAperta.has(id)) {
       statoTrattativaAperta.set(id, t.stato as 'nuovo' | 'in_gestione')
+      assegnatarioTrattativa.set(id, (t.assegnato_a as string | null) ?? null)
     }
   }
   const idTrattativaAperta = Array.from(statoTrattativaAperta.keys())
+
+  const nomiStaff = mappaNomiStaff((staff ?? []) as RigaStaff[])
+  // Solo chi ha almeno una trattativa aperta da seguire compare come
+  // opzione: un elenco con tutto lo staff sarebbe pieno di scelte che non
+  // filtrano mai niente.
+  const emailAssegnatari = Array.from(
+    new Set(Array.from(assegnatarioTrattativa.values()).filter((e): e is string => !!e))
+  )
+  const assegnatari = ordinaPerCognome(
+    emailAssegnatari.map((email) => {
+      const riga = (staff ?? []).find((s) => s.email === email) as RigaStaff | undefined
+      return riga ?? { email }
+    })
+  ).map((r) => ({ email: r.email, nome: nomiStaff[r.email] ?? r.email }))
+  // Se compare in elenco «Nessuno», è perché esiste almeno una trattativa
+  // aperta senza assegnatario: altrimenti l'opzione non filtrerebbe niente.
+  const ciSonoTrattativeLibere = Array.from(assegnatarioTrattativa.values()).some((e) => e === null)
 
   // Una trattativa aperta non vuol dire una richiesta recente: chi è
   // arrivato al banco o da Info4U può stare fuori dalle 500 caricate, e il
@@ -112,7 +138,14 @@ export default async function PersonePage() {
         </div>
       </div>
 
-      <RicercaPersone persone={persone} statoTrattativa={Object.fromEntries(statoTrattativaAperta)} />
+      <RicercaPersone
+        persone={persone}
+        statoTrattativa={Object.fromEntries(statoTrattativaAperta)}
+        assegnatarioTrattativa={Object.fromEntries(assegnatarioTrattativa)}
+        assegnatari={assegnatari}
+        ciSonoTrattativeLibere={ciSonoTrattativeLibere}
+        nomiStaff={nomiStaff}
+      />
     </>
   )
 }
