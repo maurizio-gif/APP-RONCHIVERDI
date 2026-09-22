@@ -15,15 +15,48 @@ import { GraficoPerGruppo } from './GraficoPerGruppo'
 const COLORE_RINNOVATO = 'var(--ok)'
 const COLORE_NON_RINNOVATO = 'var(--warn)'
 
+// Nuovo/rinnovo (punto 5) non è un giudizio di merito come rinnovato/non
+// rinnovato qui sopra — è solo una partizione del venduto in due categorie,
+// nessuna "buona" o "da seguire" — quindi niente colori ok/warn: la stessa
+// coppia neutra già usata altrove in pagina per due categorie senza
+// giudizio (vedi .grafico-barra-sito/.grafico-barra-sede in globals.css).
+const COLORE_NUOVO = 'var(--accent)'
+const COLORE_RINNOVO = 'var(--info)'
+
 export const dynamic = 'force-dynamic'
 
 type Somma = { vendite: number; fatturato: number }
 
-function sommaRighe(righe: { numero_vendite: number; fatturato: number | null }[] | null): Somma {
-  return (righe ?? []).reduce(
-    (acc, r) => ({ vendite: acc.vendite + r.numero_vendite, fatturato: acc.fatturato + Number(r.fatturato ?? 0) }),
-    { vendite: 0, fatturato: 0 }
-  )
+// Punto 4: non solo il totale del periodo ma anche la distinzione fra
+// vendite nuove e rinnovi (vedi abbonamenti_vendite_tipo — un rinnovo è una
+// vendita che segue, entro 30 giorni, la scadenza di un abbonamento
+// precedente della stessa persona nello stesso gruppo prodotto). "Totale" è
+// sempre nuovi + rinnovi, non una terza query: qui si somma una volta sola
+// leggendo lo stesso flag `rinnovo`.
+type SommaTipo = { totale: Somma; nuovi: Somma; rinnovi: Somma }
+
+const RIGHE_TIPO = [
+  { chiave: 'totale', etichetta: 'Totale' },
+  { chiave: 'nuovi', etichetta: 'Nuovi' },
+  { chiave: 'rinnovi', etichetta: 'Rinnovi' },
+] as const
+
+function sommaVuota(): Somma {
+  return { vendite: 0, fatturato: 0 }
+}
+
+function sommaPerTipo(righe: { numero_vendite: number; fatturato: number | null; rinnovo: boolean }[] | null): SommaTipo {
+  const risultato: SommaTipo = { totale: sommaVuota(), nuovi: sommaVuota(), rinnovi: sommaVuota() }
+  for (const r of righe ?? []) {
+    const vendite = r.numero_vendite
+    const fatturato = Number(r.fatturato ?? 0)
+    const voce = r.rinnovo ? risultato.rinnovi : risultato.nuovi
+    voce.vendite += vendite
+    voce.fatturato += fatturato
+    risultato.totale.vendite += vendite
+    risultato.totale.fatturato += fatturato
+  }
+  return risultato
 }
 
 // L'ultimo giorno valido di un mese: per il confronto "stesso periodo" un 31
@@ -80,15 +113,16 @@ export default async function AbbonamentiPage({
       const mm = String(mese).padStart(2, '0')
       const giornoFine = String(Math.min(giornoCorrente, ultimoGiornoDelMese(anno, mese))).padStart(2, '0')
       let query = supabase
-        .from('abbonamenti_giornalieri')
-        .select('numero_vendite, fatturato')
+        .from('abbonamenti_giornalieri_tipo')
+        .select('numero_vendite, fatturato, rinnovo')
         .gte('giorno', `${anno}-${mm}-01`)
         .lte('giorno', `${anno}-${mm}-${giornoFine}`)
       if (filtroAttivo) query = query.in('gruppo_id', gruppiSelezionati)
-      const { data } = await query
-      return { anno, ...sommaRighe(data) }
+      const { data, error } = await query
+      return { anno, ...sommaPerTipo(data), error }
     })
   )
+  const erroreConfrontoTipo = periodiPari.find((p) => p.error)?.error ?? null
 
   // Sezione 3: gli ultimi 12 mesi (compreso quello in corso, parziale), per
   // due grafici a barre impilate per gruppo — fatturato delle vendite e
@@ -101,9 +135,6 @@ export default async function AbbonamentiPage({
   const {
     attiviOggiPerGruppo,
     erroreAttiviOggi,
-    serieFatturatoMensile,
-    legendaFatturato,
-    erroreFatturatoMensile,
     serieAttiviMensile,
     legendaAttivi,
     erroreStoricoAttivi,
@@ -145,17 +176,24 @@ export default async function AbbonamentiPage({
     return `/dashboard/abbonamenti/scadenze?${params.toString()}`
   }
 
-  // Andamento rinnovi, ultimi 12 mesi: stessa vista aggregata della card
-  // scadenze sopra, stessa definizione di "rinnovato" (stesso gruppo, entro
-  // 30 giorni dalla scadenza — vedi scripts/sql/2026-09-21-abbonamenti-
-  // scadenze-30-giorni.sql), ma sui 12 mesi passati invece dei 4 futuri.
-  // Due colori di STATO (rinnovato/non rinnovato), non la palette dei
-  // gruppi: qui non si distinguono identità diverse, si distingue buono da
-  // "da seguire" — stessi colori del badge nella pagina di dettaglio.
+  // Ultimi 24 mesi (compreso quello in corso, parziale): finestra condivisa
+  // dal grafico Andamento rinnovi qui sotto e dal grafico Andamento venduto
+  // al punto 5 — due anni e non uno, a differenza degli altri grafici di
+  // questa pagina (rimasti su ultimi12Mesi), per vedere la stagionalità anno
+  // su anno.
+  const ultimi24Mesi = Array.from({ length: 24 }, (_, i) => mesePiu(meseCorrenteData, i - 23))
+
+  // Andamento rinnovi: stessa vista aggregata della card scadenze sopra,
+  // stessa definizione di "rinnovato" (stesso gruppo, entro 30 giorni dalla
+  // scadenza — vedi scripts/sql/2026-09-21-abbonamenti-scadenze-30-
+  // giorni.sql), ma sui mesi passati invece dei 4 futuri. Due colori di
+  // STATO (rinnovato/non rinnovato), non la palette dei gruppi: qui non si
+  // distinguono identità diverse, si distingue buono da "da seguire" —
+  // stessi colori del badge nella pagina di dettaglio.
   let queryRinnovi = supabase
     .from('abbonamenti_scadenze_mensili')
     .select('mese, gruppo_id, rinnovato, numero')
-    .gte('mese', ultimi12Mesi[0])
+    .gte('mese', ultimi24Mesi[0])
     .lt('mese', mesePiu(meseCorrenteData, 1))
   if (filtroAttivo) queryRinnovi = queryRinnovi.in('gruppo_id', gruppiSelezionati)
   const { data: rinnoviGrezzi, error: erroreRinnovi } = await queryRinnovi
@@ -169,7 +207,7 @@ export default async function AbbonamentiPage({
     rinnoviPerMese.set(meseRiga, voce)
   }
 
-  const serieRinnoviMensile: VoceMeseStack[] = ultimi12Mesi.map((m) => {
+  const serieRinnoviMensile: VoceMeseStack[] = ultimi24Mesi.map((m) => {
     const voce = rinnoviPerMese.get(m) ?? { rinnovati: 0, nonRinnovati: 0 }
     const voci: VoceGruppoStack[] = [
       {
@@ -188,19 +226,85 @@ export default async function AbbonamentiPage({
       },
     ]
     const totale = voce.rinnovati + voce.nonRinnovati
+    const percentoRinnovati = totale > 0 ? Math.round((voce.rinnovati / totale) * 100) : null
     return {
       mese: m,
       etichetta: etichettaMeseBreve(m),
       gruppi: voci,
       totale,
       totaleTesto: String(totale),
-      etichettaSopra: totale > 0 ? `${Math.round((voce.rinnovati / totale) * 100)}%` : undefined,
+      etichettaSopra: percentoRinnovati !== null ? `${percentoRinnovati}%` : undefined,
+      notaPercentuale: percentoRinnovati !== null ? `${percentoRinnovati}% rinnovati sul totale scaduto quel mese` : undefined,
     }
   })
 
   const legendaRinnovi: VoceLegendaStack[] = [
     { chiave: 'rinnovati', nome: 'Rinnovati', colore: COLORE_RINNOVATO },
     { chiave: 'non-rinnovati', nome: 'Non ancora rinnovati', colore: COLORE_NON_RINNOVATO },
+  ]
+
+  // Punto 5: come sopra ma sul VENDUTO (ogni vendita del periodo, non le
+  // scadenze) e diviso non per gruppo prodotto ma nuovo/rinnovo — stessa
+  // vista e definizione del punto 4 (abbonamenti_vendite_tipo), aggregata
+  // per mese invece che per giorno (vedi abbonamenti_mensili_tipo:
+  // 2026-09-22-abbonamenti-mensili-tipo.sql). L'altezza della barra segue il
+  // fatturato (il grafico si chiama "Andamento VENDUTO"), il conteggio delle
+  // vendite e il peso percentuale sul mese finiscono nel dettaglio del
+  // pannello al passaggio del mouse, non nella barra stessa.
+  let queryVenditeTipoMensile = supabase
+    .from('abbonamenti_mensili_tipo')
+    .select('mese, gruppo_id, rinnovo, numero_vendite, fatturato')
+    .in('mese', ultimi24Mesi)
+  if (filtroAttivo) queryVenditeTipoMensile = queryVenditeTipoMensile.in('gruppo_id', gruppiSelezionati)
+  const { data: venditeTipoGrezze, error: erroreVenditeTipoMensile } = await queryVenditeTipoMensile
+
+  const venditeTipoPerMese = new Map<string, { nuovi: Somma; rinnovi: Somma }>()
+  for (const r of venditeTipoGrezze ?? []) {
+    const voce = venditeTipoPerMese.get(r.mese) ?? { nuovi: sommaVuota(), rinnovi: sommaVuota() }
+    const parte = r.rinnovo ? voce.rinnovi : voce.nuovi
+    parte.vendite += r.numero_vendite
+    parte.fatturato += Number(r.fatturato ?? 0)
+    venditeTipoPerMese.set(r.mese, voce)
+  }
+
+  function dettaglioVenditeTipo(parte: Somma, totaleFatturato: number): string {
+    const percento = totaleFatturato > 0 ? Math.round((parte.fatturato / totaleFatturato) * 100) : 0
+    return `${parte.vendite} vendite · ${percento}%`
+  }
+
+  const serieVenditeTipoMensile: VoceMeseStack[] = ultimi24Mesi.map((m) => {
+    const voce = venditeTipoPerMese.get(m) ?? { nuovi: sommaVuota(), rinnovi: sommaVuota() }
+    const totaleFatturato = voce.nuovi.fatturato + voce.rinnovi.fatturato
+    const voci: VoceGruppoStack[] = [
+      {
+        gruppoId: 'nuovi',
+        nome: 'Nuovi',
+        colore: COLORE_NUOVO,
+        valore: voce.nuovi.fatturato,
+        valoreTesto: euro(voce.nuovi.fatturato) ?? '—',
+        dettaglio: dettaglioVenditeTipo(voce.nuovi, totaleFatturato),
+      },
+      {
+        gruppoId: 'rinnovi',
+        nome: 'Rinnovi',
+        colore: COLORE_RINNOVO,
+        valore: voce.rinnovi.fatturato,
+        valoreTesto: euro(voce.rinnovi.fatturato) ?? '—',
+        dettaglio: dettaglioVenditeTipo(voce.rinnovi, totaleFatturato),
+      },
+    ]
+    return {
+      mese: m,
+      etichetta: etichettaMeseBreve(m),
+      gruppi: voci,
+      totale: totaleFatturato,
+      totaleTesto: euro(totaleFatturato) ?? '—',
+    }
+  })
+
+  const legendaVenditeTipo: VoceLegendaStack[] = [
+    { chiave: 'nuovi', nome: 'Nuovi', colore: COLORE_NUOVO },
+    { chiave: 'rinnovi', nome: 'Rinnovi', colore: COLORE_RINNOVO },
   ]
 
   // L'obiettivo segue lo stesso filtro delle statistiche sopra: "Tutti" mostra
@@ -215,7 +319,7 @@ export default async function AbbonamentiPage({
   let queryObiettivo = supabase.from('abbonamenti_obiettivi_mensili').select('goal').eq('mese', meseCorrenteData)
   queryObiettivo = gruppoSingolo ? queryObiettivo.eq('gruppo_id', gruppoSingolo) : queryObiettivo.is('gruppo_id', null)
   const obiettivoRiga = mostraObiettivo ? (await queryObiettivo.maybeSingle()).data : null
-  const fatturatoAdOggi = periodiPari[periodiPari.length - 1]?.fatturato ?? 0
+  const fatturatoAdOggi = periodiPari[periodiPari.length - 1]?.totale.fatturato ?? 0
 
   return (
     <div>
@@ -343,7 +447,7 @@ export default async function AbbonamentiPage({
             <span className="numero-sezione" aria-hidden="true">
               3
             </span>
-            Andamento rinnovi, ultimi 12 mesi
+            Andamento rinnovi, ultimi 24 mesi
           </p>
           <p className="muted">
             Abbonamenti scaduti ogni mese, rinnovati o no entro 30 giorni dalla scadenza (stesso gruppo prodotto). Il
@@ -353,7 +457,7 @@ export default async function AbbonamentiPage({
           <GraficoPerGruppo
             serie={serieRinnoviMensile}
             legenda={legendaRinnovi}
-            etichettaAria="Abbonamenti scaduti, rinnovati o no entro 30 giorni, ultimi 12 mesi"
+            etichettaAria="Abbonamenti scaduti, rinnovati o no entro 30 giorni, ultimi 24 mesi"
           />
         </div>
       )}
@@ -365,28 +469,49 @@ export default async function AbbonamentiPage({
           </span>
           Dal 1 al {giornoCorrente} {nomeMese} — confronto a parità di giorni
         </p>
-        <div className="tabella-wrap">
-          <table className="tabella">
-            <thead>
-              <tr>
-                <th>Anno</th>
-                <th>Vendite</th>
-                <th>Fatturato</th>
-                <th>Var. vs anno prec.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {periodiPari.map((p, i) => (
-                <tr key={p.anno} className={p.anno === annoCorrente ? 'is-oggi' : ''}>
-                  <td>{p.anno}</td>
-                  <td>{p.vendite || '—'}</td>
-                  <td>{p.fatturato ? euro(p.fatturato) : '—'}</td>
-                  <td>{i === 0 ? '—' : testoVariazione(p.fatturato, periodiPari[i - 1].fatturato)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {erroreConfrontoTipo && /abbonamenti_giornalieri_tipo/.test(erroreConfrontoTipo.message) ? (
+          <p className="vuoto">
+            Manca la vista nuovo/rinnovo: esegui scripts/sql/2026-09-22-abbonamenti-vendite-tipo.sql nel SQL Editor
+            di Supabase.
+          </p>
+        ) : (
+          <>
+            <p className="muted">
+              Rinnovo: la persona aveva già un abbonamento nello stesso gruppo, scaduto entro 30 giorni prima
+              dell&apos;inizio di questo. Nuovo: tutto il resto.
+            </p>
+            <div className="tabella-wrap">
+              <table className="tabella">
+                <thead>
+                  <tr>
+                    <th>Anno</th>
+                    <th>Tipo</th>
+                    <th>Vendite</th>
+                    <th>Fatturato</th>
+                    <th>Var. vs anno prec.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {periodiPari.map((p, i) => {
+                    const precedente = periodiPari[i - 1]
+                    return RIGHE_TIPO.map((riga, j) => {
+                      const somma = p[riga.chiave]
+                      return (
+                        <tr key={`${p.anno}-${riga.chiave}`} className={p.anno === annoCorrente ? 'is-oggi' : ''}>
+                          {j === 0 && <td rowSpan={RIGHE_TIPO.length}>{p.anno}</td>}
+                          <td className={riga.chiave === 'totale' ? undefined : 'muted'}>{riga.etichetta}</td>
+                          <td>{somma.vendite || '—'}</td>
+                          <td>{somma.fatturato ? euro(somma.fatturato) : '—'}</td>
+                          <td>{i === 0 ? '—' : testoVariazione(somma.fatturato, precedente[riga.chiave].fatturato)}</td>
+                        </tr>
+                      )
+                    })
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
         {mostraObiettivo ? (
           <ObiettivoMensile
             // Forza un nuovo componente (e quindi lo stato iniziale giusto)
@@ -405,11 +530,11 @@ export default async function AbbonamentiPage({
         )}
       </div>
 
-      {erroreFatturatoMensile && /abbonamenti_mensili/.test(erroreFatturatoMensile.message) ? (
+      {erroreVenditeTipoMensile && /abbonamenti_mensili_tipo/.test(erroreVenditeTipoMensile.message) ? (
         <div className="card">
           <p className="vuoto">
-            Manca la vista di reportistica: esegui scripts/sql/2026-09-18-abbonamenti-gruppi.sql nel SQL Editor di
-            Supabase.
+            Manca la vista nuovo/rinnovo: esegui scripts/sql/2026-09-22-abbonamenti-mensili-tipo.sql nel SQL Editor
+            di Supabase.
           </p>
         </div>
       ) : (
@@ -418,12 +543,16 @@ export default async function AbbonamentiPage({
             <span className="numero-sezione" aria-hidden="true">
               5
             </span>
-            Andamento VENDUTO ultimi 12 mesi, per gruppo
+            Andamento VENDUTO, ultimi 24 mesi
+          </p>
+          <p className="muted">
+            Fatturato delle vendite del mese, diviso fra nuovo e rinnovo (stessa definizione del punto 4). Passa il
+            mouse (o il focus da tastiera) su una barra per il numero di vendite e il peso percentuale di ciascuna.
           </p>
           <GraficoPerGruppo
-            serie={serieFatturatoMensile}
-            legenda={legendaFatturato}
-            etichettaAria="Fatturato per gruppo, ultimi 12 mesi"
+            serie={serieVenditeTipoMensile}
+            legenda={legendaVenditeTipo}
+            etichettaAria="Fatturato venduto, nuovo e rinnovo, ultimi 24 mesi"
           />
         </div>
       )}

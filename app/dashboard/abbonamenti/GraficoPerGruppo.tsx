@@ -12,6 +12,12 @@ export type VoceGruppoStack = {
   // come prop (il confine RSC non serializza le funzioni), quindi il "come
   // si scrive il numero" è già pronto qui, non un formattatore passato giù.
   valoreTesto: string
+  // Facoltativa: una seconda riga sotto nome/valore nel pannello di
+  // dettaglio (es. "562 vendite · 33%") — ha senso quando il valore
+  // principale guida l'altezza della barra (es. il fatturato) ma chi legge
+  // vuole anche il conteggio e il peso sul totale del mese, non solo per i
+  // grafici più semplici (fatturato/attivi per gruppo) dove resta assente.
+  dettaglio?: string
 }
 
 export type VoceMeseStack = {
@@ -25,6 +31,12 @@ export type VoceMeseStack = {
   // che conta), non per un fatturato o un conteggio per gruppo, quindi
   // resta assente per quei due grafici invece di forzarla ovunque.
   etichettaSopra?: string
+  // La frase completa sotto il totale nel pannello di dettaglio, a spiegare
+  // cosa significa etichettaSopra (es. "58% rinnovati sul totale scaduto
+  // quel mese") — decisa lato server insieme a lei invece che ricostruita
+  // qui con un suffisso fisso, cosa che legherebbe il componente a un solo
+  // significato possibile della percentuale.
+  notaPercentuale?: string
 }
 
 export type VoceLegendaStack = { chiave: string; nome: string; colore: string }
@@ -188,16 +200,19 @@ export function GraficoPerGruppo({
                           style={{ background: g.colore }}
                           aria-hidden="true"
                         />
-                        <span className="grafico-attivi-tooltip-valore">{g.valoreTesto}</span>
-                        <span className="grafico-attivi-tooltip-nome">{g.nome}</span>
+                        <span className="grafico-attivi-tooltip-corpo">
+                          <span>
+                            <span className="grafico-attivi-tooltip-valore">{g.valoreTesto}</span>{' '}
+                            <span className="grafico-attivi-tooltip-nome">{g.nome}</span>
+                          </span>
+                          {g.dettaglio && <span className="grafico-attivi-tooltip-dettaglio">{g.dettaglio}</span>}
+                        </span>
                       </li>
                     ))}
                   </ul>
                   <p className="grafico-attivi-tooltip-totale">Totale: {meseAttivo.totaleTesto}</p>
-                  {meseAttivo.etichettaSopra && (
-                    <p className="grafico-attivi-tooltip-percentuale">
-                      {meseAttivo.etichettaSopra} rinnovati sul totale scaduto quel mese
-                    </p>
+                  {meseAttivo.notaPercentuale && (
+                    <p className="grafico-attivi-tooltip-percentuale">{meseAttivo.notaPercentuale}</p>
                   )}
                 </>
               )}

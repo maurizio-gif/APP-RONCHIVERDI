@@ -55,6 +55,10 @@ export type VoceGruppoStack = {
   colore: string
   valore: number
   valoreTesto: string
+  // Facoltativa: una seconda riga di dettaglio nel pannello di GraficoPerGruppo
+  // (es. "562 vendite · 33%") — vedi la stessa proprietà nel tipo del
+  // componente, app/dashboard/abbonamenti/GraficoPerGruppo.tsx.
+  dettaglio?: string
 }
 
 export type VoceMeseStack = {

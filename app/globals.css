@@ -3255,7 +3255,7 @@ table.tabella tbody tr:hover {
 
 .grafico-attivi-tooltip-elenco li {
 	display: flex;
-	align-items: center;
+	align-items: flex-start;
 	gap: 0.4rem;
 	font-size: var(--text-2xs);
 }
@@ -3264,7 +3264,22 @@ table.tabella tbody tr:hover {
 	flex-shrink: 0;
 	width: 0.6rem;
 	height: 0.6rem;
+	margin-top: 0.2rem;
 	border-radius: 2px;
+}
+
+/* Contenitore della voce quando ha una seconda riga di dettaglio (es. "562
+   vendite · 33%", vedi VoceGruppoStack.dettaglio): valore/nome sopra,
+   dettaglio muto sotto — senza, il contenuto resta su una riga sola come
+   prima, il gap fra le due righe eventuali è quello dato dallo stack. */
+.grafico-attivi-tooltip-corpo {
+	display: flex;
+	flex-direction: column;
+	gap: 0.1rem;
+}
+
+.grafico-attivi-tooltip-dettaglio {
+	color: var(--text-muted-on-dark);
 }
 
 /* Il valore guida, il nome del gruppo segue: chi legge il tooltip ha già il
