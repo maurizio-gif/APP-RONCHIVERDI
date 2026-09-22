@@ -38,32 +38,41 @@ export default async function PersonePage() {
     // "In anagrafica" mentirebbe proprio sul numero che i contatti storici
     // importati da Info4U hanno reso sbagliato.
     supabase.from('persone').select('id', { count: 'exact', head: true }),
-    // Chi ha una trattativa in gestione, per il filtro omonimo. Si chiedono
-    // gli id delle persone e non le trattative intere: al filtro serve solo
-    // sapere chi, non a che punto.
-    supabase.from('opportunita').select('persona_id').eq('stato', 'in_gestione'),
+    // Chi ha una trattativa aperta (da prendere in carico o già in
+    // gestione), per il filtro omonimo. Si chiede anche lo stato, non solo
+    // l'id: la riga mostra a che punto è, non solo che ce n'è una.
+    supabase.from('opportunita').select('persona_id, stato').in('stato', ['nuovo', 'in_gestione']),
   ])
 
   if (error) console.error('Anagrafica non letta:', error.message)
 
-  const idInGestione = Array.from(
-    new Set((inGestione ?? []).map((t) => t.persona_id as string | null).filter((id): id is string => !!id))
-  )
+  // Una persona ha al più una trattativa aperta per volta (vedi
+  // lib/trattative-server.ts): se mai ce ne fossero due, «in gestione» vince
+  // su «da prendere in carico», perché è lo stato più avanzato.
+  const statoTrattativaAperta = new Map<string, 'nuovo' | 'in_gestione'>()
+  for (const t of inGestione ?? []) {
+    const id = t.persona_id as string | null
+    if (!id) continue
+    if (t.stato === 'in_gestione' || !statoTrattativaAperta.has(id)) {
+      statoTrattativaAperta.set(id, t.stato as 'nuovo' | 'in_gestione')
+    }
+  }
+  const idTrattativaAperta = Array.from(statoTrattativaAperta.keys())
 
-  // Una trattativa in gestione non vuol dire una richiesta recente: chi è
+  // Una trattativa aperta non vuol dire una richiesta recente: chi è
   // arrivato al banco o da Info4U può stare fuori dalle 500 caricate, e il
-  // filtro «in gestione» lo perderebbe proprio mentre qualcuno lo segue. Chi
-  // manca si carica a parte e si accoda.
+  // filtro la perderebbe proprio mentre qualcuno la lavora. Chi manca si
+  // carica a parte e si accoda.
   const caricate = (data ?? []) as unknown as Persona[]
   const giaCaricati = new Set(caricate.map((p) => p.id))
-  const mancanti = idInGestione.filter((id) => !giaCaricati.has(id))
+  const mancanti = idTrattativaAperta.filter((id) => !giaCaricati.has(id))
   let aggiunte: Persona[] = []
   if (mancanti.length > 0) {
     const { data: extra, error: erroreExtra } = await supabase
       .from('persone_con_richieste')
       .select('id, nome, cognome, email, cellulare, note, richieste, richieste_da_lavorare, prima_richiesta, ultima_richiesta')
       .in('id', mancanti)
-    if (erroreExtra) console.error('Contatti in gestione non letti:', erroreExtra.message)
+    if (erroreExtra) console.error('Contatti con trattativa aperta non letti:', erroreExtra.message)
     aggiunte = (extra ?? []) as unknown as Persona[]
   }
 
@@ -98,12 +107,12 @@ export default async function PersonePage() {
           <span className="stat-label">Con richieste da lavorare</span>
         </div>
         <div className="stat">
-          <span className="stat-valore">{idInGestione.length}</span>
-          <span className="stat-label">Con trattative in gestione</span>
+          <span className="stat-valore">{idTrattativaAperta.length}</span>
+          <span className="stat-label">Con trattativa in gestione</span>
         </div>
       </div>
 
-      <RicercaPersone persone={persone} idInGestione={idInGestione} />
+      <RicercaPersone persone={persone} statoTrattativa={Object.fromEntries(statoTrattativaAperta)} />
     </>
   )
 }

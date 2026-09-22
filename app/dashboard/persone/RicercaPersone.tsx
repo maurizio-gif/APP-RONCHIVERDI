@@ -11,6 +11,7 @@ import {
   testoRicerca,
   type Persona,
 } from '@/lib/persone'
+import { ETICHETTE_STATO, type StatoTrattativa } from '@/lib/pipeline'
 import { cercaPersone } from './actions'
 
 /** Quanto aspettare dopo l'ultimo tasto prima di interrogare il server. */
@@ -33,16 +34,20 @@ const MIN_CARATTERI_RICERCA_SERVER = 2
 // è l'unico modo di trovare chi non è fra le righe già caricate.
 export function RicercaPersone({
   persone,
-  idInGestione,
+  statoTrattativa,
 }: {
   persone: Persona[]
-  /** Chi ha una trattativa in gestione, su tutta l'anagrafica (vedi PersonePage). */
-  idInGestione: string[]
+  /**
+   * Chi ha una trattativa aperta (da prendere in carico o già in gestione),
+   * su tutta l'anagrafica — non solo le persone caricate in pagina (vedi
+   * PersonePage). Chiave l'id persona, valore lo stato della trattativa.
+   */
+  statoTrattativa: Record<string, StatoTrattativa>
 }) {
   const [q, setQ] = useState('')
   const [soloDaLavorare, setSoloDaLavorare] = useState(false)
   const [soloInGestione, setSoloInGestione] = useState(false)
-  const inGestione = useMemo(() => new Set(idInGestione), [idInGestione])
+  const inGestione = useMemo(() => new Set(Object.keys(statoTrattativa)), [statoTrattativa])
   const [risultatiServer, setRisultatiServer] = useState<Persona[] | null>(null)
   const [errore, setErrore] = useState<string | null>(null)
   const [inCorso, startTransition] = useTransition()
@@ -134,7 +139,7 @@ export function RicercaPersone({
                 checked={soloInGestione}
                 onChange={(e) => setSoloInGestione(e.target.checked)}
               />
-              <span>Solo con trattative in gestione</span>
+              <span>Solo con trattativa aperta</span>
             </label>
           </div>
         </div>
@@ -179,9 +184,9 @@ export function RicercaPersone({
                           {p.richieste_da_lavorare} da lavorare
                         </span>
                       )}
-                      {inGestione.has(p.id) && (
+                      {statoTrattativa[p.id] && (
                         <span className="badge badge-info" style={{ marginLeft: '0.5rem' }}>
-                          In gestione
+                          {ETICHETTE_STATO[statoTrattativa[p.id]]}
                         </span>
                       )}
                       {/* Inserito a mano dalla segreteria: è la riga con zero
