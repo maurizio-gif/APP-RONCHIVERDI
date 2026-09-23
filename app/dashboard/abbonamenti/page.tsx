@@ -243,6 +243,19 @@ export default async function AbbonamentiPage({
     { chiave: 'non-rinnovati', nome: 'Non ancora rinnovati', colore: COLORE_NON_RINNOVATO },
   ]
 
+  // Dato aggregato del punto 3: la stessa % che compare sopra ogni singola
+  // barra, ma sull'intera finestra dei 24 mesi invece che mese per mese — la
+  // domanda "in generale, quanto rinnoviamo?" non ha risposta sommando a
+  // mente 24 percentuali già arrotondate (e diverse per peso), quindi si
+  // risomma qui direttamente rinnovati e scaduti totali.
+  const totaliRinnovi = Array.from(rinnoviPerMese.values()).reduce(
+    (acc, v) => ({ rinnovati: acc.rinnovati + v.rinnovati, nonRinnovati: acc.nonRinnovati + v.nonRinnovati }),
+    { rinnovati: 0, nonRinnovati: 0 }
+  )
+  const totaleScadutiRinnovi = totaliRinnovi.rinnovati + totaliRinnovi.nonRinnovati
+  const percentoRinnoviComplessivo =
+    totaleScadutiRinnovi > 0 ? Math.round((totaliRinnovi.rinnovati / totaleScadutiRinnovi) * 100) : null
+
   // Punto 5: come sopra ma sul VENDUTO (ogni vendita del periodo, non le
   // scadenze) e diviso non per gruppo prodotto ma nuovo/rinnovo — stessa
   // vista e definizione del punto 4 (abbonamenti_vendite_tipo), aggregata
@@ -454,6 +467,19 @@ export default async function AbbonamentiPage({
             mese più recente può risultare sottostimato: se la scadenza è a meno di 30 giorni da oggi, la finestra di
             rinnovo non si è ancora chiusa.
           </p>
+          {percentoRinnoviComplessivo !== null && (
+            <div className="griglia-stat">
+              <div className="stat stat-ok">
+                <span className="stat-testa">
+                  <span className="stat-label">% di rinnovi, ultimi 24 mesi</span>
+                </span>
+                <span className="stat-valore">{percentoRinnoviComplessivo}%</span>
+                <span className="stat-nota">
+                  {totaliRinnovi.rinnovati} rinnovati su {totaleScadutiRinnovi} abbonamenti scaduti
+                </span>
+              </div>
+            </div>
+          )}
           <GraficoPerGruppo
             serie={serieRinnoviMensile}
             legenda={legendaRinnovi}
