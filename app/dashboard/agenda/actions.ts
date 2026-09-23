@@ -241,31 +241,23 @@ async function creaContattoAMano(
   // trova_o_crea_persona ritorna l'id nei due casi e non dice quale dei due
   // è.
   //
-  // Il confronto qui è quello letterale, sul recapito come è stato scritto;
-  // quello vero lo fa il database sulle cifre normalizzate del numero (vedi
-  // normalizza_cellulare). Se ci sfugge, l'avviso non compare: la voce
-  // finisce comunque sulla riga giusta, che è la cosa che conta.
-  const vuoto = { data: null }
-  const [{ data: perEmail }, { data: perCellulare }] = await Promise.all([
-    dati.email
-      ? supabase
-          .from('persone')
-          .select('id, nome, cognome, email, cellulare')
-          .eq('email', dati.email)
-          .maybeSingle()
-      : Promise.resolve(vuoto),
-    dati.cellulare
-      ? supabase
-          .from('persone')
-          .select('id, nome, cognome, email, cellulare')
-          .eq('cellulare', dati.cellulare)
-          .limit(1)
-          .maybeSingle()
-      : Promise.resolve(vuoto),
-  ])
-  // L'email ha precedenza sul telefono, come nella deduplicazione del
-  // database: è il dato che le persone scrivono in modo più stabile.
-  const esistente = perEmail ?? perCellulare
+  // Stessa funzione di lookup che usa trova_o_crea_persona (nome+cognome,
+  // cellulare a disambiguare gli omonimi — vedi
+  // scripts/sql/2026-09-23-dedup-nome-cognome.sql): rifare qui il confronto a
+  // mano, sull'email o sul cellulare come sono stati scritti, direbbe spesso
+  // una cosa diversa da quella che decide davvero il database.
+  const { data: idEsistente } = await supabase.rpc('trova_persona_per_nome_e_cellulare', {
+    p_nome: dati.nome,
+    p_cognome: dati.cognome,
+    p_cellulare: dati.cellulare,
+  })
+  const { data: esistente } = idEsistente
+    ? await supabase
+        .from('persone')
+        .select('id, nome, cognome, email, cellulare')
+        .eq('id', idEsistente as string)
+        .maybeSingle()
+    : { data: null }
 
   const { data: id, error } = await supabase.rpc('trova_o_crea_persona', {
     p_nome: dati.nome,
