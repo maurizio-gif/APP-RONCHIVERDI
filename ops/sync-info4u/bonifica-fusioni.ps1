@@ -164,6 +164,13 @@ else {
 
 Write-Log "Leggo abbonamenti.persona_id/source_utente_id da Supabase (per trovare i gruppi fusi)..."
 
+# Il limite chiesto (5000) e' solo una richiesta: Supabase/PostgREST
+# applica comunque un tetto massimo di righe per risposta (tipicamente
+# 1000, a prescindere da "limit"), quindi confrontare $pagina.Count col
+# valore chiesto per decidere se fermarsi era sbagliato — la pagina
+# tornava sempre piu' corta di 5000 e il giro si fermava subito dopo la
+# prima pagina. Qui ci si ferma solo quando una pagina torna vuota, e lo
+# scorrimento avanza di quante righe sono DAVVERO arrivate.
 $perPersona = @{}  # persona_id -> HashSet[int] di source_utente_id
 $scorrimento = 0
 do {
@@ -188,9 +195,9 @@ do {
         if (-not $perPersona.ContainsKey($idPersona)) { $perPersona[$idPersona] = [System.Collections.Generic.HashSet[int]]::new() }
         $perPersona[$idPersona].Add($idUtente) | Out-Null
     }
-    $scorrimento += 5000
+    $scorrimento += $pagina.Count
     Write-Log "  ...$scorrimento righe lette."
-} while ($pagina.Count -eq 5000)
+} while ($pagina.Count -gt 0)
 
 $gruppiFusi = $perPersona.GetEnumerator() | Where-Object { $_.Value.Count -gt 1 }
 if ($SoloPersonaId) {
