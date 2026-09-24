@@ -61,6 +61,20 @@ param(
 
 $ErrorActionPreference = "Stop"
 $PSDefaultParameterValues["Invoke-RestMethod:UserAgent"] = "bonifica-fusioni-ronchiverdi/1.0"
+$PSDefaultParameterValues["Invoke-WebRequest:UserAgent"] = "bonifica-fusioni-ronchiverdi/1.0"
+
+# Per leggere pagine grandi da persone_fuse_utenti (1000 righe): ConvertFrom-Json
+# su Windows PowerShell 5.1 ha già mostrato più di un comportamento inaffidabile
+# su array JSON di questa taglia (righe lette una alla volta, o — come capitato
+# qui — l'intera pagina "trasposta" in un solo oggetto con ogni proprietà
+# diventata un array di tutti i valori della pagina, invece di un oggetto per
+# riga). JavaScriptSerializer non passa dagli PSObject ed è la via più diretta
+# per evitare quell'ambiguità: restituisce ArrayList/Dictionary invece di
+# oggetti PowerShell.
+Add-Type -AssemblyName System.Web.Extensions
+$serializerJson = New-Object System.Web.Script.Serialization.JavaScriptSerializer
+$serializerJson.MaxJsonLength = [int]::MaxValue
+$serializerJson.RecursionLimit = 1000
 
 if (-not $ReportPath) {
     $ReportPath = Join-Path $PSScriptRoot ("bonifica-fusioni-{0:yyyyMMdd-HHmmss}.csv" -f (Get-Date))
@@ -112,7 +126,10 @@ function Get-CellulareNormalizzato {
         $cifre = $cifre.Substring(2)
     }
     if ($cifre.Length -lt 8) { return $null }
-    return $cifre.Substring($cifre.Length - 10)
+    # Come right(v_cifre, 10) in SQL: le ultime 10 cifre, o tutta la stringa
+    # se è più corta di 10 (8 o 9 cifre) — a differenza di right(), .Substring
+    # lancia un'eccezione con uno start index negativo, quindi va clampato.
+    return $cifre.Substring([Math]::Max(0, $cifre.Length - 10))
 }
 
 function Get-CorpoErrore {
@@ -162,28 +179,74 @@ else {
 
 # ─────────────────────────────────────────── 1. i gruppi fusi, da Supabase
 
-Write-Log "Leggo abbonamenti.persona_id/source_utente_id da Supabase (per trovare i gruppi fusi)..."
+# Il raggruppamento lo fa il database (vista public.persone_fuse_utenti,
+# vedi scripts/sql/2026-09-24-persone-fuse-utenti.sql), non piu' questo
+# script: leggere tutta abbonamenti (160mila+ righe) qui per raggrupparla a
+# mano era lento — centinaia di richieste — e in piu' un problema di come
+# Windows PowerShell 5.1 disserializza il JSON faceva tornare pagine di una
+# sola riga. La vista restituisce direttamente una riga per gruppo fuso, con
+# l'elenco dei source_utente_id gia' in un unico campo array: ~1.422 righe
+# invece di 160mila, un paio di richieste invece di centinaia.
+#
+# La paginazione qui sotto NON si fida della lunghezza del corpo JSON
+# ricevuto per capire quando fermarsi: l'offset avanza sempre di
+# $dimensionePagina, e il ciclo si ferma solo quando raggiunge il totale
+# dichiarato da Postgres nel response header Content-Range (richiesto con
+# "Prefer: count=exact") — l'unica fonte affidabile.
+#
+# Il corpo di ogni pagina lo disserializza JavaScriptSerializer, non
+# ConvertFrom-Json: su un array JSON di 1000 righe, ConvertFrom-Json ha
+# mostrato più comportamenti inaffidabili su questa versione di PowerShell —
+# prima pagine di una sola riga, poi un'intera pagina "trasposta" in un solo
+# oggetto con ogni proprietà diventata un array di tutti i valori della
+# pagina invece di un oggetto per riga (il sintomo: "Gruppi fusi trovati: 2"
+# invece di 1.422, con $personaIdOriginale che nel log risultava una lista
+# di UUID invece di uno solo). JavaScriptSerializer restituisce
+# ArrayList/Dictionary invece di PSObject e non ha mostrato lo stesso
+# problema.
+Write-Log "Leggo i gruppi fusi da Supabase (vista persone_fuse_utenti)..."
 
-$perPersona = @{}  # persona_id -> HashSet[int] di source_utente_id
+$gruppiFusi = [System.Collections.Generic.List[PSCustomObject]]::new()
+$dimensionePagina = 1000
 $scorrimento = 0
-do {
-    $filtro = "persona_id=not.is.null&source_utente_id=not.is.null&select=persona_id,source_utente_id&order=persona_id.asc&limit=5000&offset=$scorrimento"
-    $pagina = @(Invoke-RestMethod -Uri "$($config.Supabase.Url)/rest/v1/abbonamenti?$filtro" -Headers $supabaseHeaders -Method Get)
-    foreach ($r in $pagina) {
-        $pid = [string]$r.persona_id
-        if (-not $perPersona.ContainsKey($pid)) { $perPersona[$pid] = [System.Collections.Generic.HashSet[int]]::new() }
-        $perPersona[$pid].Add([int]$r.source_utente_id) | Out-Null
-    }
-    $scorrimento += 5000
-    Write-Log "  ...$scorrimento righe lette."
-} while ($pagina.Count -eq 5000)
+$totaleAtteso = -1
+$headersLettura = $supabaseHeaders.Clone()
+$headersLettura["Prefer"] = "count=exact"
 
-$gruppiFusi = $perPersona.GetEnumerator() | Where-Object { $_.Value.Count -gt 1 }
-if ($SoloPersonaId) {
-    $gruppiFusi = $gruppiFusi | Where-Object { $_.Key -eq $SoloPersonaId }
-}
-$totaleGruppi = @($gruppiFusi).Count
+do {
+    $filtro = "select=persona_id,source_utente_ids&order=persona_id.asc&limit=$dimensionePagina&offset=$scorrimento"
+    if ($SoloPersonaId) { $filtro = "persona_id=eq.$SoloPersonaId&$filtro" }
+    $risposta = Invoke-WebRequest -UseBasicParsing -Uri "$($config.Supabase.Url)/rest/v1/persone_fuse_utenti?$filtro" -Headers $headersLettura -Method Get
+    $pagina = @($serializerJson.DeserializeObject($risposta.Content))
+
+    foreach ($r in $pagina) {
+        $idPersona = [string]$r["persona_id"]
+        $idUtenti = @($r["source_utente_ids"] | ForEach-Object { [int]$_ })
+        if ($idUtenti.Count -eq 0) { continue }
+        $gruppiFusi.Add([PSCustomObject]@{ PersonaId = $idPersona; IdUtenti = $idUtenti })
+    }
+
+    $contentRange = [string]$risposta.Headers["Content-Range"]
+    if ($contentRange -match '/(\d+)$') {
+        $totaleAtteso = [int]$Matches[1]
+    }
+    else {
+        # Senza un Content-Range valido non c'è modo affidabile di sapere
+        # quando fermarsi: meglio interrompere qui che rischiare un altro
+        # giro che non termina mai.
+        Write-Log "Risposta senza Content-Range valido ('$contentRange'), mi fermo qui." "ERROR"
+        break
+    }
+
+    $scorrimento += $dimensionePagina
+    Write-Log ("  ...{0} di {1} gruppi letti." -f [Math]::Min($scorrimento, $totaleAtteso), $totaleAtteso)
+} while ($scorrimento -lt $totaleAtteso)
+
+$totaleGruppi = $gruppiFusi.Count
 Write-Log "Gruppi fusi trovati: $totaleGruppi."
+if ($totaleAtteso -ge 0 -and $totaleGruppi -ne $totaleAtteso) {
+    Write-Log "ATTENZIONE: Supabase dichiarava $totaleAtteso gruppi ma ne ho raccolti $totaleGruppi — controlla il log per righe saltate o duplicate." "WARN"
+}
 
 if ($totaleGruppi -eq 0) {
     Write-Log "Niente da bonificare."
@@ -200,8 +263,8 @@ try {
     $numeroGruppo = 0
     foreach ($gruppo in $gruppiFusi) {
         $numeroGruppo++
-        $personaIdOriginale = $gruppo.Key
-        $idUtenti = @($gruppo.Value)
+        $personaIdOriginale = $gruppo.PersonaId
+        $idUtenti = @($gruppo.IdUtenti)
         Write-Log "[$numeroGruppo/$totaleGruppi] Persona $personaIdOriginale — $($idUtenti.Count) IDUtente: $($idUtenti -join ', ')"
 
         # 2a. Il dato VERO di ciascun IDUtente, da dbgym — non da Supabase,
