@@ -966,6 +966,17 @@ table.tabella tbody tr:hover {
 	text-decoration: none;
 }
 
+/* Le scadenze abbonamenti (/dashboard/abbonamenti/scadenze) ordinano lato
+   client, quindi l'intestazione è un <button>, non un <Link>: azzera lo
+   stile di default del browser perché resti identica alla versione a link. */
+button.th-ordina {
+	background: none;
+	border: none;
+	padding: 0;
+	font: inherit;
+	cursor: pointer;
+}
+
 .th-ordina:hover,
 .th-ordina:focus-visible {
 	color: var(--text);
