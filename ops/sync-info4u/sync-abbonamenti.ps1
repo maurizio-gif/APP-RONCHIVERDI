@@ -240,7 +240,11 @@ function Invoke-SupabaseScrittura {
 function Send-PersonaUpsert {
     param($Riga)
 
-    $corpoPersona = [ordered]@{
+    # Un hashtable normale, non [ordered]: serve solo a costruire il corpo
+    # JSON (l'ordine delle chiavi non conta per Supabase) e più sotto viene
+    # clonato con .Clone() — metodo che su un OrderedDictionary PowerShell
+    # non riesce a richiamare ("non contiene un metodo denominato 'Clone'").
+    $corpoPersona = @{
         source_utente_id    = [int]$Riga.IDUtente
         nome                = Get-TestoPulito $Riga.Nome
         cognome             = Get-TestoPulito $Riga.Cognome
