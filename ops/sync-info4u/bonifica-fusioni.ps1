@@ -113,7 +113,10 @@ function Get-CellulareNormalizzato {
         $cifre = $cifre.Substring(2)
     }
     if ($cifre.Length -lt 8) { return $null }
-    return $cifre.Substring($cifre.Length - 10)
+    # Come right(v_cifre, 10) in SQL: le ultime 10 cifre, o tutta la stringa
+    # se è più corta di 10 (8 o 9 cifre) — a differenza di right(), .Substring
+    # lancia un'eccezione con uno start index negativo, quindi va clampato.
+    return $cifre.Substring([Math]::Max(0, $cifre.Length - 10))
 }
 
 function Get-CorpoErrore {
