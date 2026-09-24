@@ -390,6 +390,7 @@ function Send-AbbonamentiUpsert {
             operatore_id             = if ($r.IDOperatore -is [System.DBNull]) { $null } else { [int]$r.IDOperatore }
             operatore_nome           = Get-TestoPulito $r.NomeOperatore
             venditore_id             = if ($r.IDVenditore -is [System.DBNull]) { $null } else { [int]$r.IDVenditore }
+            venditore_nome           = Get-TestoPulito $r.NomeVenditore
             club_id                  = if ($r.IDClub -is [System.DBNull]) { $null } else { [int]$r.IDClub }
             bloccato                 = Get-BoolPulito $r.Bloccato
             convertito               = Get-BoolPulito $r.Convertito
@@ -440,7 +441,7 @@ SELECT
     ai.DataInizio, ai.DataFine,
     ai.Totale AS TotaleRegistrato, ai.ImportoListino, ai.ImportoCategoria,
     ad.Importo AS ImportoConfigurato,
-    ai.IDOperatore, ai.NomeOperatore, ai.IDVenditore, ai.IDClub,
+    ai.IDOperatore, ai.NomeOperatore, ai.IDVenditore, vo.NomeOperatore AS NomeVenditore, ai.IDClub,
     ai.Bloccato, ai.Convertito, ai.RinnovoAutomatico, ai.DataDisdetta, ai.MotivoDisdetta,
     ai.IDSconto, ai.IDScontoDurata,
     ai.GGOmaggio, ai.GGFestivi, ai.GGsospensione,
@@ -450,6 +451,14 @@ FROM dbo.AbbonamentiIscrizione ai
 INNER JOIN dbo.Utenti u ON u.IDUtente = ai.IDUtente
 LEFT JOIN dbo.AbbonamentiDurata ad ON ad.IDDurata = ai.IDDurata
 LEFT JOIN dbo.Abbonamenti a ON a.IDAbbonamento = ad.IDAbbonamento
+-- A differenza dell'operatore, AbbonamentiIscrizione non porta gia' un nome
+-- venditore risolto (solo IDVenditore, un numero): si risolve qui, contro la
+-- stessa Operatori dell'operatore (IDVenditore punta alla stessa persona,
+-- solo nel ruolo di chi ha fatto la vendita). Cosi' il nome si congela al
+-- momento della sincronizzazione, non a una lettura futura che soffrirebbe
+-- della riassegnazione dell'id nel tempo (vedi
+-- scripts/sql/2026-09-24-abbonamenti-scadenze-venditore.sql).
+LEFT JOIN dbo.Operatori vo ON vo.IDOperatore = ai.IDVenditore
 "@
 
 # Esegue una query su dbgym e restituisce le righe gia' convertite in

@@ -85,6 +85,9 @@ create table if not exists public.abbonamenti (
 	operatore_id integer,
 	operatore_nome text,
 	venditore_id integer,
+	-- Aggiunta in 2026-09-24-abbonamenti-scadenze-venditore.sql: null per le
+	-- vendite sincronizzate prima di allora, vedi commento lì.
+	venditore_nome text,
 	club_id integer,
 
 	-- STATO
