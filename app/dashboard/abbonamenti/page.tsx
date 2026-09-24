@@ -155,18 +155,37 @@ export default async function AbbonamentiPage({
   const mesiScadenza = Array.from({ length: 4 }, (_, i) => mesePiu(meseCorrenteData, i))
   let queryScadenze = supabase
     .from('abbonamenti_scadenze_mensili')
-    .select('mese, gruppo_id, rinnovato, numero')
+    .select('mese, gruppo_id, rinnovato, numero, valore')
     .gte('mese', mesiScadenza[0])
     .lt('mese', mesePiu(meseCorrenteData, 4))
   if (filtroAttivo) queryScadenze = queryScadenze.in('gruppo_id', gruppiSelezionati)
   const { data: scadenzeGrezze, error: erroreScadenze } = await queryScadenze
 
-  const scadenzePerMese = new Map<string, { totale: number; daRichiamare: number }>()
+  type VoceScadenzaMese = {
+    totale: number
+    daRichiamare: number
+    rinnovati: number
+    valoreTotale: number
+    valoreRinnovato: number
+    valoreDaRinnovare: number
+  }
+  function voceScadenzaVuota(): VoceScadenzaMese {
+    return { totale: 0, daRichiamare: 0, rinnovati: 0, valoreTotale: 0, valoreRinnovato: 0, valoreDaRinnovare: 0 }
+  }
+  const scadenzePerMese = new Map<string, VoceScadenzaMese>()
   for (const r of scadenzeGrezze ?? []) {
     const meseRiga = primoDelMese(r.mese)
-    const voce = scadenzePerMese.get(meseRiga) ?? { totale: 0, daRichiamare: 0 }
+    const voce = scadenzePerMese.get(meseRiga) ?? voceScadenzaVuota()
+    const valore = Number(r.valore ?? 0)
     voce.totale += r.numero
-    if (!r.rinnovato) voce.daRichiamare += r.numero
+    voce.valoreTotale += valore
+    if (r.rinnovato) {
+      voce.rinnovati += r.numero
+      voce.valoreRinnovato += valore
+    } else {
+      voce.daRichiamare += r.numero
+      voce.valoreDaRinnovare += valore
+    }
     scadenzePerMese.set(meseRiga, voce)
   }
 
@@ -432,14 +451,24 @@ export default async function AbbonamentiPage({
           </p>
           <div className="griglia-stat">
             {mesiScadenza.map((m) => {
-              const voce = scadenzePerMese.get(m) ?? { totale: 0, daRichiamare: 0 }
+              const voce = scadenzePerMese.get(m) ?? voceScadenzaVuota()
               return (
                 <Link key={m} href={hrefScadenze(m)} className={`stat${voce.totale > 0 ? '' : ' is-vuoto'}`}>
                   <span className="stat-testa">
                     <span className="stat-label">{etichettaMese(m)}</span>
                   </span>
                   <span className="stat-valore">{voce.totale}</span>
-                  {voce.daRichiamare > 0 && <span className="stat-nota">{voce.daRichiamare} non ancora rinnovati</span>}
+                  {voce.totale > 0 && <span className="stat-nota">{euro(voce.valoreTotale) ?? '—'} in scadenza</span>}
+                  {voce.daRichiamare > 0 && (
+                    <span className="stat-nota">
+                      {voce.daRichiamare} da rinnovare · {euro(voce.valoreDaRinnovare) ?? '—'}
+                    </span>
+                  )}
+                  {voce.rinnovati > 0 && (
+                    <span className="stat-nota">
+                      {voce.rinnovati} già rinnovati · {euro(voce.valoreRinnovato) ?? '—'}
+                    </span>
+                  )}
                 </Link>
               )
             })}
