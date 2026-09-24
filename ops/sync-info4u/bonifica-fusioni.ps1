@@ -170,9 +170,23 @@ do {
     $filtro = "persona_id=not.is.null&source_utente_id=not.is.null&select=persona_id,source_utente_id&order=persona_id.asc&limit=5000&offset=$scorrimento"
     $pagina = @(Invoke-RestMethod -Uri "$($config.Supabase.Url)/rest/v1/abbonamenti?$filtro" -Headers $supabaseHeaders -Method Get)
     foreach ($r in $pagina) {
-        $pid = [string]$r.persona_id
-        if (-not $perPersona.ContainsKey($pid)) { $perPersona[$pid] = [System.Collections.Generic.HashSet[int]]::new() }
-        $perPersona[$pid].Add([int]$r.source_utente_id) | Out-Null
+        # Non $pid: e' una variabile automatica di sola lettura di
+        # PowerShell (l'id del processo corrente), riassegnarla fallisce.
+        $idPersona = [string]$r.persona_id
+
+        # Su Windows PowerShell 5.1 la disserializzazione JSON di
+        # Invoke-RestMethod puo' restituire il valore di una colonna come
+        # array invece che come scalare (dipende da quali assembly sono gia'
+        # caricati nella sessione - qui condivide il processo con
+        # System.Data.SqlClient). Si prende comunque il primo valore utile
+        # invece di far fallire tutto il giro sul cast a [int].
+        $valoreUtente = $r.source_utente_id
+        if ($valoreUtente -is [array]) { $valoreUtente = $valoreUtente[0] }
+        if ($null -eq $valoreUtente) { continue }
+        $idUtente = [int]$valoreUtente
+
+        if (-not $perPersona.ContainsKey($idPersona)) { $perPersona[$idPersona] = [System.Collections.Generic.HashSet[int]]::new() }
+        $perPersona[$idPersona].Add($idUtente) | Out-Null
     }
     $scorrimento += 5000
     Write-Log "  ...$scorrimento righe lette."
