@@ -275,6 +275,64 @@ export default async function AbbonamentiPage({
   const percentoRinnoviComplessivo =
     totaleScadutiRinnovi > 0 ? Math.round((totaliRinnovi.rinnovati / totaleScadutiRinnovi) * 100) : null
 
+  // Sezione PASS: quanti pass (gruppo Pass) scadono ogni mese e quanti di
+  // quei clienti hanno sottoscritto un vero abbonamento (un gruppo diverso
+  // da Pass) entro i 30 giorni successivi alla scadenza — vedi
+  // abbonamenti_pass_conversioni/abbonamenti_pass_mensili
+  // (2026-09-24-abbonamenti-pass-conversioni.sql). La barra somma le due
+  // quantità (pass scaduti + abbonamenti sottoscritti a seguito), non le
+  // partiziona: un pass convertito conta sia da un lato sia dall'altro,
+  // perché qui la domanda non è "quanti pass sono stati smaltiti" ma "quanto
+  // pesano le due cose l'una accanto all'altra". Non risente del filtro
+  // gruppi della pagina: la sezione è già ancorata al gruppo Pass da sola.
+  const { data: passGrezzi, error: errorePass } = await supabase
+    .from('abbonamenti_pass_mensili')
+    .select('mese, guest_pass, pass_scaduti, convertiti')
+    .gte('mese', ultimi24Mesi[0])
+    .lt('mese', mesePiu(meseCorrenteData, 1))
+
+  const passPerMese = new Map<string, { guestPass: number; scaduti: number; convertiti: number }>()
+  for (const r of passGrezzi ?? []) {
+    passPerMese.set(primoDelMese(r.mese), { guestPass: r.guest_pass, scaduti: r.pass_scaduti, convertiti: r.convertiti })
+  }
+
+  const seriePassMensile: VoceMeseStack[] = ultimi24Mesi.map((m) => {
+    const voce = passPerMese.get(m) ?? { guestPass: 0, scaduti: 0, convertiti: 0 }
+    const voci: VoceGruppoStack[] = [
+      {
+        gruppoId: 'pass-scaduti',
+        nome: 'Pass scaduti',
+        colore: COLORE_NUOVO,
+        valore: voce.scaduti,
+        valoreTesto: String(voce.scaduti),
+        dettaglio: `${voce.guestPass} guest pass`,
+      },
+      {
+        gruppoId: 'pass-convertiti',
+        nome: 'Abbonamenti sottoscritti a seguito',
+        colore: COLORE_RINNOVO,
+        valore: voce.convertiti,
+        valoreTesto: String(voce.convertiti),
+      },
+    ]
+    const totale = voce.scaduti + voce.convertiti
+    return { mese: m, etichetta: etichettaMeseBreve(m), gruppi: voci, totale, totaleTesto: String(totale) }
+  })
+
+  const legendaPass: VoceLegendaStack[] = [
+    { chiave: 'pass-scaduti', nome: 'Pass scaduti', colore: COLORE_NUOVO },
+    { chiave: 'pass-convertiti', nome: 'Abbonamenti sottoscritti a seguito', colore: COLORE_RINNOVO },
+  ]
+
+  // Stesso dato aggregato di totaliRinnovi qui sopra, ma per il tasso di
+  // conversione pass → abbonamento sull'intera finestra.
+  const totaliPass = Array.from(passPerMese.values()).reduce(
+    (acc, v) => ({ scaduti: acc.scaduti + v.scaduti, convertiti: acc.convertiti + v.convertiti }),
+    { scaduti: 0, convertiti: 0 }
+  )
+  const percentoConversionePass =
+    totaliPass.scaduti > 0 ? Math.round((totaliPass.convertiti / totaliPass.scaduti) * 100) : null
+
   // Punto 5: come sopra ma sul VENDUTO (ogni vendita del periodo, non le
   // scadenze) e diviso non per gruppo prodotto ma nuovo/rinnovo — stessa
   // vista e definizione del punto 4 (abbonamenti_vendite_tipo), aggregata
@@ -635,6 +693,46 @@ export default async function AbbonamentiPage({
             serie={serieAttiviMensile}
             legenda={legendaAttivi}
             etichettaAria="Abbonati attivi per gruppo, a fine mese, ultimi 12 mesi"
+          />
+        </div>
+      )}
+
+      {errorePass && /abbonamenti_pass_mensili/.test(errorePass.message) ? (
+        <div className="card">
+          <p className="vuoto">
+            Manca la vista Pass: esegui scripts/sql/2026-09-24-abbonamenti-pass-conversioni.sql nel SQL Editor di
+            Supabase.
+          </p>
+        </div>
+      ) : (
+        <div className="card">
+          <p className="filtri-titolo">
+            <span className="numero-sezione" aria-hidden="true">
+              7
+            </span>
+            PASS, ultimi 24 mesi
+          </p>
+          <p className="muted">
+            Pass in scadenza ogni mese e abbonamenti sottoscritti a seguito: la persona ha aperto un abbonamento di un
+            altro gruppo entro 30 giorni dalla scadenza del pass.
+          </p>
+          {percentoConversionePass !== null && (
+            <div className="griglia-stat">
+              <div className="stat stat-ok">
+                <span className="stat-testa">
+                  <span className="stat-label">Tasso di conversione pass → abbonamento, ultimi 24 mesi</span>
+                </span>
+                <span className="stat-valore">{percentoConversionePass}%</span>
+                <span className="stat-nota">
+                  {totaliPass.convertiti} abbonamenti sottoscritti su {totaliPass.scaduti} pass scaduti
+                </span>
+              </div>
+            </div>
+          )}
+          <GraficoPerGruppo
+            serie={seriePassMensile}
+            legenda={legendaPass}
+            etichettaAria="Pass scaduti e abbonamenti sottoscritti a seguito, ultimi 24 mesi"
           />
         </div>
       )}
