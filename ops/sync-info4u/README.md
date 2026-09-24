@@ -131,10 +131,15 @@ scripts/sql/2026-09-23-dedup-nome-cognome.sql: la deduplicazione è
 nome+cognome, col cellulare a disambiguare gli omonimi — non più email o
 cellulare da soli, che possono essere davvero condivisi da due iscritti
 diversi). In quel caso lo script NON tocca mai quella persona se non è a sua
-volta `fonte = 'info4u'` (cioè se è nata da un lead del sito, dal Guest
-Register o da un inserimento a mano): crea invece una scheda separata per
-l'utente Info4U, con un puntatore (`conflitto_con_persona_id`/
-`conflitto_campo = 'nome_cognome'`, vedi
+volta `fonte = 'info4u'`, con un'eccezione: un lead del sito
+(`fonte = 'form_contatti'`) con lo stesso identico cellulare del nuovo
+utente Info4U viene reclamato (fonte e source_utente_id aggiornati) invece
+di restare intoccato — è il percorso normale "lead del sito che lo staff
+inserisce poi a mano in Info4U", non un'omonimia da segnalare (vedi
+scripts/sql/2026-09-24-trova-o-crea-persona-reclama-form-contatti.sql). Per
+ogni altra fonte (es. un inserimento a mano) la persona non si tocca: si
+crea una scheda separata per l'utente Info4U, con un puntatore
+(`conflitto_con_persona_id`/`conflitto_campo = 'nome_cognome'`, vedi
 scripts/sql/2026-09-22-persone-conflitto-info4u.sql) a chi porta davvero
 quel nome — la scheda di entrambe lo segnala in /dashboard/persone/[id] con
 un link, ed è uno staff a decidere se sono la stessa persona.
