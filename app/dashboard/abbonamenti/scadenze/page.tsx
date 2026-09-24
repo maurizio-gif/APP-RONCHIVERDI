@@ -3,23 +3,10 @@ import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { caricaGruppi } from '@/lib/abbonamenti'
-import { dataBreve as dataBreveAnno } from '@/lib/persone'
 import { etichettaMese, mesePiu, oggiRoma, primoDelMese } from '@/lib/agenda'
+import { TabellaScadenze, type RigaScadenza } from './TabellaScadenze'
 
 export const dynamic = 'force-dynamic'
-
-type RigaScadenza = {
-  id: string
-  persona_id: string | null
-  abbonamento: string | null
-  gruppo_id: string | null
-  data_fine: string
-  nome: string | null
-  cognome: string | null
-  email: string | null
-  cellulare: string | null
-  rinnovato: boolean
-}
 
 export default async function ScadenzeAbbonamentiPage({
   searchParams,
@@ -56,7 +43,9 @@ export default async function ScadenzeAbbonamentiPage({
     // non solo un ordine leggibile.
     let query = supabase
       .from('abbonamenti_scadenze')
-      .select('id, persona_id, abbonamento, gruppo_id, data_fine, nome, cognome, email, cellulare, rinnovato')
+      .select(
+        'id, persona_id, abbonamento, gruppo_id, data_inizio, data_fine, totale, nome, cognome, email, cellulare, rinnovato, rinnovo_id, rinnovo_abbonamento, rinnovo_data_inizio, rinnovo_data_fine, rinnovo_totale',
+      )
       .gte('data_fine', meseRichiesto)
       .lt('data_fine', mesePiu(meseRichiesto, 1))
       .order('rinnovato', { ascending: true })
@@ -74,7 +63,6 @@ export default async function ScadenzeAbbonamentiPage({
   }
   const righe = righeGrezze
 
-  const nomeGruppo = new Map(gruppi.map((g) => [g.id, g.nome]))
   const totale = righe.length
   const daRichiamare = righe.filter((r) => !r.rinnovato).length
 
@@ -122,51 +110,7 @@ export default async function ScadenzeAbbonamentiPage({
           </p>
         </div>
       ) : (
-        <div className="card">
-          <div className="tabella-wrap">
-            <table className="tabella">
-              <thead>
-                <tr>
-                  <th>Persona</th>
-                  <th>Prodotto</th>
-                  <th>Gruppo</th>
-                  <th>Scadenza</th>
-                  <th>Rinnovo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {righe.map((r) => (
-                  <tr key={r.id}>
-                    <td>
-                      {r.persona_id ? (
-                        <Link href={`/dashboard/persone/${r.persona_id}`}>
-                          {r.cognome} {r.nome}
-                        </Link>
-                      ) : (
-                        '—'
-                      )}
-                      {(r.cellulare || r.email) && (
-                        <div className="muted" style={{ fontSize: 'var(--text-2xs)' }}>
-                          {r.cellulare || r.email}
-                        </div>
-                      )}
-                    </td>
-                    <td>{r.abbonamento ?? '—'}</td>
-                    <td>{r.gruppo_id ? (nomeGruppo.get(r.gruppo_id) ?? '—') : 'Non categorizzato'}</td>
-                    <td>{dataBreveAnno(r.data_fine)}</td>
-                    <td>
-                      {r.rinnovato ? (
-                        <span className="badge badge-ok">Rinnovato</span>
-                      ) : (
-                        <span className="badge badge-warn">Non ancora rinnovato</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <TabellaScadenze righe={righe} gruppi={gruppi} />
       )}
     </div>
   )
