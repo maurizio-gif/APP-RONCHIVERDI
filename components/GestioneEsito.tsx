@@ -69,13 +69,26 @@ const GRUPPI: { chiave: Gruppo; etichetta: string }[] = [
 ]
 
 /**
- * L'etichetta di un gruppo, come per etichettaEsito in lib/agenda.ts: su una
- * visita in sede "fallita" si legge "No-show", il linguaggio del commerciale
- * per chi non si è presentato. Riprogrammata e annullata non sono esiti (vedi
- * il tipo `Gruppo`) e restano invariate in ogni caso.
+ * L'etichetta di un gruppo: su una visita in sede "riprogrammata" si legge
+ * "No-show", il linguaggio del commerciale per chi non si è presentato.
+ *
+ * Non è più un alias di "fallita" (era così fino a settembre 2026): un
+ * no-show non è un fallimento, è un impegno saltato che si riprogramma — la
+ * persona resta da richiamare, non "persa". Le due cose condividevano lo
+ * stesso pulsante e lo stesso significato (chiudere la voce), il che
+ * confondeva: chi cliccava "No-show" pensando di rimandare l'appuntamento lo
+ * trovava invece sparito dalle cose da fare. Ora "No-show" è l'etichetta di
+ * "riprogrammata" (che non chiude nulla, vedi sopra), e "Fallita" resta per i
+ * fallimenti veri anche su una visita in sede (la persona è venuta ma non ha
+ * firmato, per esempio) — due pulsanti, due comportamenti diversi.
+ *
+ * etichettaEsito in lib/agenda.ts resta separata e invariata apposta: legge
+ * indietro gli esiti già chiusi con la vecchia logica (fallita + in sede =
+ * "No-show"), e le voci chiuse prima di questo cambiamento vanno lette come
+ * sono state chiuse davvero, non riscritte con la regola nuova.
  */
 function etichettaGruppo(chiave: Gruppo, inSede: boolean): string {
-  if (chiave === 'fallita' && inSede) return 'No-show'
+  if (chiave === 'riprogrammata' && inSede) return 'No-show'
   return GRUPPI.find((g) => g.chiave === chiave)!.etichetta
 }
 
@@ -114,9 +127,10 @@ export function GestioneEsito({
   operatori: string[]
   puoCancellare: boolean
   /**
-   * Il tipo dell'evento che si chiude: decide come si chiama un esito
-   * "fallita" — su una visita in sede è "No-show" (vedi etichettaEsito in
-   * lib/agenda.ts). Assente sulle chiusure che non hanno un tipo a monte.
+   * Il tipo dell'evento: decide come si chiama "riprogrammata" — su una
+   * visita in sede è "No-show" (vedi etichettaGruppo sopra). Su un esito già
+   * chiuso ("fallita") decide invece etichettaEsito in lib/agenda.ts, storia
+   * a parte. Assente sulle chiusure che non hanno un tipo a monte.
    */
   tipo?: TipoVoce | null
   /** Se la voce è un appuntamento vero: solo quelli si spostano anche di ora. */
@@ -393,13 +407,13 @@ export function GestioneEsito({
               onChange={(e) => setNota(e.target.value)}
               placeholder={
                 gruppo === 'fallita'
-                  ? inSede
-                    ? 'Perché non si è presentato/a: non ha risposto neanche prima, imprevisto dell’ultimo minuto…'
-                    : 'Perché non è andata: non ha risposto, non è più interessato…'
+                  ? 'Perché non è andata: non ha risposto, non è più interessato…'
                   : gruppo === 'annullata'
                     ? 'Perché la rimuovi: creata per errore, prova, doppione…'
                     : gruppo === 'riprogrammata'
-                      ? 'Perché si sposta: ha chiesto lui, non si è presentato, imprevisto nostro…'
+                      ? inSede
+                        ? 'Non si è presentato/a: imprevisto dell’ultimo minuto, dimenticato, da ricontattare…'
+                        : 'Perché si sposta: ha chiesto lui, non si è presentato, imprevisto nostro…'
                       : 'Cosa è stato detto e cosa succede adesso'
               }
             />
