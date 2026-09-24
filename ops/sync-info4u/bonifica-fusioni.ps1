@@ -166,43 +166,62 @@ else {
 # vedi scripts/sql/2026-09-24-persone-fuse-utenti.sql), non piu' questo
 # script: leggere tutta abbonamenti (160mila+ righe) qui per raggrupparla a
 # mano era lento — centinaia di richieste — e in piu' un problema di come
-# Windows PowerShell 5.1 disserializza il JSON di una riga con due colonne
-# scalari (persona_id, source_utente_id) faceva tornare pagine di una sola
-# riga. La vista restituisce direttamente una riga per gruppo fuso, con
+# Windows PowerShell 5.1 disserializza il JSON faceva tornare pagine di una
+# sola riga. La vista restituisce direttamente una riga per gruppo fuso, con
 # l'elenco dei source_utente_id gia' in un unico campo array: ~1.422 righe
 # invece di 160mila, un paio di richieste invece di centinaia.
+#
+# La paginazione qui sotto NON si fida della lunghezza del corpo JSON
+# ricevuto (quella "una riga per pagina" per la stessa disserializzazione
+# fragile ha già fatto girare questo script all'infinito, ben oltre le
+# 1.422 righe vere). L'offset avanza sempre di $dimensionePagina, e il
+# ciclo si ferma solo quando raggiunge il totale dichiarato da Postgres nel
+# response header Content-Range (richiesto con "Prefer: count=exact") —
+# l'unica fonte affidabile, indipendente da qualunque stranezza di
+# ConvertFrom-Json su questa versione di PowerShell.
 Write-Log "Leggo i gruppi fusi da Supabase (vista persone_fuse_utenti)..."
 
 $gruppiFusi = [System.Collections.Generic.List[PSCustomObject]]::new()
+$dimensionePagina = 1000
 $scorrimento = 0
+$totaleAtteso = -1
+$headersLettura = $supabaseHeaders.Clone()
+$headersLettura["Prefer"] = "count=exact"
+
 do {
-    $filtro = "select=persona_id,source_utente_ids&order=persona_id.asc&limit=1000&offset=$scorrimento"
+    $filtro = "select=persona_id,source_utente_ids&order=persona_id.asc&limit=$dimensionePagina&offset=$scorrimento"
     if ($SoloPersonaId) { $filtro = "persona_id=eq.$SoloPersonaId&$filtro" }
-    $pagina = @(Invoke-RestMethod -Uri "$($config.Supabase.Url)/rest/v1/persone_fuse_utenti?$filtro" -Headers $supabaseHeaders -Method Get)
+    $risposta = Invoke-WebRequest -UseBasicParsing -Uri "$($config.Supabase.Url)/rest/v1/persone_fuse_utenti?$filtro" -Headers $headersLettura -Method Get
+    $pagina = @($risposta.Content | ConvertFrom-Json)
+
     foreach ($r in $pagina) {
-        $idPersona = $r.persona_id
-        if ($idPersona -is [array]) { $idPersona = $idPersona[0] }
-        $idPersona = [string]$idPersona
-
-        $listaUtenti = @($r.source_utente_ids)
-        if ($listaUtenti.Count -eq 0) { continue }
-        if ($listaUtenti[0] -is [array]) {
-            # Non dovrebbe succedere con questa forma (un solo campo, gia'
-            # un array): se capita e' meglio saltare la riga e segnalarlo
-            # forte che fidarsi di un dato strutturato in modo inatteso.
-            Write-Log "Riga con source_utente_ids annidato in modo inatteso, la salto: $($listaUtenti | ConvertTo-Json -Compress)" "ERROR"
-            continue
-        }
-        $idUtenti = @($listaUtenti | ForEach-Object { [int]$_ })
-
+        $idPersona = [string]$r.persona_id
+        $idUtenti = @($r.source_utente_ids | ForEach-Object { [int]$_ })
+        if ($idUtenti.Count -eq 0) { continue }
         $gruppiFusi.Add([PSCustomObject]@{ PersonaId = $idPersona; IdUtenti = $idUtenti })
     }
-    $scorrimento += $pagina.Count
-    Write-Log "  ...$scorrimento gruppi letti."
-} while ($pagina.Count -gt 0)
+
+    $contentRange = [string]$risposta.Headers["Content-Range"]
+    if ($contentRange -match '/(\d+)$') {
+        $totaleAtteso = [int]$Matches[1]
+    }
+    else {
+        # Senza un Content-Range valido non c'è modo affidabile di sapere
+        # quando fermarsi: meglio interrompere qui che rischiare un altro
+        # giro che non termina mai.
+        Write-Log "Risposta senza Content-Range valido ('$contentRange'), mi fermo qui." "ERROR"
+        break
+    }
+
+    $scorrimento += $dimensionePagina
+    Write-Log ("  ...{0} di {1} gruppi letti." -f [Math]::Min($scorrimento, $totaleAtteso), $totaleAtteso)
+} while ($scorrimento -lt $totaleAtteso)
 
 $totaleGruppi = $gruppiFusi.Count
 Write-Log "Gruppi fusi trovati: $totaleGruppi."
+if ($totaleAtteso -ge 0 -and $totaleGruppi -ne $totaleAtteso) {
+    Write-Log "ATTENZIONE: Supabase dichiarava $totaleAtteso gruppi ma ne ho raccolti $totaleGruppi — controlla il log per righe saltate o duplicate." "WARN"
+}
 
 if ($totaleGruppi -eq 0) {
     Write-Log "Niente da bonificare."
