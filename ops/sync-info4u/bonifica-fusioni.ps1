@@ -61,6 +61,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $PSDefaultParameterValues["Invoke-RestMethod:UserAgent"] = "bonifica-fusioni-ronchiverdi/1.0"
+$PSDefaultParameterValues["Invoke-WebRequest:UserAgent"] = "bonifica-fusioni-ronchiverdi/1.0"
 
 if (-not $ReportPath) {
     $ReportPath = Join-Path $PSScriptRoot ("bonifica-fusioni-{0:yyyyMMdd-HHmmss}.csv" -f (Get-Date))
