@@ -24,6 +24,7 @@ export type RigaScadenza = {
   rinnovo_data_inizio: string | null
   rinnovo_data_fine: string | null
   rinnovo_totale: number | null
+  operatore_nome: string | null
 }
 
 type Colonna =
@@ -38,6 +39,7 @@ type Colonna =
   | 'rinnovo_data_inizio'
   | 'rinnovo_data_fine'
   | 'rinnovo_totale'
+  | 'operatore'
 
 // ISO 'YYYY-MM-DD' ordina correttamente anche come testo: nessun bisogno di
 // passare da Date per le colonne data. rinnovato diventa 0/1 per stare nello
@@ -54,6 +56,7 @@ const TIPO_COLONNA: Record<Colonna, 'testo' | 'numero'> = {
   rinnovo_data_inizio: 'testo',
   rinnovo_data_fine: 'testo',
   rinnovo_totale: 'numero',
+  operatore: 'testo',
 }
 
 function confronta(a: string | number | null, b: string | number | null, tipo: 'testo' | 'numero'): number {
@@ -91,6 +94,8 @@ function valoreColonna(r: RigaScadenza, colonna: Colonna, nomeGruppo: Map<string
       return r.rinnovo_data_fine
     case 'rinnovo_totale':
       return r.rinnovo_totale
+    case 'operatore':
+      return r.operatore_nome
   }
 }
 
@@ -112,6 +117,7 @@ type Filtri = {
   rinnovoDataFineA: string
   rinnovoTotaleMin: string
   rinnovoTotaleMax: string
+  operatore: string
 }
 
 const FILTRI_VUOTI: Filtri = {
@@ -132,6 +138,7 @@ const FILTRI_VUOTI: Filtri = {
   rinnovoDataFineA: '',
   rinnovoTotaleMin: '',
   rinnovoTotaleMax: '',
+  operatore: '',
 }
 
 function filtriAttivi(f: Filtri): boolean {
@@ -166,6 +173,7 @@ function corrisponde(r: RigaScadenza, f: Filtri): boolean {
     return false
   if (f.rinnovoTotaleMax && (r.rinnovo_totale === null || Number(r.rinnovo_totale) > Number(f.rinnovoTotaleMax)))
     return false
+  if (f.operatore && !(r.operatore_nome ?? '').toLowerCase().includes(f.operatore.trim().toLowerCase())) return false
   return true
 }
 
@@ -321,6 +329,11 @@ export function TabellaScadenze({ righe, gruppi }: { righe: RigaScadenza[]; grup
               <option value={NON_CATEGORIZZATO}>Non categorizzato</option>
             </select>
           </div>
+          <CampoTesto
+            label="Operatore"
+            valore={filtri.operatore}
+            onCambia={(v) => aggiornaFiltro('operatore', v)}
+          />
         </div>
         <div className="form-row">
           <CampoIntervallo
@@ -422,6 +435,7 @@ export function TabellaScadenze({ righe, gruppi }: { righe: RigaScadenza[]; grup
                   <Intestazione colonna="data_inizio">Inizio</Intestazione>
                   <Intestazione colonna="data_fine">Scadenza</Intestazione>
                   <Intestazione colonna="totale">Importo</Intestazione>
+                  <Intestazione colonna="operatore">Operatore</Intestazione>
                   <Intestazione colonna="rinnovato">Rinnovo</Intestazione>
                   <Intestazione colonna="rinnovo_abbonamento">Nuovo abbonamento</Intestazione>
                   <Intestazione colonna="rinnovo_data_inizio">Nuovo inizio</Intestazione>
@@ -451,6 +465,7 @@ export function TabellaScadenze({ righe, gruppi }: { righe: RigaScadenza[]; grup
                     <td className="cella-nowrap">{dataBreveAnno(r.data_inizio)}</td>
                     <td className="cella-nowrap">{dataBreveAnno(r.data_fine)}</td>
                     <td className="cella-nowrap">{euro(r.totale) ?? '—'}</td>
+                    <td>{r.operatore_nome ?? '—'}</td>
                     <td className="cella-nowrap">
                       {r.rinnovato ? (
                         <span className="badge badge-ok">Rinnovato</span>

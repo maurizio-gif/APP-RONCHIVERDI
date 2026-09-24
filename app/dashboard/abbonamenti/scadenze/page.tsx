@@ -44,7 +44,7 @@ export default async function ScadenzeAbbonamentiPage({
     let query = supabase
       .from('abbonamenti_scadenze')
       .select(
-        'id, persona_id, abbonamento, gruppo_id, data_inizio, data_fine, totale, nome, cognome, email, cellulare, rinnovato, rinnovo_id, rinnovo_abbonamento, rinnovo_data_inizio, rinnovo_data_fine, rinnovo_totale',
+        'id, persona_id, abbonamento, gruppo_id, data_inizio, data_fine, totale, nome, cognome, email, cellulare, rinnovato, rinnovo_id, rinnovo_abbonamento, rinnovo_data_inizio, rinnovo_data_fine, rinnovo_totale, operatore_nome',
       )
       .gte('data_fine', meseRichiesto)
       .lt('data_fine', mesePiu(meseRichiesto, 1))
