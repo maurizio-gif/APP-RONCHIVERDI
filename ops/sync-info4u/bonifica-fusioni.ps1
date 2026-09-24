@@ -63,6 +63,19 @@ $ErrorActionPreference = "Stop"
 $PSDefaultParameterValues["Invoke-RestMethod:UserAgent"] = "bonifica-fusioni-ronchiverdi/1.0"
 $PSDefaultParameterValues["Invoke-WebRequest:UserAgent"] = "bonifica-fusioni-ronchiverdi/1.0"
 
+# Per leggere pagine grandi da persone_fuse_utenti (1000 righe): ConvertFrom-Json
+# su Windows PowerShell 5.1 ha già mostrato più di un comportamento inaffidabile
+# su array JSON di questa taglia (righe lette una alla volta, o — come capitato
+# qui — l'intera pagina "trasposta" in un solo oggetto con ogni proprietà
+# diventata un array di tutti i valori della pagina, invece di un oggetto per
+# riga). JavaScriptSerializer non passa dagli PSObject ed è la via più diretta
+# per evitare quell'ambiguità: restituisce ArrayList/Dictionary invece di
+# oggetti PowerShell.
+Add-Type -AssemblyName System.Web.Extensions
+$serializerJson = New-Object System.Web.Script.Serialization.JavaScriptSerializer
+$serializerJson.MaxJsonLength = [int]::MaxValue
+$serializerJson.RecursionLimit = 1000
+
 if (-not $ReportPath) {
     $ReportPath = Join-Path $PSScriptRoot ("bonifica-fusioni-{0:yyyyMMdd-HHmmss}.csv" -f (Get-Date))
 }
@@ -176,13 +189,21 @@ else {
 # invece di 160mila, un paio di richieste invece di centinaia.
 #
 # La paginazione qui sotto NON si fida della lunghezza del corpo JSON
-# ricevuto (quella "una riga per pagina" per la stessa disserializzazione
-# fragile ha già fatto girare questo script all'infinito, ben oltre le
-# 1.422 righe vere). L'offset avanza sempre di $dimensionePagina, e il
-# ciclo si ferma solo quando raggiunge il totale dichiarato da Postgres nel
-# response header Content-Range (richiesto con "Prefer: count=exact") —
-# l'unica fonte affidabile, indipendente da qualunque stranezza di
-# ConvertFrom-Json su questa versione di PowerShell.
+# ricevuto per capire quando fermarsi: l'offset avanza sempre di
+# $dimensionePagina, e il ciclo si ferma solo quando raggiunge il totale
+# dichiarato da Postgres nel response header Content-Range (richiesto con
+# "Prefer: count=exact") — l'unica fonte affidabile.
+#
+# Il corpo di ogni pagina lo disserializza JavaScriptSerializer, non
+# ConvertFrom-Json: su un array JSON di 1000 righe, ConvertFrom-Json ha
+# mostrato più comportamenti inaffidabili su questa versione di PowerShell —
+# prima pagine di una sola riga, poi un'intera pagina "trasposta" in un solo
+# oggetto con ogni proprietà diventata un array di tutti i valori della
+# pagina invece di un oggetto per riga (il sintomo: "Gruppi fusi trovati: 2"
+# invece di 1.422, con $personaIdOriginale che nel log risultava una lista
+# di UUID invece di uno solo). JavaScriptSerializer restituisce
+# ArrayList/Dictionary invece di PSObject e non ha mostrato lo stesso
+# problema.
 Write-Log "Leggo i gruppi fusi da Supabase (vista persone_fuse_utenti)..."
 
 $gruppiFusi = [System.Collections.Generic.List[PSCustomObject]]::new()
@@ -196,11 +217,11 @@ do {
     $filtro = "select=persona_id,source_utente_ids&order=persona_id.asc&limit=$dimensionePagina&offset=$scorrimento"
     if ($SoloPersonaId) { $filtro = "persona_id=eq.$SoloPersonaId&$filtro" }
     $risposta = Invoke-WebRequest -UseBasicParsing -Uri "$($config.Supabase.Url)/rest/v1/persone_fuse_utenti?$filtro" -Headers $headersLettura -Method Get
-    $pagina = @($risposta.Content | ConvertFrom-Json)
+    $pagina = @($serializerJson.DeserializeObject($risposta.Content))
 
     foreach ($r in $pagina) {
-        $idPersona = [string]$r.persona_id
-        $idUtenti = @($r.source_utente_ids | ForEach-Object { [int]$_ })
+        $idPersona = [string]$r["persona_id"]
+        $idUtenti = @($r["source_utente_ids"] | ForEach-Object { [int]$_ })
         if ($idUtenti.Count -eq 0) { continue }
         $gruppiFusi.Add([PSCustomObject]@{ PersonaId = $idPersona; IdUtenti = $idUtenti })
     }
