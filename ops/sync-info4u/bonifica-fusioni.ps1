@@ -162,48 +162,46 @@ else {
 
 # ─────────────────────────────────────────── 1. i gruppi fusi, da Supabase
 
-Write-Log "Leggo abbonamenti.persona_id/source_utente_id da Supabase (per trovare i gruppi fusi)..."
+# Il raggruppamento lo fa il database (vista public.persone_fuse_utenti,
+# vedi scripts/sql/2026-09-24-persone-fuse-utenti.sql), non piu' questo
+# script: leggere tutta abbonamenti (160mila+ righe) qui per raggrupparla a
+# mano era lento — centinaia di richieste — e in piu' un problema di come
+# Windows PowerShell 5.1 disserializza il JSON di una riga con due colonne
+# scalari (persona_id, source_utente_id) faceva tornare pagine di una sola
+# riga. La vista restituisce direttamente una riga per gruppo fuso, con
+# l'elenco dei source_utente_id gia' in un unico campo array: ~1.422 righe
+# invece di 160mila, un paio di richieste invece di centinaia.
+Write-Log "Leggo i gruppi fusi da Supabase (vista persone_fuse_utenti)..."
 
-# Il limite chiesto (5000) e' solo una richiesta: Supabase/PostgREST
-# applica comunque un tetto massimo di righe per risposta (tipicamente
-# 1000, a prescindere da "limit"), quindi confrontare $pagina.Count col
-# valore chiesto per decidere se fermarsi era sbagliato — la pagina
-# tornava sempre piu' corta di 5000 e il giro si fermava subito dopo la
-# prima pagina. Qui ci si ferma solo quando una pagina torna vuota, e lo
-# scorrimento avanza di quante righe sono DAVVERO arrivate.
-$perPersona = @{}  # persona_id -> HashSet[int] di source_utente_id
+$gruppiFusi = [System.Collections.Generic.List[PSCustomObject]]::new()
 $scorrimento = 0
 do {
-    $filtro = "persona_id=not.is.null&source_utente_id=not.is.null&select=persona_id,source_utente_id&order=persona_id.asc&limit=5000&offset=$scorrimento"
-    $pagina = @(Invoke-RestMethod -Uri "$($config.Supabase.Url)/rest/v1/abbonamenti?$filtro" -Headers $supabaseHeaders -Method Get)
+    $filtro = "select=persona_id,source_utente_ids&order=persona_id.asc&limit=1000&offset=$scorrimento"
+    if ($SoloPersonaId) { $filtro = "persona_id=eq.$SoloPersonaId&$filtro" }
+    $pagina = @(Invoke-RestMethod -Uri "$($config.Supabase.Url)/rest/v1/persone_fuse_utenti?$filtro" -Headers $supabaseHeaders -Method Get)
     foreach ($r in $pagina) {
-        # Non $pid: e' una variabile automatica di sola lettura di
-        # PowerShell (l'id del processo corrente), riassegnarla fallisce.
-        $idPersona = [string]$r.persona_id
+        $idPersona = $r.persona_id
+        if ($idPersona -is [array]) { $idPersona = $idPersona[0] }
+        $idPersona = [string]$idPersona
 
-        # Su Windows PowerShell 5.1 la disserializzazione JSON di
-        # Invoke-RestMethod puo' restituire il valore di una colonna come
-        # array invece che come scalare (dipende da quali assembly sono gia'
-        # caricati nella sessione - qui condivide il processo con
-        # System.Data.SqlClient). Si prende comunque il primo valore utile
-        # invece di far fallire tutto il giro sul cast a [int].
-        $valoreUtente = $r.source_utente_id
-        if ($valoreUtente -is [array]) { $valoreUtente = $valoreUtente[0] }
-        if ($null -eq $valoreUtente) { continue }
-        $idUtente = [int]$valoreUtente
+        $listaUtenti = @($r.source_utente_ids)
+        if ($listaUtenti.Count -eq 0) { continue }
+        if ($listaUtenti[0] -is [array]) {
+            # Non dovrebbe succedere con questa forma (un solo campo, gia'
+            # un array): se capita e' meglio saltare la riga e segnalarlo
+            # forte che fidarsi di un dato strutturato in modo inatteso.
+            Write-Log "Riga con source_utente_ids annidato in modo inatteso, la salto: $($listaUtenti | ConvertTo-Json -Compress)" "ERROR"
+            continue
+        }
+        $idUtenti = @($listaUtenti | ForEach-Object { [int]$_ })
 
-        if (-not $perPersona.ContainsKey($idPersona)) { $perPersona[$idPersona] = [System.Collections.Generic.HashSet[int]]::new() }
-        $perPersona[$idPersona].Add($idUtente) | Out-Null
+        $gruppiFusi.Add([PSCustomObject]@{ PersonaId = $idPersona; IdUtenti = $idUtenti })
     }
     $scorrimento += $pagina.Count
-    Write-Log "  ...$scorrimento righe lette."
+    Write-Log "  ...$scorrimento gruppi letti."
 } while ($pagina.Count -gt 0)
 
-$gruppiFusi = $perPersona.GetEnumerator() | Where-Object { $_.Value.Count -gt 1 }
-if ($SoloPersonaId) {
-    $gruppiFusi = $gruppiFusi | Where-Object { $_.Key -eq $SoloPersonaId }
-}
-$totaleGruppi = @($gruppiFusi).Count
+$totaleGruppi = $gruppiFusi.Count
 Write-Log "Gruppi fusi trovati: $totaleGruppi."
 
 if ($totaleGruppi -eq 0) {
@@ -221,8 +219,8 @@ try {
     $numeroGruppo = 0
     foreach ($gruppo in $gruppiFusi) {
         $numeroGruppo++
-        $personaIdOriginale = $gruppo.Key
-        $idUtenti = @($gruppo.Value)
+        $personaIdOriginale = $gruppo.PersonaId
+        $idUtenti = @($gruppo.IdUtenti)
         Write-Log "[$numeroGruppo/$totaleGruppi] Persona $personaIdOriginale — $($idUtenti.Count) IDUtente: $($idUtenti -join ', ')"
 
         # 2a. Il dato VERO di ciascun IDUtente, da dbgym — non da Supabase,
