@@ -125,17 +125,36 @@ Apri **Utilità di pianificazione** (Task Scheduler):
 
 Da qui in poi il log (`sync.log`) è il primo posto dove guardare se qualcosa
 non torna: ogni riga dice quante vendite ha processato, a che
-`source_iscrizione_id` è arrivato, e — se capita — quale persona era già in
-anagrafica con la stessa email o lo stesso cellulare di un utente Info4U. In
-quel caso lo script NON tocca mai quella persona se non è a sua volta
-`fonte = 'info4u'` (cioè se è nata da un lead del sito, dal Guest Register o
-da un inserimento a mano): crea invece una scheda separata per l'utente
-Info4U, senza il campo in conflitto, con un puntatore
-(`conflitto_con_persona_id`/`conflitto_campo`, vedi
-scripts/sql/2026-09-22-persone-conflitto-info4u.sql) a chi possiede davvero
-quel recapito — la scheda di entrambe lo segnala in
-/dashboard/persone/[id] con un link, ed è uno staff a decidere se sono la
-stessa persona.
+`source_iscrizione_id` è arrivato, e — se capita — quale persona portava già
+lo stesso nome e cognome di un nuovo utente Info4U (vedi
+scripts/sql/2026-09-23-dedup-nome-cognome.sql: la deduplicazione è
+nome+cognome, col cellulare a disambiguare gli omonimi — non più email o
+cellulare da soli, che possono essere davvero condivisi da due iscritti
+diversi). In quel caso lo script NON tocca mai quella persona se non è a sua
+volta `fonte = 'info4u'` (cioè se è nata da un lead del sito, dal Guest
+Register o da un inserimento a mano): crea invece una scheda separata per
+l'utente Info4U, con un puntatore (`conflitto_con_persona_id`/
+`conflitto_campo = 'nome_cognome'`, vedi
+scripts/sql/2026-09-22-persone-conflitto-info4u.sql) a chi porta davvero
+quel nome — la scheda di entrambe lo segnala in /dashboard/persone/[id] con
+un link, ed è uno staff a decidere se sono la stessa persona.
+
+### Anagrafiche fuse da prima di questa modifica
+
+Prima di `2026-09-23-dedup-nome-cognome.sql` la chiave era email/cellulare:
+due iscritti Info4U diversi che condividevano un recapito (un indirizzo di
+famiglia, un numero di casa) finivano fusi sulla stessa scheda — verificato
+sui dati, 1.422 schede coinvolte, il 90% con periodi di abbonamento
+sovrapposti (cioè erano soci contemporaneamente, non la stessa persona
+ritesserata). La correzione qui sopra vale solo per gli utenti nuovi da qui
+in avanti: quelle 1.422 schede restano fuse finché non si esegue
+`bonifica-fusioni.ps1` (in questa stessa cartella), che rilegge da dbgym il
+nome vero di ciascun utente coinvolto — Supabase da sola l'ha già perso, a
+forza di sync che sovrascrivevano nome/cognome a ogni giro — e separa le
+schede senza perdere nessun `source_utente_id`. Gira di default in sola
+lettura (scrive solo un report CSV): va lanciato con `-Esegui` per scrivere
+davvero, meglio prima su un caso solo con `-SoloPersonaId`. Vedi i commenti
+in testa allo script per i dettagli.
 
 ## Cosa fa, in breve
 
@@ -143,8 +162,8 @@ stessa persona.
 - Interroga `dbgym` per le vendite con `IDIscrizione` più alto di quello, a
   blocchi.
 - Per ogni vendita: upsert della persona (per `source_utente_id`; se quella
-  persona non esiste ancora ed email/cellulare risultano già di un contatto
-  di un'altra fonte, quel contatto non si tocca — vedi sopra) e poi upsert
+  persona non esiste ancora e nome+cognome risultano già di un contatto di
+  un'altra fonte, quel contatto non si tocca — vedi sopra) e poi upsert
   della vendita (per `source_iscrizione_id`).
 - Si ferma da solo quando non trova più righe nuove, o dopo
   `MaxBatchesPerRun` blocchi in una singola esecuzione (per non far girare

@@ -40,6 +40,22 @@ import { RichiestePersona, type RichiestaDiPersona } from '../RichiestePersona'
 const MAX_PAGINE_VISITATE = 120
 
 /**
+ * Cosa dire di un conflitto Info4U, secondo il campo che l'ha causato.
+ *
+ * 'email'/'cellulare' sono le righe nate prima che la deduplicazione
+ * diventasse nome+cognome (vedi scripts/sql/2026-09-23-dedup-nome-cognome.sql):
+ * quel recapito coincideva per caso con un contatto nato altrove. Da quella
+ * migrazione in poi il conflitto è invece un omonimo il cui cellulare non
+ * coincide (o non verificabile): il campo condiviso è il nome, non un
+ * recapito, e le due schede possono benissimo avere email o numeri diversi.
+ */
+function descrizioneConflitto(campo: string | null): string {
+  if (campo === 'cellulare') return 'Il cellulare'
+  if (campo === 'email') return "L'email"
+  return 'Il nome e cognome'
+}
+
+/**
  * Le pagine del sito che questa persona ha visto, in ordine cronologico e
  * attraverso **tutte** le sue visite.
  *
@@ -387,12 +403,12 @@ export default async function PersonaPage({ params }: { params: { id: string } }
       {(conflittoVerso || (personeInConflitto ?? []).length > 0) && (
         <div className="card card-avviso">
           <div className="card-head">
-            <h3 className="card-titolo">Email o cellulare condivisi con un&apos;altra anagrafica</h3>
+            <h3 className="card-titolo">Possibile omonimo o recapito condiviso con un&apos;altra anagrafica</h3>
           </div>
           {conflittoVerso && (
             <p className="card-nota muted">
-              {persona.conflitto_campo === 'cellulare' ? 'Il cellulare' : "L'email"} di questa scheda
-              (sincronizzata da Info4U) coincide con quella di{' '}
+              {descrizioneConflitto(persona.conflitto_campo)} di questa scheda (sincronizzata da Info4U)
+              coincide con quello di{' '}
               <Link href={`/dashboard/persone/${conflittoVerso.id}`}>{nomePersona(conflittoVerso)}</Link>:
               per non sovrascrivere quel contatto non sono state unite automaticamente. Verifica se è la
               stessa persona.
@@ -402,8 +418,8 @@ export default async function PersonaPage({ params }: { params: { id: string } }
             <p className="card-nota muted" key={p.id as string}>
               Un&apos;anagrafica sincronizzata da Info4U (
               <Link href={`/dashboard/persone/${p.id}`}>{nomePersona(p)}</Link>) condivide{' '}
-              {p.conflitto_campo === 'cellulare' ? 'il cellulare' : "l'email"} di questo contatto: non è
-              stata unita automaticamente per non sovrascriverlo.
+              {descrizioneConflitto(p.conflitto_campo).toLowerCase()} di questo contatto: non è stata
+              unita automaticamente per non sovrascriverlo.
             </p>
           ))}
         </div>
