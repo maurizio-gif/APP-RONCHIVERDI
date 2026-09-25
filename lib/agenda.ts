@@ -200,7 +200,7 @@ export function eStatoValido(valore: string | null | undefined): valore is Stato
  * cambio ora legale/solare: le date e le ore in agenda sono scritte dalle
  * persone, senza fuso, e vanno confrontate alla pari.
  */
-function adessoRoma(): Date {
+export function adessoRoma(): Date {
   const parti = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Europe/Rome',
     year: 'numeric',

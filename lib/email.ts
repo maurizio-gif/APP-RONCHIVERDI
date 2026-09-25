@@ -31,6 +31,10 @@ export type EsitoEmail = { ok: true } | { ok: false; errore: string }
 
 export type Messaggio = {
   a: string
+  // In copia conoscenza, visibile a tutti i destinatari (non ccn): usata dai
+  // report automatici che devono raggiungere anche chi segue il progetto,
+  // non solo il destinatario principale.
+  cc?: string[]
   oggetto: string
   html: string
   // Il corpo testuale non è un di più: senza, alcuni filtri antispam
@@ -42,7 +46,7 @@ export type Messaggio = {
 // Non lancia mai: chi chiama decide cosa fare di un invio fallito (di solito
 // salvare l'errore accanto al voucher e lasciare che la segreteria rimandi),
 // perché il voucher esiste comunque e non va perso per colpa dell'email.
-export async function inviaEmail({ a, oggetto, html, testo }: Messaggio): Promise<EsitoEmail> {
+export async function inviaEmail({ a, cc, oggetto, html, testo }: Messaggio): Promise<EsitoEmail> {
   const chiave = process.env.SENDGRID_API_KEY
   if (!chiave) {
     console.error('SENDGRID_API_KEY mancante: email non inviata a', a)
@@ -57,7 +61,9 @@ export async function inviaEmail({ a, oggetto, html, testo }: Messaggio): Promis
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        personalizations: [{ to: [{ email: a }] }],
+        personalizations: [
+          { to: [{ email: a }], ...(cc?.length ? { cc: cc.map((email) => ({ email })) } : {}) },
+        ],
         from: { email: MITTENTE_EMAIL, name: MITTENTE_NOME },
         ...(RISPOSTE_A ? { reply_to: { email: RISPOSTE_A } } : {}),
         subject: oggetto,
