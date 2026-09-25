@@ -52,7 +52,7 @@ export async function GET(request: Request) {
   const resoconto = await caricaResocontoDirezionale(oggiRoma())
   const { oggetto, html, testo } = componiEmailResoconto(resoconto)
   const esito = emailProva
-    ? await inviaEmail({ a: emailProva, oggetto: `[PROVA] ${oggetto}`, html, testo })
+    ? await inviaEmail({ a: emailProva, oggetto, html, testo })
     : await inviaEmail({ a: DESTINATARIO, cc: CC, oggetto, html, testo })
 
   if (!esito.ok) {
