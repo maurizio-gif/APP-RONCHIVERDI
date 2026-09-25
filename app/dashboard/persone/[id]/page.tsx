@@ -200,6 +200,25 @@ export default async function PersonaPage({ params }: { params: { id: string } }
   const operatori = staffOrdinato.map((x) => x.email)
   const nomiStaff = mappaNomiStaff(staffOrdinato)
 
+  // Il lavoro fatto dalla segreteria per portare la persona al rinnovo
+  // (Rinnovi Core / Abbonamenti in scadenza): nota di gestione, stato e —
+  // se persa — motivo ed eventuale nota del mancato rinnovo. Vive in una
+  // tabella a parte (abbonamenti_scadenze_lavorazione, vedi
+  // scripts/sql/2026-09-25-abbonamenti-scadenze-lavorazione.sql) perché la
+  // sincronizzazione Info4U riscrive `abbonamenti` per intero: qui si legge
+  // solo, la si scrive da Rinnovi Core o da Abbonamenti in scadenza.
+  const idAbbonamenti = (abbonamenti ?? []).map((a) => a.id as string)
+  const { data: lavorazioni } = idAbbonamenti.length
+    ? await supabase
+        .from('abbonamenti_scadenze_lavorazione')
+        .select('abbonamento_id, nota, stato_manuale, motivo_non_rinnovo, note_non_rinnovo, assegnato_a')
+        .in('abbonamento_id', idAbbonamenti)
+    : { data: [] as Record<string, any>[] }
+  const lavorazionePerAbbonamento = new Map(
+    (lavorazioni ?? []).map((l) => [l.abbonamento_id as string, l])
+  )
+  const oggiISO = new Date().toISOString().slice(0, 10)
+
   // La trattativa aperta, per poterla chiudere dalla richiesta che si sta
   // lavorando. Al massimo una (vedi trova_o_crea_opportunita); le chiuse
   // restano nell'elenco in sola lettura qui sopra, che è la loro storia.
@@ -530,43 +549,88 @@ export default async function PersonaPage({ params }: { params: { id: string } }
             </summary>
             <div className="storico-gruppo-corpo">
               <ul className="voci">
-                {(abbonamenti ?? []).map((a) => (
-                  <li className="voce" key={a.id as string}>
-                    <span className="voce-ora">{dataOra(a.data_vendita as string | null)}</span>
-                    <span className="voce-corpo">
-                      <span className="voce-titolo">
-                        {(a.abbonamento as string) || 'Abbonamento'}
-                        {a.variante ? ` — ${a.variante}` : ''}
-                      </span>
-                      <span className="voce-note muted">
-                        {euro(a.totale != null ? Number(a.totale) : null) ?? 'importo non registrato'}
-                        {a.periodo ? ` · ${a.periodo}` : a.durata ? ` · ${a.durata} giorni` : ''}
-                        {/* dataBreveAnno, non la dataBreve dell'agenda: qui la
-                            validità può cadere in un anno qualunque dei tanti
-                            portati dallo storico Info4U, non nei prossimi
-                            giorni come in agenda — senza l'anno due vendite a
-                            distanza di anni si leggono con la stessa data. */}
-                        {a.data_inizio && a.data_fine
-                          ? ` · validità ${dataBreveAnno(a.data_inizio as string)} – ${dataBreveAnno(a.data_fine as string)}`
-                          : a.data_inizio
-                            ? ` · dal ${dataBreveAnno(a.data_inizio as string)}`
-                            : a.data_fine
-                              ? ` · fino al ${dataBreveAnno(a.data_fine as string)}`
-                              : ''}
-                        {a.operatore_nome && ` · ${a.operatore_nome}`}
-                      </span>
-                      {/* La disdetta è un fatto della vendita, non del
-                          contratto in generale: senza dirlo qui, un
-                          abbonamento disdetto sembra ancora attivo. */}
-                      {a.data_disdetta && (
-                        <span className="voce-note muted">
-                          Disdetto il {dataBreveAnno(a.data_disdetta as string)}
-                          {a.motivo_disdetta ? ` — ${a.motivo_disdetta}` : ''}
+                {(abbonamenti ?? []).map((a) => {
+                  const scaduto = !!a.data_fine && (a.data_fine as string) < oggiISO
+                  const lav = lavorazionePerAbbonamento.get(a.id as string)
+                  const perso = lav?.stato_manuale === 'perso'
+                  // Il lavoro sul rinnovo si mostra solo su un abbonamento
+                  // scaduto e solo se c'è davvero qualcosa scritto: altrimenti
+                  // ogni scadenza mai toccata da Rinnovi Core aggiungerebbe
+                  // una riga vuota "— vuoto —" a tutta la lista.
+                  const daMostrare =
+                    scaduto && lav && (lav.nota || lav.stato_manuale || lav.motivo_non_rinnovo || lav.note_non_rinnovo)
+                  return (
+                    <li className="voce" key={a.id as string}>
+                      <span className="voce-ora">{dataOra(a.data_vendita as string | null)}</span>
+                      <span className="voce-corpo">
+                        <span className="voce-titolo">
+                          {(a.abbonamento as string) || 'Abbonamento'}
+                          {a.variante ? ` — ${a.variante}` : ''}
                         </span>
-                      )}
-                    </span>
-                  </li>
-                ))}
+                        <span className="voce-note muted">
+                          {euro(a.totale != null ? Number(a.totale) : null) ?? 'importo non registrato'}
+                          {a.periodo ? ` · ${a.periodo}` : a.durata ? ` · ${a.durata} giorni` : ''}
+                          {/* dataBreveAnno, non la dataBreve dell'agenda: qui la
+                              validità può cadere in un anno qualunque dei tanti
+                              portati dallo storico Info4U, non nei prossimi
+                              giorni come in agenda — senza l'anno due vendite a
+                              distanza di anni si leggono con la stessa data. */}
+                          {a.data_inizio && a.data_fine
+                            ? ` · validità ${dataBreveAnno(a.data_inizio as string)} – ${dataBreveAnno(a.data_fine as string)}`
+                            : a.data_inizio
+                              ? ` · dal ${dataBreveAnno(a.data_inizio as string)}`
+                              : a.data_fine
+                                ? ` · fino al ${dataBreveAnno(a.data_fine as string)}`
+                                : ''}
+                          {a.operatore_nome && ` · ${a.operatore_nome}`}
+                        </span>
+                        {/* La disdetta è un fatto della vendita, non del
+                            contratto in generale: senza dirlo qui, un
+                            abbonamento disdetto sembra ancora attivo. */}
+                        {a.data_disdetta && (
+                          <span className="voce-note muted">
+                            Disdetto il {dataBreveAnno(a.data_disdetta as string)}
+                            {a.motivo_disdetta ? ` — ${a.motivo_disdetta}` : ''}
+                          </span>
+                        )}
+                        {/* Il lavoro della segreteria per portare questa
+                            scadenza al rinnovo (Rinnovi Core / Abbonamenti in
+                            scadenza): la nota di gestione resta sempre
+                            visibile, motivo e nota del mancato rinnovo solo
+                            quando lo stato è "Perso" — prima di allora non
+                            significano ancora niente. */}
+                        {daMostrare && (
+                          <span className="voce-note">
+                            {lav?.stato_manuale && (
+                              <span
+                                className={`badge badge-punto ${perso ? 'badge-ko' : 'badge-warn'}`}
+                                style={{ marginRight: '0.5rem' }}
+                              >
+                                {perso ? 'Rinnovo perso' : 'In trattativa'}
+                              </span>
+                            )}
+                            {lav?.assegnato_a && (
+                              <span className="muted" style={{ fontSize: 'var(--text-sm)' }}>
+                                segue {nomeDiEmail(lav.assegnato_a as string, nomiStaff)}
+                              </span>
+                            )}
+                            {lav?.nota && (
+                              <span className="voce-note muted">Nota gestione: {lav.nota as string}</span>
+                            )}
+                            {perso && lav?.motivo_non_rinnovo && (
+                              <span className="voce-note muted">
+                                Motivo mancato rinnovo: {lav.motivo_non_rinnovo as string}
+                              </span>
+                            )}
+                            {perso && lav?.note_non_rinnovo && (
+                              <span className="voce-note muted">{lav.note_non_rinnovo as string}</span>
+                            )}
+                          </span>
+                        )}
+                      </span>
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           </details>
