@@ -7,6 +7,7 @@ import { etichettaMese, mesePiu, oggiRoma, primoDelMese } from '@/lib/agenda'
 import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import { TabellaScadenze, type RigaScadenza } from '../scadenze/TabellaScadenze'
 import { GraficoRinnovi } from '../scadenze/GraficoRinnovi'
+import { GuidaVideo } from '@/components/GuidaVideo'
 
 export const dynamic = 'force-dynamic'
 
@@ -80,6 +81,8 @@ export default async function RinnoviPage({ searchParams }: { searchParams: { me
 
   return (
     <div>
+      <GuidaVideo vidyardId="s4VYD65MdPNME784SQzjp6" titolo="Gestione efficiente dei rinnovi abbonamenti" />
+
       <div className="page-head">
         <p className="eyebrow">Abbonamenti</p>
         <h1>Rinnovi Core</h1>

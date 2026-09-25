@@ -4906,6 +4906,82 @@ button.th-ordina {
 	font-size: var(--text-xs);
 }
 
+/* ──────────────────── guida video (Vidyard), su singole pagine
+ *
+ * Un pulsante fisso in basso a sinistra — l'angolo opposto a
+ * .avviso-opportunita, per non accavallarsi mai con l'avviso di una
+ * trattativa da prendere in carico — che apre il video in una finestra
+ * modale. Chi non ne ha bisogno non lo vede quasi: non sposta contenuto,
+ * non compare dentro nessuna card.
+ */
+.guida-video-bottone {
+	position: fixed;
+	left: 1.25rem;
+	bottom: 1.25rem;
+	z-index: 150;
+}
+
+.guida-video-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 200;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 1.5rem;
+	background: rgba(28, 28, 24, 0.72);
+}
+
+.guida-video-modale {
+	position: relative;
+	width: 100%;
+	max-width: 48rem;
+	padding: 1.5rem;
+	background: var(--surface);
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius);
+	box-shadow: 0 24px 56px rgba(28, 28, 24, 0.3);
+}
+
+.guida-video-chiudi {
+	position: absolute;
+	top: 0.5rem;
+	right: 0.5rem;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.75rem;
+	height: 1.75rem;
+	background: transparent;
+	border: none;
+	border-radius: 50%;
+	color: var(--text-muted);
+	font-size: var(--text-md);
+	line-height: 1;
+	cursor: pointer;
+}
+
+.guida-video-chiudi:hover {
+	background: var(--bg-alt);
+	color: var(--text);
+}
+
+.guida-video-titolo {
+	margin: 0 1.75rem 0.75rem 0;
+	font-family: var(--font-serif);
+	font-size: var(--text-md);
+}
+
+/* Il player inline di Vidyard gestisce da sé le proprie proporzioni
+   (sostituisce l'<img> con il proprio markup appena lo script lo trova):
+   qui serve solo contenerlo, non imporgli un'altezza. */
+.guida-video-player {
+	width: 100%;
+	background: #000;
+	border-radius: calc(var(--radius) - 4px);
+	overflow: hidden;
+}
+
 /* ──────────────────── avviso: nuova trattativa da prendere in carico
  *
  * Non è bloccante, al contrario dell'avviso dei messaggi interni: quello è una
