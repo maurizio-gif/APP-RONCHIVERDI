@@ -1,10 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { testoRicerca, dataBreve as dataBreveAnno } from '@/lib/persone'
 import { euro } from '@/lib/pipeline'
 import { NON_CATEGORIZZATO, type Gruppo } from '@/lib/abbonamenti'
+import { impostaTrattativa, salvaNotaScadenza } from './actions'
+import { GraficoRinnovi } from './GraficoRinnovi'
 
 export type RigaScadenza = {
   id: string
@@ -25,6 +27,11 @@ export type RigaScadenza = {
   rinnovo_data_fine: string | null
   rinnovo_totale: number | null
   operatore_nome: string | null
+  // Lavorazione manuale del rinnovo: nessuna sincronizzazione la scrive, la
+  // imposta solo chi lavora la scadenza — vedi actions.ts e
+  // abbonamenti_scadenze_lavorazione.
+  in_trattativa: boolean
+  nota: string | null
 }
 
 type Colonna =
@@ -35,6 +42,7 @@ type Colonna =
   | 'data_fine'
   | 'totale'
   | 'rinnovato'
+  | 'trattativa'
   | 'rinnovo_abbonamento'
   | 'rinnovo_data_inizio'
   | 'rinnovo_data_fine'
@@ -42,8 +50,9 @@ type Colonna =
   | 'operatore'
 
 // ISO 'YYYY-MM-DD' ordina correttamente anche come testo: nessun bisogno di
-// passare da Date per le colonne data. rinnovato diventa 0/1 per stare nello
-// stesso confronto numerico delle altre colonne di stato/importo.
+// passare da Date per le colonne data. rinnovato/trattativa diventano 0/1
+// per stare nello stesso confronto numerico delle altre colonne di
+// stato/importo.
 const TIPO_COLONNA: Record<Colonna, 'testo' | 'numero'> = {
   persona: 'testo',
   prodotto: 'testo',
@@ -52,6 +61,7 @@ const TIPO_COLONNA: Record<Colonna, 'testo' | 'numero'> = {
   data_fine: 'testo',
   totale: 'numero',
   rinnovato: 'numero',
+  trattativa: 'numero',
   rinnovo_abbonamento: 'testo',
   rinnovo_data_inizio: 'testo',
   rinnovo_data_fine: 'testo',
@@ -86,6 +96,8 @@ function valoreColonna(r: RigaScadenza, colonna: Colonna, nomeGruppo: Map<string
       return r.totale
     case 'rinnovato':
       return r.rinnovato ? 1 : 0
+    case 'trattativa':
+      return r.in_trattativa ? 1 : 0
     case 'rinnovo_abbonamento':
       return r.rinnovo_abbonamento
     case 'rinnovo_data_inizio':
@@ -110,6 +122,7 @@ type Filtri = {
   totaleMin: string
   totaleMax: string
   rinnovato: '' | 'si' | 'no'
+  trattativa: '' | 'si' | 'no'
   rinnovoAbbonamento: string
   rinnovoDataInizioDa: string
   rinnovoDataInizioA: string
@@ -139,6 +152,7 @@ const FILTRI_VUOTI: Filtri = {
   rinnovoTotaleMin: '',
   rinnovoTotaleMax: '',
   operatore: '',
+  trattativa: '',
 }
 
 function filtriAttivi(f: Filtri): boolean {
@@ -160,6 +174,8 @@ function corrisponde(r: RigaScadenza, f: Filtri): boolean {
   if (f.totaleMax && (r.totale === null || Number(r.totale) > Number(f.totaleMax))) return false
   if (f.rinnovato === 'si' && !r.rinnovato) return false
   if (f.rinnovato === 'no' && r.rinnovato) return false
+  if (f.trattativa === 'si' && !r.in_trattativa) return false
+  if (f.trattativa === 'no' && r.in_trattativa) return false
   if (
     f.rinnovoAbbonamento &&
     !(r.rinnovo_abbonamento ?? '').toLowerCase().includes(f.rinnovoAbbonamento.trim().toLowerCase())
@@ -239,6 +255,111 @@ function CampoIntervallo({
 }
 
 /**
+ * Il flag manuale "in trattativa": un clic, salvataggio ottimistico (la
+ * spunta si muove subito, come TogglePermesso in dashboard/utenti), annulla
+ * da solo se il server rifiuta. Disabilitato quando la riga è già rinnovata:
+ * a quel punto il fatto vero (esiste un nuovo abbonamento) ha già risposto
+ * alla domanda che la trattativa poneva, e lasciarla spuntabile la
+ * trasformerebbe in un dato che mente.
+ */
+function CellaTrattativa({
+  abbonamentoId,
+  valoreIniziale,
+  disabilitato,
+}: {
+  abbonamentoId: string
+  valoreIniziale: boolean
+  disabilitato: boolean
+}) {
+  const [valore, setValore] = useState(valoreIniziale)
+  const [errore, setErrore] = useState<string | null>(null)
+  const [inCorso, startTransition] = useTransition()
+
+  function alCambio(nuovo: boolean) {
+    setValore(nuovo)
+    setErrore(null)
+    startTransition(async () => {
+      const esito = await impostaTrattativa(abbonamentoId, nuovo)
+      if (!esito.ok) {
+        setValore(!nuovo)
+        setErrore(esito.errore)
+      }
+    })
+  }
+
+  return (
+    <>
+      <label className={`check-riga${disabilitato ? ' is-disabled' : ''}`}>
+        <input
+          type="checkbox"
+          checked={valore}
+          disabled={disabilitato || inCorso}
+          onChange={(e) => alCambio(e.target.checked)}
+        />
+        In trattativa
+      </label>
+      {errore && (
+        <p className="field-hint" style={{ color: 'var(--error)' }}>
+          {errore}
+        </p>
+      )}
+    </>
+  )
+}
+
+/**
+ * La nota libera: si salva da sola quando si esce dal campo (come una cella
+ * di foglio elettronico — niente pulsante "Salva" da ricordarsi di cliccare
+ * su una tabella dove le righe sono decine), solo se il testo è davvero
+ * cambiato dall'ultimo salvataggio riuscito.
+ */
+function CellaNota({ abbonamentoId, valoreIniziale }: { abbonamentoId: string; valoreIniziale: string }) {
+  const [nota, setNota] = useState(valoreIniziale)
+  const [ultimaSalvata, setUltimaSalvata] = useState(valoreIniziale)
+  const [stato, setStato] = useState<'inattivo' | 'salvata'>('inattivo')
+  const [errore, setErrore] = useState<string | null>(null)
+  const [inCorso, startTransition] = useTransition()
+
+  function alBlur() {
+    if (nota === ultimaSalvata) return
+    setErrore(null)
+    startTransition(async () => {
+      const esito = await salvaNotaScadenza(abbonamentoId, nota)
+      if (esito.ok) {
+        setUltimaSalvata(nota)
+        setStato('salvata')
+      } else {
+        setErrore(esito.errore)
+      }
+    })
+  }
+
+  return (
+    <div className="cella-nota-campo">
+      <textarea
+        className="textarea-inline"
+        rows={2}
+        value={nota}
+        placeholder="Nota…"
+        onChange={(e) => {
+          setNota(e.target.value)
+          setStato('inattivo')
+        }}
+        onBlur={alBlur}
+        disabled={inCorso}
+      />
+      {inCorso && <span className="muted cella-nota-stato">Salvataggio…</span>}
+      {!inCorso && stato === 'salvata' && <span className="muted cella-nota-stato">Salvato</span>}
+      {errore && (
+        <p className="field-hint" style={{ color: 'var(--error)' }}>
+          {errore}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
  * L'elenco delle scadenze di un mese, con ordinamento per colonna (clic
  * sull'intestazione) e un filtro per colonna — in memoria, come in
  * ElencoRichieste: righeGrezze arriva già completo dal server (paginato lì
@@ -246,8 +367,26 @@ function CampoIntervallo({
  * migliaio di righe anche nel mese di punta, e ordinare/filtrare mentre si
  * digita non giustifica un giro sul server.
  */
-export function TabellaScadenze({ righe, gruppi }: { righe: RigaScadenza[]; gruppi: Gruppo[] }) {
+export function TabellaScadenze({
+  righe,
+  gruppi,
+  nascondiGruppo = false,
+}: {
+  righe: RigaScadenza[]
+  gruppi: Gruppo[]
+  // Vero sulla pagina Rinnovi (fissa sul gruppo Core, vedi
+  // /dashboard/abbonamenti/rinnovi): il filtro e la colonna Gruppo
+  // mostrerebbero sempre lo stesso valore, quindi sono solo rumore.
+  nascondiGruppo?: boolean
+}) {
   const nomeGruppo = useMemo(() => new Map(gruppi.map((g) => [g.id, g.nome])), [gruppi])
+
+  // Chiuse di default: due sezioni di filtri raramente usate insieme (chi
+  // cerca una persona non sta anche escludendo per importo di rinnovo), e
+  // aperte entrambe la card più lunga della pagina era il primo blocco visto
+  // scendendo, prima ancora della torta.
+  const [apertoScadenza, setApertoScadenza] = useState(false)
+  const [apertoRinnovo, setApertoRinnovo] = useState(false)
 
   const [ordineColonna, setOrdineColonna] = useState<Colonna>('rinnovato')
   const [ordineDirezione, setOrdineDirezione] = useState<'asc' | 'desc'>('asc')
@@ -304,109 +443,144 @@ export function TabellaScadenze({ righe, gruppi }: { righe: RigaScadenza[]; grup
   return (
     <>
       <div className="card">
-        <p className="filtri-titolo">Filtro — abbonamento in scadenza</p>
-        <div className="form-row">
-          <CampoTesto
-            label="Persona"
-            valore={filtri.persona}
-            onCambia={(v) => aggiornaFiltro('persona', v)}
-            placeholder="Nome, cognome, email o cellulare"
-          />
-          <CampoTesto
-            label="Prodotto"
-            valore={filtri.prodotto}
-            onCambia={(v) => aggiornaFiltro('prodotto', v)}
-          />
-          <div className="field">
-            <label>Gruppo</label>
-            <select value={filtri.gruppo} onChange={(e) => aggiornaFiltro('gruppo', e.target.value)}>
-              <option value="">Tutti</option>
-              {gruppi.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.nome}
-                </option>
-              ))}
-              <option value={NON_CATEGORIZZATO}>Non categorizzato</option>
-            </select>
-          </div>
-          <CampoTesto
-            label="Operatore"
-            valore={filtri.operatore}
-            onCambia={(v) => aggiornaFiltro('operatore', v)}
-          />
-        </div>
-        <div className="form-row">
-          <CampoIntervallo
-            label="Data inizio"
-            tipo="date"
-            da={filtri.dataInizioDa}
-            a={filtri.dataInizioA}
-            onDa={(v) => aggiornaFiltro('dataInizioDa', v)}
-            onA={(v) => aggiornaFiltro('dataInizioA', v)}
-          />
-          <CampoIntervallo
-            label="Scadenza"
-            tipo="date"
-            da={filtri.dataFineDa}
-            a={filtri.dataFineA}
-            onDa={(v) => aggiornaFiltro('dataFineDa', v)}
-            onA={(v) => aggiornaFiltro('dataFineA', v)}
-          />
-          <CampoIntervallo
-            label="Importo (€)"
-            tipo="number"
-            da={filtri.totaleMin}
-            a={filtri.totaleMax}
-            onDa={(v) => aggiornaFiltro('totaleMin', v)}
-            onA={(v) => aggiornaFiltro('totaleMax', v)}
-          />
-        </div>
+        <button
+          type="button"
+          className="filtri-titolo filtri-titolo-toggle"
+          aria-expanded={apertoScadenza}
+          onClick={() => setApertoScadenza((v) => !v)}
+        >
+          Filtro — abbonamento in scadenza {apertoScadenza ? '−' : '+'}
+        </button>
+        {apertoScadenza && (
+          <>
+            <div className="form-row">
+              <CampoTesto
+                label="Persona"
+                valore={filtri.persona}
+                onCambia={(v) => aggiornaFiltro('persona', v)}
+                placeholder="Nome, cognome, email o cellulare"
+              />
+              <CampoTesto
+                label="Prodotto"
+                valore={filtri.prodotto}
+                onCambia={(v) => aggiornaFiltro('prodotto', v)}
+              />
+              {!nascondiGruppo && (
+                <div className="field">
+                  <label>Gruppo</label>
+                  <select value={filtri.gruppo} onChange={(e) => aggiornaFiltro('gruppo', e.target.value)}>
+                    <option value="">Tutti</option>
+                    {gruppi.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.nome}
+                      </option>
+                    ))}
+                    <option value={NON_CATEGORIZZATO}>Non categorizzato</option>
+                  </select>
+                </div>
+              )}
+              <CampoTesto
+                label="Operatore"
+                valore={filtri.operatore}
+                onCambia={(v) => aggiornaFiltro('operatore', v)}
+              />
+            </div>
+            <div className="form-row">
+              <CampoIntervallo
+                label="Data inizio"
+                tipo="date"
+                da={filtri.dataInizioDa}
+                a={filtri.dataInizioA}
+                onDa={(v) => aggiornaFiltro('dataInizioDa', v)}
+                onA={(v) => aggiornaFiltro('dataInizioA', v)}
+              />
+              <CampoIntervallo
+                label="Scadenza"
+                tipo="date"
+                da={filtri.dataFineDa}
+                a={filtri.dataFineA}
+                onDa={(v) => aggiornaFiltro('dataFineDa', v)}
+                onA={(v) => aggiornaFiltro('dataFineA', v)}
+              />
+              <CampoIntervallo
+                label="Importo (€)"
+                tipo="number"
+                da={filtri.totaleMin}
+                a={filtri.totaleMax}
+                onDa={(v) => aggiornaFiltro('totaleMin', v)}
+                onA={(v) => aggiornaFiltro('totaleMax', v)}
+              />
+            </div>
+          </>
+        )}
 
-        <p className="filtri-titolo">Filtro — rinnovo</p>
-        <div className="form-row">
-          <div className="field">
-            <label>Stato</label>
-            <select
-              value={filtri.rinnovato}
-              onChange={(e) => aggiornaFiltro('rinnovato', e.target.value as Filtri['rinnovato'])}
-            >
-              <option value="">Tutti</option>
-              <option value="si">Rinnovato</option>
-              <option value="no">Non ancora rinnovato</option>
-            </select>
-          </div>
-          <CampoTesto
-            label="Nuovo abbonamento"
-            valore={filtri.rinnovoAbbonamento}
-            onCambia={(v) => aggiornaFiltro('rinnovoAbbonamento', v)}
-          />
-        </div>
-        <div className="form-row">
-          <CampoIntervallo
-            label="Nuova data inizio"
-            tipo="date"
-            da={filtri.rinnovoDataInizioDa}
-            a={filtri.rinnovoDataInizioA}
-            onDa={(v) => aggiornaFiltro('rinnovoDataInizioDa', v)}
-            onA={(v) => aggiornaFiltro('rinnovoDataInizioA', v)}
-          />
-          <CampoIntervallo
-            label="Nuova scadenza"
-            tipo="date"
-            da={filtri.rinnovoDataFineDa}
-            a={filtri.rinnovoDataFineA}
-            onDa={(v) => aggiornaFiltro('rinnovoDataFineDa', v)}
-            onA={(v) => aggiornaFiltro('rinnovoDataFineA', v)}
-          />
-          <CampoIntervallo
-            label="Nuovo importo (€)"
-            tipo="number"
-            da={filtri.rinnovoTotaleMin}
-            a={filtri.rinnovoTotaleMax}
-            onDa={(v) => aggiornaFiltro('rinnovoTotaleMin', v)}
-            onA={(v) => aggiornaFiltro('rinnovoTotaleMax', v)}
-          />
-        </div>
+        <button
+          type="button"
+          className="filtri-titolo filtri-titolo-toggle"
+          aria-expanded={apertoRinnovo}
+          onClick={() => setApertoRinnovo((v) => !v)}
+        >
+          Filtro — abbonamento rinnovato {apertoRinnovo ? '−' : '+'}
+        </button>
+        {apertoRinnovo && (
+          <>
+            <div className="form-row">
+              <div className="field">
+                <label>Stato</label>
+                <select
+                  value={filtri.rinnovato}
+                  onChange={(e) => aggiornaFiltro('rinnovato', e.target.value as Filtri['rinnovato'])}
+                >
+                  <option value="">Tutti</option>
+                  <option value="si">Rinnovato</option>
+                  <option value="no">Non ancora rinnovato</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Trattativa</label>
+                <select
+                  value={filtri.trattativa}
+                  onChange={(e) => aggiornaFiltro('trattativa', e.target.value as Filtri['trattativa'])}
+                >
+                  <option value="">Tutte</option>
+                  <option value="si">In trattativa</option>
+                  <option value="no">Non segnata</option>
+                </select>
+              </div>
+              <CampoTesto
+                label="Nuovo abbonamento"
+                valore={filtri.rinnovoAbbonamento}
+                onCambia={(v) => aggiornaFiltro('rinnovoAbbonamento', v)}
+              />
+            </div>
+            <div className="form-row">
+              <CampoIntervallo
+                label="Nuova data inizio"
+                tipo="date"
+                da={filtri.rinnovoDataInizioDa}
+                a={filtri.rinnovoDataInizioA}
+                onDa={(v) => aggiornaFiltro('rinnovoDataInizioDa', v)}
+                onA={(v) => aggiornaFiltro('rinnovoDataInizioA', v)}
+              />
+              <CampoIntervallo
+                label="Nuova scadenza"
+                tipo="date"
+                da={filtri.rinnovoDataFineDa}
+                a={filtri.rinnovoDataFineA}
+                onDa={(v) => aggiornaFiltro('rinnovoDataFineDa', v)}
+                onA={(v) => aggiornaFiltro('rinnovoDataFineA', v)}
+              />
+              <CampoIntervallo
+                label="Nuovo importo (€)"
+                tipo="number"
+                da={filtri.rinnovoTotaleMin}
+                a={filtri.rinnovoTotaleMax}
+                onDa={(v) => aggiornaFiltro('rinnovoTotaleMin', v)}
+                onA={(v) => aggiornaFiltro('rinnovoTotaleMax', v)}
+              />
+            </div>
+          </>
+        )}
 
         {attivi && (
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => setFiltri(FILTRI_VUOTI)}>
@@ -416,6 +590,8 @@ export function TabellaScadenze({ righe, gruppi }: { righe: RigaScadenza[]; grup
       </div>
 
       <div className="card">
+        <GraficoRinnovi righe={righe} />
+
         {attivi && (
           <p className="muted" style={{ marginTop: 0 }}>
             {righeOrdinate.length} di {righe.length} {righe.length === 1 ? 'abbonamento' : 'abbonamenti'}
@@ -431,12 +607,14 @@ export function TabellaScadenze({ righe, gruppi }: { righe: RigaScadenza[]; grup
                 <tr>
                   <Intestazione colonna="persona">Persona</Intestazione>
                   <Intestazione colonna="prodotto">Prodotto</Intestazione>
-                  <Intestazione colonna="gruppo">Gruppo</Intestazione>
+                  {!nascondiGruppo && <Intestazione colonna="gruppo">Gruppo</Intestazione>}
                   <Intestazione colonna="data_inizio">Inizio</Intestazione>
                   <Intestazione colonna="data_fine">Scadenza</Intestazione>
                   <Intestazione colonna="totale">Importo</Intestazione>
                   <Intestazione colonna="operatore">Operatore</Intestazione>
                   <Intestazione colonna="rinnovato">Rinnovo</Intestazione>
+                  <Intestazione colonna="trattativa">Trattativa</Intestazione>
+                  <th>Note</th>
                   <Intestazione colonna="rinnovo_abbonamento">Nuovo abbonamento</Intestazione>
                   <Intestazione colonna="rinnovo_data_inizio">Nuovo inizio</Intestazione>
                   <Intestazione colonna="rinnovo_data_fine">Nuova scadenza</Intestazione>
@@ -461,7 +639,9 @@ export function TabellaScadenze({ righe, gruppi }: { righe: RigaScadenza[]; grup
                       )}
                     </td>
                     <td>{r.abbonamento ?? '—'}</td>
-                    <td>{r.gruppo_id ? (nomeGruppo.get(r.gruppo_id) ?? '—') : 'Non categorizzato'}</td>
+                    {!nascondiGruppo && (
+                      <td>{r.gruppo_id ? (nomeGruppo.get(r.gruppo_id) ?? '—') : 'Non categorizzato'}</td>
+                    )}
                     <td className="cella-nowrap">{dataBreveAnno(r.data_inizio)}</td>
                     <td className="cella-nowrap">{dataBreveAnno(r.data_fine)}</td>
                     <td className="cella-nowrap">{euro(r.totale) ?? '—'}</td>
@@ -472,6 +652,16 @@ export function TabellaScadenze({ righe, gruppi }: { righe: RigaScadenza[]; grup
                       ) : (
                         <span className="badge badge-warn">Non ancora rinnovato</span>
                       )}
+                    </td>
+                    <td className="cella-nowrap">
+                      <CellaTrattativa
+                        abbonamentoId={r.id}
+                        valoreIniziale={r.in_trattativa}
+                        disabilitato={r.rinnovato}
+                      />
+                    </td>
+                    <td className="cella-nota">
+                      <CellaNota abbonamentoId={r.id} valoreIniziale={r.nota ?? ''} />
                     </td>
                     <td>{r.rinnovo_id ? (r.rinnovo_abbonamento ?? '—') : '—'}</td>
                     <td className="cella-nowrap">{r.rinnovo_id ? dataBreveAnno(r.rinnovo_data_inizio) : '—'}</td>

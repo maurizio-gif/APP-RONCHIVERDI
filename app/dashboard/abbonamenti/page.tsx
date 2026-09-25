@@ -749,6 +749,9 @@ export default async function AbbonamentiPage({
           <Link href="/dashboard/abbonamenti/andamento" className="btn btn-grande">
             Andamento mensile
           </Link>
+          <Link href="/dashboard/abbonamenti/rinnovi" className="btn btn-grande">
+            Rinnovi Core
+          </Link>
         </div>
       </div>
 
