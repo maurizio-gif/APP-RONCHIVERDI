@@ -6,6 +6,7 @@ import { caricaGruppi } from '@/lib/abbonamenti'
 import { dataBreve as dataBreveAnno } from '@/lib/persone'
 import { euro } from '@/lib/pipeline'
 import NuovoGruppoForm from './NuovoGruppoForm'
+import GruppoChip from './GruppoChip'
 import RigaProdotto from './RigaProdotto'
 import AiutoTooltip from '@/app/components/AiutoTooltip'
 
@@ -151,11 +152,7 @@ export default async function GruppiAbbonamentiPage({
               {gruppi.length === 0 ? (
                 <p className="muted">Nessun gruppo creato ancora — crea il primo qui sotto.</p>
               ) : (
-                gruppi.map((g) => (
-                  <span key={g.id} className="chip">
-                    {g.nome}
-                  </span>
-                ))
+                gruppi.map((g) => <GruppoChip key={g.id} id={g.id} nome={g.nome} />)
               )}
             </div>
             <NuovoGruppoForm />

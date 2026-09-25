@@ -47,6 +47,42 @@ export async function creaGruppo(nome: string): Promise<Esito> {
   return { ok: true }
 }
 
+// Cancellabile solo se non ha più nessun prodotto assegnato: la colonna
+// abbonamenti_mappatura.gruppo_id è "on delete set null" (vedi
+// scripts/sql/2026-09-18-abbonamenti-gruppi.sql), quindi il database da solo
+// lascerebbe cancellare comunque un gruppo pieno di prodotti, spostandoli
+// tutti silenziosamente fra i "non categorizzati" — esattamente il contrario
+// di quello che serve quando un gruppo è pieno per un motivo, non per uno
+// creato per sbaglio. Il blocco è quindi qui, non nello schema.
+export async function eliminaGruppo(id: string): Promise<Esito> {
+  if (!(await utenteHaSezione('abbonamenti'))) {
+    return { ok: false, errore: 'Non hai accesso a questa sezione.' }
+  }
+
+  const supabase = createSupabaseServiceClient()
+  const { count, error: erroreConteggio } = await supabase
+    .from('abbonamenti_mappatura')
+    .select('id', { count: 'exact', head: true })
+    .eq('gruppo_id', id)
+  if (erroreConteggio) {
+    return { ok: false, errore: erroreConteggio.message }
+  }
+  if ((count ?? 0) > 0) {
+    return {
+      ok: false,
+      errore: `Ci sono ${count} prodott${count === 1 ? 'o' : 'i'} assegnat${count === 1 ? 'o' : 'i'} a questo gruppo: rimuovi l'assegnazione e riprova a cancellare il gruppo.`,
+    }
+  }
+
+  const { error } = await supabase.from('abbonamenti_gruppi').delete().eq('id', id)
+  if (error) {
+    return { ok: false, errore: error.message }
+  }
+
+  rivalidaReport()
+  return { ok: true }
+}
+
 export async function rinominaGruppo(id: string, nome: string): Promise<Esito> {
   if (!(await utenteHaSezione('abbonamenti'))) {
     return { ok: false, errore: 'Non hai accesso a questa sezione.' }

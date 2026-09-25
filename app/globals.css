@@ -5520,6 +5520,37 @@ button.th-ordina {
 	opacity: 0.55;
 }
 
+/* La "×" per eliminare un gruppo (vedi GruppoChip in
+   app/dashboard/abbonamenti/gruppi/): spenta finché non ci si passa sopra,
+   perché su un elenco di gruppi non è il gesto che si fa più spesso — quello
+   è leggerli, non cancellarli. */
+.chip-elimina {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.1rem;
+	height: 1.1rem;
+	margin: 0 -0.15rem 0 0.05rem;
+	padding: 0;
+	border: none;
+	background: none;
+	color: var(--text-muted);
+	font-size: 1rem;
+	line-height: 1;
+	cursor: pointer;
+	border-radius: 999px;
+}
+
+.chip-elimina:hover:not(:disabled) {
+	background: var(--error-tint);
+	color: var(--error);
+}
+
+.chip-elimina:disabled {
+	cursor: default;
+	opacity: 0.5;
+}
+
 /* Il pallino del colore dello stato sul chip: lo stesso della riga, così il
    filtro «Vinta» e la riga vinta si riconoscono come la stessa cosa. */
 .chip-punto {
