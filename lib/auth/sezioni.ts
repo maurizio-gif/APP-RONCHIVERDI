@@ -76,6 +76,18 @@ const DEFINIZIONI = [
     href: '/dashboard/agenda/phone-email-in',
     gruppo: 'Segreteria',
   },
+  // Il lavoro dei rinnovi Core, prima su un foglio Excel a parte: chi lo
+  // lavora ogni giorno (gli operatori di segreteria, vedi
+  // staff_users.operatore_segreteria) non ha bisogno — e spesso non ha il
+  // diritto — di vedere tutta la sezione Abbonamenti (report, andamento,
+  // gruppi prodotto: dati direzionali). Un permesso a sé, non condiviso con
+  // 'abbonamenti', così sta in Segreteria invece che sotto Abbonamenti.
+  {
+    chiave: 'rinnovi-core',
+    label: 'Rinnovi Core',
+    href: '/dashboard/abbonamenti/rinnovi',
+    gruppo: 'Segreteria',
+  },
   {
     chiave: 'richieste-tennis-scuola',
     label: 'Young School Tennis — Scuola',

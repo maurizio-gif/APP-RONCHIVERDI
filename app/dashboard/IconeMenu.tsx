@@ -110,6 +110,15 @@ const DISEGNI: Record<string, React.ReactNode> = {
       <path d="M14 7.5v1.5M14 11.2v1.6M14 15v1.5" />
     </>
   ),
+  // Rinnovi Core: le due frecce che si rincorrono, il ciclo del rinnovo.
+  'rinnovi-core': (
+    <>
+      <path d="M23 4v6h-6" />
+      <path d="M1 20v-6h6" />
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10" />
+      <path d="M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+    </>
+  ),
   // Curriculum: il foglio con la persona sopra.
   candidature: (
     <>

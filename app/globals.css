@@ -954,6 +954,24 @@ table.tabella tbody tr:hover {
 	white-space: nowrap;
 }
 
+/* La colonna Persona non deve prendersi lo spazio in più che il browser
+   distribuisce quando le colonne "a contenuto" (celle di testo, select) non
+   riempiono da sole tutto il 100% della tabella: width 1% sulla prima
+   colonna la fa restringere al contenuto invece di allargarsi. */
+.tabella-scadenze th:first-child,
+.tabella-scadenze td:first-child {
+	width: 1%;
+}
+
+/* Nome sempre su una riga sola (leggibile, non spezzato a metà), ma
+   cellulare ed email possono andare a capo: altrimenti basta un'email molto
+   lunga in una sola riga su 350+ per costringere tutta la colonna ad
+   allargarsi, lasciando vuoto su ogni altra riga più corta. */
+.cella-persona {
+	max-width: 12rem;
+	overflow-wrap: anywhere;
+}
+
 /* Intestazione di colonna cliccabile per ordinare la tabella (vedi
    "Ultima vendita" in /dashboard/abbonamenti/gruppi): eredita il colore e le
    maiuscole di table.tabella th, non un link "blu" in mezzo a un'intestazione
@@ -3158,8 +3176,8 @@ button.th-ordina {
 }
 
 .grafico-rinnovi-torta {
-	width: 7.5rem;
-	height: 7.5rem;
+	width: 11.5rem;
+	height: 11.5rem;
 	flex-shrink: 0;
 }
 
@@ -3170,8 +3188,8 @@ button.th-ordina {
 }
 
 .grafico-rinnovi-fetta-ok,
-.grafico-rinnovi-fetta-info,
-.grafico-rinnovi-fetta-warn {
+.grafico-rinnovi-fetta-warn,
+.grafico-rinnovi-fetta-escluso {
 	fill: none;
 	stroke-width: 3.2;
 }
@@ -3180,26 +3198,22 @@ button.th-ordina {
 	stroke: var(--ok);
 }
 
-/* "In trattativa" (vedi impostaTrattativa, scadenze/actions.ts): un blu
-   ardesia a sé e non l'ambra del "non rinnovato" — sono due fatti diversi,
-   "ci sto lavorando" contro "nessuno se ne sta occupando". Stesso --info già
-   usato altrove nel pannello per il terzo stato "in corso". */
-.grafico-rinnovi-fetta-info {
-	stroke: var(--info);
-}
-
 .grafico-rinnovi-fetta-warn {
 	stroke: var(--warn);
 }
 
+.grafico-rinnovi-fetta-escluso {
+	stroke: var(--text-muted);
+}
+
 .grafico-rinnovi-totale-numero {
-	font-size: 0.32rem;
+	font-size: 0.52rem;
 	font-weight: 600;
 	fill: var(--text);
 }
 
 .grafico-rinnovi-totale-etichetta {
-	font-size: 0.1rem;
+	font-size: 0.155rem;
 	fill: var(--text-muted);
 }
 
@@ -3246,6 +3260,27 @@ button.th-ordina {
 
 .grafico-rinnovi-pallino-warn {
 	background: var(--warn);
+}
+
+.grafico-rinnovi-pallino-perso {
+	background: var(--error);
+}
+
+.grafico-rinnovi-pallino-escluso {
+	background: var(--text-muted);
+}
+
+/* Il dettaglio in trattativa/perso, a fianco della torta e della sua
+   legenda: stesso bordo verticale che separa una card in due zone altrove
+   nel pannello, per far leggere subito che qui si scende di un livello — un
+   sottoinsieme dei "non ancora rinnovati", non una terza fetta. */
+.grafico-rinnovi-dettaglio {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	margin: 0;
+	padding-left: 1.5rem;
+	border-left: 1px solid var(--border);
 }
 
 /* Andamento abbonati attivi (vedi GraficoAttivi, abbonamenti): stack per
@@ -3758,6 +3793,17 @@ button.th-ordina {
    pulsante "Salva" qui: cella-nota-stato è l'unico riscontro. */
 .cella-nota {
 	min-width: 12rem;
+}
+
+/* "Note di gestione" (vedi TabellaScadenze): la nota generale, non quella
+   legata al mancato rinnovo — più spazio delle altre note della riga perché
+   è quella dove si scrive di più. */
+.cella-nota-larga {
+	min-width: 20rem;
+}
+
+.cella-nota-larga .textarea-inline {
+	min-width: 19rem;
 }
 
 .cella-nota-campo {

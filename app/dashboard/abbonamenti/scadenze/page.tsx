@@ -1,10 +1,12 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
-import { utenteHaSezione } from '@/lib/auth/sezioni-server'
+import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { caricaGruppi } from '@/lib/abbonamenti'
 import { etichettaMese, mesePiu, oggiRoma, primoDelMese } from '@/lib/agenda'
+import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import { TabellaScadenze, type RigaScadenza } from './TabellaScadenze'
+import { GraficoRinnovi } from './GraficoRinnovi'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,6 +31,18 @@ export default async function ScadenzeAbbonamentiPage({
 
   const supabase = createSupabaseServiceClient()
 
+  // Chi può comparire nella tendina "Assegnatario": solo la segreteria, non
+  // tutto lo staff (vedi CellaAssegnatario/assegnaScadenza) — sono le stesse
+  // persone che prima lavoravano i rinnovi sul foglio Excel.
+  const { data: segreteria } = await supabase
+    .from('staff_users')
+    .select('email, nome, cognome')
+    .eq('operatore_segreteria', true)
+  const segreteriaOrdinata = ordinaPerCognome((segreteria ?? []) as RigaStaff[])
+  const nomiStaff = mappaNomiStaff(segreteriaOrdinata)
+  const operatoriSegreteria = segreteriaOrdinata.map((s) => s.email)
+  const io = emailCorrente()
+
   // PostgREST tronca comunque una select a 1000 righe, `.limit()` chiesto
   // dal client o no — e un mese di punta (settembre, oltre 1500 scadenze)
   // lo supera per davvero, non è un'ipotesi. Si pagina a mano con
@@ -44,7 +58,7 @@ export default async function ScadenzeAbbonamentiPage({
     let query = supabase
       .from('abbonamenti_scadenze')
       .select(
-        'id, persona_id, abbonamento, gruppo_id, data_inizio, data_fine, totale, nome, cognome, email, cellulare, rinnovato, rinnovo_id, rinnovo_abbonamento, rinnovo_data_inizio, rinnovo_data_fine, rinnovo_totale, operatore_nome, in_trattativa, nota',
+        'id, persona_id, abbonamento, gruppo_id, data_inizio, data_fine, totale, nome, cognome, email, cellulare, rinnovato, rinnovo_id, rinnovo_abbonamento, rinnovo_data_inizio, rinnovo_data_fine, rinnovo_totale, operatore_nome, stato_manuale, motivo_non_rinnovo, note_non_rinnovo, nota, assegnato_a, escluso_da_report',
       )
       .gte('data_fine', meseRichiesto)
       .lt('data_fine', mesePiu(meseRichiesto, 1))
@@ -86,6 +100,12 @@ export default async function ScadenzeAbbonamentiPage({
         </Link>
       </div>
 
+      {righe.length > 0 && (
+        <div className="card">
+          <GraficoRinnovi righe={righe} />
+        </div>
+      )}
+
       <div className="report-mese-nav">
         <Link href={hrefMese(mesePiu(meseRichiesto, -1))} className="btn btn-ghost btn-sm">
           ← Mese prec.
@@ -110,7 +130,13 @@ export default async function ScadenzeAbbonamentiPage({
           </p>
         </div>
       ) : (
-        <TabellaScadenze righe={righe} gruppi={gruppi} />
+        <TabellaScadenze
+          righe={righe}
+          gruppi={gruppi}
+          operatoriSegreteria={operatoriSegreteria}
+          nomiStaff={nomiStaff}
+          io={io}
+        />
       )}
     </div>
   )

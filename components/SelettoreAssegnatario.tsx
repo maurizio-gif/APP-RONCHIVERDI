@@ -31,6 +31,13 @@ export function SelettoreAssegnatario({
   id?: string
   ariaLabel?: string
 }) {
+  // Un valore già assegnato ma non (più) nell'elenco — chi non ha ancora il
+  // flag giusto, o chi se n'è andato — non deve leggersi come "nessuno": la
+  // select lo mostrerebbe comunque vuota (nessuna option combacia), anche se
+  // il dato sotto è ancora quello giusto. Un'opzione in più, solo quando
+  // serve, tiene la tendina fedele allo stato reale.
+  const valoreFuoriElenco = value && !operatori.includes(value)
+
   return (
     <select
       id={id}
@@ -41,6 +48,9 @@ export function SelettoreAssegnatario({
       aria-label={ariaLabel}
     >
       <option value="">{etichettaVuoto}</option>
+      {valoreFuoriElenco && (
+        <option value={value}>{nomeDiEmail(value, nomiStaff)}</option>
+      )}
       {operatori.map((o) => (
         <option key={o} value={o}>
           {o === io ? `${nomeDiEmail(o, nomiStaff)} (tu)` : nomeDiEmail(o, nomiStaff)}

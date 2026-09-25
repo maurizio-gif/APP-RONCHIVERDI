@@ -1,10 +1,12 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
-import { utenteHaSezione } from '@/lib/auth/sezioni-server'
+import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { caricaGruppi } from '@/lib/abbonamenti'
 import { etichettaMese, mesePiu, oggiRoma, primoDelMese } from '@/lib/agenda'
+import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import { TabellaScadenze, type RigaScadenza } from '../scadenze/TabellaScadenze'
+import { GraficoRinnovi } from '../scadenze/GraficoRinnovi'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,14 +15,15 @@ export const dynamic = 'force-dynamic'
 // giorno: prima di questa pagina il lavoro di richiamare i rinnovi in
 // scadenza viveva in un foglio Excel a parte ("REPORT RINNOVI"), popolato e
 // aggiornato a mano fuori dal CRM. Qui è la stessa tabella, gli stessi dati,
-// più due colonne che il foglio aveva e il CRM no — Trattativa e Note (vedi
-// TabellaScadenze, CellaTrattativa/CellaNota) — così la lavorazione del
-// rinnovo può restare tutta in un posto solo.
+// più le colonne che il foglio aveva e il CRM no — stato (trattativa/perso),
+// motivo e note di mancato rinnovo, assegnatario, note di gestione (vedi
+// TabellaScadenze) — così la lavorazione del rinnovo può restare tutta in un
+// posto solo.
 //
 // Nessun filtro Gruppo in pagina: è sempre e solo Core, quindi mostrarlo
 // sarebbe un controllo che non controlla niente.
 export default async function RinnoviPage({ searchParams }: { searchParams: { mese?: string } }) {
-  if (!(await utenteHaSezione('abbonamenti'))) redirect('/dashboard')
+  if (!(await utenteHaSezione('rinnovi-core'))) redirect('/dashboard')
 
   const meseRichiesto = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.mese ?? '')
     ? primoDelMese(searchParams.mese!)
@@ -31,6 +34,15 @@ export default async function RinnoviPage({ searchParams }: { searchParams: { me
 
   const supabase = createSupabaseServiceClient()
 
+  const { data: segreteria } = await supabase
+    .from('staff_users')
+    .select('email, nome, cognome')
+    .eq('operatore_segreteria', true)
+  const segreteriaOrdinata = ordinaPerCognome((segreteria ?? []) as RigaStaff[])
+  const nomiStaff = mappaNomiStaff(segreteriaOrdinata)
+  const operatoriSegreteria = segreteriaOrdinata.map((s) => s.email)
+  const io = emailCorrente()
+
   const righeGrezze: RigaScadenza[] = []
   let erroreScadenze: { message: string } | null = null
   if (gruppoCore) {
@@ -40,7 +52,7 @@ export default async function RinnoviPage({ searchParams }: { searchParams: { me
       const { data, error } = await supabase
         .from('abbonamenti_scadenze')
         .select(
-          'id, persona_id, abbonamento, gruppo_id, data_inizio, data_fine, totale, nome, cognome, email, cellulare, rinnovato, rinnovo_id, rinnovo_abbonamento, rinnovo_data_inizio, rinnovo_data_fine, rinnovo_totale, operatore_nome, in_trattativa, nota',
+          'id, persona_id, abbonamento, gruppo_id, data_inizio, data_fine, totale, nome, cognome, email, cellulare, rinnovato, rinnovo_id, rinnovo_abbonamento, rinnovo_data_inizio, rinnovo_data_fine, rinnovo_totale, operatore_nome, stato_manuale, motivo_non_rinnovo, note_non_rinnovo, nota, assegnato_a, escluso_da_report',
         )
         .eq('gruppo_id', gruppoCore.id)
         .gte('data_fine', meseRichiesto)
@@ -75,10 +87,13 @@ export default async function RinnoviPage({ searchParams }: { searchParams: { me
           {totale} in scadenza in {etichettaMese(meseRichiesto)}
           {totale > 0 && ` — ${daRichiamare} non ancora rinnovati, ${totale - daRichiamare} già rinnovati`}.
         </p>
-        <Link href="/dashboard/abbonamenti" className="muted">
-          ← Torna ad Abbonamenti
-        </Link>
       </div>
+
+      {righe.length > 0 && (
+        <div className="card">
+          <GraficoRinnovi righe={righe} />
+        </div>
+      )}
 
       <div className="report-mese-nav">
         <Link href={hrefMese(mesePiu(meseRichiesto, -1))} className="btn btn-ghost btn-sm">
@@ -112,7 +127,14 @@ export default async function RinnoviPage({ searchParams }: { searchParams: { me
           <p className="vuoto">Nessun rinnovo Core in scadenza in questo mese.</p>
         </div>
       ) : (
-        <TabellaScadenze righe={righe} gruppi={gruppi} nascondiGruppo />
+        <TabellaScadenze
+          righe={righe}
+          gruppi={gruppi}
+          nascondiGruppo
+          operatoriSegreteria={operatoriSegreteria}
+          nomiStaff={nomiStaff}
+          io={io}
+        />
       )}
     </div>
   )
