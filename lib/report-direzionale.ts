@@ -13,6 +13,7 @@ import { rangeMTD, rangeYTD, type RangePeriodo } from '@/lib/direzione'
 import { provenienzaDiOrigine } from '@/lib/provenienza'
 
 type RigaGruppo = { gruppoId: string; nome: string; vendite: number; fatturato: number }
+type RigaSoci = { gruppoId: string; nome: string; oggi: number; annoScorso: number }
 
 type ConfrontoPeriodo = { attuale: number; precedente: number }
 
@@ -21,7 +22,9 @@ export type ResocontoDirezionale = {
   dataLeggibile: string
   fatturatoMTD: ConfrontoPeriodo
   fatturatoYTD: ConfrontoPeriodo
-  sociAttivi: { oggi: number; ieri: number; unMeseFa: number; unAnnoFa: number }
+  sociPerGruppo: RigaSoci[]
+  sociNonCategorizzato: RigaSoci | null
+  sociTotale: { oggi: number; annoScorso: number }
   contattiOggi: { totale: number; web: number; walkIn: number }
   visiteSitoOggi: { sessioni: number; persone: number }
   venditeIeri: { vendite: number; fatturato: number }
@@ -59,11 +62,17 @@ async function fatturatoDelPeriodo(
   return (data ?? []).reduce((tot, r) => tot + Number(r.fatturato ?? 0), 0)
 }
 
-/** Soci attivi (abbonamenti_attivi_al), sommati su tutti i gruppi, in un giorno. */
-async function sociAttiviAl(supabase: ReturnType<typeof createSupabaseServiceClient>, giorno: string): Promise<number> {
+/** Soci attivi (abbonamenti_attivi_al) per gruppo, in un giorno — gruppo_id null = non categorizzato. */
+async function sociAttiviPerGruppoAl(
+  supabase: ReturnType<typeof createSupabaseServiceClient>,
+  giorno: string
+): Promise<Map<string | null, number>> {
   const { data } = await supabase.rpc('abbonamenti_attivi_al', { p_data: giorno })
-  const righe = (data ?? []) as { gruppo_id: string | null; numero_attivi: number }[]
-  return righe.reduce((tot, r) => tot + r.numero_attivi, 0)
+  const mappa = new Map<string | null, number>()
+  for (const r of (data ?? []) as { gruppo_id: string | null; numero_attivi: number }[]) {
+    mappa.set(r.gruppo_id, r.numero_attivi)
+  }
+  return mappa
 }
 
 /** Vendite e fatturato (abbonamenti_giornalieri, senza filtro gruppo) in un giorno solo. */
@@ -107,19 +116,32 @@ export async function caricaResocontoDirezionale(giorno: string): Promise<Resoco
     fatturatoDelPeriodo(supabase, rangeYTD(annoCorrente - 1)),
   ])
 
-  // Soci attivi: oggi, ieri, un mese fa e un anno fa allo stesso giorno del
-  // mese (abbonamenti_attivi_al è una fotografia, non una vendita — vedi
+  // Soci attivi oggi, per gruppo, a parità di giorno con un anno fa
+  // (abbonamenti_attivi_al è una fotografia, non una vendita — vedi
   // scripts/sql/2026-09-21-abbonamenti-attivi.sql).
   const ieri = giornoPiu(giorno, -1)
-  const unMeseFa = stessoGiornoMesiFa(giorno, -1)
   const unAnnoFa = stessoGiornoMesiFa(giorno, -12)
-  const [sociOggi, sociIeri, sociUnMeseFa, sociUnAnnoFa, venditeIeri] = await Promise.all([
-    sociAttiviAl(supabase, giorno),
-    sociAttiviAl(supabase, ieri),
-    sociAttiviAl(supabase, unMeseFa),
-    sociAttiviAl(supabase, unAnnoFa),
+  const [sociOggiMappa, sociAnnoFaMappa, venditeIeri] = await Promise.all([
+    sociAttiviPerGruppoAl(supabase, giorno),
+    sociAttiviPerGruppoAl(supabase, unAnnoFa),
     venditeDelGiorno(supabase, ieri),
   ])
+
+  const sociPerGruppo: RigaSoci[] = gruppi
+    .map((g: Gruppo) => ({ gruppoId: g.id, nome: g.nome, oggi: sociOggiMappa.get(g.id) ?? 0, annoScorso: sociAnnoFaMappa.get(g.id) ?? 0 }))
+    .filter((r) => r.oggi > 0 || r.annoScorso > 0)
+
+  const sociNonCatOggi = sociOggiMappa.get(null) ?? 0
+  const sociNonCatAnnoFa = sociAnnoFaMappa.get(null) ?? 0
+  const sociNonCategorizzato =
+    sociNonCatOggi > 0 || sociNonCatAnnoFa > 0
+      ? { gruppoId: NON_CATEGORIZZATO, nome: 'Non categorizzato', oggi: sociNonCatOggi, annoScorso: sociNonCatAnnoFa }
+      : null
+
+  const sociTotale = {
+    oggi: [...sociOggiMappa.values()].reduce((tot, n) => tot + n, 0),
+    annoScorso: [...sociAnnoFaMappa.values()].reduce((tot, n) => tot + n, 0),
+  }
 
   // Contatti acquisiti oggi, sito vs walk-in (guest register) — stessa
   // classificazione binaria del grafico a 12 mesi in /dashboard/direzione.
@@ -190,7 +212,9 @@ export async function caricaResocontoDirezionale(giorno: string): Promise<Resoco
     dataLeggibile: dataLeggibileDi(giorno),
     fatturatoMTD: { attuale: fatturatoMTDAttuale, precedente: fatturatoMTDPrec },
     fatturatoYTD: { attuale: fatturatoYTDAttuale, precedente: fatturatoYTDPrec },
-    sociAttivi: { oggi: sociOggi, ieri: sociIeri, unMeseFa: sociUnMeseFa, unAnnoFa: sociUnAnnoFa },
+    sociPerGruppo,
+    sociNonCategorizzato,
+    sociTotale,
     contattiOggi: { totale: web + walkIn, web, walkIn },
     visiteSitoOggi,
     venditeIeri,
@@ -249,6 +273,22 @@ function intestazioneTabellaHtml(primaColonna: string): string {
   return `<tr>${th(primaColonna)}${th('Vendite', true)}${th('Fatturato', true)}</tr>`
 }
 
+function rigaSociHtml(nome: string, oggi: number, annoScorso: number, evidenziata = false): string {
+  const sfondo = evidenziata ? `background:${COLORE.accentoVelo};` : ''
+  const pesoRiga = evidenziata ? 'font-weight:600;' : ''
+  return `<tr>
+    <td style="${RIGA_STILE}${sfondo}${pesoRiga}">${nome}</td>
+    <td style="${RIGA_STILE_NUMERO}${sfondo}${pesoRiga}">${oggi}</td>
+    <td style="${RIGA_STILE_NUMERO}${sfondo}${pesoRiga}">${variazionePercentualeHtml(oggi, annoScorso, 'anno scorso')}</td>
+  </tr>`
+}
+
+function intestazioneSociHtml(): string {
+  const th = (testo: string, allineaDestra = false) =>
+    `<th align="${allineaDestra ? 'right' : 'left'}" style="padding:8px 12px;border-bottom:2px solid ${COLORE.accento};color:${COLORE.mutato};font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:0.04em;">${testo}</th>`
+  return `<tr>${th('Gruppo')}${th('Soci attivi', true)}${th('vs anno scorso', true)}</tr>`
+}
+
 /** Una riga di KPI: etichetta a sinistra, valore (+ eventuale dettaglio piccolo) a destra. */
 function rigaKpiHtml(etichetta: string, valoreHtml: string, dettaglioHtml?: string): string {
   return `<tr>
@@ -287,14 +327,18 @@ export function componiEmailResoconto(r: ResocontoDirezionale): { oggetto: strin
       rigaKpiHtml('YTD (da inizio anno)', euro(r.fatturatoYTD.attuale) ?? '—', variazioneHtml(r.fatturatoYTD.attuale, r.fatturatoYTD.precedente)),
     ])
 
+  const righeSoci = [...r.sociPerGruppo.map((g) => rigaSociHtml(g.nome, g.oggi, g.annoScorso))]
+  if (r.sociNonCategorizzato) righeSoci.push(rigaSociHtml(r.sociNonCategorizzato.nome, r.sociNonCategorizzato.oggi, r.sociNonCategorizzato.annoScorso))
+
   const corpoSociAttivi =
-    titoloSezioneHtml('Soci attivi') +
-    tabellaKpiHtml([
-      rigaKpiHtml('Oggi', String(r.sociAttivi.oggi)),
-      rigaKpiHtml('Ieri', String(r.sociAttivi.ieri)),
-      rigaKpiHtml('Un mese fa', String(r.sociAttivi.unMeseFa)),
-      rigaKpiHtml('Un anno fa', String(r.sociAttivi.unAnnoFa)),
-    ])
+    titoloSezioneHtml('Soci attivi oggi, per gruppo') +
+    (righeSoci.length === 0
+      ? `<p style="color:${COLORE.mutato};margin:0 0 26px;">Nessun socio attivo oggi.</p>`
+      : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:26px;border-collapse:collapse;">
+          ${intestazioneSociHtml()}
+          ${righeSoci.join('')}
+          ${rigaSociHtml('Totale', r.sociTotale.oggi, r.sociTotale.annoScorso, true)}
+        </table>`)
 
   const corpoContatti =
     titoloSezioneHtml('Contatti acquisiti oggi') +
@@ -405,6 +449,20 @@ export function componiEmailResoconto(r: ResocontoDirezionale): { oggetto: strin
           rigaTesto('Totale', r.totale.vendite, r.totale.fatturato),
         ]
 
+  const rigaTestoSoci = (nome: string, oggi: number, annoScorso: number) => {
+    const percentuale = variazionePercentuale(oggi, annoScorso)
+    const variazione = percentuale === null ? '—' : `${percentuale > 0 ? '+' : ''}${percentuale}% vs anno scorso`
+    return `- ${nome}: ${oggi} (${variazione})`
+  }
+  const righeTestoSoci =
+    righeSoci.length === 0
+      ? ['Nessun socio attivo oggi.']
+      : [
+          ...r.sociPerGruppo.map((g) => rigaTestoSoci(g.nome, g.oggi, g.annoScorso)),
+          ...(r.sociNonCategorizzato ? [rigaTestoSoci(r.sociNonCategorizzato.nome, r.sociNonCategorizzato.oggi, r.sociNonCategorizzato.annoScorso)] : []),
+          rigaTestoSoci('Totale', r.sociTotale.oggi, r.sociTotale.annoScorso),
+        ]
+
   const righeTestoCore = !r.core
     ? []
     : [
@@ -422,11 +480,8 @@ export function componiEmailResoconto(r: ResocontoDirezionale): { oggetto: strin
     `- MTD: ${euro(r.fatturatoMTD.attuale) ?? '—'} · ${testoVariazione(r.fatturatoMTD.attuale, r.fatturatoMTD.precedente)} vs anno scorso`,
     `- YTD: ${euro(r.fatturatoYTD.attuale) ?? '—'} · ${testoVariazione(r.fatturatoYTD.attuale, r.fatturatoYTD.precedente)} vs anno scorso`,
     '',
-    'Soci attivi:',
-    `- Oggi: ${r.sociAttivi.oggi}`,
-    `- Ieri: ${r.sociAttivi.ieri}`,
-    `- Un mese fa: ${r.sociAttivi.unMeseFa}`,
-    `- Un anno fa: ${r.sociAttivi.unAnnoFa}`,
+    'Soci attivi oggi, per gruppo:',
+    ...righeTestoSoci,
     '',
     'Contatti acquisiti oggi:',
     `- Totale: ${r.contattiOggi.totale}`,
