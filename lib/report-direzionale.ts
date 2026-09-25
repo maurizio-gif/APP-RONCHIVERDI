@@ -24,6 +24,7 @@ export type ResocontoDirezionale = {
   sociAttivi: { oggi: number; ieri: number; unMeseFa: number; unAnnoFa: number }
   contattiOggi: { totale: number; web: number; walkIn: number }
   visiteSitoOggi: { sessioni: number; persone: number }
+  venditeIeri: { vendite: number; fatturato: number }
   perGruppo: RigaGruppo[]
   nonCategorizzato: RigaGruppo | null
   totale: { vendite: number; fatturato: number }
@@ -65,6 +66,18 @@ async function sociAttiviAl(supabase: ReturnType<typeof createSupabaseServiceCli
   return righe.reduce((tot, r) => tot + r.numero_attivi, 0)
 }
 
+/** Vendite e fatturato (abbonamenti_giornalieri, senza filtro gruppo) in un giorno solo. */
+async function venditeDelGiorno(
+  supabase: ReturnType<typeof createSupabaseServiceClient>,
+  giorno: string
+): Promise<{ vendite: number; fatturato: number }> {
+  const { data } = await supabase.from('abbonamenti_giornalieri').select('numero_vendite, fatturato').eq('giorno', giorno)
+  return (data ?? []).reduce(
+    (tot, r) => ({ vendite: tot.vendite + r.numero_vendite, fatturato: tot.fatturato + Number(r.fatturato ?? 0) }),
+    { vendite: 0, fatturato: 0 }
+  )
+}
+
 /** Carica i dati del resoconto per un giorno (formato YYYY-MM-DD, fuso Roma). */
 export async function caricaResocontoDirezionale(giorno: string): Promise<ResocontoDirezionale> {
   const supabase = createSupabaseServiceClient()
@@ -100,11 +113,12 @@ export async function caricaResocontoDirezionale(giorno: string): Promise<Resoco
   const ieri = giornoPiu(giorno, -1)
   const unMeseFa = stessoGiornoMesiFa(giorno, -1)
   const unAnnoFa = stessoGiornoMesiFa(giorno, -12)
-  const [sociOggi, sociIeri, sociUnMeseFa, sociUnAnnoFa] = await Promise.all([
+  const [sociOggi, sociIeri, sociUnMeseFa, sociUnAnnoFa, venditeIeri] = await Promise.all([
     sociAttiviAl(supabase, giorno),
     sociAttiviAl(supabase, ieri),
     sociAttiviAl(supabase, unMeseFa),
     sociAttiviAl(supabase, unAnnoFa),
+    venditeDelGiorno(supabase, ieri),
   ])
 
   // Contatti acquisiti oggi, sito vs walk-in (guest register) — stessa
@@ -179,6 +193,7 @@ export async function caricaResocontoDirezionale(giorno: string): Promise<Resoco
     sociAttivi: { oggi: sociOggi, ieri: sociIeri, unMeseFa: sociUnMeseFa, unAnnoFa: sociUnAnnoFa },
     contattiOggi: { totale: web + walkIn, web, walkIn },
     visiteSitoOggi,
+    venditeIeri,
     perGruppo,
     nonCategorizzato,
     totale,
@@ -242,12 +257,21 @@ function rigaKpiHtml(etichetta: string, valoreHtml: string, dettaglioHtml?: stri
   </tr>`
 }
 
-/** Il testo di una variazione, colorato di verde o rosso — gli stessi toni di stato del pannello (--ok/--error). */
-function variazioneHtml(attuale: number, precedente: number): string {
+/** Il testo di una variazione in euro, colorato di verde o rosso — gli stessi toni di stato del pannello (--ok/--error). */
+function variazioneHtml(attuale: number, precedente: number, confronto = 'anno scorso'): string {
   const testo = testoVariazione(attuale, precedente)
   const percentuale = variazionePercentuale(attuale, precedente)
   const colore = percentuale === null ? COLORE.mutato : percentuale >= 0 ? COLORE.ok : COLORE.errore
-  return `<span style="color:${colore};">${testo} vs anno scorso</span>`
+  return `<span style="color:${colore};">${testo} vs ${confronto}</span>`
+}
+
+/** Come variazioneHtml, ma per un conteggio (vendite, non un importo): niente differenza in euro fra parentesi. */
+function variazionePercentualeHtml(attuale: number, precedente: number, confronto = 'ieri'): string {
+  const percentuale = variazionePercentuale(attuale, precedente)
+  if (percentuale === null) return `<span style="color:${COLORE.mutato};">vs ${confronto}: —</span>`
+  const colore = percentuale >= 0 ? COLORE.ok : COLORE.errore
+  const segno = percentuale > 0 ? '+' : ''
+  return `<span style="color:${colore};">${segno}${percentuale}% vs ${confronto}</span>`
 }
 
 function tabellaKpiHtml(righe: string[]): string {
@@ -285,6 +309,21 @@ export function componiEmailResoconto(r: ResocontoDirezionale): { oggetto: strin
     tabellaKpiHtml([
       rigaKpiHtml('Persone (stima)', String(r.visiteSitoOggi.persone)),
       rigaKpiHtml('Sessioni', String(r.visiteSitoOggi.sessioni)),
+    ])
+
+  const corpoConfrontoIeri =
+    titoloSezioneHtml('Abbonamenti venduti: oggi vs ieri') +
+    tabellaKpiHtml([
+      rigaKpiHtml(
+        'Vendite',
+        String(r.totale.vendite),
+        `${variazionePercentualeHtml(r.totale.vendite, r.venditeIeri.vendite)} · ieri: ${r.venditeIeri.vendite}`
+      ),
+      rigaKpiHtml(
+        'Fatturato',
+        euro(r.totale.fatturato) ?? '—',
+        `${variazioneHtml(r.totale.fatturato, r.venditeIeri.fatturato, 'ieri')} · ieri: ${euro(r.venditeIeri.fatturato) ?? '—'}`
+      ),
     ])
 
   const righeAbbonamenti = [...r.perGruppo.map((g) => rigaTabellaHtml(g.nome, g.vendite, g.fatturato))]
@@ -339,6 +378,7 @@ export function componiEmailResoconto(r: ResocontoDirezionale): { oggetto: strin
                 ${corpoSociAttivi}
                 ${corpoContatti}
                 ${corpoVisiteSito}
+                ${corpoConfrontoIeri}
                 ${corpoAbbonamenti}
                 ${corpoCore}
               </td>
@@ -396,6 +436,10 @@ export function componiEmailResoconto(r: ResocontoDirezionale): { oggetto: strin
     'Visite al sito oggi:',
     `- Persone (stima): ${r.visiteSitoOggi.persone}`,
     `- Sessioni: ${r.visiteSitoOggi.sessioni}`,
+    '',
+    'Abbonamenti venduti: oggi vs ieri:',
+    `- Vendite: ${r.totale.vendite} (ieri: ${r.venditeIeri.vendite})`,
+    `- Fatturato: ${euro(r.totale.fatturato) ?? '—'} (ieri: ${euro(r.venditeIeri.fatturato) ?? '—'})`,
     '',
     'Abbonamenti venduti oggi, per gruppo:',
     ...righeTestoAbbonamenti,
