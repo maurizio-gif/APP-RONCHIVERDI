@@ -6,13 +6,22 @@
 
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { caricaGruppi, NON_CATEGORIZZATO, type Gruppo } from '@/lib/abbonamenti'
-import { euro } from '@/lib/pipeline'
+import { euro, testoVariazione } from '@/lib/pipeline'
+import { giornoPiu, mezzanotteRoma, stessoGiornoMesiFa } from '@/lib/agenda'
+import { rangeMTD, rangeYTD, type RangePeriodo } from '@/lib/direzione'
+import { provenienzaDiOrigine } from '@/lib/provenienza'
 
 type RigaGruppo = { gruppoId: string; nome: string; vendite: number; fatturato: number }
+
+type ConfrontoPeriodo = { attuale: number; precedente: number }
 
 export type ResocontoDirezionale = {
   giorno: string
   dataLeggibile: string
+  fatturatoMTD: ConfrontoPeriodo
+  fatturatoYTD: ConfrontoPeriodo
+  sociAttivi: { oggi: number; ieri: number; unMeseFa: number; unAnnoFa: number }
+  contattiOggi: { totale: number; web: number; walkIn: number }
   perGruppo: RigaGruppo[]
   nonCategorizzato: RigaGruppo | null
   totale: { vendite: number; fatturato: number }
@@ -29,11 +38,37 @@ function dataLeggibileDi(giorno: string): string {
   })
 }
 
+/**
+ * Il fatturato (somma di abbonamenti_giornalieri, senza filtro gruppo) su un
+ * range di giorni — stessa funzione di app/dashboard/direzione/page.tsx
+ * (sommaGiornalieri), qui senza il filtro multi-gruppo di quella pagina: il
+ * resoconto serale è sempre il totale, non una vista filtrata.
+ */
+async function fatturatoDelPeriodo(
+  supabase: ReturnType<typeof createSupabaseServiceClient>,
+  range: RangePeriodo
+): Promise<number> {
+  const { data } = await supabase
+    .from('abbonamenti_giornalieri')
+    .select('fatturato')
+    .gte('giorno', range.giornoDa)
+    .lte('giorno', range.giornoA)
+  return (data ?? []).reduce((tot, r) => tot + Number(r.fatturato ?? 0), 0)
+}
+
+/** Soci attivi (abbonamenti_attivi_al), sommati su tutti i gruppi, in un giorno. */
+async function sociAttiviAl(supabase: ReturnType<typeof createSupabaseServiceClient>, giorno: string): Promise<number> {
+  const { data } = await supabase.rpc('abbonamenti_attivi_al', { p_data: giorno })
+  const righe = (data ?? []) as { gruppo_id: string | null; numero_attivi: number }[]
+  return righe.reduce((tot, r) => tot + r.numero_attivi, 0)
+}
+
 /** Carica i dati del resoconto per un giorno (formato YYYY-MM-DD, fuso Roma). */
 export async function caricaResocontoDirezionale(giorno: string): Promise<ResocontoDirezionale> {
   const supabase = createSupabaseServiceClient()
   const gruppi = await caricaGruppi()
   const core = gruppi.find((g) => g.nome === 'CORE') ?? null
+  const annoCorrente = Number(giorno.slice(0, 4))
 
   const [{ data: righeGiorno }, { data: righeTipo }] = await Promise.all([
     supabase.from('abbonamenti_giornalieri').select('gruppo_id, numero_vendite, fatturato').eq('giorno', giorno),
@@ -45,6 +80,42 @@ export async function caricaResocontoDirezionale(giorno: string): Promise<Resoco
           .eq('gruppo_id', core.id)
       : Promise.resolve({ data: [] as { rinnovo: boolean; numero_vendite: number; fatturato: number | null }[] }),
   ])
+
+  // Fatturato MTD/YTD "a parità di giorni" con l'anno prima — stessa logica
+  // di /dashboard/direzione (lib/direzione.ts: rangeMTD/rangeYTD).
+  const [fatturatoMTDAttuale, fatturatoMTDPrec, fatturatoYTDAttuale, fatturatoYTDPrec] = await Promise.all([
+    fatturatoDelPeriodo(supabase, rangeMTD(annoCorrente)),
+    fatturatoDelPeriodo(supabase, rangeMTD(annoCorrente - 1)),
+    fatturatoDelPeriodo(supabase, rangeYTD(annoCorrente)),
+    fatturatoDelPeriodo(supabase, rangeYTD(annoCorrente - 1)),
+  ])
+
+  // Soci attivi: oggi, ieri, un mese fa e un anno fa allo stesso giorno del
+  // mese (abbonamenti_attivi_al è una fotografia, non una vendita — vedi
+  // scripts/sql/2026-09-21-abbonamenti-attivi.sql).
+  const ieri = giornoPiu(giorno, -1)
+  const unMeseFa = stessoGiornoMesiFa(giorno, -1)
+  const unAnnoFa = stessoGiornoMesiFa(giorno, -12)
+  const [sociOggi, sociIeri, sociUnMeseFa, sociUnAnnoFa] = await Promise.all([
+    sociAttiviAl(supabase, giorno),
+    sociAttiviAl(supabase, ieri),
+    sociAttiviAl(supabase, unMeseFa),
+    sociAttiviAl(supabase, unAnnoFa),
+  ])
+
+  // Contatti acquisiti oggi, sito vs walk-in (guest register) — stessa
+  // classificazione binaria del grafico a 12 mesi in /dashboard/direzione.
+  const { data: contattiOggiRighe } = await supabase
+    .from('form_contatti')
+    .select('origine')
+    .gte('created_at', mezzanotteRoma(giorno))
+    .lt('created_at', mezzanotteRoma(giornoPiu(giorno, 1)))
+  let web = 0
+  let walkIn = 0
+  for (const r of contattiOggiRighe ?? []) {
+    if (provenienzaDiOrigine(r.origine).chiave === 'guest-register') walkIn += 1
+    else web += 1
+  }
 
   const perGruppoMappa = new Map<string | null, { vendite: number; fatturato: number }>()
   for (const r of righeGiorno ?? []) {
@@ -83,6 +154,10 @@ export async function caricaResocontoDirezionale(giorno: string): Promise<Resoco
   return {
     giorno,
     dataLeggibile: dataLeggibileDi(giorno),
+    fatturatoMTD: { attuale: fatturatoMTDAttuale, precedente: fatturatoMTDPrec },
+    fatturatoYTD: { attuale: fatturatoYTDAttuale, precedente: fatturatoYTDPrec },
+    sociAttivi: { oggi: sociOggi, ieri: sociIeri, unMeseFa: sociUnMeseFa, unAnnoFa: sociUnAnnoFa },
+    contattiOggi: { totale: web + walkIn, web, walkIn },
     perGruppo,
     nonCategorizzato,
     totale,
@@ -110,8 +185,36 @@ function intestazioneTabellaHtml(): string {
   </tr>`
 }
 
+function rigaKpiHtml(etichetta: string, valore: string, dettaglio?: string): string {
+  return `<tr>
+    <td style="${RIGA_STILE}">${etichetta}</td>
+    <td style="${RIGA_STILE_NUMERO}">${valore}${dettaglio ? `<br><span style="font-size:12px;color:#8a8272;font-weight:400;">${dettaglio}</span>` : ''}</td>
+  </tr>`
+}
+
 /** Compone oggetto, HTML e testo semplice dell'email — vedi Messaggio in lib/email.ts. */
 export function componiEmailResoconto(r: ResocontoDirezionale): { oggetto: string; html: string; testo: string } {
+  const corpoFatturato = `<h2 style="font-size:16px;color:#2a2013;margin:0 0 8px;">Fatturato</h2>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;border-collapse:collapse;">
+      ${rigaKpiHtml('MTD (da inizio mese)', euro(r.fatturatoMTD.attuale) ?? '—', testoVariazione(r.fatturatoMTD.attuale, r.fatturatoMTD.precedente) + ' vs anno scorso')}
+      ${rigaKpiHtml('YTD (da inizio anno)', euro(r.fatturatoYTD.attuale) ?? '—', testoVariazione(r.fatturatoYTD.attuale, r.fatturatoYTD.precedente) + ' vs anno scorso')}
+    </table>`
+
+  const corpoSociAttivi = `<h2 style="font-size:16px;color:#2a2013;margin:0 0 8px;">Soci attivi</h2>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;border-collapse:collapse;">
+      ${rigaKpiHtml('Oggi', String(r.sociAttivi.oggi))}
+      ${rigaKpiHtml('Ieri', String(r.sociAttivi.ieri))}
+      ${rigaKpiHtml('Un mese fa', String(r.sociAttivi.unMeseFa))}
+      ${rigaKpiHtml('Un anno fa', String(r.sociAttivi.unAnnoFa))}
+    </table>`
+
+  const corpoContatti = `<h2 style="font-size:16px;color:#2a2013;margin:0 0 8px;">Contatti acquisiti oggi</h2>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;border-collapse:collapse;">
+      ${rigaKpiHtml('Totale', String(r.contattiOggi.totale))}
+      ${rigaKpiHtml('Via web', String(r.contattiOggi.web))}
+      ${rigaKpiHtml('Via walk-in', String(r.contattiOggi.walkIn))}
+    </table>`
+
   const righeAbbonamenti = [...r.perGruppo.map((g) => rigaTabellaHtml(g.nome, g.vendite, g.fatturato))]
   if (r.nonCategorizzato) righeAbbonamenti.push(rigaTabellaHtml(r.nonCategorizzato.nome, r.nonCategorizzato.vendite, r.nonCategorizzato.fatturato))
 
@@ -152,6 +255,9 @@ export function componiEmailResoconto(r: ResocontoDirezionale): { oggetto: strin
             </tr>
             <tr>
               <td style="padding:28px;">
+                ${corpoFatturato}
+                ${corpoSociAttivi}
+                ${corpoContatti}
                 <h2 style="font-size:16px;color:#2a2013;margin:0 0 8px;">Abbonamenti venduti oggi, per gruppo</h2>
                 ${corpoAbbonamenti}
                 ${corpoCore}
@@ -191,6 +297,21 @@ export function componiEmailResoconto(r: ResocontoDirezionale): { oggetto: strin
 
   const testo = [
     `Resoconto del ${r.dataLeggibile}`,
+    '',
+    'Fatturato:',
+    `- MTD: ${euro(r.fatturatoMTD.attuale) ?? '—'} · ${testoVariazione(r.fatturatoMTD.attuale, r.fatturatoMTD.precedente)} vs anno scorso`,
+    `- YTD: ${euro(r.fatturatoYTD.attuale) ?? '—'} · ${testoVariazione(r.fatturatoYTD.attuale, r.fatturatoYTD.precedente)} vs anno scorso`,
+    '',
+    'Soci attivi:',
+    `- Oggi: ${r.sociAttivi.oggi}`,
+    `- Ieri: ${r.sociAttivi.ieri}`,
+    `- Un mese fa: ${r.sociAttivi.unMeseFa}`,
+    `- Un anno fa: ${r.sociAttivi.unAnnoFa}`,
+    '',
+    'Contatti acquisiti oggi:',
+    `- Totale: ${r.contattiOggi.totale}`,
+    `- Via web: ${r.contattiOggi.web}`,
+    `- Via walk-in: ${r.contattiOggi.walkIn}`,
     '',
     'Abbonamenti venduti oggi, per gruppo:',
     ...righeTestoAbbonamenti,
