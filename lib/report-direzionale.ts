@@ -54,12 +54,24 @@ async function fatturatoDelPeriodo(
   supabase: ReturnType<typeof createSupabaseServiceClient>,
   range: RangePeriodo
 ): Promise<number> {
-  const { data } = await supabase
-    .from('abbonamenti_giornalieri')
-    .select('fatturato')
-    .gte('giorno', range.giornoDa)
-    .lte('giorno', range.giornoA)
-  return (data ?? []).reduce((tot, r) => tot + Number(r.fatturato ?? 0), 0)
+  // PostgREST tronca comunque una select a 1000 righe (stesso limite di
+  // app/dashboard/abbonamenti/scadenze/page.tsx): lo YTD di
+  // abbonamenti_giornalieri (una riga per giorno×gruppo) ha ormai superato
+  // le 2000 righe, e senza paginare con `.range()` il fatturato tornava
+  // troncato a meno della metà — è il bug del 26/9/2026 (YTD mostrato a
+  // 1.429.413,20 € invece di 3.037.547,62 €).
+  let totale = 0
+  for (let da = 0; da < 10000; da += 1000) {
+    const { data } = await supabase
+      .from('abbonamenti_giornalieri')
+      .select('fatturato')
+      .gte('giorno', range.giornoDa)
+      .lte('giorno', range.giornoA)
+      .range(da, da + 999)
+    for (const r of data ?? []) totale += Number(r.fatturato ?? 0)
+    if (!data || data.length < 1000) break
+  }
+  return totale
 }
 
 /** Soci attivi (abbonamenti_attivi_al) per gruppo, in un giorno — gruppo_id null = non categorizzato. */
