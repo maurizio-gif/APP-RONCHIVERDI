@@ -133,14 +133,25 @@ export default async function DirezionePage({
   }
 
   async function sommaGiornalieri(range: RangePeriodo): Promise<Somma> {
-    let query = supabase
-      .from('abbonamenti_giornalieri')
-      .select('numero_vendite, fatturato')
-      .gte('giorno', range.giornoDa)
-      .lte('giorno', range.giornoA)
-    if (filtroGruppoAttivo) query = query.in('gruppo_id', gruppiSelezionati)
-    const { data } = await query
-    return sommaRighe(data)
+    // PostgREST tronca comunque una select a 1000 righe (stesso limite di
+    // app/dashboard/abbonamenti/scadenze/page.tsx): lo YTD di
+    // abbonamenti_giornalieri (una riga per giorno×gruppo) ha ormai
+    // superato le 2000 righe, e senza paginare con `.range()` vendite e
+    // fatturato tornavano troncati a meno della metà.
+    const righe: { numero_vendite: number; fatturato: number | null }[] = []
+    for (let da = 0; da < 10000; da += 1000) {
+      let query = supabase
+        .from('abbonamenti_giornalieri')
+        .select('numero_vendite, fatturato')
+        .gte('giorno', range.giornoDa)
+        .lte('giorno', range.giornoA)
+        .range(da, da + 999)
+      if (filtroGruppoAttivo) query = query.in('gruppo_id', gruppiSelezionati)
+      const { data } = await query
+      righe.push(...(data ?? []))
+      if (!data || data.length < 1000) break
+    }
+    return sommaRighe(righe)
   }
 
   const [venditeMTD, venditeMTDPrec, venditeYTD, venditeYTDPrec] = await Promise.all([
