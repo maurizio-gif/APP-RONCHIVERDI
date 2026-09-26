@@ -3138,11 +3138,24 @@ button.th-ordina {
 	fill: var(--fill-strong);
 }
 
+/* Senza flex-wrap una legenda a due voci (lavorato/non lavorato,
+   sito/sede...) sta comunque su una riga sola — il problema si vede solo
+   qui, nel grafico per gruppo (GraficoPerGruppo), che ha una voce per
+   ciascuno degli 8-9 gruppi prodotto: su schermo stretto la riga non
+   andava a capo, restava più larga della card, e il telefono zoomava fuori
+   tutta la pagina pur di farcela stare. white-space: nowrap sulla singola
+   voce (pallino + nome) evita che sia lei a spezzarsi a metà, ora che è la
+   riga intera ad andare a capo. */
 .grafico-legenda {
 	display: flex;
-	gap: 1rem;
+	flex-wrap: wrap;
+	gap: 0.5rem 1rem;
 	margin-top: 0.5rem;
 	font-size: var(--text-2xs);
+}
+
+.grafico-legenda > span {
+	white-space: nowrap;
 }
 
 .grafico-legenda-pallino {
