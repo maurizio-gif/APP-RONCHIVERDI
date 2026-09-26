@@ -3384,7 +3384,13 @@ button.th-ordina {
    dello schermo se la barra è vicina al margine, specie ora che il grafico
    scorre in orizzontale): resta fermo al centro dello schermo, sempre
    visibile per intero. `left` arriva anche da uno style inline (la
-   posizione calcolata sulla barra) — !important lo sovrascrive apposta. */
+   posizione calcolata sulla barra) — !important lo sovrascrive apposta.
+   `max-height` + `overflow-y: auto`: il grafico per gruppo elenca una voce
+   per ciascun gruppo prodotto (fino a una quindicina) — quel tooltip può
+   essere più alto dello schermo, e centrato a metà sforerebbe sopra e sotto
+   senza nessun modo di vederne il resto (la parte fuori viewport di un
+   `position: fixed` non è raggiungibile scrollando la pagina). Qui scorre
+   lui internamente, come un menu a comparsa troppo lungo. */
 @media (max-width: 640px) {
 	.grafico-attivi-tooltip {
 		position: fixed;
@@ -3393,6 +3399,8 @@ button.th-ordina {
 		bottom: auto;
 		transform: translate(-50%, -50%);
 		max-width: calc(100vw - 2rem);
+		max-height: calc(100vh - 2rem);
+		overflow-y: auto;
 	}
 
 	.grafico-attivi-tooltip.is-visibile {
