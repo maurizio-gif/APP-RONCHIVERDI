@@ -3383,8 +3383,13 @@ button.th-ordina {
 /* Su telefono il tooltip non segue più la barra (potrebbe uscire dai bordi
    dello schermo se la barra è vicina al margine, specie ora che il grafico
    scorre in orizzontale): resta fermo al centro dello schermo, sempre
-   visibile per intero. `left` arriva anche da uno style inline (la
-   posizione calcolata sulla barra) — !important lo sovrascrive apposta.
+   visibile per intero. `left` E `top` arrivano anche da uno style inline
+   (la posizione calcolata sulla barra) — servono entrambi !important per
+   sovrascriverlo: con solo `left !important` (come prima), il `top` restava
+   quello inline (il bordo superiore della barra), e `translate(-50%, -50%)`
+   centrava sì rispetto alla propria altezza ma partendo da quel punto, non
+   dal centro dello schermo — con una barra alta in cima al grafico il
+   tooltip finiva comunque tagliato sopra il bordo superiore della finestra.
    `max-height` + `overflow-y: auto`: il grafico per gruppo elenca una voce
    per ciascun gruppo prodotto (fino a una quindicina) — quel tooltip può
    essere più alto dello schermo, e centrato a metà sforerebbe sopra e sotto
@@ -3395,7 +3400,7 @@ button.th-ordina {
 	.grafico-attivi-tooltip {
 		position: fixed;
 		left: 50% !important;
-		top: 50%;
+		top: 50% !important;
 		bottom: auto;
 		transform: translate(-50%, -50%);
 		max-width: calc(100vw - 2rem);
