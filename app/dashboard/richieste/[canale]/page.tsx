@@ -120,15 +120,45 @@ export default async function CanalePage({
   //
   // Sono più delle duecento righe mostrate, di proposito: i chip devono dire
   // quante ce ne sono, non quante ne sta guardando questa pagina — e la riga
-  // «N di M caricate» sopra l'elenco dice già la differenza.
-  let queryConteggi = supabase
-    .from('form_contatti')
-    .select('gestito, opportunita_id')
-    .limit(2000)
-  queryConteggi = canale.origine
-    ? queryConteggi.in('origine', canale.origine)
-    : queryConteggi.in('attivita', canale.attivita)
-  if (canale.settore) queryConteggi = queryConteggi.eq('settore', canale.settore)
+  // «N di M caricate» sopra l'elenco dice già la differenza. Il .limit(2000)
+  // non basta da solo a difendere da questo: PostgREST tronca comunque ogni
+  // singola risposta a 1000 righe, quindi serve paginare con .range().
+  async function conteggiDelCanale(): Promise<{ gestito: boolean; opportunita_id: string | null }[]> {
+    const righe: { gestito: boolean; opportunita_id: string | null }[] = []
+    for (let da = 0; da < 2000; da += 1000) {
+      let q = supabase.from('form_contatti').select('gestito, opportunita_id').range(da, da + 999)
+      q = suo.origine ? q.in('origine', suo.origine) : q.in('attivita', suo.attivita)
+      if (suo.settore) q = q.eq('settore', suo.settore)
+      const { data } = await q
+      righe.push(...(data ?? []))
+      if (!data || data.length < 1000) break
+    }
+    return righe
+  }
+
+  /**
+   * Tutte le trattative del canale, paginando con `.range()`: PostgREST
+   * tronca comunque ogni risposta a 1000 righe, e leggere «la tabella
+   * intera» (vedi il commento più sotto) senza paginare vuol dire troncarla
+   * silenziosamente appena Club/Family superano quella soglia.
+   */
+  async function tutteLeOpportunitaDelCanale(): Promise<{ data: Record<string, any>[]; error: { message: string } | null }> {
+    if (!suo.inAgenda) return { data: [], error: null }
+    const colonneComplete =
+      'id, stato, assegnato_a, chiuso_il, motivo_perso, motivo_annullato, motivo_vinto, valore_euro, triple_pack'
+    const tutte: Record<string, any>[] = []
+    let ultimoErrore: { message: string } | null = null
+    for (let da = 0; ; da += 1000) {
+      const risposta = await conColonneNuove<Record<string, any>>(colonneComplete, COLONNE_NOTA_VINTA, (colonne) =>
+        supabase.from('opportunita').select(colonne).range(da, da + 999)
+      )
+      ultimoErrore = risposta.error
+      const pagina = risposta.data ?? []
+      tutte.push(...pagina)
+      if (pagina.length < 1000) break
+    }
+    return { data: tutte, error: ultimoErrore }
+  }
 
   // ── Prima ondata: tutto ciò che non dipende da nient'altro ────────────
   //
@@ -139,7 +169,7 @@ export default async function CanalePage({
   const [
     { data, error },
     { count: daLavorare },
-    { data: righeDaContare },
+    righeDaContare,
     { data: statiTrattative },
     { data: tuttoLoStaff },
     possoCancellare,
@@ -153,23 +183,18 @@ export default async function CanalePage({
       elencoDelCanale
     ),
     queryDaLavorare,
-    queryConteggi,
-    // Tutte le trattative del canale, in una lettura. Le trattative esistono
-    // solo per Club e Family (le crea trova_o_crea_opportunita dal trigger su
-    // form_contatti), quindi leggere la tabella intera è leggere esattamente
-    // la pipeline di questo canale.
+    conteggiDelCanale(),
+    // Tutte le trattative del canale, in una lettura (paginata, vedi
+    // tutteLeOpportunitaDelCanale). Le trattative esistono solo per Club e
+    // Family (le crea trova_o_crea_opportunita dal trigger su form_contatti),
+    // quindi leggere la tabella intera è leggere esattamente la pipeline di
+    // questo canale.
     //
     // Serve due volte: per i numeri sui chip dei filtri e per il blocco
     // trattativa di ogni riga. Prima quest'ultimo era una lettura a parte
     // nella seconda ondata, filtrata sugli id delle righe mostrate: due
     // letture della stessa tabella, e un'ondata in più prima di disegnare.
-    canale.inAgenda
-      ? conColonneNuove<Record<string, any>>(
-          'id, stato, assegnato_a, chiuso_il, motivo_perso, motivo_annullato, motivo_vinto, valore_euro, triple_pack',
-          COLONNE_NOTA_VINTA,
-          (colonne) => supabase.from('opportunita').select(colonne)
-        )
-      : Promise.resolve({ data: [] as Record<string, any>[] }),
+    tutteLeOpportunitaDelCanale(),
     // Nome e cognome oltre all'email: le lavorazioni si firmano con l'email,
     // ma a schermo si legge il nome (vedi lib/staff.ts).
     supabase.from('staff_users').select('email, nome, cognome'),
@@ -355,7 +380,7 @@ export default async function CanalePage({
   // altri filtri come sono adesso**: il numero sul chip è esattamente quello
   // che si otterrà cliccandolo, non un totale astratto che poi non torna.
   //
-  // Si conta sulle righe leggere di queryConteggi, non su quelle mostrate: le
+  // Si conta sulle righe leggere di conteggiDelCanale, non su quelle mostrate: le
   // duecento in pagina sono una finestra, e un chip che contasse la finestra
   // direbbe una cosa diversa a ogni filtro.
   function contaRichieste(quali: {

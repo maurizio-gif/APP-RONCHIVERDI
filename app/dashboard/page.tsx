@@ -157,8 +157,16 @@ async function richiesteNonInstradate() {
 async function contatoriTrattative(email: string | null) {
   const supabase = createSupabaseServiceClient()
   // Una lettura sola delle due colonne che servono: otto count separati
-  // sarebbero otto round trip per una tabella che sta in una pagina.
-  const { data } = await supabase.from('opportunita').select('stato, assegnato_a')
+  // sarebbero otto round trip per una tabella che sta in una pagina. Senza
+  // filtro (l'intera opportunita) va paginata con .range(): PostgREST
+  // tronca comunque una select a 1000 righe, e la tabella le ha già
+  // superate — vedi il bug del resoconto serale (lib/report-direzionale.ts).
+  const righe: { stato: string; assegnato_a: string | null }[] = []
+  for (let da = 0; ; da += 1000) {
+    const { data } = await supabase.from('opportunita').select('stato, assegnato_a').range(da, da + 999)
+    righe.push(...(data ?? []))
+    if (!data || data.length < 1000) break
+  }
 
   const vuoto = () => Object.fromEntries(STATI.map((x) => [x, 0])) as Record<StatoTrattativa, number>
   const mie = vuoto()
@@ -168,7 +176,7 @@ async function contatoriTrattative(email: string | null) {
   // per chi guarda sono lavoro disponibile, non lavoro di altri.
   let libere = 0
 
-  for (const riga of data ?? []) {
+  for (const riga of righe) {
     const stato = riga.stato as StatoTrattativa
     if (!(stato in club)) continue
     club[stato] += 1

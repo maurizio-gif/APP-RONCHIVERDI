@@ -45,18 +45,33 @@ export async function TimbratureReport({
   da.setDate(da.getDate() - periodo.giorni)
 
   const supabase = createSupabaseServiceClient()
-  const [{ data: righe }, { data: staff }, amministra, cancella] = await Promise.all([
-    supabase
-      .from('timbrature')
-      .select('id, created_at, email, tipo, distanza_metri')
-      .gte('created_at', da.toISOString())
-      .order('created_at', { ascending: true }),
+
+  // PostgREST tronca comunque ogni singola risposta a 1000 righe (stesso
+  // troncamento silenzioso già corretto nel resoconto serale,
+  // lib/report-direzionale.ts): sui 90 giorni, con più operatori, si supera
+  // facilmente quella soglia — senza paginare con `.range()` le ore lavorate
+  // tornerebbero sottostimate in silenzio.
+  async function timbratureDelPeriodo(): Promise<Timbratura[]> {
+    const righe: Timbratura[] = []
+    for (let inizio = 0; ; inizio += 1000) {
+      const { data } = await supabase
+        .from('timbrature')
+        .select('id, created_at, email, tipo, distanza_metri')
+        .gte('created_at', da.toISOString())
+        .order('created_at', { ascending: true })
+        .range(inizio, inizio + 999)
+      righe.push(...((data ?? []) as Timbratura[]))
+      if (!data || data.length < 1000) break
+    }
+    return righe
+  }
+
+  const [tutte, { data: staff }, amministra, cancella] = await Promise.all([
+    timbratureDelPeriodo(),
     supabase.from('staff_users').select('email, nome, cognome').order('email'),
     puoAmministrare(emailCorrente()),
     puoCancellare(emailCorrente()),
   ])
-
-  const tutte = (righe ?? []) as Timbratura[]
   const filtrate = searchParams.operatore
     ? tutte.filter((t) => t.email === searchParams.operatore)
     : tutte
