@@ -250,15 +250,25 @@ export default async function DirezionePage({
 
   // ──────────────────────────────────────────────── Vendite per primo canale
 
-  const rigaCanaleVendita = await supabase
-    .from('abbonamenti_giornalieri_canale')
-    .select('ha_richiesta, prima_origine, numero_vendite, fatturato')
-    .gte('giorno', ytd.giornoDa)
-    .lte('giorno', ytd.giornoA)
-  const erroreCanaleVendita = rigaCanaleVendita.error
+  // Stesso limite di risposta di PostgREST (1000 righe) del bug corretto nel
+  // resoconto serale (lib/report-direzionale.ts) e in sommaGiornalieri qui
+  // sopra: uno YTD per giorno×canale supera facilmente le 1000 righe.
+  const righeCanaleVendita: { ha_richiesta: boolean; prima_origine: string | null; numero_vendite: number; fatturato: number | null }[] = []
+  let erroreCanaleVendita: { message: string } | null = null
+  for (let da = 0; da < 10000; da += 1000) {
+    const { data, error } = await supabase
+      .from('abbonamenti_giornalieri_canale')
+      .select('ha_richiesta, prima_origine, numero_vendite, fatturato')
+      .gte('giorno', ytd.giornoDa)
+      .lte('giorno', ytd.giornoA)
+      .range(da, da + 999)
+    if (error) erroreCanaleVendita = error
+    righeCanaleVendita.push(...(data ?? []))
+    if (!data || data.length < 1000) break
+  }
 
   const mappaCanaliVendita = new Map<string, RigaCanaleVendita>()
-  for (const r of rigaCanaleVendita.data ?? []) {
+  for (const r of righeCanaleVendita) {
     const provenienza = canaleVendita({ haRichiesta: r.ha_richiesta, primaOrigine: r.prima_origine })
     const voce = mappaCanaliVendita.get(provenienza.chiave) ?? { provenienza, vendite: 0, fatturato: 0 }
     voce.vendite += r.numero_vendite

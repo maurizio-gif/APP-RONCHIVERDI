@@ -300,6 +300,25 @@ export default async function CoreManagerPage({
   // dopo la mezzanotte — cioè l'intera giornata di oggi.
   const dopoFine = giornoPiu(oggi, 1)
 
+  // PostgREST tronca comunque ogni singola risposta a 1000 righe (stesso
+  // troncamento silenzioso già corretto nel resoconto serale,
+  // lib/report-direzionale.ts): le letture qui sotto vanno paginate con
+  // `.range()`, non lette in un colpo solo, per non sottocontare consulenti
+  // e trattative appena il periodo o la tabella crescono oltre quella soglia.
+  async function tuttiPaginato<T>(
+    esegui: (da: number, a: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
+  ): Promise<{ data: T[]; error: { message: string } | null }> {
+    const tutte: T[] = []
+    let ultimoErrore: { message: string } | null = null
+    for (let da = 0; ; da += 1000) {
+      const { data, error } = await esegui(da, da + 999)
+      ultimoErrore = error
+      tutte.push(...(data ?? []))
+      if (!data || data.length < 1000) break
+    }
+    return { data: tutte, error: ultimoErrore }
+  }
+
   const supabase = createSupabaseServiceClient()
   const [
     { data: opportunita },
@@ -311,47 +330,59 @@ export default async function CoreManagerPage({
   ] = await Promise.all([
     // La fotografia di adesso: chi ha in mano quante trattative aperte.
     // Senza periodo, perché «quante ne hai in mano» non ne ha uno.
-    supabase
-      .from('opportunita')
-      .select('assegnato_a, assegnato_il, creato_il, stato, origine')
-      .in('stato', ['nuovo', 'in_gestione']),
+    tuttiPaginato<Record<string, any>>((da, a) =>
+      supabase
+        .from('opportunita')
+        .select('assegnato_a, assegnato_il, creato_il, stato, origine')
+        .in('stato', ['nuovo', 'in_gestione'])
+        .range(da, a)
+    ),
     // Le chiuse del periodo, col valore. Per `chiuso_il` e non per
     // `creato_il`: il risultato appartiene al giorno in cui si è chiuso, non a
     // quello in cui il lead è arrivato — altrimenti una vinta di oggi su un
     // lead di marzo non comparirebbe da nessuna parte.
-    conColonneNuove<Record<string, any>>(
-      'assegnato_a, stato, chiuso_il, valore_euro, origine, motivo_perso',
-      COLONNE_NOTA_VINTA,
-      (colonne) =>
-        supabase
-          .from('opportunita')
-          .select(colonne)
-          .in('stato', ['vinto', 'perso'])
-          .gte('chiuso_il', inizio)
-          .lt('chiuso_il', dopoFine)
+    tuttiPaginato<Record<string, any>>((da, a) =>
+      conColonneNuove<Record<string, any>>(
+        'assegnato_a, stato, chiuso_il, valore_euro, origine, motivo_perso',
+        COLONNE_NOTA_VINTA,
+        (colonne) =>
+          supabase
+            .from('opportunita')
+            .select(colonne)
+            .in('stato', ['vinto', 'perso'])
+            .gte('chiuso_il', inizio)
+            .lt('chiuso_il', dopoFine)
+            .range(da, a)
+      )
     ),
     // Gli eventi d'agenda del periodo, per data: è il giorno in cui l'impegno
     // cade, che è quello che conta per dire «quanti eventi hai avuto».
-    supabase
-      .from('task')
-      .select('assegnato_a, esito_da, stato, data, tipo, entita, esito, esito_tipo')
-      .gte('data', inizio)
-      .lte('data', oggi),
+    tuttiPaginato<Record<string, any>>((da, a) =>
+      supabase
+        .from('task')
+        .select('assegnato_a, esito_da, stato, data, tipo, entita, esito, esito_tipo')
+        .gte('data', inizio)
+        .lte('data', oggi)
+        .range(da, a)
+    ),
     // Le richieste del settore core sono eventi anche loro: chi le lavora fa
     // lo stesso lavoro di chi chiude un task, e contare solo i task
     // sottostimerebbe proprio chi sta al banco a smaltire i messaggi.
-    conColonneNuove<Record<string, any>>(
-      'assegnato_a, esito_da, gestito_da, gestito, gestito_il, created_at, data_scelta, azione, esito, esito_tipo',
-      ['assegnato_a'],
-      (colonne) =>
-        supabase
-          .from('form_contatti')
-          .select(colonne)
-          .in('attivita', ATTIVITA_IN_AGENDA)
-          .or(
-            `and(data_scelta.gte.${inizio},data_scelta.lt.${dopoFine}),` +
-              `and(data_scelta.is.null,created_at.gte.${inizio},created_at.lt.${dopoFine})`
-          )
+    tuttiPaginato<Record<string, any>>((da, a) =>
+      conColonneNuove<Record<string, any>>(
+        'assegnato_a, esito_da, gestito_da, gestito, gestito_il, created_at, data_scelta, azione, esito, esito_tipo',
+        ['assegnato_a'],
+        (colonne) =>
+          supabase
+            .from('form_contatti')
+            .select(colonne)
+            .in('attivita', ATTIVITA_IN_AGENDA)
+            .or(
+              `and(data_scelta.gte.${inizio},data_scelta.lt.${dopoFine}),` +
+                `and(data_scelta.is.null,created_at.gte.${inizio},created_at.lt.${dopoFine})`
+            )
+            .range(da, a)
+      )
     ),
     supabase.from('staff_users').select('email, nome, cognome, commerciale'),
     eventiScaduti(),

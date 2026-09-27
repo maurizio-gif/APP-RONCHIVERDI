@@ -161,6 +161,25 @@ export default async function ReportGiornalieroPage({
   const righe = new Map<string, Giorno>(giorni.map((g) => [g, giornoVuoto(g)]))
   const obiettiviMappa = new Map<string, number>()
 
+  // PostgREST tronca comunque ogni singola risposta a 1000 righe (stesso
+  // troncamento silenzioso già corretto nel resoconto serale,
+  // lib/report-direzionale.ts): sulla vista "Tutti" un mese intero di task e
+  // richieste può superarle, quindi ogni lettura qui sotto va paginata con
+  // `.range()` invece di fidarsi di una singola risposta.
+  async function tuttiPaginato<T>(
+    esegui: (da: number, a: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
+  ): Promise<{ data: T[]; error: { message: string } | null }> {
+    const tutte: T[] = []
+    let ultimoErrore: { message: string } | null = null
+    for (let da = 0; ; da += 1000) {
+      const { data, error } = await esegui(da, da + 999)
+      ultimoErrore = error
+      tutte.push(...(data ?? []))
+      if (!data || data.length < 1000) break
+    }
+    return { data: tutte, error: ultimoErrore }
+  }
+
   if (emailFiltro.length > 0) {
     const [
       { data: obiettivi, error: erroreObiettivi },
@@ -170,66 +189,84 @@ export default async function ReportGiornalieroPage({
       { data: walkIn },
       { data: vinte },
     ] = await Promise.all([
-      supabase
-        .from('obiettivi_giornalieri')
-        .select('giorno, goal')
-        .in('commerciale', emailFiltro)
-        .gte('giorno', primo)
-        .lte('giorno', ultimo),
+      tuttiPaginato<Record<string, any>>((da, a) =>
+        supabase
+          .from('obiettivi_giornalieri')
+          .select('giorno, goal')
+          .in('commerciale', emailFiltro)
+          .gte('giorno', primo)
+          .lte('giorno', ultimo)
+          .range(da, a)
+      ),
       // Telefonate e visite in sede fissate dalla segreteria o dal
       // commerciale stesso (task), per la data in cui cadono.
-      supabase
-        .from('task')
-        .select('id, tipo, data, stato, esito_tipo, entita, entita_id')
-        .in('assegnato_a', emailFiltro)
-        .in('tipo', ['appuntamento_telefonico', 'appuntamento_in_sede'])
-        .gte('data', primo)
-        .lte('data', ultimo),
+      tuttiPaginato<Record<string, any>>((da, a) =>
+        supabase
+          .from('task')
+          .select('id, tipo, data, stato, esito_tipo, entita, entita_id')
+          .in('assegnato_a', emailFiltro)
+          .in('tipo', ['appuntamento_telefonico', 'appuntamento_in_sede'])
+          .gte('data', primo)
+          .lte('data', ultimo)
+          .range(da, a)
+      ),
       // Telefonate e visite in sede prenotate direttamente dal sito, quando
       // la richiesta stessa è già l'appuntamento (non passa da un task).
-      supabase
-        .from('form_contatti')
-        .select('id, azione, data_scelta, origine, esito_tipo, gestito')
-        .in('assegnato_a', emailFiltro)
-        .in('azione', ['telefonata', 'appuntamento'])
-        .gte('data_scelta', primo)
-        .lte('data_scelta', ultimo),
+      tuttiPaginato<Record<string, any>>((da, a) =>
+        supabase
+          .from('form_contatti')
+          .select('id, azione, data_scelta, origine, esito_tipo, gestito')
+          .in('assegnato_a', emailFiltro)
+          .in('azione', ['telefonata', 'appuntamento'])
+          .gte('data_scelta', primo)
+          .lte('data_scelta', ultimo)
+          .range(da, a)
+      ),
       // I messaggi (richieste senza appuntamento) che questa consulente ha
       // gestito nel mese: contano per quando sono stati lavorati
       // (`gestito_il`), non per quando sono arrivati.
-      supabase
-        .from('form_contatti')
-        .select('id, azione, gestito_il')
-        .in('gestito_da', emailFiltro)
-        .eq('gestito', true)
-        .gte('gestito_il', inizioIstante)
-        .lt('gestito_il', fineIstante),
+      tuttiPaginato<Record<string, any>>((da, a) =>
+        supabase
+          .from('form_contatti')
+          .select('id, azione, gestito_il')
+          .in('gestito_da', emailFiltro)
+          .eq('gestito', true)
+          .gte('gestito_il', inizioIstante)
+          .lt('gestito_il', fineIstante)
+          .range(da, a)
+      ),
       // I walk-in di cui una di queste consulenti era al banco: origine e
       // operatore sono le due colonne che lo dicono (vedi api/lead.ts sul
       // sito).
-      supabase
-        .from('form_contatti')
-        .select('id, created_at, persona_id, opportunita_id')
-        .eq('origine', 'walk-in')
-        .in('operatore', emailFiltro)
-        .gte('created_at', inizioIstante)
-        .lt('created_at', fineIstante),
+      tuttiPaginato<Record<string, any>>((da, a) =>
+        supabase
+          .from('form_contatti')
+          .select('id, created_at, persona_id, opportunita_id')
+          .eq('origine', 'walk-in')
+          .in('operatore', emailFiltro)
+          .gte('created_at', inizioIstante)
+          .lt('created_at', fineIstante)
+          .range(da, a)
+      ),
       // Le vinte del mese: valgono per TOTAL SALES, triple pack e fatturato.
       // `triple_pack` è la colonna più recente (vedi
       // scripts/sql/2026-09-17-triple-pack-e-obiettivi-giornalieri.sql): se
       // la migration non è ancora passata, si rilegge senza — a metà, non a
       // zero, che direbbe "nessuna vendita" su un mese che invece ne ha.
-      conColonneNuove<Record<string, any>>(
-        'id, persona_id, chiuso_il, valore_euro, triple_pack',
-        COLONNE_NOTA_VINTA,
-        (colonne) =>
-          supabase
-            .from('opportunita')
-            .select(colonne)
-            .in('assegnato_a', emailFiltro)
-            .eq('stato', 'vinto')
-            .gte('chiuso_il', inizioIstante)
-            .lt('chiuso_il', fineIstante)
+      tuttiPaginato<Record<string, any>>((da, a) =>
+        conColonneNuove<Record<string, any>>(
+          'id, persona_id, chiuso_il, valore_euro, triple_pack',
+          COLONNE_NOTA_VINTA,
+          (colonne) =>
+            supabase
+              .from('opportunita')
+              .select(colonne)
+              .in('assegnato_a', emailFiltro)
+              .eq('stato', 'vinto')
+              .gte('chiuso_il', inizioIstante)
+              .lt('chiuso_il', fineIstante)
+              .range(da, a)
+        )
       ),
     ])
 

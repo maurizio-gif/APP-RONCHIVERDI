@@ -44,15 +44,20 @@ export default async function CurriculumPage({
 
   // I contatori sono sempre su tutte le candidature, anche quando l'elenco è
   // filtrato: servono a scegliere il filtro, e un contatore che cambia con la
-  // vista non dice più quante cose ci sono da fare.
-  const { data: perStato } = await supabase.from('candidature').select('stato')
-  const conteggi = ((perStato ?? []) as { stato: StatoCandidatura }[]).reduce<
-    Record<string, number>
-  >((acc, r) => {
+  // vista non dice più quante cose ci sono da fare. Nessun filtro qui, quindi
+  // va paginato con .range(): PostgREST tronca comunque una select a 1000
+  // righe (stesso bug corretto nel resoconto serale, lib/report-direzionale.ts).
+  const perStato: { stato: StatoCandidatura }[] = []
+  for (let da = 0; ; da += 1000) {
+    const { data } = await supabase.from('candidature').select('stato').range(da, da + 999)
+    perStato.push(...((data ?? []) as { stato: StatoCandidatura }[]))
+    if (!data || data.length < 1000) break
+  }
+  const conteggi = perStato.reduce<Record<string, number>>((acc, r) => {
     acc[r.stato] = (acc[r.stato] ?? 0) + 1
     return acc
   }, {})
-  const totale = (perStato ?? []).length
+  const totale = perStato.length
 
   return (
     <>

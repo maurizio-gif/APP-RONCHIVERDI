@@ -60,26 +60,35 @@ export default async function ReportAbbonamentiPage({
     ? (searchParams.lavorate as FiltroLavorate)
     : 'tutte'
 
+  // Righe grezze e non la vista aggregata `abbonamenti_giornalieri`: qui
+  // serve il persona_id riga per riga per classificare "lavorata o no", e un
+  // mese resta poche centinaia/migliaia di righe — non l'intero storico che
+  // ha reso necessarie le viste (vedi lib/percorsoVendita-server.ts). Un
+  // `.limit(N)` da solo non basta a difendersi dal troncamento: PostgREST
+  // tronca comunque ogni singola risposta a 1000 righe, quindi un mese di
+  // punta sparirebbe in silenzio senza paginare con `.range()` (stesso bug
+  // corretto nel resoconto serale, lib/report-direzionale.ts).
+  async function abbonamentiDelMese(supabase: ReturnType<typeof createSupabaseServiceClient>): Promise<RigaGrezza[]> {
+    const righe: RigaGrezza[] = []
+    for (let da = 0; da < 5000; da += 1000) {
+      const { data } = await supabase
+        .from('abbonamenti')
+        .select('data_vendita, abbonamento, totale, persona_id')
+        .gte('data_vendita', mezzanotteRoma(primo))
+        .lt('data_vendita', mezzanotteRoma(giornoPiu(ultimo, 1)))
+        .range(da, da + 999)
+      righe.push(...((data ?? []) as RigaGrezza[]))
+      if (!data || data.length < 1000) break
+    }
+    return righe
+  }
+
   const supabase = createSupabaseServiceClient()
-  const [gruppi, { data: mappatura, error: erroreMappatura }, { data: righeMese }] = await Promise.all([
+  const [gruppi, { data: mappatura, error: erroreMappatura }, righeGrezze] = await Promise.all([
     caricaGruppi(),
     supabase.from('abbonamenti_mappatura').select('prodotto, gruppo_id'),
-    // Righe grezze e non la vista aggregata `abbonamenti_giornalieri`: qui
-    // serve il persona_id riga per riga per classificare "lavorata o no", e
-    // un mese resta poche centinaia/migliaia di righe — non l'intero
-    // storico che ha reso necessarie le viste (vedi
-    // lib/percorsoVendita-server.ts). Il limite è una difesa: il client
-    // Supabase troncherebbe comunque a 1000 righe senza dirlo, e un mese di
-    // punta non deve sparire in silenzio.
-    supabase
-      .from('abbonamenti')
-      .select('data_vendita, abbonamento, totale, persona_id')
-      .gte('data_vendita', mezzanotteRoma(primo))
-      .lt('data_vendita', mezzanotteRoma(giornoPiu(ultimo, 1)))
-      .limit(5000),
+    abbonamentiDelMese(supabase),
   ])
-
-  const righeGrezze = (righeMese ?? []) as RigaGrezza[]
   const gruppoDiProdotto = new Map((mappatura ?? []).map((m) => [m.prodotto as string, m.gruppo_id as string | null]))
 
   const dateAzioniMese = await caricaDateAzioniDesk(

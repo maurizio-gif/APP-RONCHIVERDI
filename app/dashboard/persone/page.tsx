@@ -17,7 +17,26 @@ export default async function PersonePage() {
   }
 
   const supabase = createSupabaseServiceClient()
-  const [{ data, error }, { data: manuali }, { count: totalePersone }, { data: inGestione }, { data: staff }] =
+
+  // PostgREST tronca comunque ogni singola risposta a 1000 righe (stesso
+  // troncamento silenzioso già corretto nel resoconto serale,
+  // lib/report-direzionale.ts): le due letture senza filtro di periodo qui
+  // sotto (i manuali e le trattative aperte) vanno paginate con `.range()`,
+  // non lette in un colpo solo — a differenza dell'elenco principale, che ha
+  // già il suo `.limit(MAX_PERSONE)` voluto.
+  async function tuttiPaginato<T>(
+    esegui: (da: number, a: number) => PromiseLike<{ data: T[] | null }>
+  ): Promise<T[]> {
+    const tutte: T[] = []
+    for (let da = 0; ; da += 1000) {
+      const { data } = await esegui(da, da + 999)
+      tutte.push(...(data ?? []))
+      if (!data || data.length < 1000) break
+    }
+    return tutte
+  }
+
+  const [{ data, error }, manuali, { count: totalePersone }, inGestione, { data: staff }] =
     await Promise.all([
       supabase
         .from('persone_con_richieste')
@@ -33,9 +52,10 @@ export default async function PersonePage() {
       // Chi è stato inserito a mano dalla segreteria. La fonte non sta nella
       // vista dei conteggi, e serve a una cosa sola: un contatto con zero
       // richieste, in un'anagrafica che si popola dalle richieste del sito, va
-      // spiegato — altrimenti si legge come una riga rotta. Si chiedono solo i
-      // manuali, che sono pochi, e non la fonte di tutti.
-      supabase.from('persone').select('id').eq('fonte', FONTE_MANUALE),
+      // spiegato — altrimenti si legge come una riga rotta.
+      tuttiPaginato<{ id: string }>((da, a) =>
+        supabase.from('persone').select('id').eq('fonte', FONTE_MANUALE).range(da, a)
+      ),
       // Il vero totale, non le sole 500 caricate: senza, la statistica
       // "In anagrafica" mentirebbe proprio sul numero che i contatti storici
       // importati da Info4U hanno reso sbagliato.
@@ -45,7 +65,13 @@ export default async function PersonePage() {
       // l'assegnatario: la riga mostra a che punto è, e il filtro per
       // assegnatario guarda solo qui — una trattativa chiusa non è più lavoro
       // di nessuno.
-      supabase.from('opportunita').select('persona_id, stato, assegnato_a').in('stato', ['nuovo', 'in_gestione']),
+      tuttiPaginato<{ persona_id: string | null; stato: string; assegnato_a: string | null }>((da, a) =>
+        supabase
+          .from('opportunita')
+          .select('persona_id, stato, assegnato_a')
+          .in('stato', ['nuovo', 'in_gestione'])
+          .range(da, a)
+      ),
       // Per tradurre l'email dell'assegnatario in nome e per l'elenco delle
       // opzioni del filtro (vedi lib/staff.ts).
       supabase.from('staff_users').select('email, nome, cognome'),
