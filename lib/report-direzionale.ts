@@ -173,14 +173,21 @@ export async function caricaResocontoDirezionale(giorno: string): Promise<Resoco
   // sessioni_mensili (scripts/sql/2026-09-21-sessioni-mensili.sql) — chi ha
   // dato il consenso conta una volta sola (distinct visitor_id), le sessioni
   // senza consenso contano una testa ciascuna. Qui in JS e non da una vista
-  // perché un solo giorno sono poche righe: non serve un'aggregazione lato
-  // database come per lo storico mensile (decine di migliaia di righe).
-  const { data: sessioniOggiRighe } = await supabase
-    .from('sessioni')
-    .select('visitor_id')
-    .gte('created_at', inizioGiorno)
-    .lt('created_at', inizioGiornoDopo)
-  const righeSessioni = sessioniOggiRighe ?? []
+  // perché un solo giorno sono poche righe di norma — ma nei giorni di picco
+  // possono superare le 1000, il limite di risposta di PostgREST (stesso
+  // troncamento silenzioso del bug YTD in fatturatoDelPeriodo): serve quindi
+  // paginare con `.range()` anche qui, non un singolo `.select()`.
+  const righeSessioni: { visitor_id: string | null }[] = []
+  for (let da = 0; ; da += 1000) {
+    const { data } = await supabase
+      .from('sessioni')
+      .select('visitor_id')
+      .gte('created_at', inizioGiorno)
+      .lt('created_at', inizioGiornoDopo)
+      .range(da, da + 999)
+    righeSessioni.push(...(data ?? []))
+    if (!data || data.length < 1000) break
+  }
   const visitatoriConConsenso = new Set(righeSessioni.map((r) => r.visitor_id).filter(Boolean) as string[])
   const sessioniSenzaConsenso = righeSessioni.filter((r) => !r.visitor_id).length
   const visiteSitoOggi = { sessioni: righeSessioni.length, persone: visitatoriConConsenso.size + sessioniSenzaConsenso }
