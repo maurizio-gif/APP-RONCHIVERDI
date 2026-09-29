@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
+import { leggiPaginato } from '@/lib/supabase/leggiPaginato'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { euro, variazionePercentuale } from '@/lib/pipeline'
 import { caricaAndamentoPerGruppo, caricaGruppi } from '@/lib/abbonamenti'
@@ -22,15 +23,8 @@ import { StatCard } from './StatCard'
 import { SplitCanali, type VoceCanale } from './SplitCanali'
 import { GraficoContatti, type VoceContattiMese } from './GraficoContatti'
 import { GraficoVisiteSito, type VoceVisiteMese } from './GraficoVisiteSito'
-import {
-  ChipGruppi,
-  FiltroGruppi,
-  GraficoPerGruppoFiltrato,
-  StatSociAttivi,
-  StatVendite,
-  type AttiviGruppo,
-  type VenditeGruppo,
-} from './FiltroGruppi'
+import { ChipGruppi, FiltroGruppi, GraficoPerGruppoFiltrato } from '@/app/dashboard/abbonamenti/FiltroGruppi'
+import { StatSociAttivi, StatVendite, type AttiviGruppo, type VenditeGruppo } from './StatAbbonamenti'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,7 +32,7 @@ type RigaVendite = { gruppo_id: string | null; numero_vendite: number; fatturato
 
 type RigaCanaleGrezza = { ha_richiesta: boolean; prima_origine: string | null; numero_vendite: number; fatturato: number | null }
 
-/** Le righe di vendita sommate per gruppo, senza filtro: lo applica il browser (FiltroGruppi.tsx). */
+/** Le righe di vendita sommate per gruppo, senza filtro: lo applica il browser (vedi StatAbbonamenti.tsx). */
 function perGruppo(righe: RigaVendite[]): VenditeGruppo[] {
   const mappa = new Map<string | null, VenditeGruppo>()
   for (const r of righe) {
@@ -48,26 +42,6 @@ function perGruppo(righe: RigaVendite[]): VenditeGruppo[] {
     mappa.set(r.gruppo_id, voce)
   }
   return [...mappa.values()]
-}
-
-/**
- * PostgREST tronca comunque ogni risposta a 1000 righe, `.limit()` o no (lo
- * stesso bug corretto nel resoconto serale, lib/report-direzionale.ts): si
- * legge a pagine da 1000 finché ne torna una più corta. `pagina(da)` è la
- * query già con `.range(da, da + 999)`.
- */
-async function leggiPaginato<T>(
-  pagina: (da: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
-): Promise<{ righe: T[]; error: { message: string } | null }> {
-  const righe: T[] = []
-  let error: { message: string } | null = null
-  for (let da = 0; da < 10000; da += 1000) {
-    const risposta = await pagina(da)
-    if (risposta.error) error = risposta.error
-    righe.push(...(risposta.data ?? []))
-    if (!risposta.data || risposta.data.length < 1000) break
-  }
-  return { righe, error }
 }
 
 /** Le coppie sorgente/mezzo grezze (RPC statistiche_richieste) piegate su sito/in sede/altro. */
@@ -150,10 +124,10 @@ export default async function DirezionePage() {
   // ─────────────────────────────────────────────────────── Abbonamenti venduti
   //
   // Stessi gruppi prodotto della pagina Abbonamenti (lib/abbonamenti.ts, gestiti
-  // da /dashboard/abbonamenti/gruppi): un filtro multi-selezione identico,
-  // così chi conosce già quella pagina lo ritrova qui uguale. Il filtro però
-  // lo applica il browser (FiltroGruppi.tsx): qui si legge tutto UNA volta,
-  // già spezzato per gruppo, così cambiare gruppo non torna sul server.
+  // da /dashboard/abbonamenti/gruppi) e lo stesso filtro multi-selezione,
+  // applicato nel browser (app/dashboard/abbonamenti/FiltroGruppi.tsx): qui
+  // si legge tutto UNA volta, già spezzato per gruppo, così cambiare gruppo
+  // non torna sul server.
 
   async function venditeGiornaliere(range: RangePeriodo): Promise<RigaVendite[]> {
     const { righe } = await leggiPaginato<RigaVendite>((da) =>
