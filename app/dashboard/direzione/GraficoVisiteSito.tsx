@@ -69,9 +69,8 @@ export function GraficoVisiteSito({ serie }: { serie: VoceVisiteMese[] }) {
                 rx={0.4}
                 className={m.sessioni > 0 ? 'grafico-barra-visite-sessioni' : 'grafico-barra is-vuota'}
               />
-              <title>
-                {etichettaMeseBreve(m.mese)}: {m.persone} accessi singoli, {m.sessioni} sessioni
-              </title>
+              {/* Una stringa sola: vedi lo stesso <title> in GraficoContatti. */}
+              <title>{`${etichettaMeseBreve(m.mese)}: ${m.persone} accessi singoli, ${m.sessioni} sessioni`}</title>
             </g>
           )
         })}

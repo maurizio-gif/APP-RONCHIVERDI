@@ -66,9 +66,11 @@ export function GraficoContatti({ serie }: { serie: VoceContattiMese[] }) {
                 height={Math.max(altezzaSito, m.sito > 0 ? 0.6 : 0)}
                 className="grafico-barra grafico-barra-sito"
               />
-              <title>
-                {etichetta(m.mese)}: {totale} contatti — sito {m.sito}, in sede {m.sede}
-              </title>
+              {/* Una stringa sola, non testo e {valori} mescolati: dentro
+                  <title> il server di React li unisce in un unico nodo di
+                  testo, il browser se ne aspetta uno per pezzo — errore di
+                  hydration, e React rifà da capo nel browser l'intera pagina. */}
+              <title>{`${etichetta(m.mese)}: ${totale} contatti — sito ${m.sito}, in sede ${m.sede}`}</title>
             </g>
           )
         })}

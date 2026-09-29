@@ -150,6 +150,13 @@ export function euro(valore: number | null | undefined): string | null {
     currency: 'EUR',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
+    // Esplicito, non il default: per it-IT Node (il server) raggruppa solo
+    // da 5 cifre in su («1080,00 €»), Chrome sempre («1.080,00 €»). Un
+    // importo scritto da un Client Component usciva quindi diverso in SSR e
+    // nel browser — errore di hydration di React, e lo stesso numero scritto
+    // in due modi sulla stessa pagina. 'always' è il formato di questo
+    // commento, identico ovunque.
+    useGrouping: 'always',
   }).format(Number(valore))
 }
 
