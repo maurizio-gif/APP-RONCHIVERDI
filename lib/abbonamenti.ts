@@ -102,24 +102,38 @@ export async function caricaAndamentoPerGruppo(
   meseCorrenteData: string,
   ultimi12Mesi: string[]
 ): Promise<AndamentoPerGruppo> {
-  // Abbonati attivi OGGI: non una vendita, una fotografia dello stato
-  // attuale (vedi abbonamenti_attivi_al in
-  // scripts/sql/2026-09-21-abbonamenti-attivi.sql) — persone distinte con
-  // almeno un abbonamento non scaduto in quel gruppo. Serve sia come ultima
-  // colonna del grafico attivi (il mese in corso non è ancora congelato
-  // nello storico) sia — nel chiamante — per un'eventuale card "a oggi".
-  const { data: attiviGrezzi, error: erroreAttiviOggi } = await supabase
-    .from('abbonamenti_attivi_oggi')
-    .select('gruppo_id, numero_attivi')
-  const attiviOggiPerGruppo = new Map<string | null, number>()
-  for (const r of attiviGrezzi ?? []) attiviOggiPerGruppo.set(r.gruppo_id, r.numero_attivi)
-
   let queryFatturatoMensile = supabase
     .from('abbonamenti_mensili')
     .select('mese, gruppo_id, fatturato')
     .in('mese', ultimi12Mesi)
   if (filtroAttivo) queryFatturatoMensile = queryFatturatoMensile.in('gruppo_id', gruppiSelezionati)
-  const { data: fatturatoGrezzo, error: erroreFatturatoMensile } = await queryFatturatoMensile
+
+  // Gli 11 mesi chiusi vengono dallo storico congelato
+  // (abbonamenti_attivi_storico, scritto una volta a mese chiuso da
+  // pg_cron); il mese in corso non è ancora congelato, quindi è
+  // attiviOggiPerGruppo qui sotto, riusato come sua ultima colonna.
+  const mesiChiusi = ultimi12Mesi.slice(0, -1)
+
+  // Tre letture indipendenti: in parallelo, non una dopo l'altra — ognuna
+  // aggrega la tabella abbonamenti intera, e in fila si sommavano.
+  const [
+    { data: attiviGrezzi, error: erroreAttiviOggi },
+    { data: fatturatoGrezzo, error: erroreFatturatoMensile },
+    { data: storicoAttiviGrezzi, error: erroreStoricoAttivi },
+  ] = await Promise.all([
+    // Abbonati attivi OGGI: non una vendita, una fotografia dello stato
+    // attuale (vedi abbonamenti_attivi_al in
+    // scripts/sql/2026-09-21-abbonamenti-attivi.sql) — persone distinte con
+    // almeno un abbonamento non scaduto in quel gruppo. Serve sia come ultima
+    // colonna del grafico attivi (il mese in corso non è ancora congelato
+    // nello storico) sia — nel chiamante — per un'eventuale card "a oggi".
+    supabase.from('abbonamenti_attivi_oggi').select('gruppo_id, numero_attivi'),
+    queryFatturatoMensile,
+    supabase.from('abbonamenti_attivi_storico').select('mese, gruppo_id, numero_attivi').in('mese', mesiChiusi),
+  ])
+
+  const attiviOggiPerGruppo = new Map<string | null, number>()
+  for (const r of attiviGrezzi ?? []) attiviOggiPerGruppo.set(r.gruppo_id, r.numero_attivi)
 
   const fatturatoPerMeseGruppo = new Map<string, Map<string | null, number>>()
   for (const r of fatturatoGrezzo ?? []) {
@@ -127,16 +141,6 @@ export async function caricaAndamentoPerGruppo(
     mappaGruppi.set(r.gruppo_id, (mappaGruppi.get(r.gruppo_id) ?? 0) + Number(r.fatturato ?? 0))
     fatturatoPerMeseGruppo.set(r.mese, mappaGruppi)
   }
-
-  // Gli 11 mesi chiusi vengono dallo storico congelato
-  // (abbonamenti_attivi_storico, scritto una volta a mese chiuso da
-  // pg_cron); il mese in corso non è ancora congelato, quindi è
-  // attiviOggiPerGruppo qui sopra, riusato come sua ultima colonna.
-  const mesiChiusi = ultimi12Mesi.slice(0, -1)
-  const { data: storicoAttiviGrezzi, error: erroreStoricoAttivi } = await supabase
-    .from('abbonamenti_attivi_storico')
-    .select('mese, gruppo_id, numero_attivi')
-    .in('mese', mesiChiusi)
 
   const attiviPerMeseGruppo = new Map<string, Map<string | null, number>>()
   for (const r of storicoAttiviGrezzi ?? []) {
