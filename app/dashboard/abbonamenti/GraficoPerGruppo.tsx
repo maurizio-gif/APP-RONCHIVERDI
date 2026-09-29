@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 export type VoceGruppoStack = {
   gruppoId: string | null
@@ -66,6 +67,16 @@ export function GraficoPerGruppo({
   // .grafico-attivi-tooltip in globals.css), quindi va ricalcolata sulla
   // colonna effettivamente sotto il cursore/focus a ogni attivazione.
   const [posizioneTooltip, setPosizioneTooltip] = useState<{ left: number; top: number } | null>(null)
+  // Il tooltip va in <body> con un portal, non dentro il grafico: essere
+  // `position: fixed` non basta a uscire da `.grafico-scroll` — Safari su
+  // iPhone ritaglia comunque un fixed discendente di un contenitore che
+  // scorre (overflow + -webkit-overflow-scrolling), e il pannello restava
+  // visibile solo dentro l'altezza delle barre. `document.body` esiste solo
+  // nel browser: il portal parte dopo il montaggio, e il server (come il
+  // primo render del client) non disegna nessun tooltip — che comunque è
+  // invisibile finché non si tocca una barra.
+  const [montato, setMontato] = useState(false)
+  useEffect(() => setMontato(true), [])
 
   function attivaColonna(i: number, elemento: SVGGElement) {
     const rettangolo = elemento.getBoundingClientRect()
@@ -100,6 +111,38 @@ export function GraficoPerGruppo({
   // essendo largo 100; l'unità y va convertita da una scala 0-34), dove il
   // testo segue le proporzioni normali del font.
   const etichetteSopra: { mese: string; xCentro: number; yTop: number; testo: string }[] = []
+
+  const tooltip = (
+    <div
+      className={`grafico-attivi-tooltip${meseAttivo ? ' is-visibile' : ''}`}
+      style={posizioneTooltip ?? undefined}
+      aria-hidden={!meseAttivo}
+    >
+      {meseAttivo && (
+        <>
+          <p className="grafico-attivi-tooltip-mese">{meseAttivo.etichetta}</p>
+          <ul className="grafico-attivi-tooltip-elenco">
+            {meseAttivo.gruppi.map((g) => (
+              <li key={g.gruppoId ?? 'non-categorizzato'}>
+                <span className="grafico-attivi-tooltip-swatch" style={{ background: g.colore }} aria-hidden="true" />
+                <span className="grafico-attivi-tooltip-corpo">
+                  <span>
+                    <span className="grafico-attivi-tooltip-valore">{g.valoreTesto}</span>{' '}
+                    <span className="grafico-attivi-tooltip-nome">{g.nome}</span>
+                  </span>
+                  {g.dettaglio && <span className="grafico-attivi-tooltip-dettaglio">{g.dettaglio}</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="grafico-attivi-tooltip-totale">Totale: {meseAttivo.totaleTesto}</p>
+          {meseAttivo.notaPercentuale && (
+            <p className="grafico-attivi-tooltip-percentuale">{meseAttivo.notaPercentuale}</p>
+          )}
+        </>
+      )}
+    </div>
+  )
 
   return (
     <div className="grafico grafico-attivi">
@@ -183,40 +226,6 @@ export function GraficoPerGruppo({
                 ))}
               </div>
             )}
-
-            <div
-              className={`grafico-attivi-tooltip${meseAttivo ? ' is-visibile' : ''}`}
-              style={posizioneTooltip ?? undefined}
-              aria-hidden={!meseAttivo}
-            >
-              {meseAttivo && (
-                <>
-                  <p className="grafico-attivi-tooltip-mese">{meseAttivo.etichetta}</p>
-                  <ul className="grafico-attivi-tooltip-elenco">
-                    {meseAttivo.gruppi.map((g) => (
-                      <li key={g.gruppoId ?? 'non-categorizzato'}>
-                        <span
-                          className="grafico-attivi-tooltip-swatch"
-                          style={{ background: g.colore }}
-                          aria-hidden="true"
-                        />
-                        <span className="grafico-attivi-tooltip-corpo">
-                          <span>
-                            <span className="grafico-attivi-tooltip-valore">{g.valoreTesto}</span>{' '}
-                            <span className="grafico-attivi-tooltip-nome">{g.nome}</span>
-                          </span>
-                          {g.dettaglio && <span className="grafico-attivi-tooltip-dettaglio">{g.dettaglio}</span>}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="grafico-attivi-tooltip-totale">Totale: {meseAttivo.totaleTesto}</p>
-                  {meseAttivo.notaPercentuale && (
-                    <p className="grafico-attivi-tooltip-percentuale">{meseAttivo.notaPercentuale}</p>
-                  )}
-                </>
-              )}
-            </div>
           </div>
 
           <div className="grafico-etichette muted">
@@ -234,6 +243,8 @@ export function GraficoPerGruppo({
           </span>
         ))}
       </div>
+
+      {montato && createPortal(tooltip, document.body)}
     </div>
   )
 }

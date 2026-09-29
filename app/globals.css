@@ -3354,8 +3354,10 @@ button.th-ordina {
    che ha `overflow-x: auto`, e per le regole CSS quell'`overflow-x`
    costringe anche l'asse verticale a `auto` — un tooltip `absolute`
    posizionato sopra la barra (fuori dal riquadro) veniva quindi tagliato e
-   non si vedeva mai. `fixed` esce da quel ritaglio perché non è più un
-   discendente in overflow di quel contenitore. */
+   non si vedeva mai. `fixed` da solo però non basta: Safari su iPhone
+   ritaglia lo stesso un fixed che resta discendente dello scroller, quindi
+   il tooltip non sta nemmeno nel DOM del grafico — GraficoPerGruppo lo
+   monta in <body> con un portal, fuori da ogni contenitore. */
 .grafico-attivi-tooltip {
 	position: fixed;
 	left: 0;
@@ -3406,6 +3408,9 @@ button.th-ordina {
 		max-width: calc(100vw - 2rem);
 		max-height: calc(100vh - 2rem);
 		overflow-y: auto;
+		/* Sopra la topbar fissa (.sidebar, z-index 20 sotto i 900px): un
+		   tooltip alto, centrato, arriva fin sotto di lei. */
+		z-index: 30;
 	}
 
 	.grafico-attivi-tooltip.is-visibile {
