@@ -376,7 +376,8 @@ function Send-AbbonamentiUpsert {
             source_utente_id         = [int]$r.IDUtente
             source_durata_id         = if ($r.IDDurata -is [System.DBNull]) { $null } else { [int]$r.IDDurata }
             source_abbonamento_id    = if ($r.IDAbbonamento -is [System.DBNull]) { $null } else { [int]$r.IDAbbonamento }
-            abbonamento              = Get-TestoPulito $r.Abbonamento
+            abbonamento              = Get-NomeProdotto $r.IDAbbonamento $r.Abbonamento
+            categoria                = Get-CategoriaProdotto $r.IDAbbonamento
             variante                 = Get-TestoPulito $r.Variante
             durata                   = if ($r.Durata -is [System.DBNull]) { $null } else { [int]$r.Durata }
             periodo                  = Get-TestoPulito $r.Periodo
@@ -529,6 +530,99 @@ function Get-RigheAperteDaSincronizzare {
     return Invoke-QueryDbgym -CommandText $comandoText -Parametri @{ "@LastId" = $LastId; "@Soglia" = $Soglia }
 }
 
+# ─────────────────────────────────────────────────────────────── catalogo
+
+# Il CRM riconosce un prodotto dal nome, ma in Info4U lo stesso nome puo'
+# appartenere a prodotti diversi: «GOLD UNDER 17» sono due (643 nella
+# categoria 1.13-UNDER 17, 558 nella 6-UNDER 17), «CARNET 10 INGRESSI CON
+# MAESTRO» c'e' sia nel Tennis sia nel Padel. Fusi sotto un nome solo, i
+# conteggi non tornano con Info4U e un gruppo si prende il fatturato di un
+# altro. Qui si legge il catalogo intero (poche centinaia di righe) e, ai soli
+# nomi condivisi, si aggiunge la categoria: «GOLD UNDER 17 (6-UNDER 17)». Se
+# anche nome e categoria coincidono, l'ID Info4U. I nomi unici restano come
+# sono, quindi la mappatura dei gruppi esistente non cambia. Vedi
+# scripts/sql/2026-10-02-abbonamenti-prodotti-omonimi.sql.
+function Get-CatalogoInfo4U {
+    $righe = Invoke-QueryDbgym -CommandText @"
+SELECT a.IDAbbonamento, a.Descrizione, cat.Descrizione AS Categoria
+FROM dbo.Abbonamenti a
+LEFT JOIN dbo.AbbonamentiCategorie cat ON cat.IDCategoria = a.IDCategoria
+"@ -Parametri @{}
+
+    $prodotti = foreach ($r in $righe) {
+        [PSCustomObject]@{
+            Id        = [int]$r.IDAbbonamento
+            Nome      = Get-TestoPulito $r.Descrizione
+            Categoria = Get-TestoPulito $r.Categoria
+        }
+    }
+    $prodotti = @($prodotti | Where-Object { $_.Nome })
+
+    $perNome = @{}
+    foreach ($p in $prodotti) {
+        $chiave = $p.Nome.ToUpperInvariant()
+        if (-not $perNome.ContainsKey($chiave)) { $perNome[$chiave] = 0 }
+        $perNome[$chiave]++
+    }
+    $perNomeCategoria = @{}
+    foreach ($p in $prodotti) {
+        $chiave = "$($p.Nome.ToUpperInvariant())|$("$($p.Categoria)".ToUpperInvariant())"
+        if (-not $perNomeCategoria.ContainsKey($chiave)) { $perNomeCategoria[$chiave] = 0 }
+        $perNomeCategoria[$chiave]++
+    }
+
+    $catalogo = @{}
+    foreach ($p in $prodotti) {
+        $nome = $p.Nome
+        if ($perNome[$p.Nome.ToUpperInvariant()] -gt 1) {
+            $chiave = "$($p.Nome.ToUpperInvariant())|$("$($p.Categoria)".ToUpperInvariant())"
+            $nome = if ($p.Categoria -and $perNomeCategoria[$chiave] -eq 1) { "$($p.Nome) ($($p.Categoria))" } else { "$($p.Nome) (#$($p.Id))" }
+        }
+        $catalogo[$p.Id] = @{ nome = $nome; categoria = $p.Categoria }
+    }
+    return $catalogo
+}
+
+# Il nome con cui il prodotto entra nel CRM: quello del catalogo, se c'e';
+# altrimenti la descrizione letta con la vendita, come prima.
+function Get-NomeProdotto {
+    param($IdAbbonamento, $Descrizione)
+    if (-not ($IdAbbonamento -is [System.DBNull]) -and $null -ne $IdAbbonamento -and $catalogo.ContainsKey([int]$IdAbbonamento)) {
+        return $catalogo[[int]$IdAbbonamento].nome
+    }
+    return Get-TestoPulito $Descrizione
+}
+
+function Get-CategoriaProdotto {
+    param($IdAbbonamento)
+    if (-not ($IdAbbonamento -is [System.DBNull]) -and $null -ne $IdAbbonamento -and $catalogo.ContainsKey([int]$IdAbbonamento)) {
+        return $catalogo[[int]$IdAbbonamento].categoria
+    }
+    return $null
+}
+
+# Riallinea nome e categoria anche delle vendite vecchie, che il refresh
+# delle vendite aperte non rilegge piu': una chiamata sola col catalogo
+# intero, e la funzione su Supabase tocca solo le righe da cambiare
+# (copiando la mappatura del vecchio nome sul nuovo).
+function Sync-CatalogoProdotti {
+    $elenco = @(foreach ($id in $catalogo.Keys) {
+        [ordered]@{ id = $id; nome = $catalogo[$id].nome; categoria = $catalogo[$id].categoria }
+    })
+    # A blocchi: il primo giro riscrive la categoria su tutte le vendite
+    # (centinaia di migliaia di righe), e una chiamata sola rischierebbe il
+    # timeout di PostgREST. Dal secondo giro in poi ogni blocco non cambia
+    # quasi niente ed e' immediato.
+    $cambiate = 0
+    for ($i = 0; $i -lt $elenco.Count; $i += 40) {
+        $blocco = $elenco[$i..([Math]::Min($i + 39, $elenco.Count - 1))]
+        $corpo = @{ p_catalogo = @($blocco) } | ConvertTo-Json -Depth 5 -Compress
+        $cambiate += [int](Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/rpc/allinea_catalogo_info4u" `
+            -Headers $supabaseHeaders -Method Post -Corpo $corpo)
+    }
+    Write-Log "Catalogo prodotti: $($elenco.Count) prodotti, $cambiate vendite riallineate (nome o categoria)."
+}
+
 # Una vendita gia' sincronizzata puo' anche sparire del tutto da Info4U — un
 # operatore la annulla/cancella dopo che il giro dei 5 minuti l'ha gia'
 # scritta su Supabase. Nessuna query per IDIscrizione la ripesca piu' (non
@@ -604,6 +698,9 @@ function Compare-CancellazioniOrigine {
 Write-Log "Avvio sincronizzazione."
 
 try {
+    $catalogo = Get-CatalogoInfo4U
+    Write-Log "Catalogo Info4U letto: $($catalogo.Count) prodotti."
+
     $lastId = Get-UltimoIdSincronizzato
     Write-Log "Watermark di partenza: source_iscrizione_id > $lastId"
 
@@ -630,6 +727,8 @@ try {
     }
 
     Write-Log "Fine: $totaleRighe righe sincronizzate in questa esecuzione."
+
+    Sync-CatalogoProdotti
 
     # Refresh delle vendite aperte + riconciliazione cancellazioni: non a
     # ogni giro da 5 minuti (costerebbe una scansione di tutte le vendite

@@ -14,6 +14,9 @@ export default function RigaProdotto({
   noAbbonamento,
   varianti,
   importoListinoTesto,
+  categoria,
+  fatturatoTesto,
+  prezzoMedioTesto,
   attiviOra,
 }: {
   prodotto: string
@@ -28,6 +31,13 @@ export default function RigaProdotto({
   // varianti) per riconoscere di cosa si tratta quando si categorizza.
   // null se non disponibile (importo_listino non valorizzato in Info4U).
   importoListinoTesto: string | null
+  // La categoria Info4U: distingue i prodotti omonimi (vedi
+  // scripts/sql/2026-10-02-abbonamenti-prodotti-omonimi.sql).
+  categoria: string | null
+  // Quanto è stato incassato davvero, e il prezzo medio delle vendite non a
+  // zero: il listino da solo è 0 su molti prodotti pagati (Welfare, Family…).
+  fatturatoTesto: string | null
+  prezzoMedioTesto: string | null
   // Presente solo nella vista "solo attivi" (?solo=attivi): quanti abbonati
   // attivi oggi ha questo prodotto, la priorità per cui vale la pena
   // sistemarlo. undefined nella vista normale — niente colonna in più lì.
@@ -67,11 +77,14 @@ export default function RigaProdotto({
         ) : (
           prodotto
         )}
-        {importoListinoTesto && <span className="muted"> · {importoListinoTesto}</span>}
+        {importoListinoTesto && <span className="muted"> · listino {importoListinoTesto}</span>}
+        {categoria && <div className="muted" style={{ fontSize: 'var(--text-xs, 0.8rem)' }}>Categoria Info4U: {categoria}</div>}
       </td>
       {attiviOra !== undefined && <td>{attiviOra}</td>}
       <td>{numeroVendite}</td>
       <td>{ultimaVenditaTesto}</td>
+      <td>{fatturatoTesto ?? '—'}</td>
+      <td>{prezzoMedioTesto ?? '—'}</td>
       <td>
         <select
           className={`cella-gruppo${errore ? ' has-errore' : ''}`}

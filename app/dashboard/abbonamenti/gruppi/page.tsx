@@ -69,7 +69,7 @@ export default async function GruppiAbbonamentiPage({
   const supabase = createSupabaseServiceClient()
   let queryProdotti = supabase
     .from('abbonamenti_prodotti')
-    .select('prodotto, numero_vendite, ultima_vendita, varianti, importo_listino_recente')
+    .select('prodotto, numero_vendite, ultima_vendita, varianti, importo_listino_recente, categoria, fatturato, prezzo_medio')
   queryProdotti = ordinaPerData
     ? queryProdotti.order('ultima_vendita', { ascending: direzioneAttuale === 'asc', nullsFirst: direzioneAttuale === 'asc' })
     : queryProdotti.order('prodotto')
@@ -233,6 +233,12 @@ export default async function GruppiAbbonamentiPage({
                         )}
                       </Link>
                     </th>
+                    <th>
+                      <AiutoTooltip testo="Il totale delle vendite non cancellate, come registrato in Info4U.">Incassato</AiutoTooltip>
+                    </th>
+                    <th>
+                      <AiutoTooltip testo="La media delle sole vendite pagate: quelle a zero (membri della famiglia, omaggi) restano fuori.">Prezzo medio</AiutoTooltip>
+                    </th>
                     <th>Gruppo</th>
                     <th>
                       <AiutoTooltip testo="Segna Sì per un prodotto che non è un vero abbonamento (visita medica, quota d'iscrizione, omaggio, tesseramento...): esce dal conteggio degli utenti attivi e dal report scadenze/rinnovi, sia come voce propria sia come possibile «rinnovo» di un'altra vendita.">
@@ -252,7 +258,12 @@ export default async function GruppiAbbonamentiPage({
                       gruppi={gruppi}
                       noAbbonamento={mappaNoAbbonamento.get(p.prodotto) ?? false}
                       varianti={p.varianti ?? []}
-                      importoListinoTesto={euro(p.importo_listino_recente)}
+                      // Un listino a zero non è un prezzo: lo si tace invece di
+                      // far sembrare gratuito un prodotto pagato.
+                      importoListinoTesto={Number(p.importo_listino_recente) > 0 ? euro(p.importo_listino_recente) : null}
+                      categoria={p.categoria ?? null}
+                      fatturatoTesto={euro(p.fatturato)}
+                      prezzoMedioTesto={p.prezzo_medio != null ? euro(p.prezzo_medio) : null}
                       attiviOra={soloAttivi ? (mappaAttiviNonCategorizzati.get(p.prodotto) ?? 0) : undefined}
                     />
                   ))}

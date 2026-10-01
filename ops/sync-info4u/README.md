@@ -209,3 +209,21 @@ lato Supabase, `abbonamenti_chiude_trattativa`
 scatta a ogni insert indipendentemente da come la riga ci arriva. I dettagli
 e perché non tocca le vendite più vecchie di una trattativa aperta oggi
 stanno nei commenti di quella migration.
+
+## Prodotti omonimi e categoria Info4U
+
+In Info4U lo stesso nome può appartenere a prodotti diversi (es. «GOLD UNDER
+17»: il 643 nella categoria 1.13-UNDER 17 e il 558, chiuso nel 2024, nella
+6-UNDER 17). A ogni giro lo script legge il catalogo (`dbo.Abbonamenti` +
+`dbo.AbbonamentiCategorie`) e:
+
+- scrive la categoria Info4U in `abbonamenti.categoria`;
+- ai soli nomi condivisi aggiunge la categoria, «GOLD UNDER 17 (6-UNDER 17)»
+  (o l'ID, se coincide anche la categoria). I nomi unici non cambiano;
+- chiama `allinea_catalogo_info4u` per riallineare anche le vendite vecchie,
+  copiando gruppo e flag del vecchio nome sul nuovo.
+
+Richiede `scripts/sql/2026-10-02-abbonamenti-prodotti-omonimi.sql` già
+eseguito su Supabase. Dopo il primo giro i prodotti separati compaiono in
+Gruppi prodotto, ciascuno con la sua categoria: vanno spostati nel gruppo
+giusto se non appartengono a quello ereditato.
