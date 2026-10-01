@@ -29,6 +29,7 @@ export type ChiavePersona =
   | 'maria-grazia'
   | 'chiron'
   | 'referente-chiron'
+  | 'referente-kb'
 
 export type Persona = {
   nome: string
@@ -69,6 +70,11 @@ export const PERSONE: Record<ChiavePersona, Persona> = {
     nome: 'Referente Chiron',
     ruolo: 'Responsabile interno del progetto',
     daNominareFinche: 'chiron-responsabile',
+  },
+  'referente-kb': {
+    nome: 'Referente Knowledge Base',
+    ruolo: 'Responsabile interno di termini e condizioni e Knowledge Base',
+    daNominareFinche: 'kb-responsabile',
   },
 }
 
@@ -160,17 +166,10 @@ export const DELIVERABLE: Deliverable[] = [
     passi: [
       { chiave: 'crm-lead-consegna', titolo: 'Gestione lead consegnata', responsabili: ['maurizio'], fatto: true },
       {
-        chiave: 'crm-lead-criticita',
-        titolo: 'Elenco delle modifiche grafiche e funzionali alla gestione lead, in ordine di priorità',
-        descrizione: 'Raccolto da chi usa il CRM ogni giorno: è la base della revisione.',
-        responsabili: ['lorella', 'simone'],
-      },
-      {
         chiave: 'crm-lead-revisione',
         titolo: 'Revisione grafica e funzionale della gestione lead',
         responsabili: ['maurizio'],
         con: ['lorella', 'simone'],
-        dopo: ['crm-lead-criticita'],
       },
       {
         chiave: 'crm-lead-strategia',
@@ -257,8 +256,24 @@ export const DELIVERABLE: Deliverable[] = [
     descrizione: 'Affiancamento e implementazione — riduzione drastica tempi gestione collaboratori',
     consegnaPrevista: '2026-08-31',
     priorita: 'Alta',
-    stato: NON_RENDICONTATO,
-    passi: [],
+    stato: { etichetta: 'In corso', tono: 'info' },
+    sintesi:
+      'La formazione è in corso: Maria Grazia è già in contatto con Valentina del Team Athlon Club. Il supporto viene dato quando serve.',
+    passi: [
+      {
+        chiave: 'athletis-contatto',
+        titolo: 'Maria Grazia in contatto con Valentina del Team Athlon Club',
+        responsabili: ['maria-grazia'],
+        fatto: true,
+      },
+      {
+        chiave: 'athletis-supporto',
+        titolo: 'Supporto quando serve',
+        descrizione: 'Se c’è bisogno di un affiancamento, scrivetelo qui in una nota.',
+        responsabili: ['maurizio'],
+        consiglio: true,
+      },
+    ],
   },
   {
     numero: '05',
@@ -305,8 +320,47 @@ export const DELIVERABLE: Deliverable[] = [
     descrizione: 'Sito informazioni utili per gli iscritti — FAQ, regolamenti, procedure, orari',
     consegnaPrevista: '2026-10-31',
     priorita: 'Alta',
-    stato: NON_RENDICONTATO,
-    passi: [],
+    stato: { etichetta: 'In attesa di Ronchiverdi', tono: 'warn' },
+    sintesi:
+      'Maurizio ha preparato una prima bozza di termini e condizioni, che ora va revisionata dal team Ronchiverdi, con una persona interna che se ne faccia carico. Solo dopo aver fissato i termini e condizioni si comincia la Knowledge Base: Maurizio ne prepara la bozza, che va di nuovo approvata. Poi si pubblica tutto online e si creano i link alle varie procedure.',
+    passi: [
+      {
+        chiave: 'kb-tc-bozza',
+        titolo: 'Prima bozza di termini e condizioni',
+        responsabili: ['maurizio'],
+        fatto: true,
+      },
+      {
+        chiave: 'kb-responsabile',
+        titolo: 'Nominare la persona interna che segue termini e condizioni e Knowledge Base',
+        responsabili: ['marco', 'paola'],
+        bloccante: true,
+      },
+      {
+        chiave: 'kb-tc-revisione',
+        titolo: 'Revisione e approvazione di termini e condizioni',
+        responsabili: ['referente-kb'],
+        dopo: ['kb-responsabile'],
+      },
+      {
+        chiave: 'kb-bozza',
+        titolo: 'Bozza della Knowledge Base',
+        responsabili: ['maurizio'],
+        dopo: ['kb-tc-revisione'],
+      },
+      {
+        chiave: 'kb-approvazione',
+        titolo: 'Approvazione della Knowledge Base',
+        responsabili: ['referente-kb'],
+        dopo: ['kb-bozza'],
+      },
+      {
+        chiave: 'kb-pubblicazione',
+        titolo: 'Pubblicazione online e link alle procedure',
+        responsabili: ['maurizio'],
+        dopo: ['kb-approvazione'],
+      },
+    ],
   },
   {
     numero: '07',
@@ -314,8 +368,30 @@ export const DELIVERABLE: Deliverable[] = [
     descrizione: 'Workflow digitale scadenze e rinnovi, riduzione rischio operativo e tempi',
     consegnaPrevista: '2026-10-31',
     priorita: 'Alta',
-    stato: NON_RENDICONTATO,
-    passi: [],
+    stato: { etichetta: 'In attesa di Ronchiverdi', tono: 'warn' },
+    sintesi:
+      'Il catalogo delle API di CSI è già in mano a Maurizio. Per partire serve che Ronchiverdi contatti CSI per richiedere l’attivazione del servizio e farsi dare le credenziali di accesso.',
+    passi: [
+      {
+        chiave: 'tesseramenti-catalogo-api',
+        titolo: 'Catalogo API di CSI',
+        responsabili: ['maurizio'],
+        fatto: true,
+      },
+      {
+        chiave: 'tesseramenti-attivazione-csi',
+        titolo: 'Contattare CSI: attivazione del servizio e credenziali di accesso',
+        descrizione: 'Le credenziali vanno poi passate a Maurizio.',
+        responsabili: ['maria-grazia'],
+        bloccante: true,
+      },
+      {
+        chiave: 'tesseramenti-sviluppo',
+        titolo: 'Sviluppo dell’automazione',
+        responsabili: ['maurizio'],
+        dopo: ['tesseramenti-attivazione-csi'],
+      },
+    ],
   },
   {
     numero: '08',
@@ -323,7 +399,8 @@ export const DELIVERABLE: Deliverable[] = [
     descrizione: 'Form + assegnazione + follow-up tracciato, storico per area',
     consegnaPrevista: '2026-12-31',
     priorita: 'Media',
-    stato: NON_RENDICONTATO,
+    stato: { etichetta: 'Non ancora avviato', tono: 'off' },
+    sintesi: 'Non ancora avviato.',
     passi: [],
   },
   {
@@ -341,8 +418,31 @@ export const DELIVERABLE: Deliverable[] = [
     descrizione: 'Analisi dati Marketing, Commerciale e Vendite — KPI in tempo reale',
     consegnaPrevista: '2026-12-31',
     priorita: 'Alta',
-    stato: NON_RENDICONTATO,
-    passi: [],
+    stato: { etichetta: 'Pubblicata · in affinamento', tono: 'info' },
+    sintesi:
+      'La dashboard è già pubblicata, con i dati live di InfoRYOU classificati, gli accessi al sito e la gestione dei new del Core. Man mano che l’adozione del CRM diventa più trasversale — rinnovi compresi, e new con più dati — la dashboard si affina ancora. Quali indici di performance e KPI servono lo deve dire Ronchiverdi: serve una richiesta scritta.',
+    link: [{ href: '/dashboard/direzione', label: 'Apri la Dashboard direzionale', sezione: 'direzione' }],
+    passi: [
+      {
+        chiave: 'bi-pubblicazione',
+        titolo: 'Dashboard pubblicata: dati live InfoRYOU, accessi al sito, gestione dei new Core',
+        responsabili: ['maurizio'],
+        fatto: true,
+      },
+      {
+        chiave: 'bi-kpi-richiesta',
+        titolo: 'Richiesta scritta degli indici di performance e dei KPI da avere',
+        descrizione: 'Quali numeri volete vedere, per chi e con quale frequenza.',
+        responsabili: ['marco', 'paola', 'lorella'],
+      },
+      {
+        chiave: 'bi-affinamento',
+        titolo: 'Affinamento della dashboard sui KPI richiesti',
+        descrizione: 'Cresce insieme all’adozione del CRM su rinnovi e new.',
+        responsabili: ['maurizio'],
+        dopo: ['bi-kpi-richiesta'],
+      },
+    ],
   },
 ]
 
