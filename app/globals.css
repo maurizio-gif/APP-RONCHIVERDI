@@ -6751,3 +6751,210 @@ table.tabella tr.is-mia td {
 :root[data-tema='scuro'] .avviso-opportunita {
 	box-shadow: 0 18px 44px rgba(0, 0, 0, 0.55);
 }
+
+/* ─────────────────────────────────────────────── avanzamento progetto */
+
+.av-deliverable {
+	display: grid;
+	gap: 1.25rem;
+	margin-bottom: 1.5rem;
+}
+
+.av-deliverable .card + .card {
+	margin-top: 0;
+}
+
+.av-card {
+	border-left: 4px solid var(--border-strong);
+}
+
+.av-tono-ok { border-left-color: var(--ok); }
+.av-tono-info { border-left-color: var(--info); }
+.av-tono-warn { border-left-color: var(--warn); }
+.av-tono-error { border-left-color: var(--error); }
+
+.av-card-testa {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.9rem;
+}
+
+.av-numero {
+	flex: none;
+	color: var(--accent);
+	font-family: var(--font-serif);
+	font-size: var(--text-xl);
+	line-height: 1;
+}
+
+.av-card-titoli {
+	flex: 1;
+	min-width: 0;
+}
+
+.av-proposta,
+.av-sintesi,
+.av-passo-descrizione,
+.av-passo-chi {
+	margin: 0.25rem 0 0;
+	font-size: var(--text-sm);
+	line-height: 1.5;
+}
+
+.av-proposta,
+.av-passo-descrizione {
+	color: var(--text-muted);
+}
+
+.av-sintesi {
+	margin-top: 1rem;
+	padding: 0.75rem 0.9rem;
+	background: var(--bg-alt);
+	border-radius: var(--radius);
+}
+
+.av-meta {
+	margin: 0.3rem 0 0;
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+}
+
+.av-link {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin: 0.75rem 0 0;
+}
+
+.av-passi {
+	margin: 1rem 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.av-passo {
+	display: flex;
+	gap: 0.75rem;
+	padding: 0.85rem 0;
+	border-top: 1px solid var(--border);
+}
+
+.av-spunta {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: 1.4rem;
+	height: 1.4rem;
+	margin-top: 0.1rem;
+	border: 1.5px solid var(--border-strong);
+	border-radius: 50%;
+	color: var(--text-on-accent);
+	font-size: var(--text-2xs);
+	font-weight: 700;
+}
+
+.av-passo.is-fatto .av-spunta {
+	background: var(--ok);
+	border-color: var(--ok);
+}
+
+.av-passo.is-aperto .av-spunta {
+	border-color: var(--info);
+}
+
+.av-passo.is-fatto .av-passo-titolo {
+	color: var(--text-muted);
+}
+
+.av-passo.is-mio {
+	margin: 0 -0.75rem;
+	padding-right: 0.75rem;
+	padding-left: 0.75rem;
+	background: var(--accent-tint);
+	border-radius: var(--radius);
+}
+
+.av-passo-corpo {
+	flex: 1;
+	min-width: 0;
+}
+
+.av-passo-testa {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 0.4rem 0.75rem;
+}
+
+.av-passo-titolo {
+	font-weight: 500;
+}
+
+.av-passo .tag-fila {
+	margin-top: 0.4rem;
+}
+
+.av-tag-inline {
+	margin-left: 0.35rem;
+}
+
+.av-note {
+	margin: 0.6rem 0 0;
+	padding: 0 0 0 0.75rem;
+	border-left: 2px solid var(--border-strong);
+	list-style: none;
+}
+
+.av-note li + li {
+	margin-top: 0.45rem;
+}
+
+.av-note .av-meta {
+	display: block;
+	margin: 0;
+}
+
+.av-nota-testo {
+	display: block;
+	font-size: var(--text-sm);
+	white-space: pre-wrap;
+}
+
+.av-apri {
+	margin-top: 0.5rem;
+	font-size: var(--text-xs);
+}
+
+.av-aggiorna {
+	margin-top: 0.6rem;
+}
+
+.av-blocco {
+	margin-bottom: 1.25rem;
+}
+
+.av-elenco-semplice {
+	margin: 0.75rem 0 0;
+	padding-left: 1.1rem;
+	font-size: var(--text-sm);
+	line-height: 1.5;
+}
+
+.av-elenco-semplice li + li {
+	margin-top: 0.4rem;
+}
+
+@media (max-width: 560px) {
+	.av-card-testa {
+		flex-wrap: wrap;
+	}
+
+	.av-card-testa .badge {
+		order: -1;
+		width: 100%;
+		text-align: center;
+		white-space: normal;
+	}
+}
