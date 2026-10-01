@@ -29,6 +29,7 @@ export type ChiavePersona =
   | 'maria-grazia'
   | 'chiron'
   | 'referente-chiron'
+  | 'referente-kb'
 
 export type Persona = {
   nome: string
@@ -69,6 +70,11 @@ export const PERSONE: Record<ChiavePersona, Persona> = {
     nome: 'Referente Chiron',
     ruolo: 'Responsabile interno del progetto',
     daNominareFinche: 'chiron-responsabile',
+  },
+  'referente-kb': {
+    nome: 'Referente Knowledge Base',
+    ruolo: 'Responsabile interno di termini e condizioni e Knowledge Base',
+    daNominareFinche: 'kb-responsabile',
   },
 }
 
@@ -314,8 +320,47 @@ export const DELIVERABLE: Deliverable[] = [
     descrizione: 'Sito informazioni utili per gli iscritti — FAQ, regolamenti, procedure, orari',
     consegnaPrevista: '2026-10-31',
     priorita: 'Alta',
-    stato: NON_RENDICONTATO,
-    passi: [],
+    stato: { etichetta: 'In attesa di Ronchiverdi', tono: 'warn' },
+    sintesi:
+      'Maurizio ha preparato una prima bozza di termini e condizioni, che ora va revisionata dal team Ronchiverdi, con una persona interna che se ne faccia carico. Solo dopo aver fissato i termini e condizioni si comincia la Knowledge Base: Maurizio ne prepara la bozza, che va di nuovo approvata. Poi si pubblica tutto online e si creano i link alle varie procedure.',
+    passi: [
+      {
+        chiave: 'kb-tc-bozza',
+        titolo: 'Prima bozza di termini e condizioni',
+        responsabili: ['maurizio'],
+        fatto: true,
+      },
+      {
+        chiave: 'kb-responsabile',
+        titolo: 'Nominare la persona interna che segue termini e condizioni e Knowledge Base',
+        responsabili: ['marco', 'paola'],
+        bloccante: true,
+      },
+      {
+        chiave: 'kb-tc-revisione',
+        titolo: 'Revisione e approvazione di termini e condizioni',
+        responsabili: ['referente-kb'],
+        dopo: ['kb-responsabile'],
+      },
+      {
+        chiave: 'kb-bozza',
+        titolo: 'Bozza della Knowledge Base',
+        responsabili: ['maurizio'],
+        dopo: ['kb-tc-revisione'],
+      },
+      {
+        chiave: 'kb-approvazione',
+        titolo: 'Approvazione della Knowledge Base',
+        responsabili: ['referente-kb'],
+        dopo: ['kb-bozza'],
+      },
+      {
+        chiave: 'kb-pubblicazione',
+        titolo: 'Pubblicazione online e link alle procedure',
+        responsabili: ['maurizio'],
+        dopo: ['kb-approvazione'],
+      },
+    ],
   },
   {
     numero: '07',
