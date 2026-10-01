@@ -161,7 +161,7 @@ export const DELIVERABLE: Deliverable[] = [
     priorita: 'Critica',
     stato: { etichetta: 'Consegnato · da rivedere', tono: 'info' },
     sintesi:
-      'Gestione lead: consegnata, ma va rivista dal punto di vista grafico e funzionale; in parallelo va rianalizzata la strategia di acquisizione lead dal sito. Gestione rinnovi: allineata al file Excel di Margherita e del suo team, è pronta per essere usata — oggi, 1° ottobre, può essere il giorno in cui si comincia.',
+      'Gestione lead: consegnata, ma va rivista dal punto di vista grafico e funzionale; in parallelo va rianalizzata la strategia di acquisizione lead dal sito. Gestione rinnovi: allineata al file Excel di Margherita e del suo team, è pronta per essere usata. L’adozione nel CRM è spostata al 5 ottobre, come confermato da Lorella: quella mattina Maurizio migra nel CRM tutte le note scritte a mano sul foglio Google, per allinearli.',
     link: [{ href: '/dashboard/abbonamenti/rinnovi', label: 'Apri Rinnovi Core', sezione: 'rinnovi-core' }],
     passi: [
       { chiave: 'crm-lead-consegna', titolo: 'Gestione lead consegnata', responsabili: ['maurizio'], fatto: true },
@@ -185,11 +185,18 @@ export const DELIVERABLE: Deliverable[] = [
         fatto: true,
       },
       {
+        chiave: 'rinnovi-migrazione-note',
+        titolo: 'Migrazione nel CRM delle note scritte a mano sul foglio Google',
+        descrizione: 'La mattina del 5 ottobre, per allineare CRM e foglio prima della partenza.',
+        responsabili: ['maurizio'],
+      },
+      {
         chiave: 'rinnovi-avvio',
-        titolo: 'Dal 1° ottobre i rinnovi si lavorano in Rinnovi Core',
-        descrizione: 'Quando il team ha cominciato a usarlo, segnatelo qui.',
+        titolo: 'Dal 5 ottobre i rinnovi si lavorano in Rinnovi Core',
+        descrizione: 'Data spostata dal 1° al 5 ottobre, confermata da Lorella. Quando il team ha cominciato a usarlo, segnatelo qui.',
         responsabili: ['lorella'],
         con: ['margherita'],
+        dopo: ['rinnovi-migrazione-note'],
       },
     ],
   },
