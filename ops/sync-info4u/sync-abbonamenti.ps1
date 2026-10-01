@@ -644,7 +644,14 @@ function Compare-CancellazioniOrigine {
     do {
         $filtro = "cancellato_il=is.null&or=(data_fine.is.null,data_fine.gte.$sogliaTesto)" +
             "&select=source_iscrizione_id&order=source_iscrizione_id.asc&limit=1000&offset=$scorrimento"
-        $pagina = @(Invoke-RestMethod -Uri "$($config.Supabase.Url)/rest/v1/abbonamenti?$filtro" -Headers $supabaseHeaders -Method Get)
+        # In Windows PowerShell 5.1 Invoke-RestMethod restituisce un array
+        # JSON come UN oggetto solo (non lo srotola): @(...) da solo ne fa un
+        # array di un elemento, e [int] su quell'elemento fallisce
+        # ("Impossibile convertire System.Object[] in System.Int32"). Passarlo
+        # nella pipeline lo srotola davvero, riga per riga. Era il motivo per
+        # cui il refresh non arrivava mai in fondo, e non veniva mai segnato.
+        $pagina = @(Invoke-RestMethod -Uri "$($config.Supabase.Url)/rest/v1/abbonamenti?$filtro" -Headers $supabaseHeaders -Method Get |
+            ForEach-Object { $_ })
         foreach ($r in $pagina) { $idCandidati.Add([int]$r.source_iscrizione_id) }
         $scorrimento += 1000
     } while ($pagina.Count -eq 1000)
