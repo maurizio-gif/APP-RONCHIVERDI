@@ -11,6 +11,7 @@ export const AZIONI_LOG: Record<string, string> = {
   login: 'Accesso riuscito',
   login_fallito: 'Accesso rifiutato',
   logout: 'Uscita',
+  logout_inattivita: 'Uscita automatica per inattività',
   password_impostata: 'Password impostata',
   recupero_richiesto: 'Recupero password richiesto',
   recupero_fallito: 'Recupero password non inviato',

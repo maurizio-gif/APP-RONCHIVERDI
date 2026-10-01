@@ -52,3 +52,17 @@ export async function logout() {
   await supabase.auth.signOut()
   redirect('/login')
 }
+
+// Uscita automatica dopo un periodo senza attività (vedi
+// app/dashboard/LogoutInattivita.tsx): stessa uscita di logout, ma nel
+// registro si distingue e il login spiega perché si è tornati lì.
+export async function logoutPerInattivita() {
+  const supabase = createSupabaseServerClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  await registraLog(user?.email, 'logout_inattivita')
+  await supabase.auth.signOut()
+  redirect('/login?error=inattivita')
+}
