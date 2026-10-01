@@ -76,6 +76,9 @@ export const AZIONI_LOG: Record<string, string> = {
   notifica_inviata: 'Messaggio interno inviato',
   notifica_letta: 'Messaggio interno: lettura confermata',
   timbratura_corretta: 'Timbratura corretta a mano',
+  avanzamento_fatto: 'Avanzamento progetto: passo segnato fatto',
+  avanzamento_riaperto: 'Avanzamento progetto: passo riaperto',
+  avanzamento_nota: 'Avanzamento progetto: nota',
   timbratura_eliminata: 'Timbratura eliminata',
 }
 

@@ -189,6 +189,10 @@ const DEFINIZIONI = [
   // di gestione campagne stanno sotto lo stesso permesso, come abbonamenti
   // copre sia il report sia /gruppi.
   { chiave: 'direzione', label: 'Dashboard direzionale', href: '/dashboard/direzione', gruppo: 'Direzione' },
+  // Lo stato di avanzamento della proposta di progetto: i deliverable, i
+  // passi che restano e chi li fa (contenuti in lib/avanzamento.ts). È per il
+  // gruppo di progetto, non per la segreteria.
+  { chiave: 'avanzamento', label: 'Avanzamento progetto', href: '/dashboard/avanzamento', gruppo: 'Direzione' },
 ] as const
 
 export type SezioneChiave = (typeof DEFINIZIONI)[number]['chiave']

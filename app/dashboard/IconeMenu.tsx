@@ -149,6 +149,14 @@ const DISEGNI: Record<string, React.ReactNode> = {
       <path d="M17 12.2l3.5 1.4v3.1c0 2-1.6 3.5-3.5 4.3-1.9-.8-3.5-2.3-3.5-4.3v-3.1z" />
     </>
   ),
+  // Avanzamento progetto: la lista con le spunte.
+  avanzamento: (
+    <>
+      <path d="M4 6.5l1.8 1.8L9 5M4 12.5l1.8 1.8L9 11" />
+      <path d="M12 7h8M12 13h8M12 19h8" />
+      <circle cx="6" cy="19" r="1.6" />
+    </>
+  ),
   // Controllo operatori: il registro delle azioni.
   'log-operatori': (
     <>
