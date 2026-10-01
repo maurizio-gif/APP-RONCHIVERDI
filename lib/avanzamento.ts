@@ -399,7 +399,8 @@ export const DELIVERABLE: Deliverable[] = [
     descrizione: 'Form + assegnazione + follow-up tracciato, storico per area',
     consegnaPrevista: '2026-12-31',
     priorita: 'Media',
-    stato: NON_RENDICONTATO,
+    stato: { etichetta: 'Non ancora avviato', tono: 'off' },
+    sintesi: 'Non ancora avviato.',
     passi: [],
   },
   {
