@@ -368,8 +368,30 @@ export const DELIVERABLE: Deliverable[] = [
     descrizione: 'Workflow digitale scadenze e rinnovi, riduzione rischio operativo e tempi',
     consegnaPrevista: '2026-10-31',
     priorita: 'Alta',
-    stato: NON_RENDICONTATO,
-    passi: [],
+    stato: { etichetta: 'In attesa di Ronchiverdi', tono: 'warn' },
+    sintesi:
+      'Il catalogo delle API di CSI è già in mano a Maurizio. Per partire serve che Ronchiverdi contatti CSI per richiedere l’attivazione del servizio e farsi dare le credenziali di accesso.',
+    passi: [
+      {
+        chiave: 'tesseramenti-catalogo-api',
+        titolo: 'Catalogo API di CSI',
+        responsabili: ['maurizio'],
+        fatto: true,
+      },
+      {
+        chiave: 'tesseramenti-attivazione-csi',
+        titolo: 'Contattare CSI: attivazione del servizio e credenziali di accesso',
+        descrizione: 'Le credenziali vanno poi passate a Maurizio.',
+        responsabili: ['maria-grazia'],
+        bloccante: true,
+      },
+      {
+        chiave: 'tesseramenti-sviluppo',
+        titolo: 'Sviluppo dell’automazione',
+        responsabili: ['maurizio'],
+        dopo: ['tesseramenti-attivazione-csi'],
+      },
+    ],
   },
   {
     numero: '08',
