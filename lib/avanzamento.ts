@@ -250,8 +250,24 @@ export const DELIVERABLE: Deliverable[] = [
     descrizione: 'Affiancamento e implementazione — riduzione drastica tempi gestione collaboratori',
     consegnaPrevista: '2026-08-31',
     priorita: 'Alta',
-    stato: NON_RENDICONTATO,
-    passi: [],
+    stato: { etichetta: 'In corso', tono: 'info' },
+    sintesi:
+      'La formazione è in corso: Maria Grazia è già in contatto con Valentina del Team Athlon Club. Il supporto viene dato quando serve.',
+    passi: [
+      {
+        chiave: 'athletis-contatto',
+        titolo: 'Maria Grazia in contatto con Valentina del Team Athlon Club',
+        responsabili: ['maria-grazia'],
+        fatto: true,
+      },
+      {
+        chiave: 'athletis-supporto',
+        titolo: 'Supporto quando serve',
+        descrizione: 'Se c’è bisogno di un affiancamento, scrivetelo qui in una nota.',
+        responsabili: ['maurizio'],
+        consiglio: true,
+      },
+    ],
   },
   {
     numero: '05',
