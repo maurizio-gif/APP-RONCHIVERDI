@@ -8,6 +8,7 @@ import { AvvisoOpportunita } from './AvvisoOpportunita'
 import { NotificheProvider } from './NotificheProvider'
 import { NotificheBanner } from './NotificheBanner'
 import { Sidebar } from './Sidebar'
+import { LogoutInattivita } from './LogoutInattivita'
 
 // Il middleware ha già verificato la sessione con getUser() — una chiamata di
 // rete a Supabase Auth — e ci passa l'email validata via header: non la
@@ -65,6 +66,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         />
         <main className="main-content">
           <NotificheBanner />
+          <LogoutInattivita />
           {/* A chiunque abbia almeno un canale di richieste fra le sue
               sezioni, Club e Family compreso: vedere il lavoro appena
               arrivato non richiede il diritto commerciale, che resta solo
