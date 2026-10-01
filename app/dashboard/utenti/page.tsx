@@ -3,7 +3,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { puoAmministrare } from '@/lib/auth/permessi'
 import { ordinaPerCognome } from '@/lib/staff'
-import { invitaStaff } from './actions'
+import { invitaStaff, leggiAccessi } from './actions'
 import { RigaUtente, type DatiUtente } from './RigaUtente'
 
 export const dynamic = 'force-dynamic'
@@ -43,6 +43,7 @@ export default async function UtentiPage({
   // cercano. La regola sta in lib/staff.ts, la stessa che ordina le tendine
   // dei colleghi altrove.
   const utenti = ordinaPerCognome((data ?? []) as RigaStaff[])
+  const accessi = await leggiAccessi()
 
   return (
     <>
@@ -127,6 +128,7 @@ export default async function UtentiPage({
                 u={u}
                 amministra={amministra}
                 eSeStesso={u.email === email}
+                accesso={accessi[u.email.toLowerCase()] ?? null}
               />
             ))}
           </ul>

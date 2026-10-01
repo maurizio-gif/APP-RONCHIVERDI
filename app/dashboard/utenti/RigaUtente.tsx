@@ -12,6 +12,8 @@ import {
 import { TogglePermesso } from './TogglePermesso'
 import { SezioniToggle } from './SezioniToggle'
 import { RimuoviButton } from './RimuoviButton'
+import { ReinviaInvito } from './ReinviaInvito'
+import type { Accesso } from './actions'
 
 export type DatiUtente = {
   email: string
@@ -31,14 +33,27 @@ export type DatiUtente = {
 // sezione: con sei persone la pagina diventava un muro di caselle in cui
 // trovare qualcuno era più lento che cercarlo a memoria. Le stesse cose ci
 // sono ancora, ma una alla volta e solo per la persona che si sta cambiando.
+function dataOraBreve(iso: string): string {
+  return new Date(iso).toLocaleString('it-IT', {
+    timeZone: 'Europe/Rome',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 export function RigaUtente({
   u,
   amministra,
   eSeStesso,
+  accesso,
 }: {
   u: DatiUtente
   amministra: boolean
   eSeStesso: boolean
+  accesso: Accesso | null
 }) {
   const [aperta, setAperta] = useState(false)
 
@@ -89,6 +104,13 @@ export function RigaUtente({
             )}
           </span>
           <span className="utente-email muted">{u.email}</span>
+          <span className="utente-email muted">
+            {accesso?.ultimoAccesso
+              ? `Ultimo accesso: ${dataOraBreve(accesso.ultimoAccesso)}`
+              : accesso
+                ? 'Mai entrato nel CRM'
+                : 'Nessun account di accesso'}
+          </span>
         </div>
 
         <div className="utente-riassunto">
@@ -101,6 +123,7 @@ export function RigaUtente({
           ) : (
             <span className="badge badge-off">solo lettura</span>
           )}
+          {!accesso?.ultimoAccesso && <span className="badge badge-warn">mai entrato</span>}
           <span className={`badge ${sezioni.length === 0 ? 'badge-warn' : 'badge-off'}`}>
             {etichettaSezioni}
           </span>
@@ -165,6 +188,13 @@ export function RigaUtente({
               disabilitato={!amministra}
             />
           </div>
+
+          {amministra && (
+            <div className="utente-blocco">
+              <div className="utente-blocco-titolo">Accesso</div>
+              <ReinviaInvito email={u.email} giaEntrato={!!accesso?.ultimoAccesso} />
+            </div>
+          )}
 
           {amministra && (
             <div className="utente-blocco">

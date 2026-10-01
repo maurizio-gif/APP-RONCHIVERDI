@@ -20,6 +20,7 @@ export const AZIONI_LOG: Record<string, string> = {
   recupero_non_autorizzato: 'Recupero password su indirizzo non abilitato',
   utente_invitato: 'Utente invitato',
   utente_rimosso: 'Utente rimosso',
+  invito_reinviato: 'Link di accesso rimandato',
   permesso_invitare_modificato: 'Permesso "Può invitare" modificato',
   permesso_cancellare_modificato: 'Permesso "Può cancellare" modificato',
   sezioni_modificate: 'Sezioni visibili modificate',
