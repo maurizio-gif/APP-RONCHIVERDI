@@ -11,31 +11,24 @@
 // disattivata invece di portare a una pagina che non esiste. Quando il modulo
 // arriva basta togliere il flag.
 const DEFINIZIONI = [
-  // "Core" sono le tre voci che si usano ogni giorno: la Dashboard (aggiunta
-  // dalla Sidebar, non è una sezione assegnabile), l'agenda e le richieste
-  // Club e Family. Stanno insieme in cima perché sono il lavoro corrente;
-  // gli altri canali restano nel loro gruppo, che si consulta quando serve.
-  //
+  // "Core New" sono le tre voci che si usano ogni giorno, nella versione
+  // snella: la Dashboard New (aggiunta dalla Sidebar, non è una sezione
+  // assegnabile), l'Agenda e i Contatti.
   // La pagina che una persona della segreteria tiene aperta durante la
   // giornata: appuntamenti e cose da fare.
-  { chiave: 'agenda', label: 'Agenda', href: '/dashboard/agenda', gruppo: 'Core' },
-  // La pagina della responsabile del settore core: come è distribuito il
-  // lavoro fra le persone. Sta in Core e non in Amministrazione perché è uno
-  // strumento di conduzione quotidiana, non un report — si guarda per
-  // riequilibrare il carico adesso, non per rendicontare il trimestre.
-  {
-    chiave: 'core-manager',
-    label: 'Core Manager',
-    href: '/dashboard/core-manager',
-    gruppo: 'Core',
-  },
+  { chiave: 'agenda', label: 'Agenda', href: '/dashboard/agenda', gruppo: 'Core New' },
+  // Anagrafica deduplicata: una scheda per persona con tutte le sue richieste.
+  // La chiave resta 'persone' — è il permesso salvato in staff_users e la
+  // rotta: rinominarla vorrebbe dire migrare i permessi di tutti per un
+  // cambio di etichetta.
+  { chiave: 'persone', label: 'Contatti', href: '/dashboard/persone', gruppo: 'Core New' },
   // Le richieste dal form del sito, instradate al responsabile: una sezione
   // per canale, così ciascuno vede le proprie e non legge i contatti degli
   // altri. Le chiavi e i responsabili stanno in lib/richieste.ts — aggiungere
   // un corso significa aggiungere una voce là e una riga qui.
   //
-  // Club e Family sta in Core e non fra i canali: è l'unico che passa dalla
-  // segreteria e che alimenta agenda e trattative.
+  // Club e Family sta in Segreteria e non fra i canali: è l'unico che passa
+  // dalla segreteria e che alimenta agenda e trattative.
   {
     chiave: 'richieste-club',
     // «Eventi Core» e non più «Abbonamento Club e Family»: la chiave resta
@@ -44,7 +37,7 @@ const DEFINIZIONI = [
     // ogni riga di staff_users per un'etichetta.
     label: 'Eventi Core',
     href: '/dashboard/richieste/richieste-club',
-    gruppo: 'Core',
+    gruppo: 'Segreteria',
   },
   // "Segreteria" raccoglie le operazioni che il banco esegue per il socio —
   // non richieste da lavorare, ma azioni che producono qualcosa lì per lì.
@@ -147,11 +140,14 @@ const DEFINIZIONI = [
     gruppo: 'Partner',
     esterna: true,
   },
-  // Anagrafica deduplicata: una scheda per persona con tutte le sue richieste.
-  // La chiave resta 'persone' — è il permesso salvato in staff_users e la
-  // rotta: rinominarla vorrebbe dire migrare i permessi di tutti per un
-  // cambio di etichetta.
-  { chiave: 'persone', label: 'Contatti', href: '/dashboard/persone', gruppo: 'Anagrafica' },
+  // La pagina della responsabile del settore core: come è distribuito il
+  // lavoro fra le persone. Sta in Amministrazione, fuori da Core New.
+  {
+    chiave: 'core-manager',
+    label: 'Core Manager',
+    href: '/dashboard/core-manager',
+    gruppo: 'Amministrazione',
+  },
   // Sessioni e campagne raccolte da /api/track sul sito.
   { chiave: 'analytics', label: 'Analytics', href: '/dashboard/analytics', gruppo: 'Amministrazione' },
   { chiave: 'visite-sito', label: 'Visite al sito', href: '/dashboard/visite', gruppo: 'Amministrazione' },

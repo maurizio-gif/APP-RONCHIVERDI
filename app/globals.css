@@ -6958,3 +6958,321 @@ table.tabella tr.is-mia td {
 		white-space: normal;
 	}
 }
+
+/* Dashboard: le schede di Lead e Task, sopra il loro elenco. */
+.riepilogo-sezione > .filtro-gruppo {
+	margin-bottom: 0.75rem;
+}
+.filtro-separatore {
+	width: 1px;
+	align-self: stretch;
+	margin: 0 0.3rem;
+	background: var(--border);
+}
+
+/* Dashboard: le azioni, una riga ciascuna, chiudibili dalla riga. */
+.azioni-elenco {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+.azione-riga {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem 1rem;
+	padding: 0.65rem 0 0.65rem 0.7rem;
+	border-left: 3px solid transparent;
+	border-bottom: 1px solid var(--border);
+}
+.azione-riga:last-child {
+	border-bottom: 0;
+}
+.azione-riga.is-arretrata {
+	border-left-color: var(--ko, #b3261e);
+}
+.azione-riga.is-fatta {
+	opacity: 0.55;
+}
+.azione-testo {
+	flex: 1 1 18rem;
+	min-width: 0;
+}
+.azione-titolo {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.35rem 0.5rem;
+}
+.azione-quando {
+	font-variant-numeric: tabular-nums;
+	font-size: var(--text-xs, 0.8rem);
+	color: var(--text-muted);
+}
+.azione-nome {
+	font-weight: 600;
+	color: inherit;
+}
+.azione-tel {
+	font-size: var(--text-xs, 0.8rem);
+	color: inherit;
+	text-decoration: underline dotted;
+}
+.azione-chi {
+	font-size: var(--text-xs, 0.8rem);
+}
+.azione-dettaglio {
+	margin-top: 0.15rem;
+	font-size: var(--text-xs, 0.8rem);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.azione-errore {
+	margin-top: 0.25rem;
+	font-size: var(--text-xs, 0.8rem);
+	color: var(--ko, #b3261e);
+}
+.azione-comandi {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.4rem;
+}
+.azione-nota {
+	width: 12rem;
+	max-width: 100%;
+	padding: 0.35rem 0.55rem;
+	font: inherit;
+	font-size: var(--text-xs, 0.8rem);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	background: var(--bg);
+	color: inherit;
+}
+
+/* Dashboard: la striscia del lead, con tendine e «Apri scheda». */
+.lead-elenco {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+.lead-riga {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem 0.8rem;
+	padding: 0.65rem 0 0.65rem 0.7rem;
+	border-bottom: 1px solid var(--border);
+}
+.lead-riga:last-child {
+	border-bottom: 0;
+}
+.lead-testo {
+	flex: 1 1 16rem;
+	min-width: 0;
+}
+.lead-comandi {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.4rem;
+}
+.lead-comandi select,
+.lead-chiusura input {
+	padding: 0.35rem 0.5rem;
+	font: inherit;
+	font-size: var(--text-xs, 0.8rem);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	background: var(--bg);
+	color: inherit;
+}
+.lead-chiusura {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+	width: 100%;
+}
+.lead-chiusura input {
+	flex: 1 1 14rem;
+}
+.lead-chiusura input.lead-valore {
+	flex: 0 0 6rem;
+}
+
+/* Scheda contatto, sul modello di Passion: lavoro a sinistra, abbonamenti a destra. */
+.scheda-griglia {
+	display: grid;
+	grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+	gap: 1rem;
+	align-items: start;
+}
+.scheda-griglia > div {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+	min-width: 0;
+}
+.scheda-griglia .card {
+	margin: 0;
+}
+@media (max-width: 900px) {
+	.scheda-griglia {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+.dati {
+	display: grid;
+	grid-template-columns: max-content minmax(0, 1fr);
+	gap: 0.35rem 1rem;
+	margin: 0 0 0.9rem;
+}
+.dati dt {
+	color: var(--text-muted);
+	font-size: var(--text-xs, 0.8rem);
+}
+.dati dd {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+.scheda-comandi {
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+	padding-top: 0.8rem;
+	border-top: 1px solid var(--border);
+}
+.scheda-comandi > .muted {
+	font-size: var(--text-xs, 0.8rem);
+}
+.nuova-azione-box {
+	margin-top: 0.9rem;
+	padding-top: 0.8rem;
+	border-top: 1px solid var(--border);
+}
+.nuova-azione-box h3 {
+	margin: 0 0 0.5rem;
+	font-size: var(--text-sm, 0.9rem);
+}
+.nuova-azione {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+	align-items: center;
+}
+.nuova-azione select,
+.nuova-azione input {
+	padding: 0.35rem 0.5rem;
+	font: inherit;
+	font-size: var(--text-xs, 0.8rem);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	background: var(--bg);
+	color: inherit;
+}
+.nuova-azione-nota {
+	flex: 1 1 14rem;
+}
+.storia {
+	list-style: none;
+	margin: 0.9rem 0 0;
+	padding: 0;
+}
+.storia li {
+	padding: 0.5rem 0;
+	border-top: 1px solid var(--border);
+}
+.storia-testo {
+	margin-top: 0.2rem;
+	font-size: var(--text-xs, 0.8rem);
+}
+.accessi-pagine {
+	margin: 0.4rem 0 0;
+	padding-left: 1.1rem;
+	font-size: var(--text-xs, 0.8rem);
+}
+.accessi-pagine li {
+	padding: 0.15rem 0;
+	overflow-wrap: anywhere;
+}
+.agenda-cerca {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+	margin-bottom: 0.75rem;
+}
+.agenda-cerca input[type='search'] {
+	flex: 1 1 16rem;
+	max-width: 26rem;
+	padding: 0.4rem 0.6rem;
+	font: inherit;
+	font-size: var(--text-sm, 0.9rem);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	background: var(--bg);
+	color: inherit;
+}
+
+/* Scheda contatto: i tre gruppi di azioni, ciascuno col suo colore a sinistra. */
+.azioni-gruppo {
+	margin-top: 0.9rem;
+	padding: 0.6rem 0 0.2rem 0.8rem;
+	border-left: 4px solid var(--border);
+}
+.azioni-gruppo h3 {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: 0.45rem;
+	margin: 0 0 0.35rem;
+	font-size: var(--text-sm, 0.95rem);
+}
+.azioni-gruppo-conto {
+	display: inline-block;
+	min-width: 1.5em;
+	padding: 0 0.45em;
+	border-radius: 999px;
+	background: var(--border);
+	font-size: var(--text-xs, 0.8rem);
+	text-align: center;
+}
+.azioni-gruppo-nota {
+	font-weight: 400;
+	font-size: var(--text-xs, 0.8rem);
+}
+.azioni-gruppo-vuoto {
+	margin: 0.2rem 0 0.4rem;
+	font-size: var(--text-xs, 0.8rem);
+}
+.azioni-gruppo-ora {
+	border-left-color: #c0392b;
+	background: color-mix(in srgb, #c0392b 6%, transparent);
+}
+.azioni-gruppo-ora .azioni-gruppo-conto {
+	background: #c0392b;
+	color: #fff;
+}
+.azioni-gruppo-future {
+	border-left-color: #2f6fb0;
+	background: color-mix(in srgb, #2f6fb0 6%, transparent);
+}
+.azioni-gruppo-future .azioni-gruppo-conto {
+	background: #2f6fb0;
+	color: #fff;
+}
+.azioni-gruppo-fatte {
+	border-left-color: #3d8b5a;
+}
+.azioni-gruppo-fatte .azioni-gruppo-conto {
+	background: #3d8b5a;
+	color: #fff;
+}
+.azioni-gruppo .storia {
+	margin-top: 0.3rem;
+}
+.azioni-gruppo .azione-riga.is-arretrata {
+	border-left-color: transparent;
+}

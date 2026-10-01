@@ -65,7 +65,7 @@ export function Sidebar({
   const { nonLette } = useNotifiche()
 
   // La Dashboard è visibile a chiunque sia autenticato e non fa parte delle
-  // sezioni assegnabili per utente. Sta nel gruppo Core con le altre due voci
+  // sezioni assegnabili per utente. Sta nel gruppo Core New con le altre due voci
   // che si usano tutti i giorni.
   //
   // L'eccezione e' l'account di un partner esterno: il Riepilogo gli
@@ -76,7 +76,7 @@ export function Sidebar({
   const navItems: VoceMenu[] = [
     ...(soloEsterno
       ? []
-      : [{ href: '/dashboard', label: 'Dashboard', chiave: 'dashboard', gruppo: 'Core' }]),
+      : [{ href: '/dashboard', label: 'Dashboard New', chiave: 'dashboard', gruppo: 'Core New' }]),
     ...SEZIONI.filter((s) => sezioniConsentite.includes(s.chiave)),
   ]
   const gruppiMenu = raggruppaVoci(navItems)

@@ -2,464 +2,156 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
-import { puoCancellare } from '@/lib/auth/permessi'
-import {
-  giornoPiu,
-  mesePiu,
-  oggiRoma,
-  primoDelMese,
-  ultimoDelMese,
-  voceDaContatto,
-  voceDaTask,
-  type VoceAgenda,
-} from '@/lib/agenda'
+import { giornoPiu, oggiRoma, ordinaVoci, voceDaContatto, voceDaTask, type VoceAgenda } from '@/lib/agenda'
 import { ATTIVITA_IN_AGENDA, COLONNE_RICHIESTA } from '@/lib/richieste'
-import { COLONNE_NOTA_VINTA, conColonneNuove } from '@/lib/migrazioni'
 import { contattiDelleVoci } from '@/lib/eventi-server'
 import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
-import { CalendarioAgenda } from '@/components/CalendarioAgenda'
-import type { GestioneSemplicePerVoce } from '@/components/EventiElenco'
-import { eCommerciale, puoRiassegnare } from '@/lib/auth/permessi'
-import { ElencoAgenda } from './ElencoAgenda'
-import type { EventoCollegato } from '../richieste/EventiTrattativa'
-import type { Richiesta } from '../richieste/RigaRichiesta'
-import type { DatiTrattativa } from '../richieste/Trattativa'
-import { VistaTabs } from '@/components/VistaTabs'
+import { AzioniVeloci } from '../AzioniVeloci'
 import { NuovaVoce, type ContattoScegliibile } from './NuovaVoce'
 
 export const dynamic = 'force-dynamic'
 
-/**
- * Quanto guarda avanti e indietro la vista a lista. Indietro serve a ripescare
- * gli arretrati ancora da fare e le cose eseguite di recente (vedi
- * GIORNI_ESEGUITE_IN_LISTA); il passato chiuso più vecchio si consulta dal
- * filtro «Eseguite» o dal calendario, andando al suo mese.
- */
-const GIORNI_AVANTI = 90
-const GIORNI_INDIETRO = 180
+// L'agenda sul modello dei Task di Passion: un elenco solo, due file di
+// schede (quando, di chi), una ricerca, e una riga per azione con «Apri
+// scheda». Le azioni si gestiscono nella scheda del contatto.
 
-/**
- * Quanto indietro restano in elenco le voci **già eseguite**.
- *
- * Il passato chiuso non spariva per sbaglio: la lista serve a sapere cosa c'è
- * da fare, e sei mesi di cose fatte in cima le seppellirebbero. Ma sparire
- * del tutto era l'altro eccesso — chi apre l'agenda vuole vedere anche cosa è
- * stato fatto, con che esito, senza andarselo a cercare nel calendario mese
- * per mese o accendere il filtro «Eseguite».
- *
- * Due settimane sono la finestra in cui una cosa fatta serve ancora: ci si
- * ricorda della telefonata di giovedì scorso, non di quella di marzo. Più
- * indietro di così si guarda dal filtro «Eseguite», che continua a mostrare
- * tutto quello che la finestra della pagina contiene.
- */
-const GIORNI_ESEGUITE_IN_LISTA = 14
-
-/**
- * Quanti contatti si caricano per la tendina del form. Oggi l'anagrafica ne
- * ha una manciata; il limite c'è perché il giorno in cui saranno diecimila
- * questa pagina non deve scaricarli tutti a ogni apertura. Chi cerca un
- * contatto fuori dall'elenco lo trova scrivendone il nome — e il form dice
- * che l'elenco è parziale invece di far credere che manchi.
- */
+/** Fin dove guarda «Prossimi», e quanto indietro «Fatte». */
+const GIORNI_AVANTI = 30
+const GIORNI_FATTE = 14
+/** Quante righe per scheda, prima di chiedere di filtrare. */
+const RIGHE_IN_ELENCO = 200
+/** Quanti contatti per la tendina del modulo. */
 const CONTATTI_NEL_FORM = 300
 
-export default async function AgendaPage({
-  searchParams,
-}: {
-  searchParams: {
-    vista?: string
-    da?: string
-    solo?: string
-    chi?: string
-    /** La voce da aprire subito, arrivando da «prendi in carico» altrove. */
-    apri?: string
-    /** Ripiego sulla persona, quando la voce esatta non si conosce. */
-    persona?: string
-  }
-}) {
+const QUANDO = [
+  { chiave: 'arretrati', testo: 'Arretrati' },
+  { chiave: 'oggi', testo: 'Oggi' },
+  { chiave: 'prossimi', testo: `Prossimi ${GIORNI_AVANTI} giorni` },
+  { chiave: 'fatte', testo: 'Fatte' },
+] as const
+type Quando = (typeof QUANDO)[number]['chiave']
+
+const CHI = [
+  { chiave: 'tutti', testo: 'Di tutti' },
+  { chiave: 'mie', testo: 'Le mie' },
+  { chiave: 'nessuno', testo: 'Senza assegnatario' },
+] as const
+type Chi = (typeof CHI)[number]['chiave']
+
+type Parametri = { quando?: string; chi?: string; q?: string; persona?: string; apri?: string }
+
+export default async function AgendaPage({ searchParams }: { searchParams: Parametri }) {
   if (!(await utenteHaSezione('agenda'))) {
     redirect('/dashboard')
   }
+  // I vecchi link «apri questa voce» portano ora alla scheda della persona.
+  if (searchParams.persona) redirect(`/dashboard/persone/${searchParams.persona}`)
 
   const oggi = oggiRoma()
-  const daRichiesto = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.da ?? '') ? searchParams.da! : oggi
-  // Chi arriva con una voce da aprire arriva sempre alla lista: è lì che una
-  // riga si apre e si scorre, il calendario mostra solo i giorni.
-  const vista = searchParams.vista === 'lista' || searchParams.apri ? 'lista' : 'calendario'
-
-  // Il calendario carica il mese che mostra; la lista una finestra intorno a
-  // oggi. Le due viste chiedono al database solo quello che disegnano.
-  const mese = primoDelMese(daRichiesto)
-  const inizio = vista === 'calendario' ? mese : giornoPiu(oggi, -GIORNI_INDIETRO)
-  const fine = vista === 'calendario' ? ultimoDelMese(mese) : giornoPiu(oggi, GIORNI_AVANTI)
-
-  // Tre stati e non più l'orario. «Solo con orario» divideva le voci per una
-  // proprietà che non è il motivo per cui si apre l'agenda: chi la guarda
-  // vuole sapere cosa è in ritardo, cosa c'è da fare e cosa è già stato
-  // fatto — non quali cose hanno un'ora e quali no. Un appuntamento alle 17 e
-  // una telefonata «in giornata» sono due cose da fare, e separarle metteva
-  // fra loro una linea che nessuno ha in testa.
-  const soloStato =
-    searchParams.solo === 'ritardo' ||
-    searchParams.solo === 'dafare' ||
-    searchParams.solo === 'eseguite'
-      ? searchParams.solo
-      : null
-  // Di chi è l'agenda che si sta guardando. È un asse suo, indipendente da
-  // «cosa mostrare»: prima era uno dei tre valori dello stesso parametro, e
-  // scegliere «le mie» spegneva «solo con orario» — le due domande («di chi?»
-  // e «cosa?») si escludevano a vicenda senza motivo, e non si poteva vedere
-  // *i miei appuntamenti di oggi*, che è la domanda con cui si apre l'agenda.
-  const soloMie = searchParams.chi === 'mie'
   const email = emailCorrente()
+  const quando: Quando = QUANDO.some((v) => v.chiave === searchParams.quando)
+    ? (searchParams.quando as Quando)
+    : 'oggi'
+  const chi: Chi = CHI.some((v) => v.chiave === searchParams.chi) ? (searchParams.chi as Chi) : 'tutti'
+  const q = (searchParams.q ?? '').trim().slice(0, 80)
+
+  // Le aperte senza limite indietro, come in dashboard: un arretrato non
+  // smette di esserlo perché è vecchio. Le chiuse solo per la scheda «Fatte».
+  const fine = giornoPiu(oggi, GIORNI_AVANTI)
+  const limiteFatte = giornoPiu(oggi, -GIORNI_FATTE)
+  const COLONNE_TASK =
+    'id, titolo, tipo, data, ora, durata_minuti, stato, note, assegnato_a, esito_tipo, esito, esito_da, esito_il, entita, entita_id'
 
   const supabase = createSupabaseServiceClient()
   const [
-    { data: task, error: erroreTask },
-    { data: contattiGrezzi, error: erroreRichieste },
+    { data: taskAperti, error: erroreTask },
+    { data: taskChiusi },
+    { data: richiesteAperte, error: erroreRichieste },
+    { data: richiesteChiuse },
     { data: staff },
-    possoCancellare,
-    { data: persone, error: errorePersone },
-    sonoCommerciale,
-    possoRiassegnareTrattative,
+    { data: persone },
   ] = await Promise.all([
+    supabase.from('task').select(COLONNE_TASK).eq('stato', 'aperto').lte('data', fine),
+    supabase.from('task').select(COLONNE_TASK).neq('stato', 'aperto').gte('data', limiteFatte).lte('data', oggi),
     supabase
-      .from('task')
-      .select(
-        'id, titolo, tipo, data, ora, durata_minuti, stato, note, assegnato_a, esito_tipo, esito, esito_da, esito_il, entita, entita_id'
-      )
-      .gte('data', inizio)
-      .lte('data', fine),
-    supabase
-      // Le stesse colonne di Eventi Core (vedi COLONNE_RICHIESTA): da questo
-      // elenco si apre lo stesso pannello, e un pannello a cui manca metà dei
-      // campi mostrerebbe le stesse etichette con dentro dei vuoti.
       .from('form_contatti')
       .select(COLONNE_RICHIESTA)
-      // Due finestre, non una: le richieste che hanno preso un appuntamento
-      // si cercano sul giorno scelto, i messaggi — che una data non ce
-      // l'hanno — sul giorno in cui sono arrivati. Con il solo confronto su
-      // `data_scelta` i messaggi sparivano tutti: su una colonna nulla `gte`
-      // non è vero, e quelle righe non tornavano mai indietro.
-      //
-      // Il limite alto su created_at è esclusivo e sul giorno dopo:
-      // `created_at` è un timestamp, e `lte` sulla data secca taglierebbe via
-      // tutto quello che è arrivato dopo la mezzanotte dell'ultimo giorno.
+      .in('attivita', ATTIVITA_IN_AGENDA)
+      .eq('gestito', false)
+      .or(`data_scelta.lte.${fine},data_scelta.is.null`),
+    supabase
+      .from('form_contatti')
+      .select(COLONNE_RICHIESTA)
+      .in('attivita', ATTIVITA_IN_AGENDA)
+      .eq('gestito', true)
       .or(
-        `and(data_scelta.gte.${inizio},data_scelta.lte.${fine}),` +
-          `and(data_scelta.is.null,created_at.gte.${inizio},created_at.lt.${giornoPiu(fine, 1)})`
-      )
-      // Solo Club e Family: sono le richieste che passano dalla segreteria.
-      // Le altre vanno diritte al responsabile del corso e vivono nella sua
-      // sezione (lib/richieste.ts), non in questo calendario.
-      .in('attivita', ATTIVITA_IN_AGENDA),
-    // Nome e cognome oltre all'email: l'email è la firma scritta sulle righe,
-    // il nome è quello che si legge. La traduzione sta in lib/staff.ts.
-    // `commerciale` dice chi può prendersi una trattativa: è la tendina del
-    // pannello che si apre aprendo una riga.
-    supabase.from('staff_users').select('email, nome, cognome, commerciale'),
-    puoCancellare(email),
-    // I contatti per la tendina del form: una voce d'agenda è sempre
-    // agganciata a qualcuno (vedi creaVoce). I più mossi per primi — chi si
-    // sta lavorando adesso è quasi sempre chi ha scritto di recente.
-    //
-    // Dalla vista e non dalla tabella: `ultima_richiesta` è un conto sulle
-    // richieste e sta lì. Chiesta a `persone` faceva fallire la lettura, e
-    // con l'errore ignorato la tendina dei contatti restava vuota — l'unico
-    // modo di aggiungere qualcosa in agenda era non averne bisogno. Lo stesso
-    // inciampo era già stato corretto in dashboard/page.tsx.
-    //
-    // nullsFirst: false tiene in fondo chi non ha richieste — i contatti
-    // inseriti a mano ci restano finché non scrivono, ed è giusto: si
-    // trovano cercandoli per nome, che è come li si è appena creati.
+        `and(data_scelta.gte.${limiteFatte},data_scelta.lte.${oggi}),` +
+          `and(data_scelta.is.null,created_at.gte.${limiteFatte})`
+      ),
+    supabase.from('staff_users').select('email, nome, cognome'),
     supabase
       .from('persone_con_richieste')
       .select('id, nome, cognome, email, cellulare')
       .order('ultima_richiesta', { ascending: false, nullsFirst: false })
       .limit(CONTATTI_NEL_FORM),
-    // I diritti sulla pipeline: l'elenco degli eventi permette di chiudere la
-    // trattativa collegata, e quali chiusure offrire lo decidono questi.
-    eCommerciale(email),
-    puoRiassegnare(email),
   ])
+  const task = [...(taskAperti ?? []), ...(taskChiusi ?? [])]
+  const contattiGrezzi = [...(richiesteAperte ?? []), ...(richiesteChiuse ?? [])]
 
-  // Senza i contatti il form non si può usare: va detto nei log, invece di
-  // lasciare una tendina vuota che sembra un'anagrafica vuota.
-  if (errorePersone) {
-    console.error('Contatti per il form dell’agenda non letti:', errorePersone.message)
-  }
-
-  // Le due letture che *sono* l'agenda. Erano le uniche due senza controllo
-  // dell'errore, e con l'errore ignorato una query fallita disegnava
-  // un'agenda vuota — indistinguibile da una giornata libera, e senza una
-  // riga nei log da cui accorgersene. Una colonna aggiunta al codice e non
-  // ancora al database è bastata a far sparire tutto in silenzio.
-  //
-  // Il banner in pagina, non solo il log: chi sta guardando deve sapere che
-  // quello che vede non è l'agenda, ma un guasto.
   const guasto = erroreTask ?? erroreRichieste
   if (erroreTask) console.error('Voci di agenda non lette:', erroreTask.message)
   if (erroreRichieste) console.error('Richieste in agenda non lette:', erroreRichieste.message)
 
-  // L'elenco delle colonne è una costante condivisa e non un letterale, e
-  // supabase-js deduce il tipo del risultato solo dal secondo: senza questo
-  // passaggio ogni campo si leggerebbe come un errore di tipo. La forma vera
-  // gliela dà `Richiesta`, più sotto.
-  const contatti = (contattiGrezzi ?? []) as unknown as Record<string, any>[]
-
-  // I contatti agganciati alle voci della segreteria: `task.entita_id` è un
-  // id, e senza il nome in elenco l'obbligo di agganciare una voce a qualcuno
-  // non servirebbe a niente — resterebbe un titolo senza il perché. Con il
-  // contatto arrivano anche i suoi recapiti e il pulsante per la sua scheda.
-  //
-  // I due agganci, non solo il diretto: un richiamo programmato chiudendo una
-  // richiesta è agganciato alla **richiesta**, e risolvere solo `persona`
-  // lasciava quelle voci senza nome, senza recapiti e senza scheda — vedi
-  // contattiDelleVoci.
   const contattiDiVoce = await contattiDelleVoci((task ?? []) as Record<string, any>[])
-
-  let voci: VoceAgenda[] = [
+  const tutte: VoceAgenda[] = [
     ...(task ?? []).map((riga) => voceDaTask(riga, contattiDiVoce.get(String(riga.id)))),
-    // Tutte le richieste, non solo quelle che hanno prenotato uno slot: i
-    // messaggi e gli appuntamenti senza data si collocano nel giorno in cui
-    // sono arrivati (vedi voceDaContatto). Prima sparivano, e chi apriva
-    // l'agenda per sapere cosa c'era da fare non li vedeva.
-    ...(contatti ?? []).map(voceDaContatto),
-  ]
+    ...((contattiGrezzi ?? []) as unknown as Record<string, any>[]).map(voceDaContatto),
+  ].filter((v) => v.stato !== 'annullato')
 
-  // Le voci annullate restano fuori dalla vista normale: sono lì per storia,
-  // non per lavorarle.
-  voci = voci.filter((v) => v.stato !== 'annullato')
+  // Di chi, poi la ricerca: le schede «quando» contano su quello che resta.
+  const testo = q.toLowerCase()
+  const diChi = tutte
+    .filter((v) => (chi === 'mie' ? v.assegnatoA === email : chi === 'nessuno' ? !v.assegnatoA : true))
+    .filter((v) => !testo || v.ricerca.toLowerCase().includes(testo))
 
-  /**
-   * Le voci che sono in mano a chi sta guardando: quelle assegnate a lui.
-   *
-   * Le richieste dal sito non ci sono: non sono assegnate a nessuno — in
-   * elenco portano la targhetta «dal sito» proprio per dirlo — e contarle come
-   * proprie faceva sì che «le mie» mostrasse a tutti le stesse righe. Chi le
-   * vuole vedere guarda l'agenda di tutti, che è dove stanno finché qualcuno
-   * non se le prende.
-   */
-  const eMia = (v: VoceAgenda) => v.assegnatoA === email
-
-  // Quante ne troverebbe ogni filtro, prima di applicarne uno. Un filtro che
-  // non dice quante cose troverà si prova a caso — e provarlo qui vuol dire
-  // ricaricare la pagina per scoprire che era vuoto.
-  //
-  // I due assi si incrociano, quindi ogni conteggio tiene conto dell'altro:
-  // «solo con orario» dice quanti ne troverà *nell'agenda che stai
-  // guardando*, non nel club intero.
-  const diChi = soloMie ? voci.filter(eMia) : voci
-
-  // I tre stati, come predicati: si usano per i conteggi dei chip e per il
-  // filtro, così un chip non può mai promettere un numero diverso da quello
-  // che mostra.
-  const eInRitardo = (v: VoceAgenda) => v.daFare && v.data < oggi
-  const eDaFare = (v: VoceAgenda) => v.daFare && v.data >= oggi
-  const eEseguita = (v: VoceAgenda) => !v.daFare
-
-  const contiFiltri = {
-    tutti: voci.length,
-    mie: voci.filter(eMia).length,
-    tutto: diChi.length,
-    ritardo: diChi.filter(eInRitardo).length,
-    dafare: diChi.filter(eDaFare).length,
-    eseguite: diChi.filter(eEseguita).length,
+  const filtri: Record<Quando, (v: VoceAgenda) => boolean> = {
+    arretrati: (v) => v.daFare && v.data < oggi,
+    oggi: (v) => v.daFare && v.data === oggi,
+    prossimi: (v) => v.daFare && v.data > oggi,
+    fatte: (v) => !v.daFare && v.data >= limiteFatte && v.data <= oggi,
   }
+  const conti = Object.fromEntries(QUANDO.map((x) => [x.chiave, diChi.filter(filtri[x.chiave]).length])) as Record<
+    Quando,
+    number
+  >
 
-  voci = diChi
-  if (soloStato === 'ritardo') voci = voci.filter(eInRitardo)
-  else if (soloStato === 'dafare') voci = voci.filter(eDaFare)
-  else if (soloStato === 'eseguite') voci = voci.filter(eEseguita)
+  // Per giorno e, nel giorno, per ora; le fatte dalla più recente.
+  const scelte = diChi.filter(filtri[quando]).sort((a, b) => a.data.localeCompare(b.data))
+  const perGiorno = new Map<string, VoceAgenda[]>()
+  for (const v of scelte) perGiorno.set(v.data, [...(perGiorno.get(v.data) ?? []), v])
+  const giorni = [...perGiorno.keys()]
+  if (quando === 'fatte') giorni.reverse()
+  const voci = giorni.flatMap((g) => ordinaVoci(perGiorno.get(g)!)).slice(0, RIGHE_IN_ELENCO)
 
-  const daFare = voci.filter((v) => v.daFare).length
-  // Gli arretrati sono il numero che decide la giornata: aperti e di un
-  // giorno già passato. Non c'erano da nessuna parte in questa pagina —
-  // stavano dentro il conteggio generico di «Ancora da fare».
-  const arretrati = voci.filter((v) => v.daFare && v.data < oggi).length
-
-  // Per il datalist del form: chi può essere assegnatario di una voce.
-  // Ordinati per cognome, come in Gestione utenti: una tendina di colleghi
-  // ordinata per email li mette in un ordine che nessuno ha in testa.
-  const staffOrdinato = ordinaPerCognome(
-    (staff ?? []) as (RigaStaff & { commerciale?: boolean })[]
-  )
+  const staffOrdinato = ordinaPerCognome((staff ?? []) as RigaStaff[])
   const operatori = staffOrdinato.map((s) => s.email)
-  const commerciali = staffOrdinato.filter((s) => s.commerciale).map((s) => s.email)
   const nomiStaff = mappaNomiStaff(staffOrdinato)
-
   const contattiForm = (persone ?? []) as unknown as ContattoScegliibile[]
-  const contattiTroncati = contattiForm.length === CONTATTI_NEL_FORM
 
-  // ── Quello che serve a lavorare una riga, non solo a leggerla ──────────
-  //
-  // L'elenco è lo stesso componente della dashboard (EventiElenco), e quel
-  // componente chiude le richieste, scrive le note e chiude la trattativa.
-  // Sono due letture in più rispetto alla vecchia tabella, ed è il prezzo di
-  // non avere due elenchi che si comportano diversamente.
-
-  // La nota dell'operatore e le firme delle richieste dal sito. Non stanno in
-  // VoceAgenda e non ci possono stare: là `note` è il messaggio che ha
-  // scritto la persona, che è un'altra cosa dalla nota di chi la lavora.
-  const gestioni: Record<string, GestioneSemplicePerVoce> = {}
-  for (const r of contatti ?? []) {
-    gestioni[`contatto-${r.id}`] = {
-      nota: (r.note as string) ?? null,
-      gestitoDa: (r.gestito_da as string) ?? null,
-      gestitoIl: (r.gestito_il as string) ?? null,
-      notaDa: (r.note_da as string) ?? null,
-      notaIl: (r.note_il as string) ?? null,
-    }
-  }
-
-  // La trattativa del contatto di ogni voce, per mostrarla — e dove è ancora
-  // aperta, per chiuderla da qui: si telefona, la persona dice sì, e in quel
-  // minuto si sanno entrambe le cose. Tutte, non solo le aperte: un evento
-  // già gestito riguarda quasi sempre una trattativa già chiusa, vinta o
-  // persa che sia, e senza di lei quella riga si gestiva come se dietro non
-  // ci fosse mai stata un'opportunità. In ordine di nascita: se ce n'è una
-  // ancora aperta è l'ultima creata, e scrivendo nella mappa vince lei;
-  // altrimenti vince la chiusa più recente.
-  const idPersoneVoci = [...new Set(voci.map((v) => v.personaId).filter(Boolean))] as string[]
-  const { data: trattativeDellePersone } = idPersoneVoci.length
-    ? await conColonneNuove<Record<string, any>>(
-        'id, persona_id, stato, assegnato_a, motivo_perso, motivo_annullato, motivo_vinto, valore_euro, triple_pack',
-        COLONNE_NOTA_VINTA,
-        (colonne) =>
-          supabase
-            .from('opportunita')
-            .select(colonne)
-            .in('persona_id', idPersoneVoci)
-            .order('creato_il', { ascending: true })
-      )
-    : { data: [] as Record<string, any>[] }
-
-  const trattative: Record<string, DatiTrattativa> = {}
-  for (const t of trattativeDellePersone ?? []) {
-    trattative[t.persona_id as string] = {
-      id: t.id as string,
-      stato: t.stato,
-      assegnato_a: (t.assegnato_a as string) ?? null,
-      motivo_perso: (t.motivo_perso as string) ?? null,
-      motivo_annullato: (t.motivo_annullato as string) ?? null,
-      motivo_vinto: (t.motivo_vinto as string) ?? null,
-      valore_euro: (t.valore_euro as number) ?? null,
-      triple_pack: !!t.triple_pack,
-    }
-  }
-
-  // La richiesta dal sito dietro ogni voce, per chiave di voce: è quello che
-  // permette a questo elenco di aprire **lo stesso** pannello di Eventi Core
-  // (vedi GestioneEvento) invece di una versione ridotta sua.
-  const richieste: Record<string, Richiesta> = {}
-  for (const r of contatti ?? []) {
-    richieste[`contatto-${r.id}`] = r as unknown as Richiesta
-  }
-
-  // Il seguito delle trattative: i richiami già fissati e quelli fatti. Due
-  // agganci — un evento nasce da una richiesta e porta il suo id, oppure è
-  // creato a mano per un contatto e porta l'id della persona. Cercarne uno
-  // solo lascerebbe fuori il seguito fissato a mano, che è quello che si
-  // ricorda meno.
-  const COLONNE_EVENTO =
-    'id, titolo, tipo, data, ora, durata_minuti, note, assegnato_a, stato, esito_tipo, esito, esito_da, esito_il, entita, entita_id'
-  const idRichiesteMostrate = (contatti ?? []).map((r) => r.id as string)
-  const [{ data: eventiDaRichieste }, { data: eventiDaContatti }] = idPersoneVoci.length
-    ? await Promise.all([
-        supabase
-          .from('task')
-          .select(COLONNE_EVENTO)
-          .eq('entita', 'form_contatti')
-          .in('entita_id', idRichiesteMostrate.length ? idRichiesteMostrate : ['']),
-        supabase
-          .from('task')
-          .select(COLONNE_EVENTO)
-          .eq('entita', 'persona')
-          .in('entita_id', idPersoneVoci),
-      ])
-    : [{ data: [] as Record<string, any>[] }, { data: [] as Record<string, any>[] }]
-
-  const personaDiRichiesta = new Map<string, string>()
-  for (const r of contatti ?? []) {
-    if (r.persona_id) personaDiRichiesta.set(r.id as string, r.persona_id as string)
-  }
-
-  const eventiPerPersona: Record<string, EventoCollegato[]> = {}
-  function aggiungiEvento(
-    persona: string | undefined,
-    riga: Record<string, any>,
-    richiestaId: string | null
-  ) {
-    if (!persona) return
-    eventiPerPersona[persona] = [
-      ...(eventiPerPersona[persona] ?? []),
-      { ...voceDaTask(riga), richiestaId },
-    ]
-  }
-  for (const riga of eventiDaRichieste ?? []) {
-    const richiestaId = (riga.entita_id as string) ?? null
-    aggiungiEvento(richiestaId ? personaDiRichiesta.get(richiestaId) : undefined, riga, richiestaId)
-  }
-  for (const riga of eventiDaContatti ?? []) {
-    aggiungiEvento(riga.entita_id as string, riga, null)
-  }
-
-  // Un impegno programmato per una richiesta (una visita fissata, un
-  // richiamo…) apre la **stessa** richiesta quando si gestisce lui: senza,
-  // la sua riga in agenda apriva una scheda spoglia — niente trattativa in
-  // cima, solo nota ed esito — come se dietro non ci fosse nessuna
-  // opportunità da seguire. Con la richiesta agganciata, EventiElenco sceglie
-  // da solo il pannello pieno (vedi GestioneEvento) invece di quello ridotto
-  // per le voci scritte in segreteria senza una richiesta dietro.
-  for (const riga of eventiDaRichieste ?? []) {
-    const richiestaId = riga.entita_id as string | null
-    const richiesta = richiestaId ? richieste[`contatto-${richiestaId}`] : undefined
-    if (richiesta) richieste[`task-${riga.id}`] = richiesta
-  }
-
-  // Nella lista del passato restano gli arretrati — che vanno recuperati — e
-  // le cose fatte di recente, che sono la prova che il lavoro è stato fatto e
-  // si leggono in verde con il loro esito accanto. Più indietro di due
-  // settimane si va col filtro «Eseguite», che mostra tutta la finestra della
-  // pagina: senza quell'eccezione il filtro trovava le eseguite per poi
-  // lasciarle fuori, e l'elenco tornava quasi vuoto.
-  const limiteEseguite = giornoPiu(oggi, -GIORNI_ESEGUITE_IN_LISTA)
-  const vociLista =
-    soloStato === 'eseguite'
-      ? voci
-      : voci.filter((v) => v.data >= oggi || v.daFare || v.data >= limiteEseguite)
-
-  // Un parametro non nominato resta com'è: cambiare «di chi» non deve
-  // spegnere «solo con orario», che è quello che succedeva quando i due assi
-  // erano lo stesso parametro.
-  function link(parametri: {
-    vista?: string
-    da?: string
-    solo?: string | null
-    chi?: string | null
-  }) {
+  const link = (p: Parametri) => {
     const params = new URLSearchParams()
-    params.set('vista', parametri.vista ?? vista)
-    if (parametri.da) params.set('da', parametri.da)
-    const filtro = parametri.solo === undefined ? searchParams.solo : parametri.solo
-    if (filtro) params.set('solo', filtro)
-    const chi = parametri.chi === undefined ? searchParams.chi : parametri.chi
-    if (chi) params.set('chi', chi)
+    const tutti = { quando, chi, q, ...p }
+    params.set('quando', tutti.quando!)
+    if (tutti.chi && tutti.chi !== 'tutti') params.set('chi', tutti.chi)
+    if (tutti.q) params.set('q', tutti.q)
     return `/dashboard/agenda?${params.toString()}`
   }
 
   return (
     <>
       <div className="page-head">
-        {/* Diceva «Agenda» sopra un titolo «Agenda»: due volte la stessa
-            parola invece di dire di chi è la sezione. */}
         <p className="eyebrow">Segreteria</p>
         <h1>Agenda</h1>
-        <p className="muted">
-          Tutto quello che passa dalla segreteria in un calendario solo: appuntamenti e telefonate
-          prenotati dal sito, i messaggi arrivati senza appuntamento — collocati nel giorno in cui
-          sono arrivati — e le cose da fare della segreteria.
-        </p>
       </div>
 
       {guasto && (
@@ -468,230 +160,87 @@ export default async function AgendaPage({
         </p>
       )}
 
-      <VistaTabs
-        vista={vista}
-        base="/dashboard/agenda"
-        tabs={[
-          { chiave: 'calendario', etichetta: 'Calendario' },
-          { chiave: 'lista', etichetta: 'Lista', contatore: daFare },
-        ]}
-        altriParametri={{
-          da: vista === 'calendario' ? searchParams.da : undefined,
-          solo: searchParams.solo,
-          chi: searchParams.chi,
-        }}
-      />
-
-      {/* Erano tre pulsanti oro/fantasma, identici ai comandi che agiscono sui
-          dati e muti su quante cose avrebbero trovato. Ora sono chip col loro
-          numero, nello stesso riquadro dei filtri di Abbonamento Club e
-          Family: chi passa da una sezione all'altra ritrova lo stesso gesto. */}
-      <div className="filtri">
-        <div className="filtri-testa">
-          <span className="filtri-titolo">Filtra l&apos;agenda</span>
-        </div>
-        <div className="filtri-gruppi">
-          {/* Due domande diverse, due gruppi. «Di chi» prima, perché è quella
-              che si sceglie una volta e resta: l'agenda del club o la propria.
-              Prima erano tre chip in fila e «Le mie» spegneva «Solo con
-              orario» — i miei appuntamenti di oggi, che è la cosa che si
-              guarda per prima al mattino, non si potevano chiedere. */}
-          <fieldset className="filtro-gruppo">
-            <legend>Di chi</legend>
-            <ChipAgenda
-              attivo={!soloMie}
-              quante={contiFiltri.tutti}
-              href={link({ da: daRichiesto, chi: null })}
-            >
-              Di tutti
-            </ChipAgenda>
-            <ChipAgenda
-              attivo={soloMie}
-              quante={contiFiltri.mie}
-              href={link({ da: daRichiesto, chi: 'mie' })}
-            >
-              La mia
-            </ChipAgenda>
-          </fieldset>
-
-          {/* Tre stati che si escludono e si sommano al totale: in ritardo,
-              da fare, eseguite. Sono le tre domande vere di un'agenda, e
-              messe in fila dicono anche in che stato è la giornata senza
-              bisogno di premere niente. */}
-          <fieldset className="filtro-gruppo">
-            <legend>In che stato</legend>
-            <ChipAgenda
-              attivo={!soloStato}
-              quante={contiFiltri.tutto}
-              href={link({ da: daRichiesto, solo: null })}
-            >
-              Tutto
-            </ChipAgenda>
-            <ChipAgenda
-              attivo={soloStato === 'ritardo'}
-              quante={contiFiltri.ritardo}
-              href={link({ da: daRichiesto, solo: 'ritardo' })}
-            >
-              In ritardo
-            </ChipAgenda>
-            <ChipAgenda
-              attivo={soloStato === 'dafare'}
-              quante={contiFiltri.dafare}
-              href={link({ da: daRichiesto, solo: 'dafare' })}
-            >
-              Da fare
-            </ChipAgenda>
-            <ChipAgenda
-              attivo={soloStato === 'eseguite'}
-              quante={contiFiltri.eseguite}
-              href={link({ da: daRichiesto, solo: 'eseguite' })}
-            >
-              Eseguite
-            </ChipAgenda>
-          </fieldset>
-        </div>
-      </div>
-
-      {/* Due riquadri: in ritardo e ancora da fare, cogli stessi toni del
-          resto del pannello. Il terzo contava gli appuntamenti «con orario»,
-          ed è andato via con il filtro omonimo: divideva le voci per una
-          proprietà che non è il motivo per cui si apre l'agenda — un
-          appuntamento alle 17 e una telefonata «in giornata» sono due cose da
-          fare, e il numero di quelle che hanno un'ora non risponde a nessuna
-          domanda. Ciascuno dice cosa vuol dire, invece di lasciare un numero
-          da interpretare. */}
-      <div className="griglia-stat">
-        <div className={`stat stat-error${arretrati > 0 ? ' is-azione' : ' is-vuoto'}`}>
-          <span className="stat-testa">
-            <span className="stat-label">
-              {arretrati > 0 && <span className="stat-punto" aria-hidden="true" />}
-              In ritardo
-            </span>
-          </span>
-          <span className="stat-valore">{arretrati}</span>
-          <span className="stat-nota">
-            {arretrati > 0
-              ? 'Aperte e di un giorno già passato: da recuperare oggi'
-              : 'Niente rimasto indietro'}
-          </span>
-        </div>
-
-        <div className={`stat stat-warn${daFare > 0 ? '' : ' is-vuoto'}`}>
-          <span className="stat-testa">
-            <span className="stat-label">Ancora da fare</span>
-          </span>
-          <span className="stat-valore">{daFare}</span>
-          <span className="stat-nota">
-            {vista === 'calendario'
-              ? 'Aperte in questo mese, arretrati compresi'
-              : 'Aperte in elenco, arretrati compresi'}
-          </span>
-        </div>
-
-      </div>
-
-      {vista === 'calendario' ? (
-        <CalendarioAgenda
-          voci={voci}
-          gestioni={gestioni}
-          richieste={richieste}
-          eventiPerPersona={eventiPerPersona}
-          trattative={trattative}
-          commerciali={commerciali}
-          mese={mese}
-          oggi={oggi}
-          emailCorrente={email}
+      <div className="agenda-nuova">
+        <NuovaVoce
+          giornoPredefinito={oggi}
           operatori={operatori}
-          puoCancellare={possoCancellare}
-          sonoCommerciale={sonoCommerciale}
-          possoRiassegnare={possoRiassegnareTrattative}
-          nomiStaff={nomiStaff}
-          linkMesePrecedente={link({ da: mesePiu(mese, -1) })}
-          linkMeseSuccessivo={link({ da: mesePiu(mese, 1) })}
-          linkOggi={link({ da: oggi })}
-          nuovaVoce={<NuovaVoce
-              giornoPredefinito={oggi}
-              operatori={operatori}
-              contatti={contattiForm}
-              contattiTroncati={contattiTroncati}
-            />}
+          contatti={contattiForm}
+          contattiTroncati={contattiForm.length === CONTATTI_NEL_FORM}
         />
-      ) : (
-        <>
-          {/* Lo stesso elenco della dashboard, non una tabella sua: stesse
-              righe compatte, stessa espansione, stessi comandi. La ricerca
-              per nome, cognome, email o cellulare filtra in memoria, come su
-              Eventi Core (vedi ElencoRichieste). */}
-          <ElencoAgenda
-            vociLista={vociLista}
-            gestioni={gestioni}
-            richieste={richieste}
-            eventiPerPersona={eventiPerPersona}
-            commerciali={commerciali}
-            trattative={trattative}
-            oggi={oggi}
-            io={email}
-            operatori={operatori}
-            puoCancellare={possoCancellare}
-            sonoCommerciale={sonoCommerciale}
-            possoRiassegnare={possoRiassegnareTrattative}
-            nomiStaff={nomiStaff}
-            filtroAttivo={!!searchParams.solo || soloMie}
-            soloMieSenzaFiltro={soloMie && !searchParams.solo}
-            hrefTuttaAgenda={link({ da: daRichiesto, solo: null, chi: null })}
-            apriChiave={searchParams.apri ?? null}
-            apriPersonaId={searchParams.persona ?? null}
-          />
+      </div>
 
-          <div className="agenda-nuova">
-            <NuovaVoce
-              giornoPredefinito={oggi}
-              operatori={operatori}
-              contatti={contattiForm}
-              contattiTroncati={contattiTroncati}
-            />
-          </div>
-        </>
-      )}
+      <section className="riepilogo-sezione">
+        <div className="filtro-gruppo">
+          {QUANDO.map((v) => (
+            <Scheda key={v.chiave} href={link({ quando: v.chiave })} attiva={v.chiave === quando} quante={conti[v.chiave]}>
+              {v.testo}
+            </Scheda>
+          ))}
+          <span className="filtro-separatore" aria-hidden="true" />
+          {CHI.map((v) => (
+            <Scheda key={v.chiave} href={link({ chi: v.chiave })} attiva={v.chiave === chi}>
+              {v.testo}
+            </Scheda>
+          ))}
+        </div>
+
+        <form className="agenda-cerca" action="/dashboard/agenda">
+          <input type="hidden" name="quando" value={quando} />
+          {chi !== 'tutti' && <input type="hidden" name="chi" value={chi} />}
+          <input type="search" name="q" defaultValue={q} placeholder="Nome, cognome, telefono, email" />
+          <button className="btn btn-ghost btn-sm" type="submit">
+            Cerca
+          </button>
+          {q && (
+            <Link className="link" href={link({ q: '' })}>
+              Togli la ricerca
+            </Link>
+          )}
+        </form>
+
+        <div className="card">
+          {voci.length > 0 ? (
+            <AzioniVeloci voci={voci} oggi={oggi} nomiStaff={nomiStaff} mostraChi={chi !== 'mie'} />
+          ) : (
+            <p className="muted">Nessuna azione qui.</p>
+          )}
+          {scelte.length > voci.length && (
+            <p className="card-nota muted">
+              Le prime {RIGHE_IN_ELENCO} di {scelte.length}: usa la ricerca per trovare le altre.
+            </p>
+          )}
+        </div>
+      </section>
     </>
   )
 }
 
-/**
- * Un chip di filtro dell'agenda: nome, quante voci troverà, e la spunta se è
- * quello attivo. La spunta non è decorazione — dice «questo è il filtro
- * scelto» anche a chi non percepisce il contrasto del fondo scuro, che da solo
- * sarebbe l'unico segno.
- *
- * È il gemello del Chip di Eventi Core: due copie di sei righe
- * di classi, invece di un componente condiviso, perché i due filtri non hanno
- * niente in comune oltre l'aspetto — e il giorno che uno dei due prende un
- * pallino di stato o un raggruppamento, il componente unico si spacca in due.
- */
-function ChipAgenda({
+/** Una scheda di filtro: lo stesso chip della dashboard. */
+function Scheda({
   href,
-  attivo,
+  attiva,
   quante,
   children,
 }: {
   href: string
-  attivo: boolean
-  quante: number
+  attiva: boolean
+  quante?: number
   children: React.ReactNode
 }) {
   return (
     <Link
-      className={`chip${attivo ? ' is-attivo' : ''}${quante === 0 ? ' is-zero' : ''}`}
-      aria-current={attivo ? 'true' : undefined}
+      className={`chip${attiva ? ' is-attivo' : ''}${quante === 0 ? ' is-zero' : ''}`}
+      aria-current={attiva ? 'true' : undefined}
       href={href}
+      scroll={false}
     >
-      {attivo && (
+      {attiva && (
         <span className="chip-spunta" aria-hidden="true">
           ✓
         </span>
       )}
       {children}
-      <span className="chip-conteggio">{quante}</span>
+      {quante != null && <span className="chip-conteggio">{quante}</span>}
     </Link>
   )
 }

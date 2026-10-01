@@ -1,13 +1,8 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
-import { utenteHaSezione } from '@/lib/auth/sezioni-server'
-import {
-  eCommerciale,
-  puoCancellare as haDirittoDiCancellare,
-  puoRiassegnare,
-} from '@/lib/auth/permessi'
-import { emailCorrente } from '@/lib/auth/sezioni-server'
+import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
+import { eCommerciale, puoRiassegnare } from '@/lib/auth/permessi'
 import {
   ETICHETTA_MANUALE,
   dataOra,
@@ -15,114 +10,73 @@ import {
   nomePersona,
   dataBreve as dataBreveAnno,
 } from '@/lib/persone'
-import { dataOraDi, oraDi, percorsoBreve } from '@/lib/percorsoSito'
 import { mappaNomiStaff, ordinaPerCognome, nomeDiEmail, type RigaStaff } from '@/lib/staff'
-import {
-  COLONNE_ASSEGNAZIONE_RICHIESTA,
-  COLONNE_NOTA_VINTA,
-  conColonneNuove,
-} from '@/lib/migrazioni'
-import { CLASSE_BADGE_STATO, ETICHETTE_STATO, euro, type StatoTrattativa } from '@/lib/pipeline'
+import { COLONNE_NOTA_VINTA, conColonneNuove } from '@/lib/migrazioni'
+import { CLASSE_BADGE_STATO, ETICHETTE_STATO, euro, motivoDi, type StatoTrattativa } from '@/lib/pipeline'
 import {
   CLASSE_TIPO,
-  ETICHETTE_TIPO,
-  TIPI,
+  ETICHETTE_TIPO_BREVI,
   dataBreve,
-  etichettaStato,
+  etichettaEsito,
+  oggiRoma,
+  voceDaContatto,
   voceDaTask,
-  type TipoVoce,
   type VoceAgenda,
 } from '@/lib/agenda'
-import { AZIONI_LOG, dettagliLeggibili, etichettaAzione } from '@/lib/audit'
-import { RichiestePersona, type RichiestaDiPersona } from '../RichiestePersona'
+import { provenienzaTrattativa } from '@/lib/provenienza'
+import { dataOraDi, oraDi, percorsoBreve } from '@/lib/percorsoSito'
+import { AzioniVeloci } from '../../AzioniVeloci'
+import { ComandiLead } from '../../ComandiLead'
+import { NuovaAzione } from './NuovaAzione'
 
-/** Quante pagine viste riportare prima di dire che ce ne sono altre. */
-const MAX_PAGINE_VISITATE = 120
+// La scheda del contatto sul modello di Passion: in testa chi è e come lo si
+// raggiunge; a sinistra il lavoro (il lead, con assegnatario e stato, e le
+// azioni, da chiudere sul posto o da aggiungere); a destra gli abbonamenti.
+// Percorso sul sito, registro e storico per tipo non ci sono più: alla
+// segreteria non servono per lavorare il contatto.
 
-/**
- * Cosa dire di un conflitto Info4U, secondo il campo che l'ha causato.
- *
- * 'email'/'cellulare' sono le righe nate prima che la deduplicazione
- * diventasse nome+cognome (vedi scripts/sql/2026-09-23-dedup-nome-cognome.sql):
- * quel recapito coincideva per caso con un contatto nato altrove. Da quella
- * migrazione in poi il conflitto è invece un omonimo il cui cellulare non
- * coincide (o non verificabile): il campo condiviso è il nome, non un
- * recapito, e le due schede possono benissimo avere email o numeri diversi.
- */
+export const dynamic = 'force-dynamic'
+
+/** Cosa dire di un conflitto Info4U, secondo il campo che l'ha causato. */
 function descrizioneConflitto(campo: string | null): string {
   if (campo === 'cellulare') return 'Il cellulare'
   if (campo === 'email') return "L'email"
   return 'Il nome e cognome'
 }
 
+/** Quante pagine viste leggere al massimo. */
+const MAX_PAGINE_VISITATE = 200
+
 /**
- * Le pagine del sito che questa persona ha visto, in ordine cronologico e
- * attraverso **tutte** le sue visite.
- *
- * Le visite si tengono insieme col `visitor_id`, che è l'unica chiave che
- * attraversa i giorni: il `session_id` vale per una visita sola. Senza
- * visitor_id — chi non ha dato il consenso, e i lead arrivati prima che il
- * sito cominciasse a spedirlo — restano le sole sessioni in cui ha compilato
- * un form, che è comunque la parte che dice qualcosa.
- *
- * La colonna `visitor_id` arriva con una migration del sito
- * (2026-09-11-visitor-id-e-sessione-del-lead.sql): finché non è passata la si
- * chiede e basta, e si ripiega sulle sessioni delle richieste.
+ * Le pagine del sito viste da questa persona, attraverso tutte le sue visite:
+ * le sessioni in cui ha scritto, più le altre dello stesso `visitor_id`.
  */
-async function pagineVisitate(
-  supabase: ReturnType<typeof createSupabaseServiceClient>,
-  personaId: string
-) {
+async function pagineVisitate(supabase: ReturnType<typeof createSupabaseServiceClient>, personaId: string) {
   type RigaVisita = { session_id?: string | null; visitor_id?: string | null }
   const { data: conVisitatore, error } = await supabase
     .from('form_contatti')
     .select('session_id, visitor_id')
     .eq('persona_id', personaId)
-
   let righe = (conVisitatore ?? []) as RigaVisita[]
   if (error && /visitor_id/.test(error.message)) {
-    const { data: senza } = await supabase
-      .from('form_contatti')
-      .select('session_id')
-      .eq('persona_id', personaId)
+    const { data: senza } = await supabase.from('form_contatti').select('session_id').eq('persona_id', personaId)
     righe = (senza ?? []) as RigaVisita[]
   }
-
   const sessioni = new Set(righe.map((r) => r.session_id ?? null).filter(Boolean) as string[])
-  const visitatori = [
-    ...new Set(righe.map((r) => r.visitor_id ?? null).filter(Boolean) as string[]),
-  ]
-
-  // Le altre visite dello stesso visitatore: quelle in cui ha guardato e non
-  // ha scritto niente, che sono spesso le più interessanti — è il giro che ha
-  // fatto prima di decidersi.
+  const visitatori = [...new Set(righe.map((r) => r.visitor_id ?? null).filter(Boolean) as string[])]
   if (visitatori.length) {
-    const { data: altre } = await supabase
-      .from('sessioni')
-      .select('session_id')
-      .in('visitor_id', visitatori)
+    const { data: altre } = await supabase.from('sessioni').select('session_id').in('visitor_id', visitatori)
     for (const x of altre ?? []) sessioni.add(x.session_id as string)
   }
-
-  if (sessioni.size === 0) return { pagine: [], troncato: false }
-
-  // Una in più del massimo: è il modo di sapere se ne restano fuori senza
-  // doverle contare tutte.
+  if (sessioni.size === 0) return []
   const { data: pagine } = await supabase
     .from('sessioni_pagine')
     .select('pagina, titolo, visto_at')
     .in('session_id', [...sessioni])
-    .order('visto_at', { ascending: true })
-    .limit(MAX_PAGINE_VISITATE + 1)
-
-  const viste = pagine ?? []
-  return {
-    pagine: viste.slice(0, MAX_PAGINE_VISITATE),
-    troncato: viste.length > MAX_PAGINE_VISITATE,
-  }
+    .order('visto_at', { ascending: false })
+    .limit(MAX_PAGINE_VISITATE)
+  return pagine ?? []
 }
-
-export const dynamic = 'force-dynamic'
 
 function soloCifre(numero: string): string {
   return numero.replace(/[^0-9]/g, '')
@@ -140,35 +94,21 @@ export default async function PersonaPage({ params }: { params: { id: string } }
     { data: richieste },
     { data: trattative },
     { data: abbonamenti },
-    percorso,
-    possoCancellare,
     { data: staff },
     sonoCommerciale,
     possoRiassegnare,
+    pagine,
   ] = await Promise.all([
     supabase
       .from('persone')
-      .select('id, nome, cognome, email, cellulare, note, creato_il, fonte, conflitto_con_persona_id, conflitto_campo')
+      .select('id, nome, cognome, email, cellulare, creato_il, fonte, conflitto_con_persona_id, conflitto_campo')
       .eq('id', params.id)
       .maybeSingle(),
-    // Tutte le colonne che servono a **lavorare** la richiesta, non solo a
-    // leggerla: esito, nota, assegnatario e firme. La scheda era in sola
-    // lettura e rimandava alla sezione del responsabile — tre passaggi per il
-    // gesto immediatamente successivo a quello che si stava facendo, cioè
-    // chiudere la telefonata appena fatta (vedi RichiestePersona).
-    conColonneNuove<Record<string, any>>(
-      'id, created_at, origine, attivita, attivita_label, settore, azione, data_scelta, ora_scelta, messaggio, dettagli, gestito, gestito_da, gestito_il, assegnato_a, note, note_da, note_il, esito_tipo, esito, esito_da, esito_il, pagina, cta, audience, utm_source, utm_medium, utm_campaign, first_utm_source, first_utm_campaign, landing_page',
-      COLONNE_ASSEGNAZIONE_RICHIESTA,
-      (colonne) =>
-        supabase
-          .from('form_contatti')
-          .select(colonne)
-          .eq('persona_id', params.id)
-          .order('created_at', { ascending: false })
-    ),
-    // Le trattative in sola lettura: lo stato si cambia dalla dashboard o
-    // dalla sezione Club e Family, dove c'è la pipeline intorno. Qui si
-    // lavorano le **richieste**, che sono il lavoro concreto di una scheda.
+    supabase
+      .from('form_contatti')
+      .select('id, created_at, origine, attivita, attivita_label, azione, data_scelta, ora_scelta, messaggio, gestito, assegnato_a, note, opportunita_id')
+      .eq('persona_id', params.id)
+      .order('created_at', { ascending: false }),
     conColonneNuove<Record<string, any>>(
       'id, stato, assegnato_a, creato_il, chiuso_il, motivo_perso, motivo_annullato, motivo_vinto, valore_euro, triple_pack, origine',
       COLONNE_NOTA_VINTA,
@@ -179,227 +119,121 @@ export default async function PersonaPage({ params }: { params: { id: string } }
           .eq('persona_id', params.id)
           .order('creato_il', { ascending: false })
     ),
-    // Le vendite sincronizzate da Info4U, dalla più recente: è lo storico
-    // acquisti della persona, indipendente dalle richieste dal sito — un
-    // contatto arrivato solo da Info4U (mai una richiesta) ne ha comunque.
     supabase
       .from('abbonamenti')
-      .select(
-        'id, abbonamento, variante, periodo, durata, totale, data_vendita, data_inizio, data_fine, operatore_nome, data_disdetta, motivo_disdetta'
-      )
+      .select('id, abbonamento, variante, periodo, durata, totale, data_vendita, data_inizio, data_fine, data_disdetta, operatore_nome')
       .eq('persona_id', params.id)
       .order('data_vendita', { ascending: false, nullsFirst: false }),
-    pagineVisitate(supabase, params.id),
-    haDirittoDiCancellare(email),
-    supabase.from('staff_users').select('email, nome, cognome'),
+    supabase.from('staff_users').select('email, nome, cognome, commerciale'),
     eCommerciale(email),
     puoRiassegnare(email),
+    pagineVisitate(supabase, params.id),
   ])
-
-  const staffOrdinato = ordinaPerCognome((staff ?? []) as RigaStaff[])
-  const operatori = staffOrdinato.map((x) => x.email)
-  const nomiStaff = mappaNomiStaff(staffOrdinato)
-
-  // Il lavoro fatto dalla segreteria per portare la persona al rinnovo
-  // (Rinnovi Core / Abbonamenti in scadenza): nota di gestione, stato e —
-  // se persa — motivo ed eventuale nota del mancato rinnovo. Vive in una
-  // tabella a parte (abbonamenti_scadenze_lavorazione, vedi
-  // scripts/sql/2026-09-25-abbonamenti-scadenze-lavorazione.sql) perché la
-  // sincronizzazione Info4U riscrive `abbonamenti` per intero: qui si legge
-  // solo, la si scrive da Rinnovi Core o da Abbonamenti in scadenza.
-  const idAbbonamenti = (abbonamenti ?? []).map((a) => a.id as string)
-  const { data: lavorazioni } = idAbbonamenti.length
-    ? await supabase
-        .from('abbonamenti_scadenze_lavorazione')
-        .select('abbonamento_id, nota, stato_manuale, motivo_non_rinnovo, note_non_rinnovo, assegnato_a')
-        .in('abbonamento_id', idAbbonamenti)
-    : { data: [] as Record<string, any>[] }
-  const lavorazionePerAbbonamento = new Map(
-    (lavorazioni ?? []).map((l) => [l.abbonamento_id as string, l])
-  )
-  const oggiISO = new Date().toISOString().slice(0, 10)
-
-  // La trattativa aperta, per poterla chiudere dalla richiesta che si sta
-  // lavorando. Al massimo una (vedi trova_o_crea_opportunita); le chiuse
-  // restano nell'elenco in sola lettura qui sopra, che è la loro storia.
-  const apertaOra = (trattative ?? []).find(
-    (t) => t.stato === 'nuovo' || t.stato === 'in_gestione'
-  )
-  const trattativaAperta = apertaOra
-    ? {
-        id: apertaOra.id as string,
-        stato: apertaOra.stato as StatoTrattativa,
-        assegnato_a: (apertaOra.assegnato_a as string) ?? null,
-        chiuso_il: (apertaOra.chiuso_il as string) ?? null,
-        motivo_perso: (apertaOra.motivo_perso as string) ?? null,
-        motivo_annullato: (apertaOra.motivo_annullato as string) ?? null,
-        motivo_vinto: (apertaOra.motivo_vinto as string) ?? null,
-        valore_euro: apertaOra.valore_euro != null ? Number(apertaOra.valore_euro) : null,
-        triple_pack: !!apertaOra.triple_pack,
-      }
-    : null
 
   if (!persona) notFound()
 
-  // Conflitti email/cellulare con la sincronizzazione Info4U (vedi
-  // scripts/sql/2026-09-22-persone-conflitto-info4u.sql e
-  // ops/sync-info4u/sync-abbonamenti.ps1): questa persona non viene MAI
-  // toccata quando un utente Info4U condivide per caso il suo recapito, ma
-  // lo staff deve poterlo vedere, in entrambe le direzioni.
-  //   - conflittoVerso: questa persona È la riga separata creata per un
-  //     utente Info4U, e punta a chi possiede davvero il recapito mancante.
-  //   - personeInConflitto: uno o più utenti Info4U hanno provato a
-  //     prendere un recapito di questa persona e sono finiti in una scheda
-  //     a parte, che punta qui.
-  const [{ data: conflittoVerso }, { data: personeInConflitto }] = await Promise.all([
-    persona.conflitto_con_persona_id
-      ? supabase
-          .from('persone')
-          .select('id, nome, cognome, email, cellulare')
-          .eq('id', persona.conflitto_con_persona_id)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
-    supabase
-      .from('persone')
-      .select('id, nome, cognome, email, cellulare, conflitto_campo')
-      .eq('conflitto_con_persona_id', params.id),
-  ])
+  const staffOrdinato = ordinaPerCognome((staff ?? []) as (RigaStaff & { commerciale?: boolean })[])
+  const operatori = staffOrdinato.map((x) => x.email)
+  const commerciali = staffOrdinato.filter((x) => x.commerciale).map((x) => x.email)
+  const nomiStaff = mappaNomiStaff(staffOrdinato)
+  const oggi = oggiRoma()
+  const nome = nomePersona(persona)
 
+  // Le azioni: gli eventi in agenda, agganciati alla persona o a una sua
+  // richiesta, più le richieste dal sito ancora da gestire.
   const elenco = richieste ?? []
-  const daLavorare = elenco.filter((r) => !r.gestito).length
-
-  // Gli eventi in agenda di questa persona: mancavano del tutto dalla
-  // scheda, che sapeva solo delle richieste dal sito. Due agganci, come in
-  // agenda/page.tsx e [canale]/page.tsx — un evento nasce da una richiesta
-  // (entita_id = id della richiesta) oppure è creato a mano per il contatto
-  // (entita_id = id della persona) — e vanno cercati entrambi, o metà del
-  // seguito (quello fissato a mano) resterebbe fuori.
   const idRichieste = elenco.map((r) => r.id as string)
   const COLONNE_EVENTO =
     'id, titolo, tipo, data, ora, durata_minuti, note, assegnato_a, stato, esito_tipo, esito, esito_da, esito_il, entita, entita_id'
-  const [{ data: eventiDaRichieste }, { data: eventiDaPersona }] = await Promise.all([
+  const [{ data: eventiDaRichieste }, { data: eventiDaPersona }, { data: conflitti }] = await Promise.all([
     idRichieste.length
-      ? supabase
-          .from('task')
-          .select(COLONNE_EVENTO)
-          .eq('entita', 'form_contatti')
-          .in('entita_id', idRichieste)
+      ? supabase.from('task').select(COLONNE_EVENTO).eq('entita', 'form_contatti').in('entita_id', idRichieste)
       : Promise.resolve({ data: [] as Record<string, any>[] }),
     supabase.from('task').select(COLONNE_EVENTO).eq('entita', 'persona').eq('entita_id', params.id),
-  ])
-
-  const vociEventi = [...(eventiDaRichieste ?? []), ...(eventiDaPersona ?? [])]
-    .map((riga) => voceDaTask(riga))
-    .sort((a, b) => `${b.data}${b.ora ?? ''}`.localeCompare(`${a.data}${a.ora ?? ''}`))
-
-  // Raggruppati per tipo — visita in sede, telefonata, task, email,
-  // whatsapp, messaggio — nell'ordine di TIPI: chi cerca «i tour» o «i
-  // messaggi» apre solo il gruppo che gli interessa, invece di scorrere un
-  // elenco unico dove i tipi sono mescolati.
-  const gruppiEventi = TIPI.map((tipo) => ({
-    tipo,
-    voci: vociEventi.filter((v) => v.tipo === tipo),
-  })).filter((g) => g.voci.length > 0)
-
-  // Il registro: ogni nota e ogni esito sovrascrivono il precedente sulla
-  // riga (vedi salvaGestione e chiudiConEsito/correggiEsito), quindi la
-  // scheda da sola non porta memoria di cosa c'era scritto prima. Il
-  // registro operatori (audit_log) la tiene già — la scrive ogni azione, ma
-  // finora si leggeva solo come elenco generale di "Controllo operatori",
-  // mescolato fra tutti i contatti e tutti gli operatori.
-  //
-  // Quattro letture, una per ogni modo in cui un'azione si aggancia a questa
-  // persona: sulla persona stessa (creata a mano, evento fissato per lei),
-  // su una sua richiesta dal sito, su un suo evento in agenda, o su una sua
-  // trattativa. 'persone' al plurale è un refuso storico di
-  // persona_creata_a_mano (vedi agenda/actions.ts): niente qui lo corregge,
-  // quindi lo si cerca insieme a 'persona' invece di perdere quelle righe.
-  const MAX_REGISTRO = 200
-  const idEventi = vociEventi.map((v) => v.id)
-  const idTrattative = (trattative ?? []).map((t) => t.id as string)
-  const COLONNE_LOG = 'id, created_at, email, azione, entita, entita_id, dettagli'
-  const [
-    { data: logPersona },
-    { data: logRichieste },
-    { data: logEventi },
-    { data: logTrattative },
-  ] = await Promise.all([
     supabase
-      .from('audit_log')
-      .select(COLONNE_LOG)
-      .in('entita', ['persona', 'persone'])
-      .eq('entita_id', params.id)
-      .order('created_at', { ascending: false })
-      .limit(MAX_REGISTRO),
-    idRichieste.length
-      ? supabase
-          .from('audit_log')
-          .select(COLONNE_LOG)
-          .eq('entita', 'form_contatti')
-          .in('entita_id', idRichieste)
-          .order('created_at', { ascending: false })
-          .limit(MAX_REGISTRO)
-      : Promise.resolve({ data: [] as Record<string, any>[] }),
-    idEventi.length
-      ? supabase
-          .from('audit_log')
-          .select(COLONNE_LOG)
-          .eq('entita', 'task')
-          .in('entita_id', idEventi)
-          .order('created_at', { ascending: false })
-          .limit(MAX_REGISTRO)
-      : Promise.resolve({ data: [] as Record<string, any>[] }),
-    idTrattative.length
-      ? supabase
-          .from('audit_log')
-          .select(COLONNE_LOG)
-          .eq('entita', 'opportunita')
-          .in('entita_id', idTrattative)
-          .order('created_at', { ascending: false })
-          .limit(MAX_REGISTRO)
-      : Promise.resolve({ data: [] as Record<string, any>[] }),
+      .from('persone')
+      .select('id, nome, cognome, conflitto_campo')
+      .or(
+        `conflitto_con_persona_id.eq.${params.id}${persona.conflitto_con_persona_id ? `,id.eq.${persona.conflitto_con_persona_id}` : ''}`
+      ),
   ])
 
-  const registroCompleto = [
-    ...(logPersona ?? []),
-    ...(logRichieste ?? []),
-    ...(logEventi ?? []),
-    ...(logTrattative ?? []),
-  ].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
-  // Quattro letture, ciascuna già limitata alla sua fetta: il taglio va
-  // rifatto sull'insieme ordinato, altrimenti una persona con più
-  // trattative che richieste vedrebbe le trattative più vecchie scacciare
-  // le richieste più recenti invece delle voci davvero più vecchie di tutte.
-  const registro = registroCompleto.slice(0, MAX_REGISTRO)
-  const registroTroncato = registroCompleto.length > MAX_REGISTRO
+  const contatto = { id: persona.id, nome, email: persona.email, cellulare: persona.cellulare }
+  const conContatto = (v: VoceAgenda): VoceAgenda => ({
+    ...v,
+    persona: nome,
+    personaId: persona.id,
+    cellulare: persona.cellulare,
+  })
+  const eventi = [...(eventiDaRichieste ?? []), ...(eventiDaPersona ?? [])].map((r) =>
+    conContatto(voceDaTask(r, contatto))
+  )
+  const richiesteAperte = elenco
+    .filter((r) => !r.gestito)
+    .map((r) => conContatto(voceDaContatto({ ...r, nome: persona.nome, cognome: persona.cognome })))
+  // Tre gruppi, sempre con la più recente in alto: da fare ora (oggi o
+  // scadute), in programma (future), fatte.
+  const piuRecenteSopra = (a: VoceAgenda, b: VoceAgenda) =>
+    `${b.data}${b.ora ?? ''}`.localeCompare(`${a.data}${a.ora ?? ''}`)
+  const aperte = [...eventi.filter((v) => v.stato === 'aperto'), ...richiesteAperte]
+  const daFareOra = aperte.filter((v) => v.data <= oggi).sort(piuRecenteSopra)
+  const inProgramma = aperte.filter((v) => v.data > oggi).sort(piuRecenteSopra)
+  const fatte = eventi.filter((v) => v.stato !== 'aperto').sort(piuRecenteSopra)
+
+  // Il lead: quello aperto, o il più recente. Gli altri restano una riga sotto.
+  const tutte = trattative ?? []
+  const lead = tutte.find((t) => t.stato === 'nuovo' || t.stato === 'in_gestione') ?? tutte[0] ?? null
+  const altriLead = tutte.filter((t) => t !== lead)
+  const richiestaLead = lead ? elenco.find((r) => r.opportunita_id === lead.id) ?? null : null
+  const provenienza = lead
+    ? provenienzaTrattativa({
+        origineRichiesta: richiestaLead?.origine as string | null,
+        origineTrattativa: lead.origine as string | null,
+        haRichiesta: !!richiestaLead,
+      })
+    : null
+  const motivo = lead ? motivoDi(lead as any) : null
+
+  // Gli accessi al sito, un giorno per riga: quando è venuto, quante pagine,
+  // e quali (dentro la tendina).
+  const accessi = new Map<string, { quando: string; pagine: Record<string, any>[] }>()
+  for (const v of pagine) {
+    const giorno = String(v.visto_at).slice(0, 10)
+    const gia = accessi.get(giorno)
+    if (gia) gia.pagine.push(v)
+    else accessi.set(giorno, { quando: v.visto_at as string, pagine: [v] })
+  }
+
+  // Gli abbonamenti: prima gli attivi, poi gli altri; in ogni gruppo il più
+  // recente in alto (per inizio, o per vendita se l'inizio manca).
+  const eAttivo = (a: Record<string, any>) => !a.data_disdetta && (!a.data_fine || (a.data_fine as string) >= oggi)
+  const quandoAbb = (a: Record<string, any>) => String(a.data_inizio ?? a.data_vendita ?? '')
+  const abbonamentiOrdinati = [...(abbonamenti ?? [])].sort(
+    (a, b) => Number(eAttivo(b)) - Number(eAttivo(a)) || quandoAbb(b).localeCompare(quandoAbb(a))
+  )
+
+  const conflittoVerso = (conflitti ?? []).find((c) => c.id === persona.conflitto_con_persona_id)
+  const personeInConflitto = (conflitti ?? []).filter((c) => c.id !== persona.conflitto_con_persona_id)
 
   return (
     <>
       <div className="page-head">
         <p className="eyebrow">
-          <Link href="/dashboard/persone">← Anagrafica</Link>
+          <Link href="/dashboard/persone">← Contatti</Link>
         </p>
         <h1>
-          {nomePersona(persona)}
-          {/* Inserito a mano: non ha mai scritto dal sito, l'ha creato la
-              segreteria fissandogli qualcosa in agenda. Va detto qui, perché
-              spiega i numeri qui sotto — zero richieste e nessuna «prima
-              volta che ha scritto» — che altrimenti si leggono come un
-              guasto. */}
+          {nome}
           {eInseritoAMano(persona.fonte) && (
             <span className="badge badge-off" style={{ marginLeft: '0.6rem' }}>
               {ETICHETTA_MANUALE}
             </span>
           )}
         </h1>
-        <p className="muted">
-          {[persona.email, persona.cellulare].filter(Boolean).join(' · ') || 'nessun contatto'}
-        </p>
-        <div className="agenda-nav" style={{ marginTop: '0.75rem' }}>
+        <div className="agenda-nav" style={{ marginTop: '0.5rem' }}>
           {persona.cellulare && (
             <>
               <a className="btn btn-ghost btn-sm" href={`tel:${soloCifre(persona.cellulare)}`}>
-                Chiama
+                {persona.cellulare}
               </a>
               <a
                 className="btn btn-ghost btn-sm"
@@ -413,446 +247,259 @@ export default async function PersonaPage({ params }: { params: { id: string } }
           )}
           {persona.email && (
             <a className="btn btn-ghost btn-sm" href={`mailto:${persona.email}`}>
-              Email
+              {persona.email}
             </a>
           )}
+          {!persona.cellulare && !persona.email && <span className="muted">nessun contatto</span>}
         </div>
       </div>
 
-      {(conflittoVerso || (personeInConflitto ?? []).length > 0) && (
+      {(conflittoVerso || personeInConflitto.length > 0) && (
         <div className="card card-avviso">
-          <div className="card-head">
-            <h3 className="card-titolo">Possibile omonimo o recapito condiviso con un&apos;altra anagrafica</h3>
-          </div>
-          {conflittoVerso && (
-            <p className="card-nota muted">
-              {descrizioneConflitto(persona.conflitto_campo)} di questa scheda (sincronizzata da Info4U)
-              coincide con quello di{' '}
-              <Link href={`/dashboard/persone/${conflittoVerso.id}`}>{nomePersona(conflittoVerso)}</Link>:
-              per non sovrascrivere quel contatto non sono state unite automaticamente. Verifica se è la
-              stessa persona.
-            </p>
-          )}
-          {(personeInConflitto ?? []).map((p) => (
-            <p className="card-nota muted" key={p.id as string}>
-              Un&apos;anagrafica sincronizzata da Info4U (
-              <Link href={`/dashboard/persone/${p.id}`}>{nomePersona(p)}</Link>) condivide{' '}
-              {descrizioneConflitto(p.conflitto_campo).toLowerCase()} di questo contatto: non è stata
-              unita automaticamente per non sovrascriverlo.
-            </p>
-          ))}
-        </div>
-      )}
-
-      <div className="griglia-stat">
-        <div className="stat">
-          <span className="stat-valore">{elenco.length}</span>
-          <span className="stat-label">Richieste in tutto</span>
-        </div>
-        <div className="stat">
-          <span className="stat-valore">{daLavorare}</span>
-          <span className="stat-label">Ancora da lavorare</span>
-        </div>
-        <div className="stat">
-          <span className="stat-valore">{dataOra(persona.creato_il)}</span>
-          {/* Chi è stato inserito a mano non ha «scritto» niente: quella data
-              è il giorno in cui la segreteria l'ha messo in anagrafica. */}
-          <span className="stat-label">
-            {eInseritoAMano(persona.fonte) ? 'In anagrafica da' : 'Prima volta che ha scritto'}
-          </span>
-        </div>
-      </div>
-
-      {(trattative ?? []).length > 0 && (
-        <div className="card">
-          <div className="card-head">
-            <h2>Trattativa</h2>
-            <span className="muted">Club e Family</span>
-          </div>
-          <ul className="voci">
-            {(trattative ?? []).map((t) => (
-              <li className="voce" key={t.id as string}>
-                <span className="voce-ora">{dataOra(t.creato_il as string)}</span>
-                <span className="voce-corpo">
-                  <span className="voce-titolo">
-                    <span className={`badge badge-stato badge-punto ${CLASSE_BADGE_STATO[t.stato as StatoTrattativa]}`}>
-                      {ETICHETTE_STATO[t.stato as StatoTrattativa]}
-                    </span>
-                    {/* Nata al banco, non dal sito: cambia come ci si
-                        presenta a chi si richiama, e va detto qui perché in
-                        pipeline la trattativa si legge da sola. */}
-                    {t.origine === 'walk-in' && (
-                      <span className="badge badge-walkin" style={{ marginLeft: '0.5rem' }}>
-                        Walk-in
-                      </span>
-                    )}
-                    <span className="muted" style={{ marginLeft: '0.5rem', fontSize: 'var(--text-sm)' }}>
-                      {t.assegnato_a
-                        ? `la segue ${nomeDiEmail(t.assegnato_a as string, nomiStaff)}`
-                        : 'nessun assegnatario'}
-                    </span>
-                  </span>
-                  {t.stato === 'vinto' && (t.motivo_vinto || t.valore_euro != null) && (
-                    <span className="voce-note muted">
-                      Venduto: {t.motivo_vinto ?? '—'}
-                      {euro(t.valore_euro != null ? Number(t.valore_euro) : null) &&
-                        ` · ${euro(Number(t.valore_euro))}`}
-                      {t.triple_pack && ' · triple pack'}
-                      {/* La data della vendita, non quella (spesso identica)
-                          in cui è girata la sincronizzazione: chiuso_il la
-                          porta già, per le vinte chiuse da un abbonamento
-                          sincronizzato (vedi chiudi_trattativa_da_abbonamento). */}
-                      {t.chiuso_il && ` · ${dataOra(t.chiuso_il as string)}`}
-                    </span>
-                  )}
-                  {t.motivo_perso && <span className="voce-note muted">Motivo: {t.motivo_perso}</span>}
-                  {/* Un'annullata nella storia di una persona va spiegata più
-                      di una persa: «Persa» si capisce da sé, una trattativa
-                      sparita senza dire perché sembra un buco nei dati. */}
-                  {t.motivo_annullato && (
-                    <span className="voce-note muted">Annullata: {t.motivo_annullato}</span>
-                  )}
-                </span>
-                <span className="voce-azioni">
-                  <Link className="btn btn-ghost btn-sm" href="/dashboard/richieste/richieste-club?mostra=tutte">
-                    Apri in Club e Family
-                  </Link>
-                </span>
-              </li>
+          <p className="card-nota muted">
+            {conflittoVerso && (
+              <>
+                {descrizioneConflitto(persona.conflitto_campo)} coincide con quello di{' '}
+                <Link href={`/dashboard/persone/${conflittoVerso.id}`}>{nomePersona(conflittoVerso)}</Link>: verifica se
+                è la stessa persona.{' '}
+              </>
+            )}
+            {personeInConflitto.map((p) => (
+              <span key={p.id as string}>
+                Possibile doppione: <Link href={`/dashboard/persone/${p.id}`}>{nomePersona(p)}</Link>.{' '}
+              </span>
             ))}
-          </ul>
+          </p>
         </div>
       )}
 
-      {/* Le vendite sincronizzate da Info4U: indipendenti dalle richieste dal
-          sito, quindi le ha anche un contatto arrivato solo da lì (nessuna
-          richiesta, nessuna trattativa). Chiusa di default e dentro un
-          <details>, come lo storico eventi qui sotto: chi ha comprato più
-          volte non deve riempire la scheda da solo appena la si apre. */}
-      <div className="card">
-        <div className="card-head">
-          <h2>Abbonamenti</h2>
-          <span className="muted">
-            {(abbonamenti ?? []).length > 0
-              ? `${(abbonamenti ?? []).length} ${(abbonamenti ?? []).length === 1 ? 'abbonamento' : 'abbonamenti'}`
-              : 'nessuno'}
-          </span>
+      <div className="scheda-griglia">
+        {/* ---- Colonna 1: il lavoro ---- */}
+        <div>
+          <div className="card">
+            <div className="card-head">
+              <h2>Lead</h2>
+              {lead && (
+                <span className={`badge badge-stato badge-punto ${CLASSE_BADGE_STATO[lead.stato as StatoTrattativa]}`}>
+                  {ETICHETTE_STATO[lead.stato as StatoTrattativa]}
+                </span>
+              )}
+            </div>
+            {!lead ? (
+              <p className="vuoto">Nessun lead per questa persona.</p>
+            ) : (
+              <>
+                <dl className="dati">
+                  <dt>Arrivato</dt>
+                  <dd>{dataOra(lead.creato_il as string)}</dd>
+                  {provenienza && (
+                    <>
+                      <dt>Da</dt>
+                      <dd>
+                        <span className={`tag-provenienza ${provenienza.classe}`}>{provenienza.etichetta}</span>
+                      </dd>
+                    </>
+                  )}
+                  {richiestaLead?.attivita_label && (
+                    <>
+                      <dt>Interesse</dt>
+                      <dd>{richiestaLead.attivita_label as string}</dd>
+                    </>
+                  )}
+                  {richiestaLead?.messaggio && (
+                    <>
+                      <dt>Messaggio</dt>
+                      <dd>{richiestaLead.messaggio as string}</dd>
+                    </>
+                  )}
+                  {lead.chiuso_il && (
+                    <>
+                      <dt>Chiuso</dt>
+                      <dd>
+                        {dataOra(lead.chiuso_il as string)}
+                        {lead.stato === 'vinto' && euro(lead.valore_euro != null ? Number(lead.valore_euro) : null)
+                          ? ` · ${euro(Number(lead.valore_euro))}`
+                          : ''}
+                      </dd>
+                    </>
+                  )}
+                  {motivo && (
+                    <>
+                      <dt>Nota</dt>
+                      <dd>{motivo}</dd>
+                    </>
+                  )}
+                </dl>
+                <div className="scheda-comandi">
+                  <span className="muted">In carico a · stato</span>
+                  <ComandiLead
+                    id={lead.id as string}
+                    stato={lead.stato as StatoTrattativa}
+                    assegnatoA={(lead.assegnato_a as string) ?? null}
+                    io={email}
+                    commerciali={commerciali}
+                    nomiStaff={nomiStaff}
+                    sonoCommerciale={sonoCommerciale}
+                    possoRiassegnare={possoRiassegnare}
+                  />
+                </div>
+                {altriLead.length > 0 && (
+                  <p className="card-nota muted">
+                    Lead precedenti:{' '}
+                    {altriLead
+                      .map((t) => `${ETICHETTE_STATO[t.stato as StatoTrattativa]} (${dataBreveAnno(String(t.creato_il).slice(0, 10))})`)
+                      .join(' · ')}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+
+          <div className="card">
+            <div className="card-head">
+              <h2>Azioni</h2>
+            </div>
+
+            <div className="azioni-gruppo azioni-gruppo-ora">
+              <h3>
+                Da fare ora <span className="azioni-gruppo-conto">{daFareOra.length}</span>
+                <span className="muted azioni-gruppo-nota">oggi o scadute</span>
+              </h3>
+              {daFareOra.length > 0 ? (
+                <AzioniVeloci voci={daFareOra} oggi={oggi} nomiStaff={nomiStaff} mostraChi conScheda={false} />
+              ) : (
+                <p className="muted azioni-gruppo-vuoto">Niente da fare adesso.</p>
+              )}
+            </div>
+
+            <div className="azioni-gruppo azioni-gruppo-future">
+              <h3>
+                In programma <span className="azioni-gruppo-conto">{inProgramma.length}</span>
+                <span className="muted azioni-gruppo-nota">nei prossimi giorni</span>
+              </h3>
+              {inProgramma.length > 0 ? (
+                <AzioniVeloci voci={inProgramma} oggi={oggi} nomiStaff={nomiStaff} mostraChi conScheda={false} />
+              ) : (
+                <p className="muted azioni-gruppo-vuoto">Nessuna azione in programma.</p>
+              )}
+            </div>
+
+            <div className="azioni-gruppo azioni-gruppo-fatte">
+              <h3>
+                Fatte <span className="azioni-gruppo-conto">{fatte.length}</span>
+              </h3>
+              {fatte.length === 0 ? (
+                <p className="muted azioni-gruppo-vuoto">Nessuna azione fatta.</p>
+              ) : (
+                <ol className="storia">
+                  {fatte.map((v) => (
+                    <li key={v.chiave}>
+                      <span className={`badge-tipo ${CLASSE_TIPO[v.tipo]}`}>{ETICHETTE_TIPO_BREVI[v.tipo]}</span>{' '}
+                      <span className="muted">
+                        {dataBreveAnno(v.data)}
+                        {v.ora ? ` · ${v.ora}` : ''}
+                        {v.assegnatoA ? ` · ${nomeDiEmail(v.assegnatoA, nomiStaff)}` : ''}
+                      </span>{' '}
+                      {v.esitoTipo ? (
+                        <span className={`badge ${v.esitoTipo === 'eseguita' ? 'badge-ok' : 'badge-ko'}`}>
+                          {etichettaEsito(v.esitoTipo, v.tipo)}
+                        </span>
+                      ) : (
+                        <span className="badge">{v.stato === 'annullato' ? 'Annullata' : 'Fatta'}</span>
+                      )}
+                      {(v.esito || v.note) && <div className="storia-testo">{v.esito || v.note}</div>}
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+
+            <div className="nuova-azione-box">
+              <h3>Nuova azione</h3>
+              <NuovaAzione
+                personaId={persona.id}
+                nome={nome}
+                oggi={oggi}
+                io={email}
+                operatori={operatori}
+                nomiStaff={nomiStaff}
+              />
+            </div>
+          </div>
         </div>
 
-        {(abbonamenti ?? []).length === 0 ? (
-          <p className="vuoto">Nessun abbonamento sincronizzato da Info4U per questa persona.</p>
-        ) : (
-          <details className="storico-gruppo">
-            <summary className="storico-gruppo-testa">
-              <span>Elenco abbonamenti, dal più recente</span>
-              <span className="storico-gruppo-apri" aria-hidden="true" />
-            </summary>
-            <div className="storico-gruppo-corpo">
-              <ul className="voci">
-                {(abbonamenti ?? []).map((a) => {
-                  const scaduto = !!a.data_fine && (a.data_fine as string) < oggiISO
-                  const lav = lavorazionePerAbbonamento.get(a.id as string)
-                  const perso = lav?.stato_manuale === 'perso'
-                  // Il lavoro sul rinnovo si mostra solo su un abbonamento
-                  // scaduto e solo se c'è davvero qualcosa scritto: altrimenti
-                  // ogni scadenza mai toccata da Rinnovi Core aggiungerebbe
-                  // una riga vuota "— vuoto —" a tutta la lista.
-                  const daMostrare =
-                    scaduto && lav && (lav.nota || lav.stato_manuale || lav.motivo_non_rinnovo || lav.note_non_rinnovo)
+        {/* ---- Colonna 2: gli abbonamenti (Info4U) ---- */}
+        <div>
+          <div className="card">
+            <div className="card-head">
+              <h2>Abbonamenti</h2>
+            </div>
+            {(abbonamenti ?? []).length === 0 ? (
+              <p className="vuoto">Nessun abbonamento.</p>
+            ) : (
+              <ul className="storia">
+                {abbonamentiOrdinati.map((a) => {
+                  const attivo = eAttivo(a)
                   return (
-                    <li className="voce" key={a.id as string}>
-                      <span className="voce-ora">{dataOra(a.data_vendita as string | null)}</span>
-                      <span className="voce-corpo">
-                        <span className="voce-titolo">
-                          {(a.abbonamento as string) || 'Abbonamento'}
-                          {a.variante ? ` — ${a.variante}` : ''}
-                        </span>
-                        <span className="voce-note muted">
-                          {euro(a.totale != null ? Number(a.totale) : null) ?? 'importo non registrato'}
-                          {a.periodo ? ` · ${a.periodo}` : a.durata ? ` · ${a.durata} giorni` : ''}
-                          {/* dataBreveAnno, non la dataBreve dell'agenda: qui la
-                              validità può cadere in un anno qualunque dei tanti
-                              portati dallo storico Info4U, non nei prossimi
-                              giorni come in agenda — senza l'anno due vendite a
-                              distanza di anni si leggono con la stessa data. */}
-                          {a.data_inizio && a.data_fine
-                            ? ` · validità ${dataBreveAnno(a.data_inizio as string)} – ${dataBreveAnno(a.data_fine as string)}`
-                            : a.data_inizio
-                              ? ` · dal ${dataBreveAnno(a.data_inizio as string)}`
-                              : a.data_fine
-                                ? ` · fino al ${dataBreveAnno(a.data_fine as string)}`
-                                : ''}
-                          {a.operatore_nome && ` · ${a.operatore_nome}`}
-                        </span>
-                        {/* La disdetta è un fatto della vendita, non del
-                            contratto in generale: senza dirlo qui, un
-                            abbonamento disdetto sembra ancora attivo. */}
-                        {a.data_disdetta && (
-                          <span className="voce-note muted">
-                            Disdetto il {dataBreveAnno(a.data_disdetta as string)}
-                            {a.motivo_disdetta ? ` — ${a.motivo_disdetta}` : ''}
-                          </span>
-                        )}
-                        {/* Il lavoro della segreteria per portare questa
-                            scadenza al rinnovo (Rinnovi Core / Abbonamenti in
-                            scadenza): la nota di gestione resta sempre
-                            visibile, motivo e nota del mancato rinnovo solo
-                            quando lo stato è "Perso" — prima di allora non
-                            significano ancora niente. */}
-                        {daMostrare && (
-                          <span className="voce-note">
-                            {lav?.stato_manuale && (
-                              <span
-                                className={`badge badge-punto ${perso ? 'badge-ko' : 'badge-warn'}`}
-                                style={{ marginRight: '0.5rem' }}
-                              >
-                                {perso ? 'Rinnovo perso' : 'In trattativa'}
-                              </span>
-                            )}
-                            {lav?.assegnato_a && (
-                              <span className="muted" style={{ fontSize: 'var(--text-sm)' }}>
-                                segue {nomeDiEmail(lav.assegnato_a as string, nomiStaff)}
-                              </span>
-                            )}
-                            {lav?.nota && (
-                              <span className="voce-note muted">Nota gestione: {lav.nota as string}</span>
-                            )}
-                            {perso && lav?.motivo_non_rinnovo && (
-                              <span className="voce-note muted">
-                                Motivo mancato rinnovo: {lav.motivo_non_rinnovo as string}
-                              </span>
-                            )}
-                            {perso && lav?.note_non_rinnovo && (
-                              <span className="voce-note muted">{lav.note_non_rinnovo as string}</span>
-                            )}
-                          </span>
-                        )}
+                    <li key={a.id as string}>
+                      <strong>{(a.abbonamento as string) || 'Abbonamento'}</strong>
+                      {a.variante ? ` — ${a.variante}` : ''}{' '}
+                      <span className={`badge ${attivo ? 'badge-ok' : ''}`}>
+                        {a.data_disdetta ? 'Disdetto' : attivo ? 'Attivo' : 'Scaduto'}
                       </span>
+                      <div className="storia-testo muted">
+                        {[
+                          euro(a.totale != null ? Number(a.totale) : null),
+                          a.data_inizio && `dal ${dataBreveAnno(a.data_inizio as string)}`,
+                          a.data_fine && `al ${dataBreveAnno(a.data_fine as string)}`,
+                          // Il consulente che l'ha venduto, come scritto su Info4U.
+                          a.operatore_nome && `consulente ${a.operatore_nome}`,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </div>
                     </li>
                   )
                 })}
               </ul>
-            </div>
-          </details>
-        )}
-      </div>
-
-      {/* Le pagine del sito che ha guardato, in ordine cronologico.
-          Prima qui c'erano la correzione del nome e una nota generica della
-          persona; il percorso sul sito stava chiuso dentro ogni singola
-          richiesta, una visita per volta. Ma è il percorso a dire cosa
-          interessa a questa persona — le tre volte che è tornata sulla pagina
-          del padel prima di scrivere del nuoto — e si legge tutto insieme o
-          non si legge. */}
-      <div className="card">
-        <div className="card-head">
-          <h2>Pagine viste sul sito</h2>
-          <span className="muted">
-            {percorso.pagine.length > 0
-              ? `${percorso.pagine.length}${percorso.troncato ? '+' : ''} in ordine di visita`
-              : 'nessuna visita collegata'}
-          </span>
-        </div>
-
-        {percorso.pagine.length === 0 ? (
-          <p className="vuoto">
-            Nessuna pagina registrata: la visita non è stata riconosciuta, o la persona è stata
-            inserita a mano.
-          </p>
-        ) : (
-          <>
-            <ol className="visite-elenco">
-              {percorso.pagine.map((v, i) => {
-                const precedente = i > 0 ? percorso.pagine[i - 1] : null
-                // Il giorno si scrive solo quando cambia: ripeterlo su venti
-                // righe di fila lo rende la colonna più rumorosa e meno
-                // informativa dell'elenco.
-                const giornoNuovo =
-                  !precedente ||
-                  String(precedente.visto_at).slice(0, 10) !== String(v.visto_at).slice(0, 10)
-                return (
-                  <li className="visite-riga" key={`${v.visto_at}-${i}`}>
-                    <span className="visite-quando muted">
-                      {giornoNuovo ? dataOraDi(v.visto_at as string) : oraDi(v.visto_at as string)}
-                    </span>
-                    <span className="visite-dove" title={v.pagina as string}>
-                      {(v.titolo as string) || percorsoBreve(v.pagina as string)}
-                    </span>
-                  </li>
-                )
-              })}
-            </ol>
-            {percorso.troncato && (
-              <p className="card-nota muted">
-                Le più recenti {MAX_PAGINE_VISITATE}: oltre, l&apos;elenco smette di essere un
-                percorso e diventa un registro.
-              </p>
             )}
-          </>
-        )}
-      </div>
-
-      <div className="card">
-        <div className="card-head">
-          <h2>Le sue richieste</h2>
-          <span className="muted">dalla più recente · si lavorano da qui</span>
+          </div>
+          <div className="card">
+            <div className="card-head">
+              <h2>Accessi al sito</h2>
+              <span className="muted">
+                {accessi.size > 0 ? `${accessi.size} ${accessi.size === 1 ? 'giorno' : 'giorni'}` : 'nessuno'}
+              </span>
+            </div>
+            {accessi.size === 0 ? (
+              <p className="vuoto">Nessuna visita al sito collegata a questa persona.</p>
+            ) : (
+              <ul className="storia">
+                {[...accessi.entries()].map(([giorno, a]) => (
+                  <li key={giorno}>
+                    <details>
+                      <summary>
+                        <strong>{dataOraDi(a.quando)}</strong>{' '}
+                        <span className="muted">
+                          · {a.pagine.length} {a.pagine.length === 1 ? 'pagina' : 'pagine'}
+                        </span>
+                      </summary>
+                      <ol className="accessi-pagine">
+                        {[...a.pagine].reverse().map((v, i) => (
+                          <li key={i} title={v.pagina as string}>
+                            <span className="muted">{oraDi(v.visto_at as string)}</span>{' '}
+                            {(v.titolo as string) || percorsoBreve(v.pagina as string)}
+                          </li>
+                        ))}
+                      </ol>
+                    </details>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
-
-        {elenco.length === 0 ? (
-          <p className="vuoto">Nessuna richiesta collegata.</p>
-        ) : (
-          <RichiestePersona
-            richieste={elenco as unknown as RichiestaDiPersona[]}
-            email={persona.email}
-            cellulare={persona.cellulare}
-            nome={nomePersona(persona)}
-            operatori={operatori}
-            puoCancellare={possoCancellare}
-            trattativaAperta={trattativaAperta}
-            io={email}
-            sonoCommerciale={sonoCommerciale}
-            possoRiassegnare={possoRiassegnare}
-            nomiStaff={nomiStaff}
-          />
-        )}
-      </div>
-
-      {/* Tutto lo storico fra sito ed eventi, in un unico posto: prima gli
-          eventi in agenda di questa persona non comparivano da nessuna
-          parte sulla sua scheda — chi voleva sapere se il tour era stato
-          fatto doveva cercarlo in agenda o nel canale del corso. Raggruppati
-          per tipo e chiusi di default: chi ha trenta voci fra tour,
-          telefonate e messaggi apre solo il gruppo che gli interessa, invece
-          di scorrerle tutte mescolate. */}
-      <div className="card">
-        <div className="card-head">
-          <h2>Storico eventi</h2>
-          <span className="muted">
-            {vociEventi.length > 0
-              ? `${vociEventi.length} in agenda, per tipo`
-              : 'nessun evento in agenda'}
-          </span>
-        </div>
-
-        {vociEventi.length === 0 ? (
-          <p className="vuoto">
-            Nessun evento collegato a questa persona: né tour, né telefonate, né altro fissato in
-            agenda.
-          </p>
-        ) : (
-          gruppiEventi.map(({ tipo, voci }) => (
-            <details className="storico-gruppo" key={tipo}>
-              <summary className="storico-gruppo-testa">
-                <span className={`badge-tipo ${CLASSE_TIPO[tipo]}`}>{ETICHETTE_TIPO[tipo]}</span>
-                <span className="storico-gruppo-conteggio">
-                  {voci.length} {voci.length === 1 ? 'voce' : 'voci'}
-                </span>
-                <span className="storico-gruppo-apri" aria-hidden="true" />
-              </summary>
-              <div className="storico-gruppo-corpo">
-                <ul className="voci">
-                  {voci.map((v) => (
-                    <VoceStorico voce={v} nomiStaff={nomiStaff} key={v.chiave} />
-                  ))}
-                </ul>
-              </div>
-            </details>
-          ))
-        )}
-      </div>
-
-      {/* Il registro: ogni nota e ogni esito sovrascrivono il precedente
-          sulla riga, quindi da nessun'altra parte in questa scheda si legge
-          cosa c'era scritto prima di una correzione. Qui sì, perché il
-          registro operatori lo tiene già — mancava solo un modo di leggerlo
-          per un contatto solo, invece che come elenco generale mescolato a
-          tutti gli altri (vedi Controllo operatori). */}
-      <div className="card">
-        <div className="card-head">
-          <h2>Registro</h2>
-          <span className="muted">
-            {registro.length > 0
-              ? `${registro.length}${registroTroncato ? '+' : ''} azioni registrate`
-              : 'nessuna azione registrata'}
-          </span>
-        </div>
-
-        {registro.length === 0 ? (
-          <p className="vuoto">
-            Nessuna nota, esito o modifica registrata per questo contatto.
-          </p>
-        ) : (
-          <ul className="voci">
-            {registro.map((r) => (
-              <li className="voce" key={`${r.entita}-${r.id}`}>
-                <span className="voce-ora">{dataOra(r.created_at as string)}</span>
-                <span className="voce-corpo">
-                  <span className="voce-titolo">
-                    {AZIONI_LOG[r.azione as string] ? (
-                      etichettaAzione(r.azione as string)
-                    ) : (
-                      <code>{r.azione as string}</code>
-                    )}
-                    {r.email && (
-                      <span
-                        className="muted"
-                        style={{ marginLeft: '0.5rem', fontSize: 'var(--text-sm)' }}
-                      >
-                        — {nomeDiEmail(r.email as string, nomiStaff)}
-                      </span>
-                    )}
-                  </span>
-                  {dettagliLeggibili(r.dettagli) && (
-                    <span className="voce-note muted">{dettagliLeggibili(r.dettagli)}</span>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
     </>
-  )
-}
-
-/**
- * Una voce dello storico eventi: quando, che stato ha, chi la segue o chi
- * l'ha fatta, e — se è chiusa — con quale nota. Tutto in chiaro, senza
- * aprire nient'altro: è esattamente quello che manca oggi guardando un
- * evento da Eventi Core, dall'agenda o dalla dashboard, dove si vede solo
- * il tag «Eseguita» e non cosa è successo.
- */
-function VoceStorico({
-  voce,
-  nomiStaff,
-}: {
-  voce: VoceAgenda
-  nomiStaff: Record<string, string>
-}) {
-  const notaEsito = (voce.esito ?? voce.note ?? '').trim() || null
-  return (
-    <li className="voce">
-      <span className="voce-ora">
-        {dataBreve(voce.data)}
-        {voce.ora && ` · ${voce.ora}`}
-      </span>
-      <span className="voce-corpo">
-        <span className="voce-titolo">
-          <span
-            className={`badge badge-punto ${
-              voce.daFare ? 'badge-warn' : voce.esitoTipo === 'fallita' ? 'badge-ko' : 'badge-ok'
-            }`}
-          >
-            {etichettaStato(voce.stato, voce.esitoTipo, voce.tipo)}
-          </span>
-          <span className="muted" style={{ marginLeft: '0.5rem', fontSize: 'var(--text-sm)' }}>
-            {voce.assegnatoA
-              ? `${voce.daFare ? 'in carico a' : 'fatta da'} ${nomeDiEmail(voce.assegnatoA, nomiStaff)}`
-              : 'non assegnata'}
-          </span>
-        </span>
-        {notaEsito && <span className="voce-note muted">{notaEsito}</span>}
-      </span>
-    </li>
   )
 }
