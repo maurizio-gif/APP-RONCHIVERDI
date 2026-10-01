@@ -417,8 +417,31 @@ export const DELIVERABLE: Deliverable[] = [
     descrizione: 'Analisi dati Marketing, Commerciale e Vendite — KPI in tempo reale',
     consegnaPrevista: '2026-12-31',
     priorita: 'Alta',
-    stato: NON_RENDICONTATO,
-    passi: [],
+    stato: { etichetta: 'Pubblicata · in affinamento', tono: 'info' },
+    sintesi:
+      'La dashboard è già pubblicata, con i dati live di InfoRYOU classificati, gli accessi al sito e la gestione dei new del Core. Man mano che l’adozione del CRM diventa più trasversale — rinnovi compresi, e new con più dati — la dashboard si affina ancora. Quali indici di performance e KPI servono lo deve dire Ronchiverdi: serve una richiesta scritta.',
+    link: [{ href: '/dashboard/direzione', label: 'Apri la Dashboard direzionale', sezione: 'direzione' }],
+    passi: [
+      {
+        chiave: 'bi-pubblicazione',
+        titolo: 'Dashboard pubblicata: dati live InfoRYOU, accessi al sito, gestione dei new Core',
+        responsabili: ['maurizio'],
+        fatto: true,
+      },
+      {
+        chiave: 'bi-kpi-richiesta',
+        titolo: 'Richiesta scritta degli indici di performance e dei KPI da avere',
+        descrizione: 'Quali numeri volete vedere, per chi e con quale frequenza.',
+        responsabili: ['marco', 'paola', 'lorella'],
+      },
+      {
+        chiave: 'bi-affinamento',
+        titolo: 'Affinamento della dashboard sui KPI richiesti',
+        descrizione: 'Cresce insieme all’adozione del CRM su rinnovi e new.',
+        responsabili: ['maurizio'],
+        dopo: ['bi-kpi-richiesta'],
+      },
+    ],
   },
 ]
 
