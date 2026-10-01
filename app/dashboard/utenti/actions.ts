@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { CHIAVI_SEZIONI, SEZIONI, SEZIONI_ESTERNE, type SezioneChiave } from '@/lib/auth/sezioni'
-import { emailCorrente } from '@/lib/auth/sezioni-server'
+import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { puoAmministrare } from '@/lib/auth/permessi'
 import { registraLog } from '@/lib/audit'
 
@@ -297,4 +297,84 @@ export async function rimuoviStaff(email: string): Promise<Risultato> {
 
   revalidatePath('/dashboard/utenti')
   return { ok: true }
+}
+
+/**
+ * Rimanda il link per entrare nel pannello.
+ *
+ * Chi non ha mai fatto accesso riceve di nuovo l'invito; chi ha già una
+ * password riceve il link per sceglierne una nuova — è la stessa strada del
+ * recupero, e un secondo invito a un utente già confermato Supabase lo
+ * rifiuterebbe. In entrambi i casi il link porta a /imposta-password.
+ */
+export async function reinviaInvito(email: string): Promise<Risultato & { tipo?: 'invito' | 'recupero' }> {
+  if (!(await chiamanteAmministra())) {
+    return { ok: false, errore: 'Non hai il permesso di rimandare gli inviti.' }
+  }
+  const sito = process.env.NEXT_PUBLIC_SITE_URL
+  if (!sito) {
+    return { ok: false, errore: 'NEXT_PUBLIC_SITE_URL non è configurata: il link sarebbe rotto.' }
+  }
+  const destinatario = email.trim().toLowerCase()
+  const supabase = createSupabaseServiceClient()
+  const redirectTo = `${sito}/auth/callback`
+
+  const accessi = await leggiAccessi()
+  const giaEntrato = !!accessi[destinatario]?.ultimoAccesso
+
+  let tipo: 'invito' | 'recupero' = 'invito'
+  let errore: string | null = null
+  if (!giaEntrato) {
+    const { error } = await supabase.auth.admin.inviteUserByEmail(destinatario, { redirectTo })
+    if (error && /already been registered|already exists/i.test(error.message)) tipo = 'recupero'
+    else if (error) errore = error.message
+  } else {
+    tipo = 'recupero'
+  }
+  if (tipo === 'recupero' && !errore) {
+    const { error } = await supabase.auth.resetPasswordForEmail(destinatario, { redirectTo })
+    if (error) errore = error.message
+  }
+  if (errore) {
+    console.error('Reinvio invito non riuscito:', errore)
+    return {
+      ok: false,
+      errore: /rate|security purposes/i.test(errore)
+        ? 'Troppi invii ravvicinati: aspetta qualche minuto e riprova.'
+        : 'Non è stato possibile rimandare il link.',
+    }
+  }
+
+  await registraLog(emailCorrente(), 'invito_reinviato', {
+    entita: 'staff_users',
+    entitaId: destinatario,
+    dettagli: { email_target: destinatario, tipo },
+  })
+  return { ok: true, tipo }
+}
+
+export type Accesso = { ultimoAccesso: string | null; invitatoIl: string | null }
+
+/** Email → ultimo accesso e invito, dagli utenti di Supabase Auth. */
+export async function leggiAccessi(): Promise<Record<string, Accesso>> {
+  // È una Server Action, quindi chiamabile a mano: stesso permesso della pagina.
+  if (!(await utenteHaSezione('utenti'))) return {}
+  const supabase = createSupabaseServiceClient()
+  const mappa: Record<string, Accesso> = {}
+  for (let pagina = 1; pagina <= 20; pagina++) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page: pagina, perPage: 1000 })
+    if (error) {
+      console.error('Lettura utenti Auth non riuscita:', error.message)
+      break
+    }
+    for (const u of data.users) {
+      if (u.email)
+        mappa[u.email.toLowerCase()] = {
+          ultimoAccesso: u.last_sign_in_at ?? null,
+          invitatoIl: u.invited_at ?? u.created_at ?? null,
+        }
+    }
+    if (data.users.length < 1000) break
+  }
+  return mappa
 }
