@@ -160,17 +160,10 @@ export const DELIVERABLE: Deliverable[] = [
     passi: [
       { chiave: 'crm-lead-consegna', titolo: 'Gestione lead consegnata', responsabili: ['maurizio'], fatto: true },
       {
-        chiave: 'crm-lead-criticita',
-        titolo: 'Elenco delle modifiche grafiche e funzionali alla gestione lead, in ordine di priorità',
-        descrizione: 'Raccolto da chi usa il CRM ogni giorno: è la base della revisione.',
-        responsabili: ['lorella', 'simone'],
-      },
-      {
         chiave: 'crm-lead-revisione',
         titolo: 'Revisione grafica e funzionale della gestione lead',
         responsabili: ['maurizio'],
         con: ['lorella', 'simone'],
-        dopo: ['crm-lead-criticita'],
       },
       {
         chiave: 'crm-lead-strategia',
