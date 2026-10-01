@@ -258,6 +258,9 @@ export default async function AbbonamentiPage() {
             </p>
             <p className="muted">Persone con almeno un abbonamento in corso, non scaduto — non conta le vendite.</p>
             <AttiviOggiPerGruppo attivi={attiviOggi} />
+            <Link href="/dashboard/abbonamenti/attivi" className="btn btn-ghost btn-sm">
+              Vedi la lista dettagliata
+            </Link>
           </div>
         )}
 
