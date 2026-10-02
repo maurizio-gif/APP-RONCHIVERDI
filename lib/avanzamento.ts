@@ -15,7 +15,7 @@
 // client del passo.
 
 /** La data della situazione scritta qui sotto: i passi `fatto: true` sono fatti a questa data. */
-export const SITUAZIONE_AL = '2026-10-01'
+export const SITUAZIONE_AL = '2026-10-02'
 
 export const LINK_PROPOSTA = 'https://maurizio-gif.github.io/RONCHIVERDI-DIGITAL/proposta-commerciale.html'
 
@@ -161,23 +161,10 @@ export const DELIVERABLE: Deliverable[] = [
     priorita: 'Critica',
     stato: { etichetta: 'Consegnato · da rivedere', tono: 'info' },
     sintesi:
-      'Gestione lead: consegnata, ma va rivista dal punto di vista grafico e funzionale; in parallelo va rianalizzata la strategia di acquisizione lead dal sito. Gestione rinnovi: allineata al file Excel di Margherita e del suo team, è pronta per essere usata. L’adozione nel CRM è spostata al 5 ottobre, come confermato da Lorella: quella mattina Maurizio migra nel CRM tutte le note scritte a mano sul foglio Google, per allinearli.',
+      'Piano di adozione condiviso da Lorella il 2 ottobre. Retention (rinnovi): Lorella e Simone simulano le prese in carico il 5–6 ottobre, il 7 ottobre training al team di Margherita, l’8 ottobre possibile GO LIVE — da lì il vecchio report non si usa più e Maurizio importa nel CRM tutte le note scritte fino a quel momento. Fondamentale: le risorse devono scrivere più note possibili, servono per le statistiche future. New (lead): dal 12 ottobre Lorella e Simone lo verificano simulando il percorso completo di un lead; il QR per i walking è attivo da settembre e Jasmine e Carola usano già il CRM. Il 19 ottobre training con tutto il Core Team. Deadline finale: 31 ottobre, CRM usato correttamente da tutto il team, New e Retention.',
     link: [{ href: '/dashboard/abbonamenti/rinnovi', label: 'Apri Rinnovi Core', sezione: 'rinnovi-core' }],
     passi: [
       { chiave: 'crm-lead-consegna', titolo: 'Gestione lead consegnata', responsabili: ['maurizio'], fatto: true },
-      {
-        chiave: 'crm-lead-revisione',
-        titolo: 'Revisione grafica e funzionale della gestione lead',
-        responsabili: ['maurizio'],
-        con: ['lorella', 'simone'],
-      },
-      {
-        chiave: 'crm-lead-strategia',
-        titolo: 'Rianalizzare la strategia di acquisizione lead dal sito',
-        descrizione: 'In parallelo alla revisione.',
-        responsabili: ['lorella', 'simone'],
-        con: ['maurizio'],
-      },
       {
         chiave: 'rinnovi-allineamento',
         titolo: 'Gestione rinnovi allineata al file Excel di Margherita e del suo team',
@@ -185,18 +172,104 @@ export const DELIVERABLE: Deliverable[] = [
         fatto: true,
       },
       {
-        chiave: 'rinnovi-migrazione-note',
-        titolo: 'Migrazione nel CRM delle note scritte a mano sul foglio Google',
-        descrizione: 'La mattina del 5 ottobre, per allineare CRM e foglio prima della partenza.',
+        chiave: 'retention-mini-training',
+        titolo: 'Mini training CRM Retention in call con Maurizio, con video',
+        descrizione: '2 ottobre.',
         responsabili: ['maurizio'],
+        con: ['lorella'],
+        fatto: true,
+      },
+      {
+        chiave: 'retention-congelamenti',
+        titolo: 'Congelamenti scadenziati in base al periodo effettivo di sospensione',
+        descrizione: 'Lorella lo comunica subito al team.',
+        responsabili: ['lorella'],
+        con: ['margherita'],
+      },
+      {
+        chiave: 'retention-simulazione',
+        titolo: 'Simulazione di alcune prese in carico di rinnovi',
+        descrizione: 'Lunedì 5 e martedì 6 ottobre: Lorella approfondisce il CRM Retention e lo prova con Simone.',
+        responsabili: ['lorella', 'simone'],
+      },
+      {
+        chiave: 'retention-training-team',
+        titolo: 'Training CRM Retention a Margherita, Chiara, Sara, Francesca e Rita',
+        descrizione: 'Possibile mercoledì 7 ottobre, a flusso validato. Il team New non viene coinvolto, per evitare confusione. Simone affianca Lorella.',
+        responsabili: ['lorella'],
+        con: ['simone', 'margherita'],
+        dopo: ['retention-simulazione'],
       },
       {
         chiave: 'rinnovi-avvio',
-        titolo: 'Dal 5 ottobre i rinnovi si lavorano in Rinnovi Core',
-        descrizione: 'Data spostata dal 1° al 5 ottobre, confermata da Lorella. Quando il team ha cominciato a usarlo, segnatelo qui.',
+        titolo: 'GO LIVE CRM Retention: i rinnovi si lavorano solo in Rinnovi Core',
+        descrizione: 'Possibile giovedì 8 ottobre. Da quel momento il vecchio report non si usa più. In caso di criticità Lorella può posticipare il GO LIVE.',
         responsabili: ['lorella'],
         con: ['margherita'],
-        dopo: ['rinnovi-migrazione-note'],
+        dopo: ['retention-training-team'],
+        bloccante: true,
+      },
+      {
+        chiave: 'rinnovi-migrazione-note',
+        titolo: 'Import nel CRM di tutte le note del vecchio report',
+        descrizione: 'Al GO LIVE, tutte le note scritte fino a quel momento.',
+        responsabili: ['maurizio'],
+      },
+      {
+        chiave: 'retention-note',
+        titolo: 'Le risorse scrivono più note possibili',
+        descrizione: 'Di importanza fondamentale: servono per le statistiche future.',
+        responsabili: ['lorella'],
+        con: ['margherita'],
+      },
+      {
+        chiave: 'retention-supervisione',
+        titolo: 'Supervisione dell’uso del CRM da parte del team, con correzione degli errori',
+        descrizione: '8–9 ottobre.',
+        responsabili: ['lorella', 'simone'],
+        dopo: ['rinnovi-avvio'],
+      },
+      {
+        chiave: 'new-video-lead',
+        titolo: 'Video del percorso completo di un lead',
+        descrizione: 'Richiesto da Lorella per il 12 ottobre.',
+        responsabili: ['maurizio'],
+      },
+      {
+        chiave: 'new-simulazione-lead',
+        titolo: 'Simulazione della presa in carico di un lead e verifica di tutto il percorso',
+        descrizione: 'Da lunedì 12 ottobre. Le correzioni vanno condivise con Maurizio, che si confronta con Simone.',
+        responsabili: ['lorella', 'simone'],
+        dopo: ['new-video-lead'],
+      },
+      {
+        chiave: 'crm-lead-revisione',
+        titolo: 'Revisione grafica e funzionale della gestione lead',
+        descrizione: 'Raccoglie le correzioni emerse dalle verifiche del 12–19 ottobre.',
+        responsabili: ['maurizio'],
+        con: ['lorella', 'simone'],
+      },
+      {
+        chiave: 'crm-lead-strategia',
+        titolo: 'Rianalizzare la strategia di acquisizione lead dal sito',
+        descrizione: 'In parallelo alla revisione. Il QR per i walking è attivo da settembre; Jasmine e Carola usano già il CRM.',
+        responsabili: ['lorella', 'simone'],
+        con: ['maurizio'],
+      },
+      {
+        chiave: 'crm-training-core',
+        titolo: 'Training con tutto il Core Team, New + Retention',
+        descrizione: '19 ottobre. Obiettivo: uniformare procedure, linguaggio, responsabilità e modalità di utilizzo.',
+        responsabili: ['lorella', 'simone'],
+        dopo: ['new-simulazione-lead'],
+      },
+      {
+        chiave: 'crm-adozione-completa',
+        titolo: 'CRM usato correttamente e in modo completo da tutto il team, New e Retention',
+        descrizione: 'Deadline finale 31 ottobre, con presenza costante di Lorella e Simone sulle risorse fino a quella data.',
+        responsabili: ['lorella', 'simone'],
+        dopo: ['crm-training-core', 'retention-supervisione'],
+        bloccante: true,
       },
     ],
   },

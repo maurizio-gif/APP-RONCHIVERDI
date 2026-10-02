@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { logoutPerInattivita } from '@/app/login/actions'
 
-// Logout automatico dopo un'ora senza usare il pannello.
+// Logout automatico dopo tre ore senza usare il pannello.
 //
 // Il pannello resta aperto sui computer della reception, condivisi: senza
 // questo, chiunque passi al banco legge contatti e trattative di chi si è
@@ -14,7 +14,7 @@ import { logoutPerInattivita } from '@/app/login/actions'
 // anche l'altra, altrimenti la scheda dimenticata butterebbe fuori la
 // persona mentre lavora in quella accanto.
 
-const INATTIVITA_MS = 60 * 60 * 1000
+const INATTIVITA_MS = 3 * 60 * 60 * 1000
 const AVVISO_MS = 60 * 1000
 const CHIAVE = 'ronchiverdi-ultima-attivita'
 const EVENTI = ['pointerdown', 'keydown', 'scroll', 'touchstart', 'mousemove'] as const
@@ -78,7 +78,7 @@ export function LogoutInattivita() {
         <p className="eyebrow">Sessione</p>
         <h2 id="inattivita-titolo">Sei ancora qui?</h2>
         <p className="muted">
-          Per sicurezza il pannello si chiude dopo un&apos;ora senza attività. Uscita fra{' '}
+          Per sicurezza il pannello si chiude dopo tre ore senza attività. Uscita fra{' '}
           <strong>{secondi}</strong> secondi.
         </p>
         <div className="msg-modale-azioni">
