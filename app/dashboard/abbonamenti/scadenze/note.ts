@@ -20,6 +20,14 @@ export type NotaScadenza = {
   creato_il: string
 }
 
+// Il tag con cui una nota compare nello storico della scheda contatto, fra
+// le azioni fatte: dice da quale delle due colonne della tabella rinnovi
+// arriva.
+export const TAG_NOTA: Record<TipoNota, string> = {
+  gestione: 'Nota di gestione rinnovo',
+  non_rinnovo: 'Nota motivo non rinnovo',
+}
+
 // 150 uuid a richiesta: l'elenco va nell'URL della GET di PostgREST, e un
 // mese di punta (oltre 1500 scadenze) in una richiesta sola lo renderebbe
 // più lungo di quanto i proxy accettano.

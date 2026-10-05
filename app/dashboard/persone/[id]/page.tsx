@@ -28,12 +28,31 @@ import { dataOraDi, oraDi, percorsoBreve } from '@/lib/percorsoSito'
 import { AzioniVeloci } from '../../AzioniVeloci'
 import { ComandiLead } from '../../ComandiLead'
 import { NuovaAzione } from './NuovaAzione'
+import { caricaGruppi } from '@/lib/abbonamenti'
+import { caricaNoteScadenze, TAG_NOTA, type NotaScadenza } from '../../abbonamenti/scadenze/note'
 
 // La scheda del contatto sul modello di Passion: in testa chi è e come lo si
 // raggiunge; a sinistra il lavoro (il lead, con assegnatario e stato, e le
 // azioni, da chiudere sul posto o da aggiungere); a destra gli abbonamenti.
 // Percorso sul sito, registro e storico per tipo non ci sono più: alla
 // segreteria non servono per lavorare il contatto.
+
+// Data (AAAA-MM-GG) e ora (HH:MM) di Roma di un istante: le note hanno un
+// timestamp, le azioni d'agenda data e ora separate, e per ordinarle insieme
+// servono nella stessa forma.
+function dataOraRomaIso(iso: string): { data: string; ora: string } {
+  const parti = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Rome',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(iso))
+  const v = (t: string) => parti.find((p) => p.type === t)?.value ?? ''
+  return { data: `${v('year')}-${v('month')}-${v('day')}`, ora: `${v('hour')}:${v('minute')}` }
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -178,7 +197,74 @@ export default async function PersonaPage({ params }: { params: { id: string } }
   const aperte = [...eventi.filter((v) => v.stato === 'aperto'), ...richiesteAperte]
   const daFareOra = aperte.filter((v) => v.data <= oggi).sort(piuRecenteSopra)
   const inProgramma = aperte.filter((v) => v.data > oggi).sort(piuRecenteSopra)
-  const fatte = eventi.filter((v) => v.stato !== 'aperto').sort(piuRecenteSopra)
+  const fatteAgenda = eventi.filter((v) => v.stato !== 'aperto')
+
+  // Le note scritte lavorando i rinnovi (Rinnovi Core / Scadenze, vedi
+  // abbonamenti_scadenze_note) entrano fra le azioni fatte come task
+  // eseguiti, con un tag che dice da dove vengono: chi apre la scheda vede
+  // anche cosa si è detto col socio sul rinnovo, chi l'ha scritto e quando.
+  // Lette dallo storico e non copiate in `task`: in agenda e nei conteggi
+  // del Core Manager non compaiono, e non c'è una seconda copia che possa
+  // divergere.
+  const abbonamentiPersona = abbonamenti ?? []
+  const notePerAbbonamento = await caricaNoteScadenze(
+    supabase,
+    abbonamentiPersona.map((a) => a.id as string)
+  )
+  const abbonamentiConNote = abbonamentiPersona.filter((a) => notePerAbbonamento[a.id as string]?.length)
+  // Il link porta alla pagina da cui la nota si scrive: Rinnovi Core per il
+  // gruppo CORE (l'unica che la segreteria vede), Scadenze per gli altri.
+  const [gruppi, { data: gruppiAbbonamenti }] = abbonamentiConNote.length
+    ? await Promise.all([
+        caricaGruppi(),
+        supabase
+          .from('abbonamenti_scadenze')
+          .select('id, gruppo_id')
+          .in(
+            'id',
+            abbonamentiConNote.map((a) => a.id as string)
+          ),
+      ])
+    : [[], { data: [] as { id: string; gruppo_id: string | null }[] }]
+  const idCore = gruppi.find((g) => g.nome === 'CORE')?.id ?? null
+  const gruppoDi = new Map((gruppiAbbonamenti ?? []).map((g) => [g.id as string, g.gruppo_id as string | null]))
+  type NotaInScheda = NotaScadenza & {
+    prodotto: string | null
+    scadenza: string | null
+    href: string
+    origine: string
+    data: string
+    ora: string
+  }
+  const noteRinnovi: NotaInScheda[] = abbonamentiConNote.flatMap((a) => {
+    const scadenza = (a.data_fine as string | null) ?? null
+    const core = !!idCore && gruppoDi.get(a.id as string) === idCore
+    const mese = scadenza ? `${scadenza.slice(0, 7)}-01` : null
+    const pagina = core ? '/dashboard/abbonamenti/rinnovi' : '/dashboard/abbonamenti/scadenze'
+    return (notePerAbbonamento[a.id as string] ?? []).map((n) => {
+      const quando = dataOraRomaIso(n.creato_il)
+      return {
+        ...n,
+        prodotto: (a.abbonamento as string | null) ?? null,
+        scadenza,
+        href: mese ? `${pagina}?mese=${mese}` : pagina,
+        origine: core ? 'Rinnovi Core' : 'Scadenze abbonamenti',
+        data: quando.data,
+        ora: quando.ora,
+      }
+    })
+  })
+
+  // Un solo elenco, la più recente in alto, che mescola azioni d'agenda e
+  // note dei rinnovi per data e ora.
+  type Fatta = { chiave: string; data: string; ora: string | null } & (
+    | { genere: 'voce'; voce: VoceAgenda }
+    | { genere: 'nota'; nota: NotaInScheda }
+  )
+  const fatte: Fatta[] = [
+    ...fatteAgenda.map((v): Fatta => ({ chiave: v.chiave, data: v.data, ora: v.ora, genere: 'voce', voce: v })),
+    ...noteRinnovi.map((n): Fatta => ({ chiave: `nota-${n.id}`, data: n.data, ora: n.ora, genere: 'nota', nota: n })),
+  ].sort((a, b) => `${b.data}${b.ora ?? ''}`.localeCompare(`${a.data}${a.ora ?? ''}`))
 
   // Il lead: quello aperto, o il più recente. Gli altri restano una riga sotto.
   const tutte = trattative ?? []
@@ -392,8 +478,33 @@ export default async function PersonaPage({ params }: { params: { id: string } }
                 <p className="muted azioni-gruppo-vuoto">Nessuna azione fatta.</p>
               ) : (
                 <ol className="storia">
-                  {fatte.map((v) => (
-                    <li key={v.chiave}>
+                  {fatte.map((f) => {
+                    if (f.genere === 'nota') {
+                      const n = f.nota
+                      return (
+                        <li key={f.chiave}>
+                          <span className={`badge-tipo ${CLASSE_TIPO.task}`}>{ETICHETTE_TIPO_BREVI.task}</span>{' '}
+                          <span className={`badge-tag badge-tag-${n.tipo}`}>{TAG_NOTA[n.tipo]}</span>{' '}
+                          <span className="muted">
+                            {dataBreveAnno(n.data)} · {n.ora} ·{' '}
+                            {n.autore ? nomeDiEmail(n.autore, nomiStaff) : 'Prima dello storico'}
+                          </span>{' '}
+                          <span className="badge badge-ok">Eseguita</span>
+                          <div className="storia-testo">{n.testo}</div>
+                          <div className="muted storia-origine">
+                            Da{' '}
+                            <Link href={n.href} className="link">
+                              {n.origine}
+                            </Link>
+                            {n.prodotto && ` · ${n.prodotto}`}
+                            {n.scadenza && ` in scadenza il ${dataBreveAnno(n.scadenza)}`}
+                          </div>
+                        </li>
+                      )
+                    }
+                    const v = f.voce
+                    return (
+                    <li key={f.chiave}>
                       <span className={`badge-tipo ${CLASSE_TIPO[v.tipo]}`}>{ETICHETTE_TIPO_BREVI[v.tipo]}</span>{' '}
                       <span className="muted">
                         {dataBreveAnno(v.data)}
@@ -409,7 +520,8 @@ export default async function PersonaPage({ params }: { params: { id: string } }
                       )}
                       {(v.esito || v.note) && <div className="storia-testo">{v.esito || v.note}</div>}
                     </li>
-                  ))}
+                    )
+                  })}
                 </ol>
               )}
             </div>
