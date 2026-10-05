@@ -7598,6 +7598,32 @@ table.tabella tr.is-mia td {
 	margin-top: 0.2rem;
 	font-size: var(--text-xs, 0.8rem);
 }
+/* Da dove viene una voce dello storico che non nasce in agenda (le note
+   dei rinnovi, vedi la scheda contatto): pagina d'origine e abbonamento. */
+.storia-origine {
+	margin-top: 0.15rem;
+	font-size: var(--text-2xs);
+}
+
+/* Il tag di una nota dei rinnovi fra le azioni fatte: dice a colpo d'occhio
+   se è una nota di gestione o il motivo di un mancato rinnovo. */
+.badge-tag {
+	display: inline-block;
+	padding: 0.15rem 0.55rem;
+	border: 1px solid var(--accent-border);
+	border-radius: 4px;
+	background: var(--accent-tint);
+	color: var(--accent);
+	font-size: var(--text-2xs);
+	font-weight: 500;
+	white-space: nowrap;
+}
+
+.badge-tag.badge-tag-non_rinnovo {
+	border-color: var(--error);
+	background: transparent;
+	color: var(--error);
+}
 .accessi-pagine {
 	margin: 0.4rem 0 0;
 	padding-left: 1.1rem;
