@@ -6,6 +6,7 @@ import { caricaGruppi } from '@/lib/abbonamenti'
 import { etichettaMese, mesePiu, oggiRoma, primoDelMese } from '@/lib/agenda'
 import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import { TabellaScadenze, type RigaScadenza } from './TabellaScadenze'
+import { caricaNoteScadenze } from './note'
 import { GraficoRinnovi } from './GraficoRinnovi'
 
 export const dynamic = 'force-dynamic'
@@ -34,13 +35,12 @@ export default async function ScadenzeAbbonamentiPage({
   // Chi può comparire nella tendina "Assegnatario": solo la segreteria, non
   // tutto lo staff (vedi CellaAssegnatario/assegnaScadenza) — sono le stesse
   // persone che prima lavoravano i rinnovi sul foglio Excel.
-  const { data: segreteria } = await supabase
-    .from('staff_users')
-    .select('email, nome, cognome')
-    .eq('operatore_segreteria', true)
-  const segreteriaOrdinata = ordinaPerCognome((segreteria ?? []) as RigaStaff[])
-  const nomiStaff = mappaNomiStaff(segreteriaOrdinata)
-  const operatoriSegreteria = segreteriaOrdinata.map((s) => s.email)
+  // Tutto lo staff per i nomi (anche chi firma una nota di gestione entrando
+  // da Abbonamenti), solo la segreteria per la tendina Assegnatario.
+  const { data: staff } = await supabase.from('staff_users').select('email, nome, cognome, operatore_segreteria')
+  const staffOrdinato = ordinaPerCognome((staff ?? []) as (RigaStaff & { operatore_segreteria: boolean | null })[])
+  const nomiStaff = mappaNomiStaff(staffOrdinato)
+  const operatoriSegreteria = staffOrdinato.filter((s) => s.operatore_segreteria).map((s) => s.email)
   const io = emailCorrente()
 
   // PostgREST tronca comunque una select a 1000 righe, `.limit()` chiesto
@@ -58,7 +58,7 @@ export default async function ScadenzeAbbonamentiPage({
     let query = supabase
       .from('abbonamenti_scadenze')
       .select(
-        'id, persona_id, abbonamento, gruppo_id, data_inizio, data_fine, totale, nome, cognome, email, cellulare, rinnovato, rinnovo_id, rinnovo_abbonamento, rinnovo_data_inizio, rinnovo_data_fine, rinnovo_totale, operatore_nome, stato_manuale, motivo_non_rinnovo, note_non_rinnovo, nota, assegnato_a, escluso_da_report',
+        'id, persona_id, abbonamento, gruppo_id, data_inizio, data_fine, totale, nome, cognome, email, cellulare, rinnovato, rinnovo_id, rinnovo_abbonamento, rinnovo_data_inizio, rinnovo_data_fine, rinnovo_totale, operatore_nome, stato_manuale, motivo_non_rinnovo, note_non_rinnovo, nota, assegnato_a, escluso_da_report, durata, periodo, rinnovo_durata, rinnovo_periodo',
       )
       .gte('data_fine', meseRichiesto)
       .lt('data_fine', mesePiu(meseRichiesto, 1))
@@ -76,6 +76,10 @@ export default async function ScadenzeAbbonamentiPage({
     if (!data || data.length < 1000) break
   }
   const righe = righeGrezze
+  const noteScadenze = await caricaNoteScadenze(
+    supabase,
+    righe.map((r) => r.id)
+  )
 
   const totale = righe.length
   const daRichiamare = righe.filter((r) => !r.rinnovato).length
@@ -132,6 +136,7 @@ export default async function ScadenzeAbbonamentiPage({
       ) : (
         <TabellaScadenze
           righe={righe}
+          noteScadenze={noteScadenze}
           gruppi={gruppi}
           operatoriSegreteria={operatoriSegreteria}
           nomiStaff={nomiStaff}

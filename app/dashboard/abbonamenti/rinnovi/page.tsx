@@ -6,6 +6,7 @@ import { caricaGruppi } from '@/lib/abbonamenti'
 import { etichettaMese, mesePiu, oggiRoma, primoDelMese } from '@/lib/agenda'
 import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import { TabellaScadenze, type RigaScadenza } from '../scadenze/TabellaScadenze'
+import { caricaNoteScadenze } from '../scadenze/note'
 import { GraficoRinnovi } from '../scadenze/GraficoRinnovi'
 import { GuidaVideo } from '@/components/GuidaVideo'
 
@@ -35,13 +36,12 @@ export default async function RinnoviPage({ searchParams }: { searchParams: { me
 
   const supabase = createSupabaseServiceClient()
 
-  const { data: segreteria } = await supabase
-    .from('staff_users')
-    .select('email, nome, cognome')
-    .eq('operatore_segreteria', true)
-  const segreteriaOrdinata = ordinaPerCognome((segreteria ?? []) as RigaStaff[])
-  const nomiStaff = mappaNomiStaff(segreteriaOrdinata)
-  const operatoriSegreteria = segreteriaOrdinata.map((s) => s.email)
+  // Tutto lo staff per i nomi (anche chi firma una nota di gestione entrando
+  // da Abbonamenti), solo la segreteria per la tendina Assegnatario.
+  const { data: staff } = await supabase.from('staff_users').select('email, nome, cognome, operatore_segreteria')
+  const staffOrdinato = ordinaPerCognome((staff ?? []) as (RigaStaff & { operatore_segreteria: boolean | null })[])
+  const nomiStaff = mappaNomiStaff(staffOrdinato)
+  const operatoriSegreteria = staffOrdinato.filter((s) => s.operatore_segreteria).map((s) => s.email)
   const io = emailCorrente()
 
   const righeGrezze: RigaScadenza[] = []
@@ -53,7 +53,7 @@ export default async function RinnoviPage({ searchParams }: { searchParams: { me
       const { data, error } = await supabase
         .from('abbonamenti_scadenze')
         .select(
-          'id, persona_id, abbonamento, gruppo_id, data_inizio, data_fine, totale, nome, cognome, email, cellulare, rinnovato, rinnovo_id, rinnovo_abbonamento, rinnovo_data_inizio, rinnovo_data_fine, rinnovo_totale, operatore_nome, stato_manuale, motivo_non_rinnovo, note_non_rinnovo, nota, assegnato_a, escluso_da_report',
+          'id, persona_id, abbonamento, gruppo_id, data_inizio, data_fine, totale, nome, cognome, email, cellulare, rinnovato, rinnovo_id, rinnovo_abbonamento, rinnovo_data_inizio, rinnovo_data_fine, rinnovo_totale, operatore_nome, stato_manuale, motivo_non_rinnovo, note_non_rinnovo, nota, assegnato_a, escluso_da_report, durata, periodo, rinnovo_durata, rinnovo_periodo',
         )
         .eq('gruppo_id', gruppoCore.id)
         .gte('data_fine', meseRichiesto)
@@ -71,6 +71,10 @@ export default async function RinnoviPage({ searchParams }: { searchParams: { me
     }
   }
   const righe = righeGrezze
+  const noteScadenze = await caricaNoteScadenze(
+    supabase,
+    righe.map((r) => r.id)
+  )
 
   const totale = righe.length
   const daRichiamare = righe.filter((r) => !r.rinnovato).length
@@ -132,6 +136,7 @@ export default async function RinnoviPage({ searchParams }: { searchParams: { me
       ) : (
         <TabellaScadenze
           righe={righe}
+          noteScadenze={noteScadenze}
           gruppi={gruppi}
           nascondiGruppo
           operatoriSegreteria={operatoriSegreteria}
