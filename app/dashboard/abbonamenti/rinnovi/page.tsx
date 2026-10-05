@@ -85,7 +85,7 @@ export default async function RinnoviPage({ searchParams }: { searchParams: { me
 
   return (
     <div>
-      <GuidaVideo vidyardId="s4VYD65MdPNME784SQzjp6" titolo="Gestione efficiente dei rinnovi abbonamenti" />
+      <GuidaVideo vidyardId="yoAsuxe9cahh95DDoB1iKP" titolo="Gestione efficiente dei rinnovi abbonamenti" />
 
       <div className="page-head">
         <p className="eyebrow">Abbonamenti</p>
