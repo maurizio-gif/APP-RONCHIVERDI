@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { MOTIVI_NON_RINNOVO } from './motivi'
+import { TIPI_NOTA, type NotaScadenza, type TipoNota } from './note'
 
 // Lo stato di lavorazione di un rinnovo (nota e "in trattativa") non arriva
 // da nessuna sincronizzazione: lo scrive solo chi lavora il rinnovo, qui,
@@ -62,54 +63,55 @@ export async function salvaMotivoNonRinnovo(abbonamentoId: string, motivo: strin
   return { ok: true }
 }
 
-export async function salvaNoteNonRinnovo(abbonamentoId: string, note: string): Promise<Esito> {
+/**
+ * Una nota in più nello storico della scadenza (vedi abbonamenti_scadenze_note):
+ * di gestione o sul mancato rinnovo, secondo `tipo`. Non sovrascrive le
+ * precedenti, porta con sé chi l'ha scritta e quando — come le note sulle
+ * disdette di Athlon. L'ultima nota resta anche nella colonna corrispondente
+ * di abbonamenti_scadenze_lavorazione (nota o note_non_rinnovo), che la vista
+ * abbonamenti_scadenze espone già: chi legge quel campo continua a trovarci
+ * la più recente. Ritorna la nota salvata, con orario del database, perché la
+ * tabella la mostri subito in cima allo storico senza ricaricare la pagina.
+ */
+export async function aggiungiNotaScadenza(
+  abbonamentoId: string,
+  tipo: TipoNota,
+  testo: string
+): Promise<{ ok: true; nota: NotaScadenza } | { ok: false; errore: string }> {
   const email = await operatoreAutorizzato()
-  if (!email) return NEGATO
+  if (!email) return { ok: false, errore: 'Non hai accesso a questa sezione.' }
 
-  const testo = note.trim().slice(0, 2000) || null
+  if (!(TIPI_NOTA as readonly string[]).includes(tipo)) return { ok: false, errore: 'Tipo di nota non riconosciuto.' }
+  const pulito = testo.trim().slice(0, 2000)
+  if (!pulito) return { ok: false, errore: 'La nota è vuota.' }
+
   const supabase = createSupabaseServiceClient()
-  const { error } = await supabase.from('abbonamenti_scadenze_lavorazione').upsert(
-    {
-      abbonamento_id: abbonamentoId,
-      note_non_rinnovo: testo,
-      aggiornato_da: email,
-      aggiornato_il: new Date().toISOString(),
-    },
-    { onConflict: 'abbonamento_id' }
-  )
+  const { data, error } = await supabase
+    .from('abbonamenti_scadenze_note')
+    .insert({ abbonamento_id: abbonamentoId, tipo, testo: pulito, autore: email })
+    .select('id, tipo, testo, autore, creato_il')
+    .single()
 
-  if (error) {
-    console.error('Note non rinnovo non salvate:', error.message)
-    return { ok: false, errore: 'Non è stato possibile salvare le note.' }
-  }
-
-  rivalidaScadenze()
-  return { ok: true }
-}
-
-export async function salvaNotaScadenza(abbonamentoId: string, nota: string): Promise<Esito> {
-  const email = await operatoreAutorizzato()
-  if (!email) return NEGATO
-
-  const testo = nota.trim().slice(0, 2000) || null
-  const supabase = createSupabaseServiceClient()
-  const { error } = await supabase.from('abbonamenti_scadenze_lavorazione').upsert(
-    {
-      abbonamento_id: abbonamentoId,
-      nota: testo,
-      aggiornato_da: email,
-      aggiornato_il: new Date().toISOString(),
-    },
-    { onConflict: 'abbonamento_id' }
-  )
-
-  if (error) {
-    console.error('Nota scadenza non salvata:', error.message)
+  if (error || !data) {
+    console.error('Nota di gestione non salvata:', error?.message)
     return { ok: false, errore: 'Non è stato possibile salvare la nota.' }
   }
 
+  const { error: erroreUltima } = await supabase.from('abbonamenti_scadenze_lavorazione').upsert(
+    {
+      abbonamento_id: abbonamentoId,
+      [tipo === 'gestione' ? 'nota' : 'note_non_rinnovo']: pulito,
+      aggiornato_da: email,
+      aggiornato_il: data.creato_il,
+    },
+    { onConflict: 'abbonamento_id' }
+  )
+  // La nota è già nello storico, che è il dato vero: un errore qui lascia
+  // indietro solo la copia dell'ultima nota, non fa perdere niente.
+  if (erroreUltima) console.error('Ultima nota non aggiornata:', erroreUltima.message)
+
   rivalidaScadenze()
-  return { ok: true }
+  return { ok: true, nota: data as NotaScadenza }
 }
 
 export type StatoManuale = 'in_trattativa' | 'perso' | null

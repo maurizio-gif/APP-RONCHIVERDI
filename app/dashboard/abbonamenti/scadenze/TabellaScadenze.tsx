@@ -1,22 +1,24 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState, useTransition } from 'react'
-import { testoRicerca, dataBreve as dataBreveAnno } from '@/lib/persone'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition } from 'react'
+import { testoRicerca, dataBreve as dataBreveAnno, dataOra } from '@/lib/persone'
 import { euro } from '@/lib/pipeline'
 import { NON_CATEGORIZZATO, type Gruppo } from '@/lib/abbonamenti'
 import { nomeDiEmail } from '@/lib/staff'
 import { SelettoreAssegnatario } from '@/components/SelettoreAssegnatario'
+import { IconaNuovaScheda } from '@/components/IconaNuovaScheda'
 import {
+  aggiungiNotaScadenza,
   assegnaScadenza,
   impostaEsclusoReport,
   impostaStatoManuale,
   salvaMotivoNonRinnovo,
-  salvaNoteNonRinnovo,
-  salvaNotaScadenza,
   type StatoManuale,
 } from './actions'
 import { MOTIVI_NON_RINNOVO } from './motivi'
+import type { NotaScadenza, TipoNota } from './note'
+import { etichettaDurata, giorniDurata } from './durata'
 
 export type RigaScadenza = {
   id: string
@@ -46,6 +48,11 @@ export type RigaScadenza = {
   nota: string | null
   assegnato_a: string | null
   escluso_da_report: boolean
+  // Durata venduta, da Info4U (vedi durata.ts): 12 + 'M' = annuale.
+  durata: number | null
+  periodo: string | null
+  rinnovo_durata: number | null
+  rinnovo_periodo: string | null
 }
 
 type Colonna =
@@ -148,6 +155,8 @@ type Filtri = {
   totaleMin: string
   totaleMax: string
   rinnovato: '' | 'si' | 'no' | 'escluso'
+  // L'etichetta (es. "Annuale"), non il numero: è quello che si sceglie.
+  durata: string
   stato: '' | 'vuoto' | 'in_trattativa' | 'perso'
   assegnatario: string
   rinnovoAbbonamento: string
@@ -171,6 +180,7 @@ const FILTRI_VUOTI: Filtri = {
   totaleMin: '',
   totaleMax: '',
   rinnovato: '',
+  durata: '',
   rinnovoAbbonamento: '',
   rinnovoDataInizioDa: '',
   rinnovoDataInizioA: '',
@@ -203,6 +213,7 @@ function corrisponde(r: RigaScadenza, f: Filtri): boolean {
   // Escluso è un terzo stato a sé, alternativo a rinnovato/non rinnovato — non
   // un sottoinsieme di "non ancora rinnovato" — quindi "Rinnovato" e "Non
   // ancora rinnovato" qui sotto lo escludono esplicitamente.
+  if (f.durata && (etichettaDurata(r.durata, r.periodo) ?? 'Non indicata') !== f.durata) return false
   if (f.rinnovato === 'si' && (!r.rinnovato || r.escluso_da_report)) return false
   if (f.rinnovato === 'no' && (r.rinnovato || r.escluso_da_report)) return false
   if (f.rinnovato === 'escluso' && !r.escluso_da_report) return false
@@ -263,7 +274,7 @@ function CampoIntervallo({
   onA: (v: string) => void
 }) {
   return (
-    <div className="field">
+    <div className={`field field-intervallo${tipo === 'date' ? ' is-date' : ''}`}>
       <label>{label}</label>
       <div style={{ display: 'flex', gap: '0.5rem' }}>
         <input
@@ -471,40 +482,129 @@ function CellaAssegnatario({
 }
 
 /**
- * Un campo di testo libero che si salva da solo quando si esce dal campo
- * (come una cella di foglio elettronico — niente pulsante "Salva" da
- * ricordarsi di cliccare su una tabella dove le righe sono decine), solo se
- * il testo è davvero cambiato dall'ultimo salvataggio riuscito. Generico
- * sull'azione di salvataggio: la stessa forma serve sia per "Note non
- * rinnovo" sia per "Note di gestione", cambia solo quale action chiamare.
+ * Le note di una scadenza — di gestione o sul mancato rinnovo, secondo
+ * `tipo` — sul modello delle note sulle disdette di Athlon: si scrive in un campo libero, si invia, e la nota entra nello
+ * storico con nome e orario di chi l'ha scritta — il campo si svuota, pronto
+ * per la prossima. Niente più un testo unico riscritto a ogni salvataggio:
+ * chi richiama il socio legge cosa si è detto le volte prima, e chi.
+ *
+ * La riga della tabella deve restare stretta qualunque sia il numero di
+ * note: in cella c'è solo l'ultima, troncata su una riga, e il campo per la
+ * prossima, anch'esso su una riga. Lo storico completo si legge in un
+ * pannello laterale (StoricoNote), che si apre dall'anteprima o dal
+ * contatore e lascia la tabella a vista dietro di sé.
  */
-function CellaTestoLungo({
+function CellaNote({
   abbonamentoId,
-  valoreIniziale,
-  placeholder,
-  salva,
-  disabilitato,
+  tipo,
+  titolo,
+  persona,
+  noteIniziali,
+  nomiStaff,
+  disabilitato = false,
 }: {
   abbonamentoId: string
-  valoreIniziale: string
-  placeholder: string
-  salva: (abbonamentoId: string, testo: string) => Promise<{ ok: true } | { ok: false; errore: string }>
+  tipo: TipoNota
+  // Il titolo del pannello dello storico: "Note di gestione", "Note non rinnovo".
+  titolo: string
+  persona: string
+  noteIniziali: NotaScadenza[]
+  nomiStaff: Record<string, string>
+  // Lo storico resta leggibile, ma non si scrive: es. una nota sul mancato
+  // rinnovo di un abbonamento che nel frattempo è stato rinnovato.
   disabilitato?: boolean
 }) {
-  const [testo, setTesto] = useState(valoreIniziale)
-  const [ultimoSalvato, setUltimoSalvato] = useState(valoreIniziale)
-  const [stato, setStato] = useState<'inattivo' | 'salvata'>('inattivo')
+  const [note, setNote] = useState(noteIniziali)
+  const [storicoAperto, setStoricoAperto] = useState(false)
+
+  const ultima = note[0]
+
+  return (
+    <div className="note-gestione">
+      {ultima && (
+        <button
+          type="button"
+          className="note-ultima"
+          onClick={() => setStoricoAperto(true)}
+          title="Apri lo storico delle note"
+        >
+          <span className="note-ultima-meta">
+            {autoreNota(ultima, nomiStaff)} · {dataOra(ultima.creato_il)} —{' '}
+          </span>
+          {ultima.testo}
+        </button>
+      )}
+      <div className="note-gestione-riga">
+        {!disabilitato && (
+          <CampoNuovaNota
+            abbonamentoId={abbonamentoId}
+            tipo={tipo}
+            compatto
+            onInviata={(n) => setNote((v) => [n, ...v])}
+          />
+        )}
+        {note.length > 0 && (
+          <button
+            type="button"
+            className="note-contatore"
+            onClick={() => setStoricoAperto(true)}
+            aria-label={`Storico note (${note.length})`}
+            title="Apri lo storico delle note"
+          >
+            Storico ({note.length})
+          </button>
+        )}
+      </div>
+      {storicoAperto && (
+        <StoricoNote
+          abbonamentoId={abbonamentoId}
+          tipo={tipo}
+          titolo={titolo}
+          disabilitato={disabilitato}
+          persona={persona}
+          note={note}
+          nomiStaff={nomiStaff}
+          onInviata={(n) => setNote((v) => [n, ...v])}
+          onChiudi={() => setStoricoAperto(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+function autoreNota(n: NotaScadenza, nomiStaff: Record<string, string>): string {
+  return n.autore ? (nomeDiEmail(n.autore, nomiStaff) ?? n.autore) : 'Prima dello storico'
+}
+
+/**
+ * Il campo per una nota nuova: Invia (o Cmd/Ctrl + Invio) la aggiunge allo
+ * storico e svuota il campo. In cella è compatto — una riga, che si allarga
+ * solo mentre ci si scrive — nel pannello dello storico è un'area piena.
+ */
+function CampoNuovaNota({
+  abbonamentoId,
+  tipo,
+  compatto = false,
+  onInviata,
+}: {
+  abbonamentoId: string
+  tipo: TipoNota
+  compatto?: boolean
+  onInviata: (nota: NotaScadenza) => void
+}) {
+  const [testo, setTesto] = useState('')
   const [errore, setErrore] = useState<string | null>(null)
   const [inCorso, startTransition] = useTransition()
+  const scritta = testo.trim() !== ''
 
-  function alBlur() {
-    if (testo === ultimoSalvato) return
+  function invia() {
+    if (!scritta || inCorso) return
     setErrore(null)
     startTransition(async () => {
-      const esito = await salva(abbonamentoId, testo)
+      const esito = await aggiungiNotaScadenza(abbonamentoId, tipo, testo)
       if (esito.ok) {
-        setUltimoSalvato(testo)
-        setStato('salvata')
+        onInviata(esito.nota)
+        setTesto('')
       } else {
         setErrore(esito.errore)
       }
@@ -512,27 +612,115 @@ function CellaTestoLungo({
   }
 
   return (
-    <div className="cella-nota-campo">
+    <div className={`note-nuova${compatto ? ' is-compatta' : ''}${scritta ? ' is-scritta' : ''}`}>
       <textarea
         className="textarea-inline"
-        rows={2}
+        rows={compatto && !scritta ? 1 : 3}
         value={testo}
-        placeholder={placeholder}
-        onChange={(e) => {
-          setTesto(e.target.value)
-          setStato('inattivo')
+        placeholder="Nuova nota…"
+        onChange={(e) => setTesto(e.target.value)}
+        onKeyDown={(e) => {
+          // Cmd/Ctrl + Invio invia, come in una chat: Invio da solo resta un
+          // a capo, perché una nota può essere di più righe.
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault()
+            invia()
+          }
         }}
-        onBlur={alBlur}
-        disabled={inCorso || disabilitato}
+        disabled={inCorso}
+        aria-label="Nuova nota"
       />
-      {inCorso && <span className="muted cella-nota-stato">Salvataggio…</span>}
-      {!inCorso && stato === 'salvata' && <span className="muted cella-nota-stato">Salvato</span>}
+      {scritta && (
+        <div className="note-gestione-azioni">
+          <button type="button" className="btn btn-sm" onClick={invia} disabled={inCorso}>
+            {inCorso ? 'Invio…' : 'Invia'}
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setTesto('')} disabled={inCorso}>
+            Annulla
+          </button>
+        </div>
+      )}
       {errore && (
         <p className="field-hint" style={{ color: 'var(--error)' }}>
           {errore}
         </p>
       )}
     </div>
+  )
+}
+
+/**
+ * Lo storico completo delle note di una scadenza, in un pannello che scorre
+ * da destra sopra la pagina: un <dialog> nativo, quindi Esc chiude, il focus
+ * resta dentro e la tabella sotto non si muove — si chiude e si è dove si
+ * era. La più recente in cima, testo intero, e il campo per aggiungerne una.
+ */
+function StoricoNote({
+  abbonamentoId,
+  tipo,
+  titolo,
+  disabilitato,
+  persona,
+  note,
+  nomiStaff,
+  onInviata,
+  onChiudi,
+}: {
+  abbonamentoId: string
+  tipo: TipoNota
+  titolo: string
+  disabilitato: boolean
+  persona: string
+  note: NotaScadenza[]
+  nomiStaff: Record<string, string>
+  onInviata: (nota: NotaScadenza) => void
+  onChiudi: () => void
+}) {
+  const ref = useRef<HTMLDialogElement>(null)
+
+  useEffect(() => {
+    const d = ref.current
+    if (d && !d.open) d.showModal()
+  }, [])
+
+  return (
+    <dialog
+      ref={ref}
+      className="pannello-note"
+      onClose={onChiudi}
+      onClick={(e) => {
+        // Clic sullo sfondo (fuori dal contenuto) chiude, come altrove.
+        if (e.target === e.currentTarget) ref.current?.close()
+      }}
+      aria-label={`${titolo} — ${persona}`}
+    >
+      <div className="pannello-note-corpo">
+        <div className="pannello-note-testa">
+          <div>
+            <p className="eyebrow">{titolo}</p>
+            <h3 className="pannello-note-titolo">{persona}</h3>
+          </div>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => ref.current?.close()}>
+            Chiudi
+          </button>
+        </div>
+        {!disabilitato && <CampoNuovaNota abbonamentoId={abbonamentoId} tipo={tipo} onInviata={onInviata} />}
+        {note.length === 0 ? (
+          <p className="muted">Ancora nessuna nota.</p>
+        ) : (
+          <ul className="note-storico">
+            {note.map((n) => (
+              <li key={n.id}>
+                <span className="note-storico-meta">
+                  {autoreNota(n, nomiStaff)} · {dataOra(n.creato_il)}
+                </span>
+                <p className="note-storico-testo">{n.testo}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </dialog>
   )
 }
 
@@ -593,6 +781,16 @@ function CellaEscludiReport({
 }
 
 /**
+ * La durata venduta sotto il nome del prodotto ("Annuale", "Mensile"…): il
+ * nome da solo non la dice, lo stesso prodotto esiste in più durate.
+ */
+function EtichettaDurata({ durata, periodo }: { durata: number | null; periodo: string | null }) {
+  const etichetta = etichettaDurata(durata, periodo)
+  if (!etichetta) return null
+  return <span className="badge-durata">{etichetta}</span>
+}
+
+/**
  * Una riga della tabella. Isolata in un componente proprio (e non inline
  * dentro il .map della tabella) solo per poter tenere lo stato locale
  * dell'ultimo valore scelto in Trattativa: Motivo e Note non rinnovo
@@ -603,6 +801,7 @@ function CellaEscludiReport({
  */
 function RigaTabella({
   r,
+  note,
   nascondiGruppo,
   nomeGruppo,
   operatoriSegreteria,
@@ -610,6 +809,7 @@ function RigaTabella({
   io,
 }: {
   r: RigaScadenza
+  note: NotaScadenza[]
   nascondiGruppo: boolean
   nomeGruppo: Map<string, string>
   operatoriSegreteria: string[]
@@ -619,13 +819,25 @@ function RigaTabella({
   const [statoAttuale, setStatoAttuale] = useState<StatoManuale>(r.stato_manuale)
   const [esclusoAttuale, setEsclusoAttuale] = useState(r.escluso_da_report)
   const perso = statoAttuale === 'perso'
+  const persona = [r.cognome, r.nome].filter(Boolean).join(' ') || 'Senza nome'
+  const noteGestione = useMemo(() => note.filter((n) => n.tipo === 'gestione'), [note])
+  const noteNonRinnovo = useMemo(() => note.filter((n) => n.tipo === 'non_rinnovo'), [note])
 
   return (
     <tr>
       <td className="cella-persona">
         {r.persona_id ? (
-          <Link href={`/dashboard/persone/${r.persona_id}`} className="cella-nowrap">
+          // In una tab nuova: chi lavora i rinnovi apre la scheda per
+          // controllare e torna alla tabella, senza perdere scorrimento,
+          // filtri e ordinamento (tutto stato client, non nell'URL).
+          <Link
+            href={`/dashboard/persone/${r.persona_id}`}
+            className="cella-nowrap link-nuova-scheda"
+            target="_blank"
+            rel="noopener"
+          >
             {r.cognome} {r.nome}
+            <IconaNuovaScheda />
           </Link>
         ) : (
           '—'
@@ -650,7 +862,10 @@ function RigaTabella({
           io={io}
         />
       </td>
-      <td>{r.abbonamento ?? '—'}</td>
+      <td className="cella-prodotto">
+        {r.abbonamento ?? '—'}
+        <EtichettaDurata durata={r.durata} periodo={r.periodo} />
+      </td>
       {!nascondiGruppo && <td>{r.gruppo_id ? (nomeGruppo.get(r.gruppo_id) ?? '—') : 'Non categorizzato'}</td>}
       <td className="cella-nowrap">{dataBreveAnno(r.data_inizio)}</td>
       <td className="cella-nowrap">{dataBreveAnno(r.data_fine)}</td>
@@ -666,11 +881,13 @@ function RigaTabella({
         )}
       </td>
       <td className="cella-nota cella-nota-larga">
-        <CellaTestoLungo
+        <CellaNote
           abbonamentoId={r.id}
-          valoreIniziale={r.nota ?? ''}
-          placeholder="Note di gestione…"
-          salva={salvaNotaScadenza}
+          tipo="gestione"
+          titolo="Note di gestione"
+          persona={persona}
+          noteIniziali={noteGestione}
+          nomiStaff={nomiStaff}
         />
       </td>
       <td className="cella-nowrap">
@@ -688,20 +905,31 @@ function RigaTabella({
           '—'
         )}
       </td>
-      <td className={perso ? 'cella-nota' : undefined}>
+      <td className={perso ? 'cella-nota cella-nota-larga' : undefined}>
         {perso ? (
-          <CellaTestoLungo
+          <CellaNote
             abbonamentoId={r.id}
-            valoreIniziale={r.note_non_rinnovo ?? ''}
-            placeholder="Note sul mancato rinnovo…"
-            salva={salvaNoteNonRinnovo}
+            tipo="non_rinnovo"
+            titolo="Note non rinnovo"
+            persona={persona}
+            noteIniziali={noteNonRinnovo}
+            nomiStaff={nomiStaff}
             disabilitato={r.rinnovato}
           />
         ) : (
           '—'
         )}
       </td>
-      <td>{r.rinnovo_id ? (r.rinnovo_abbonamento ?? '—') : '—'}</td>
+      <td className="cella-prodotto">
+        {r.rinnovo_id ? (
+          <>
+            {r.rinnovo_abbonamento ?? '—'}
+            <EtichettaDurata durata={r.rinnovo_durata} periodo={r.rinnovo_periodo} />
+          </>
+        ) : (
+          '—'
+        )}
+      </td>
       <td className="cella-nowrap">{r.rinnovo_id ? dataBreveAnno(r.rinnovo_data_inizio) : '—'}</td>
       <td className="cella-nowrap">{r.rinnovo_id ? dataBreveAnno(r.rinnovo_data_fine) : '—'}</td>
       <td className="cella-nowrap">{r.rinnovo_id ? (euro(r.rinnovo_totale) ?? '—') : '—'}</td>
@@ -716,6 +944,229 @@ function RigaTabella({
   )
 }
 
+const NESSUNA_NOTA: NotaScadenza[] = []
+
+type GruppoColonne = 'persona' | 'scadenza' | 'lavorazione' | 'rinnovo'
+
+// I quattro blocchi in cui si legge la riga, nell'ordine delle colonne: chi
+// lavora i rinnovi salta dall'uno all'altro (di solito dritto a
+// "Lavorazione", dove si scrive), non scorre colonna per colonna.
+const GRUPPI_COLONNE: { chiave: GruppoColonne; label: string }[] = [
+  { chiave: 'persona', label: 'Persona' },
+  { chiave: 'scadenza', label: 'Scadenza' },
+  { chiave: 'lavorazione', label: 'Lavorazione' },
+  { chiave: 'rinnovo', label: 'Nuovo abbonamento' },
+]
+
+/**
+ * Il contenitore che scorre della tabella scadenze: diciotto colonne non
+ * entrano in nessuno schermo, e con un mouse da computer fisso la rotellina
+ * scorre solo in verticale — la barra orizzontale, in fondo a 350+ righe,
+ * era di fatto irraggiungibile. Qui il contenitore è alto al più quanto la
+ * finestra, così entrambe le barre restano sempre a vista; intestazione e
+ * colonna Persona restano ferme (CSS, .tabella-scorri); sopra, i pulsanti
+ * ◀ ▶ e i salti per blocco di colonne fanno quello che altrimenti
+ * richiederebbe Shift + rotellina o un trackpad. Le ombre ai bordi dicono
+ * da che parte c'è ancora tabella.
+ */
+function ScorrimentoTabella({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [bordi, setBordi] = useState({ sinistra: false, destra: false })
+  const [attivo, setAttivo] = useState<GruppoColonne>('persona')
+
+  const aggiorna = useCallback(() => {
+    const el = ref.current
+    if (!el) return
+    const sinistra = el.scrollLeft > 1
+    const destra = el.scrollLeft + el.clientWidth < el.scrollWidth - 1
+    setBordi((b) => (b.sinistra === sinistra && b.destra === destra ? b : { sinistra, destra }))
+
+    // Il blocco "attivo" è l'ultimo la cui prima colonna è già arrivata al
+    // bordo destro della colonna Persona, che resta ferma.
+    const persona = el.querySelector<HTMLElement>('th[data-ancora="persona"]')
+    const soglia = el.scrollLeft + (persona?.offsetWidth ?? 0) + 8
+    let corrente: GruppoColonne = 'persona'
+    for (const g of GRUPPI_COLONNE) {
+      const th = el.querySelector<HTMLElement>(`th[data-ancora="${g.chiave}"]`)
+      if (th && th.offsetLeft <= soglia) corrente = g.chiave
+    }
+    if (!destra) corrente = GRUPPI_COLONNE[GRUPPI_COLONNE.length - 1].chiave
+    setAttivo(corrente)
+  }, [])
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    aggiorna()
+    const osservatore = new ResizeObserver(aggiorna)
+    osservatore.observe(el)
+    if (el.firstElementChild) osservatore.observe(el.firstElementChild)
+    return () => osservatore.disconnect()
+  }, [aggiorna])
+
+  function scorriDi(verso: 1 | -1) {
+    const el = ref.current
+    if (!el) return
+    const persona = el.querySelector<HTMLElement>('th[data-ancora="persona"]')
+    const visibile = el.clientWidth - (persona?.offsetWidth ?? 0)
+    el.scrollBy({ left: verso * Math.max(visibile * 0.8, 200), behavior: 'smooth' })
+  }
+
+  function vaiA(gruppo: GruppoColonne) {
+    const el = ref.current
+    if (!el) return
+    const th = el.querySelector<HTMLElement>(`th[data-ancora="${gruppo}"]`)
+    const persona = el.querySelector<HTMLElement>('th[data-ancora="persona"]')
+    if (!th) return
+    const left = gruppo === 'persona' ? 0 : th.offsetLeft - (persona?.offsetWidth ?? 0)
+    el.scrollTo({ left, behavior: 'smooth' })
+  }
+
+  const scorrevole = bordi.sinistra || bordi.destra
+
+  return (
+    <>
+      {scorrevole && (
+        <div className="tabella-scorri-barra">
+          <div className="tabella-scorri-salti" role="group" aria-label="Vai alle colonne">
+            {GRUPPI_COLONNE.map((g) => (
+              <button
+                key={g.chiave}
+                type="button"
+                className={`tabella-scorri-salto${attivo === g.chiave ? ' is-attivo' : ''}`}
+                aria-pressed={attivo === g.chiave}
+                onClick={() => vaiA(g.chiave)}
+              >
+                {g.label}
+              </button>
+            ))}
+          </div>
+          <span className="muted tabella-scorri-aiuto">Shift + rotellina per scorrere di lato</span>
+          <div className="tabella-scorri-frecce">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => scorriDi(-1)}
+              disabled={!bordi.sinistra}
+              aria-label="Colonne precedenti"
+            >
+              ◀
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => scorriDi(1)}
+              disabled={!bordi.destra}
+              aria-label="Colonne successive"
+            >
+              ▶
+            </button>
+          </div>
+        </div>
+      )}
+      <div
+        className={`tabella-scorri${bordi.sinistra ? ' ombra-sinistra' : ''}${bordi.destra ? ' ombra-destra' : ''}`}
+      >
+        <div ref={ref} className="tabella-scorri-area" onScroll={aggiorna}>
+          {children}
+        </div>
+      </div>
+    </>
+  )
+}
+
+// Quali filtri stanno in ciascuna delle due sezioni apribili. Un intervallo
+// (da/a) conta come un filtro solo: chi legge "2 attivi" pensa a due campi,
+// non a quattro caselle.
+const CHIAVI_SCADENZA: (keyof Filtri | [keyof Filtri, keyof Filtri])[] = [
+  'persona',
+  'prodotto',
+  'durata',
+  'gruppo',
+  'operatore',
+  ['dataInizioDa', 'dataInizioA'],
+  ['dataFineDa', 'dataFineA'],
+  ['totaleMin', 'totaleMax'],
+]
+const CHIAVI_RINNOVO: (keyof Filtri | [keyof Filtri, keyof Filtri])[] = [
+  'rinnovoAbbonamento',
+  ['rinnovoDataInizioDa', 'rinnovoDataInizioA'],
+  ['rinnovoDataFineDa', 'rinnovoDataFineA'],
+  ['rinnovoTotaleMin', 'rinnovoTotaleMax'],
+]
+
+function contaAttivi(f: Filtri, chiavi: (keyof Filtri | [keyof Filtri, keyof Filtri])[]): number {
+  return chiavi.filter((k) => (Array.isArray(k) ? k.some((c) => f[c] !== '') : f[k] !== '')).length
+}
+
+/**
+ * Una sezione di filtri che si apre e si chiude: un riquadro con una testata
+ * cliccabile per intero — freccia che ruota, titolo, i campi che contiene,
+ * e "Mostra filtri"/"Nascondi" scritto per esteso — invece di una scritta
+ * minuscola con un "+" in coda, che non si capiva fosse un comando. Il
+ * conteggio dei filtri attivi resta a vista anche da chiusa: un filtro
+ * nascosto che restringe la tabella senza che si veda è il modo più sicuro
+ * per credere che manchino delle righe.
+ */
+function SezioneFiltri({
+  titolo,
+  campi,
+  attivi,
+  aperta,
+  onCambia,
+  children,
+}: {
+  titolo: string
+  campi: string
+  attivi: number
+  aperta: boolean
+  onCambia: (aperta: boolean) => void
+  children: React.ReactNode
+}) {
+  const id = useId()
+  return (
+    <div className={`filtri-sezione${aperta ? ' is-aperta' : ''}`}>
+      <button
+        type="button"
+        className="filtri-sezione-testa"
+        aria-expanded={aperta}
+        aria-controls={id}
+        onClick={() => onCambia(!aperta)}
+      >
+        <svg
+          className="filtri-sezione-freccia"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2.2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="m9 6 6 6-6 6" />
+        </svg>
+        <span className="filtri-sezione-testi">
+          <span className="filtri-sezione-titolo">Filtri — {titolo}</span>
+          <span className="filtri-sezione-campi">{campi}</span>
+        </span>
+        {attivi > 0 && (
+          <span className="filtri-sezione-attivi">
+            {attivi} {attivi === 1 ? 'attivo' : 'attivi'}
+          </span>
+        )}
+        <span className="filtri-sezione-azione">{aperta ? 'Nascondi' : 'Mostra filtri'}</span>
+      </button>
+      {aperta && (
+        <div id={id} className="filtri-sezione-corpo">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /**
  * L'elenco delle scadenze di un mese, con ordinamento per colonna (clic
  * sull'intestazione) e un filtro per colonna — in memoria, come in
@@ -726,6 +1177,7 @@ function RigaTabella({
  */
 export function TabellaScadenze({
   righe,
+  noteScadenze,
   gruppi,
   nascondiGruppo = false,
   operatoriSegreteria,
@@ -733,6 +1185,9 @@ export function TabellaScadenze({
   io,
 }: {
   righe: RigaScadenza[]
+  // Lo storico delle note di gestione per abbonamento (vedi note.ts), la più
+  // recente in cima. Una scadenza senza note semplicemente non c'è.
+  noteScadenze: Record<string, NotaScadenza[]>
   gruppi: Gruppo[]
   // Vero sulla pagina Rinnovi (fissa sul gruppo Core, vedi
   // /dashboard/abbonamenti/rinnovi): il filtro e la colonna Gruppo
@@ -742,6 +1197,9 @@ export function TabellaScadenze({
   // staff_users.operatore_segreteria — chi lavora davvero i rinnovi, non
   // tutto lo staff (vedi SelettoreAssegnatario).
   operatoriSegreteria: string[]
+  // Tutto lo staff, non solo la segreteria: una nota di gestione può
+  // scriverla anche chi entra da Abbonamenti (direzione), e va firmata col
+  // suo nome.
   nomiStaff: Record<string, string>
   io: string | null
 }) {
@@ -774,6 +1232,17 @@ export function TabellaScadenze({
     setFiltri((f) => ({ ...f, [chiave]: valore }))
   }
 
+  // Le durate presenti nel mese, dalla più breve alla più lunga: l'elenco
+  // fisso di tutte quelle possibili offrirebbe scelte che non trovano niente.
+  const durateDisponibili = useMemo(() => {
+    const perEtichetta = new Map<string, number>()
+    for (const r of righe) {
+      const etichetta = etichettaDurata(r.durata, r.periodo) ?? 'Non indicata'
+      if (!perEtichetta.has(etichetta)) perEtichetta.set(etichetta, giorniDurata(r.durata, r.periodo))
+    }
+    return [...perEtichetta.entries()].sort((a, b) => a[1] - b[1]).map(([etichetta]) => etichetta)
+  }, [righe])
+
   const righeFiltrate = useMemo(() => righe.filter((r) => corrisponde(r, filtri)), [righe, filtri])
 
   const righeOrdinate = useMemo(() => {
@@ -794,10 +1263,18 @@ export function TabellaScadenze({
     return copia
   }, [righeFiltrate, ordineColonna, ordineDirezione, nomeGruppo])
 
-  function Intestazione({ colonna, children }: { colonna: Colonna; children: React.ReactNode }) {
+  function Intestazione({
+    colonna,
+    ancora,
+    children,
+  }: {
+    colonna: Colonna
+    ancora?: GruppoColonne
+    children: React.ReactNode
+  }) {
     const attiva = ordineColonna === colonna
     return (
-      <th>
+      <th data-ancora={ancora}>
         <button type="button" className="th-ordina" onClick={() => alClickColonna(colonna)}>
           {children}
           {attiva && (
@@ -852,125 +1329,133 @@ export function TabellaScadenze({
           </div>
         </div>
 
-        <button
-          type="button"
-          className="filtri-titolo filtri-titolo-toggle"
-          aria-expanded={apertoScadenza}
-          onClick={() => setApertoScadenza((v) => !v)}
+        <SezioneFiltri
+          titolo="Abbonamento in scadenza"
+          campi={`Persona, prodotto, durata${nascondiGruppo ? '' : ', gruppo'}, operatore, date e importo`}
+          attivi={contaAttivi(filtri, CHIAVI_SCADENZA)}
+          aperta={apertoScadenza}
+          onCambia={setApertoScadenza}
         >
-          Filtro — abbonamento in scadenza {apertoScadenza ? '−' : '+'}
-        </button>
-        {apertoScadenza && (
-          <>
-            <div className="form-row">
-              <CampoTesto
-                label="Persona"
-                valore={filtri.persona}
-                onCambia={(v) => aggiornaFiltro('persona', v)}
-                placeholder="Nome, cognome, email o cellulare"
-              />
-              <CampoTesto
-                label="Prodotto"
-                valore={filtri.prodotto}
-                onCambia={(v) => aggiornaFiltro('prodotto', v)}
-              />
-              {!nascondiGruppo && (
-                <div className="field">
-                  <label>Gruppo</label>
-                  <select value={filtri.gruppo} onChange={(e) => aggiornaFiltro('gruppo', e.target.value)}>
-                    <option value="">Tutti</option>
-                    {gruppi.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.nome}
-                      </option>
-                    ))}
-                    <option value={NON_CATEGORIZZATO}>Non categorizzato</option>
-                  </select>
-                </div>
-              )}
-              <CampoTesto
-                label="Operatore"
-                valore={filtri.operatore}
-                onCambia={(v) => aggiornaFiltro('operatore', v)}
-              />
+          <div className="form-row">
+            <CampoTesto
+              label="Persona"
+              valore={filtri.persona}
+              onCambia={(v) => aggiornaFiltro('persona', v)}
+              placeholder="Nome, cognome, email o cellulare"
+            />
+            <CampoTesto
+              label="Prodotto"
+              valore={filtri.prodotto}
+              onCambia={(v) => aggiornaFiltro('prodotto', v)}
+            />
+            <div className="field">
+              <label>Durata</label>
+              <select value={filtri.durata} onChange={(e) => aggiornaFiltro('durata', e.target.value)}>
+                <option value="">Tutte</option>
+                {durateDisponibili.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
             </div>
-            <div className="form-row">
-              <CampoIntervallo
-                label="Data inizio"
-                tipo="date"
-                da={filtri.dataInizioDa}
-                a={filtri.dataInizioA}
-                onDa={(v) => aggiornaFiltro('dataInizioDa', v)}
-                onA={(v) => aggiornaFiltro('dataInizioA', v)}
-              />
-              <CampoIntervallo
-                label="Scadenza"
-                tipo="date"
-                da={filtri.dataFineDa}
-                a={filtri.dataFineA}
-                onDa={(v) => aggiornaFiltro('dataFineDa', v)}
-                onA={(v) => aggiornaFiltro('dataFineA', v)}
-              />
-              <CampoIntervallo
-                label="Importo (€)"
-                tipo="number"
-                da={filtri.totaleMin}
-                a={filtri.totaleMax}
-                onDa={(v) => aggiornaFiltro('totaleMin', v)}
-                onA={(v) => aggiornaFiltro('totaleMax', v)}
-              />
-            </div>
-          </>
-        )}
+            {!nascondiGruppo && (
+              <div className="field">
+                <label>Gruppo</label>
+                <select value={filtri.gruppo} onChange={(e) => aggiornaFiltro('gruppo', e.target.value)}>
+                  <option value="">Tutti</option>
+                  {gruppi.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.nome}
+                    </option>
+                  ))}
+                  <option value={NON_CATEGORIZZATO}>Non categorizzato</option>
+                </select>
+              </div>
+            )}
+            <CampoTesto
+              label="Operatore"
+              valore={filtri.operatore}
+              onCambia={(v) => aggiornaFiltro('operatore', v)}
+            />
+          </div>
+          <div className="form-row">
+            <CampoIntervallo
+              label="Data inizio"
+              tipo="date"
+              da={filtri.dataInizioDa}
+              a={filtri.dataInizioA}
+              onDa={(v) => aggiornaFiltro('dataInizioDa', v)}
+              onA={(v) => aggiornaFiltro('dataInizioA', v)}
+            />
+            <CampoIntervallo
+              label="Scadenza"
+              tipo="date"
+              da={filtri.dataFineDa}
+              a={filtri.dataFineA}
+              onDa={(v) => aggiornaFiltro('dataFineDa', v)}
+              onA={(v) => aggiornaFiltro('dataFineA', v)}
+            />
+            <CampoIntervallo
+              label="Importo (€)"
+              tipo="number"
+              da={filtri.totaleMin}
+              a={filtri.totaleMax}
+              onDa={(v) => aggiornaFiltro('totaleMin', v)}
+              onA={(v) => aggiornaFiltro('totaleMax', v)}
+            />
+          </div>
+        </SezioneFiltri>
 
-        <button
-          type="button"
-          className="filtri-titolo filtri-titolo-toggle"
-          aria-expanded={apertoRinnovo}
-          onClick={() => setApertoRinnovo((v) => !v)}
+        <SezioneFiltri
+          titolo="Abbonamento rinnovato"
+          campi="Nuovo abbonamento, nuove date e nuovo importo"
+          attivi={contaAttivi(filtri, CHIAVI_RINNOVO)}
+          aperta={apertoRinnovo}
+          onCambia={setApertoRinnovo}
         >
-          Filtro — abbonamento rinnovato {apertoRinnovo ? '−' : '+'}
-        </button>
-        {apertoRinnovo && (
-          <>
-            <div className="form-row">
-              <CampoTesto
-                label="Nuovo abbonamento"
-                valore={filtri.rinnovoAbbonamento}
-                onCambia={(v) => aggiornaFiltro('rinnovoAbbonamento', v)}
-              />
-              <CampoIntervallo
-                label="Nuova data inizio"
-                tipo="date"
-                da={filtri.rinnovoDataInizioDa}
-                a={filtri.rinnovoDataInizioA}
-                onDa={(v) => aggiornaFiltro('rinnovoDataInizioDa', v)}
-                onA={(v) => aggiornaFiltro('rinnovoDataInizioA', v)}
-              />
-              <CampoIntervallo
-                label="Nuova scadenza"
-                tipo="date"
-                da={filtri.rinnovoDataFineDa}
-                a={filtri.rinnovoDataFineA}
-                onDa={(v) => aggiornaFiltro('rinnovoDataFineDa', v)}
-                onA={(v) => aggiornaFiltro('rinnovoDataFineA', v)}
-              />
-            </div>
-            <div className="form-row">
-              <CampoIntervallo
-                label="Nuovo importo (€)"
-                tipo="number"
-                da={filtri.rinnovoTotaleMin}
-                a={filtri.rinnovoTotaleMax}
-                onDa={(v) => aggiornaFiltro('rinnovoTotaleMin', v)}
-                onA={(v) => aggiornaFiltro('rinnovoTotaleMax', v)}
-              />
-            </div>
-          </>
-        )}
+          <div className="form-row">
+            <CampoTesto
+              label="Nuovo abbonamento"
+              valore={filtri.rinnovoAbbonamento}
+              onCambia={(v) => aggiornaFiltro('rinnovoAbbonamento', v)}
+            />
+            <CampoIntervallo
+              label="Nuova data inizio"
+              tipo="date"
+              da={filtri.rinnovoDataInizioDa}
+              a={filtri.rinnovoDataInizioA}
+              onDa={(v) => aggiornaFiltro('rinnovoDataInizioDa', v)}
+              onA={(v) => aggiornaFiltro('rinnovoDataInizioA', v)}
+            />
+            <CampoIntervallo
+              label="Nuova scadenza"
+              tipo="date"
+              da={filtri.rinnovoDataFineDa}
+              a={filtri.rinnovoDataFineA}
+              onDa={(v) => aggiornaFiltro('rinnovoDataFineDa', v)}
+              onA={(v) => aggiornaFiltro('rinnovoDataFineA', v)}
+            />
+          </div>
+          <div className="form-row">
+            <CampoIntervallo
+              label="Nuovo importo (€)"
+              tipo="number"
+              da={filtri.rinnovoTotaleMin}
+              a={filtri.rinnovoTotaleMax}
+              onDa={(v) => aggiornaFiltro('rinnovoTotaleMin', v)}
+              onA={(v) => aggiornaFiltro('rinnovoTotaleMax', v)}
+            />
+          </div>
+        </SezioneFiltri>
 
         {attivi && (
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setFiltri(FILTRI_VUOTI)}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            style={{ marginTop: '0.75rem' }}
+            onClick={() => setFiltri(FILTRI_VUOTI)}
+          >
             Cancella filtri
           </button>
         )}
@@ -986,24 +1471,26 @@ export function TabellaScadenze({
         {righeOrdinate.length === 0 ? (
           <p className="vuoto">Nessun abbonamento corrisponde ai filtri.</p>
         ) : (
-          <div className="tabella-wrap">
+          <ScorrimentoTabella>
             <table className="tabella tabella-scadenze">
               <thead>
                 <tr>
-                  <Intestazione colonna="persona">Persona</Intestazione>
+                  <Intestazione colonna="persona" ancora="persona">Persona</Intestazione>
                   <Intestazione colonna="assegnatario">Assegnatario</Intestazione>
                   <Intestazione colonna="prodotto">Prodotto</Intestazione>
                   {!nascondiGruppo && <Intestazione colonna="gruppo">Gruppo</Intestazione>}
-                  <Intestazione colonna="data_inizio">Inizio</Intestazione>
+                  <Intestazione colonna="data_inizio" ancora="scadenza">Inizio</Intestazione>
                   <Intestazione colonna="data_fine">Scadenza</Intestazione>
                   <Intestazione colonna="totale">Importo</Intestazione>
                   <Intestazione colonna="operatore">Operatore</Intestazione>
                   <Intestazione colonna="rinnovato">Rinnovo</Intestazione>
-                  <th>Note di gestione</th>
+                  <th data-ancora="lavorazione">Note di gestione</th>
                   <Intestazione colonna="stato">Trattativa</Intestazione>
                   <Intestazione colonna="motivo">Motivo non rinnovo</Intestazione>
                   <th>Note non rinnovo</th>
-                  <Intestazione colonna="rinnovo_abbonamento">Nuovo abbonamento</Intestazione>
+                  <Intestazione colonna="rinnovo_abbonamento" ancora="rinnovo">
+                    Nuovo abbonamento
+                  </Intestazione>
                   <Intestazione colonna="rinnovo_data_inizio">Nuovo inizio</Intestazione>
                   <Intestazione colonna="rinnovo_data_fine">Nuova scadenza</Intestazione>
                   <Intestazione colonna="rinnovo_totale">Nuovo importo</Intestazione>
@@ -1015,6 +1502,7 @@ export function TabellaScadenze({
                   <RigaTabella
                     key={r.id}
                     r={r}
+                    note={noteScadenze[r.id] ?? NESSUNA_NOTA}
                     nascondiGruppo={nascondiGruppo}
                     nomeGruppo={nomeGruppo}
                     operatoriSegreteria={operatoriSegreteria}
@@ -1024,7 +1512,7 @@ export function TabellaScadenze({
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScorrimentoTabella>
         )}
       </div>
     </>

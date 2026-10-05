@@ -972,6 +972,156 @@ table.tabella tbody tr:hover {
 	overflow-wrap: anywhere;
 }
 
+/* Abbastanza larga perché il nome del prodotto stia quasi sempre su una
+   riga: con l'etichetta della durata sotto, un nome spezzato su tre righe
+   sarebbe la cella che alza tutta la riga. */
+.cella-prodotto {
+	min-width: 14rem;
+}
+
+/* La durata venduta sotto il nome del prodotto (vedi EtichettaDurata in
+   TabellaScadenze): piccola e su una riga a sé, così la colonna non si
+   allarga e la riga non si alza oltre il nome del prodotto. */
+.badge-durata {
+	display: block;
+	width: fit-content;
+	margin-top: 0.2rem;
+	padding: 0.05rem 0.45rem;
+	border: 1px solid var(--border-strong);
+	border-radius: 999px;
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+	line-height: 1.4;
+	white-space: nowrap;
+}
+
+/* Scorrimento della tabella scadenze (vedi ScorrimentoTabella): alta al più
+   quanto la finestra, così la barra orizzontale non sta più in fondo a
+   centinaia di righe ma sempre a vista; intestazione e colonna Persona
+   restano ferme mentre si scorre, per non perdere mai di chi è la riga.
+   border-collapse: separate perché con collapse i bordi delle celle sticky
+   scorrono via insieme al resto. */
+.tabella-scorri {
+	position: relative;
+}
+
+.tabella-scorri-area {
+	max-height: calc(100vh - 7rem);
+	max-height: calc(100dvh - 7rem);
+	overflow: auto;
+	overscroll-behavior-x: contain;
+}
+
+.tabella-scorri table.tabella {
+	border-collapse: separate;
+	border-spacing: 0;
+}
+
+.tabella-scorri thead th {
+	position: sticky;
+	top: 0;
+	z-index: 2;
+	background: var(--surface);
+}
+
+.tabella-scorri tbody td:first-child {
+	position: sticky;
+	left: 0;
+	z-index: 1;
+	background: var(--surface);
+}
+
+.tabella-scorri thead th:first-child {
+	left: 0;
+	z-index: 3;
+}
+
+.tabella-scorri tbody tr:hover td:first-child {
+	background: linear-gradient(var(--accent-tint), var(--accent-tint)), var(--surface);
+}
+
+/* Il filo che separa la colonna ferma dal resto compare solo quando sotto
+   c'è davvero qualcosa che le scorre dietro. */
+.tabella-scorri.ombra-sinistra th:first-child,
+.tabella-scorri.ombra-sinistra td:first-child {
+	box-shadow: 6px 0 8px -6px rgba(0, 0, 0, 0.25);
+}
+
+.tabella-scorri::after {
+	content: '';
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	width: 1.5rem;
+	background: linear-gradient(to left, rgba(0, 0, 0, 0.12), transparent);
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.15s;
+	z-index: 4;
+}
+
+.tabella-scorri.ombra-destra::after {
+	opacity: 1;
+}
+
+.tabella-scorri-barra {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem 1rem;
+	margin-bottom: 0.75rem;
+}
+
+.tabella-scorri-salti {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+}
+
+.tabella-scorri-salto {
+	padding: 0.25rem 0.65rem;
+	background: none;
+	border: 1px solid var(--border-strong);
+	border-radius: 999px;
+	color: var(--text-muted);
+	font: inherit;
+	font-size: var(--text-2xs);
+	cursor: pointer;
+}
+
+.tabella-scorri-salto:hover,
+.tabella-scorri-salto:focus-visible {
+	color: var(--text);
+}
+
+.tabella-scorri-salto.is-attivo {
+	background: var(--accent-tint);
+	border-color: var(--accent);
+	color: var(--text);
+}
+
+.tabella-scorri-aiuto {
+	font-size: var(--text-2xs);
+}
+
+.tabella-scorri-frecce {
+	display: flex;
+	gap: 0.35rem;
+	margin-left: auto;
+}
+
+/* Su telefono la colonna ferma si stringe: a 12rem si mangerebbe metà
+   schermo, e lì si scorre col dito, l'aiuto per la rotellina non serve. */
+@media (max-width: 640px) {
+	.tabella-scorri .cella-persona {
+		max-width: 8.5rem;
+	}
+	.tabella-scorri-aiuto {
+		display: none;
+	}
+}
+
 /* Intestazione di colonna cliccabile per ordinare la tabella (vedi
    "Ultima vendita" in /dashboard/abbonamenti/gruppi): eredita il colore e le
    maiuscole di table.tabella th, non un link "blu" in mezzo a un'intestazione
@@ -3639,29 +3789,118 @@ button.th-ordina {
 	text-transform: uppercase;
 }
 
-/* Un titolo di filtro che è anche il bottone per aprirlo/chiuderlo (vedi
-   TabellaScadenze, abbonamenti/scadenze): stessa scritta di .filtri-titolo,
-   resa cliccabile — niente sfondo o bordo da bottone, solo un cursore e un
-   filo di margine sopra quando non è il primo della card. */
-.filtri-titolo-toggle {
-	display: block;
+/* Una sezione di filtri apribile (vedi SezioneFiltri in TabellaScadenze,
+   abbonamenti/scadenze): un riquadro con la testata cliccabile per intero,
+   freccia che ruota da chiusa (▸) ad aperta (▾), e "Mostra filtri" /
+   "Nascondi" scritto — non solo un segno — perché si capisca a colpo
+   d'occhio che è un comando e cosa fa. */
+.filtri-sezione {
+	margin-top: 0.75rem;
+	border: 1px solid var(--border-strong);
+	border-radius: 8px;
+	overflow: hidden;
+}
+
+.filtri-sezione + .filtri-sezione {
+	margin-top: 0.5rem;
+}
+
+.filtri-sezione-testa {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
 	width: 100%;
-	margin-top: 1rem;
-	padding: 0;
-	background: none;
+	padding: 0.7rem 0.9rem;
+	background: var(--bg);
 	border: none;
-	color: var(--text-muted);
+	color: var(--text);
 	font-family: inherit;
 	text-align: left;
 	cursor: pointer;
 }
 
-.filtri-titolo-toggle:first-child {
-	margin-top: 0;
+.filtri-sezione-testa:hover,
+.filtri-sezione-testa:focus-visible {
+	background: var(--accent-tint);
 }
 
-.filtri-titolo-toggle:hover {
-	color: var(--text);
+.filtri-sezione-freccia {
+	flex: none;
+	color: var(--accent);
+	transition: transform 0.15s ease;
+}
+
+.filtri-sezione.is-aperta .filtri-sezione-freccia {
+	transform: rotate(90deg);
+}
+
+.filtri-sezione-testi {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.filtri-sezione-titolo {
+	font-size: var(--text-xs);
+	font-weight: 500;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.filtri-sezione-campi {
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+}
+
+.filtri-sezione-attivi {
+	flex: none;
+	padding: 0.15rem 0.55rem;
+	background: var(--accent);
+	border-radius: 999px;
+	color: var(--surface);
+	font-size: var(--text-2xs);
+	font-weight: 500;
+	white-space: nowrap;
+}
+
+.filtri-sezione-azione {
+	flex: none;
+	color: var(--accent);
+	font-size: var(--text-2xs);
+	font-weight: 500;
+	text-decoration: underline;
+	text-underline-offset: 2px;
+	white-space: nowrap;
+}
+
+.filtri-sezione.is-aperta .filtri-sezione-testa {
+	border-bottom: 1px solid var(--border);
+}
+
+.filtri-sezione-corpo {
+	padding: 1rem 0.9rem 0.25rem;
+}
+
+/* Un intervallo "da / a" sono due campi in uno: con la larghezza minima di
+   un campo singolo (180px) due date non ci stanno e finivano una sopra la
+   colonna accanto. */
+.form-row .field-intervallo {
+	min-width: 15rem;
+}
+
+.form-row .field-intervallo.is-date {
+	min-width: 19rem;
+}
+
+.field-intervallo input {
+	min-width: 0;
+}
+
+@media (max-width: 640px) {
+	.filtri-sezione-campi {
+		display: none;
+	}
 }
 
 /* Numero di sezione ben visibile davanti al titolo di una card (pagina
@@ -3863,6 +4102,177 @@ button.th-ordina {
 
 .cella-nota-stato {
 	font-size: var(--text-2xs);
+}
+
+/* Note di gestione con storico (vedi CellaNoteGestione in TabellaScadenze).
+   Vincolo: la riga della tabella resta stretta qualunque sia il numero di
+   note. In cella solo l'ultima nota, troncata su una riga, e il campo per la
+   prossima su una riga; lo storico intero sta in .pannello-note. */
+.note-gestione {
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+}
+
+/* Autore, orario e testo su una riga sola, troncata: insieme al campo sotto
+   resta entro l'altezza che la colonna Persona (nome, cellulare, email)
+   già impone alla riga. */
+.note-ultima {
+	display: block;
+	max-width: 19rem;
+	overflow: hidden;
+	padding: 0;
+	background: none;
+	border: none;
+	color: inherit;
+	font: inherit;
+	font-size: var(--text-2xs);
+	line-height: 1.3;
+	text-align: left;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.note-ultima-meta {
+	color: var(--text-muted);
+}
+
+.note-ultima:hover,
+.note-ultima:focus-visible {
+	color: var(--accent);
+	text-decoration: underline;
+}
+
+.note-gestione-riga {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.4rem;
+}
+
+.note-nuova {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 0.3rem;
+	min-width: 0;
+}
+
+/* Una riga sola finché è vuoto: niente maniglia di ridimensionamento, che
+   inviterebbe a rendere la riga alta per sempre. */
+.note-nuova.is-compatta .textarea-inline {
+	min-width: 0;
+	resize: none;
+}
+
+.note-nuova.is-compatta:not(.is-scritta) .textarea-inline {
+	height: 1.75rem;
+	padding-top: 0.25rem;
+	padding-bottom: 0.25rem;
+	overflow: hidden;
+}
+
+.cella-nota-larga .note-nuova .textarea-inline {
+	min-width: 0;
+}
+
+.note-contatore {
+	flex: none;
+	padding: 0.25rem 0.5rem;
+	background: var(--accent-tint);
+	border: 1px solid transparent;
+	border-radius: 999px;
+	color: var(--accent);
+	font: inherit;
+	font-size: var(--text-2xs);
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.note-contatore:hover,
+.note-contatore:focus-visible {
+	border-color: var(--accent);
+}
+
+.note-gestione-azioni {
+	display: flex;
+	gap: 0.4rem;
+}
+
+/* Il pannello dello storico: un <dialog> modale ancorato a destra, alto
+   quanto la finestra, con lo sfondo appena velato — la tabella resta
+   riconoscibile dietro. */
+.pannello-note {
+	position: fixed;
+	inset: 0 0 0 auto;
+	width: min(28rem, 100vw);
+	max-width: 100vw;
+	height: 100%;
+	max-height: 100%;
+	margin: 0;
+	padding: 0;
+	background: var(--surface);
+	border: none;
+	border-left: 1px solid var(--border-strong);
+	box-shadow: -12px 0 32px rgba(0, 0, 0, 0.18);
+	color: var(--text);
+}
+
+.pannello-note::backdrop {
+	background: rgba(0, 0, 0, 0.25);
+}
+
+.pannello-note-corpo {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+	padding: 1.25rem;
+}
+
+.pannello-note-testa {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 1rem;
+}
+
+.pannello-note-testa .eyebrow {
+	margin: 0;
+}
+
+.pannello-note-titolo {
+	margin: 0.2rem 0 0;
+}
+
+.note-storico {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.note-storico li {
+	padding: 0.5rem 0.65rem;
+	background: var(--accent-tint);
+	border-left: 2px solid var(--accent);
+	border-radius: 4px;
+}
+
+.note-storico-meta {
+	display: block;
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+	line-height: 1.3;
+}
+
+.note-storico-testo {
+	margin: 0.2rem 0 0;
+	font-size: var(--text-sm);
+	line-height: 1.45;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
 }
 
 @media (max-width: 640px) {
