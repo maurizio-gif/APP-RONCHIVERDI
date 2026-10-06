@@ -4,7 +4,8 @@ import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { puoAmministrare } from '@/lib/auth/permessi'
 import { ordinaPerCognome } from '@/lib/staff'
 import { invitaStaff, leggiAccessi } from './actions'
-import { RigaUtente, type DatiUtente } from './RigaUtente'
+import { type DatiUtente } from './RigaUtente'
+import { ElencoUtenti } from './ElencoUtenti'
 
 export const dynamic = 'force-dynamic'
 
@@ -109,31 +110,12 @@ export default async function UtentiPage({
         </div>
       )}
 
-      <div className="card">
-        <div className="card-head">
-          <h2>Persone con accesso</h2>
-          <span className="muted">{utenti.length} in totale</span>
-        </div>
-
-        {utenti.length === 0 ? (
-          <p className="vuoto">
-            Nessun utente in tabella. Il primo va inserito da Supabase, poi da qui si invitano gli
-            altri.
-          </p>
-        ) : (
-          <ul className="utenti">
-            {utenti.map((u) => (
-              <RigaUtente
-                key={u.email}
-                u={u}
-                amministra={amministra}
-                eSeStesso={u.email === email}
-                accesso={accessi[u.email.toLowerCase()] ?? null}
-              />
-            ))}
-          </ul>
-        )}
-      </div>
+      <ElencoUtenti
+        utenti={utenti}
+        accessi={accessi}
+        amministra={amministra}
+        emailCorrente={email}
+      />
     </>
   )
 }
