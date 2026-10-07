@@ -7743,3 +7743,185 @@ table.tabella tr.riga-totale td {
 	opacity: 0.4;
 	pointer-events: none;
 }
+
+/* ───────────────────────────────────────────── tabella a righe strette */
+
+/* Una riga per elemento: niente a capo, celle compatte. Il nome del cliente
+   resta sempre intero su una riga (chi cerca un nome lo legge senza
+   ricomporlo da tre righe); se le colonne non stanno nella pagina scorre il
+   contenitore, non si spezzano le celle. Il nome dell'abbonamento, che è
+   spesso lungo, si accorcia con i puntini e per esteso sta nel suggerimento. */
+table.tabella-compatta td {
+	padding: 0.4rem 0.6rem;
+	vertical-align: middle;
+	white-space: nowrap;
+}
+
+table.tabella-compatta th {
+	padding: 0.5rem 0.6rem;
+}
+
+table.tabella-compatta .cella-persona {
+	max-width: none;
+	overflow-wrap: normal;
+}
+
+table.tabella-compatta .cella-troncata {
+	max-width: 20rem;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+table.tabella-compatta .nota-in-riga {
+	margin-left: 0.4rem;
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+}
+
+/* ───────────────────────────────────────────── barra filtri compatta */
+
+/* Ricerca e due menu sempre visibili su una riga; i filtri meno usati in un
+   pannello a scomparsa (<details>, senza JavaScript) che si apre da solo se
+   uno è attivo; i filtri attivi sotto, come etichette da togliere una a una. */
+.filtri-barra {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+	align-items: flex-end;
+}
+
+.filtri-barra .field {
+	margin: 0;
+	min-width: 11rem;
+}
+
+.filtri-barra .filtri-barra-cerca {
+	flex: 1 1 18rem;
+}
+
+.filtri-barra-azioni {
+	display: flex;
+	gap: 0.5rem;
+}
+
+.filtri-avanzati {
+	margin-top: 0.9rem;
+	border-top: 1px solid var(--border);
+	padding-top: 0.6rem;
+}
+
+.filtri-avanzati > summary {
+	cursor: pointer;
+	color: var(--text-muted);
+	font-size: var(--text-sm);
+	list-style: none;
+}
+
+.filtri-avanzati > summary::before {
+	content: '▸ ';
+}
+
+.filtri-avanzati[open] > summary::before {
+	content: '▾ ';
+}
+
+.filtri-griglia {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+	gap: 0.75rem 1.25rem;
+	margin-top: 0.75rem;
+}
+
+.filtri-gruppo-campi {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	min-width: 0;
+}
+
+.filtri-gruppo-campi legend {
+	padding: 0;
+	margin-bottom: 0.3rem;
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+	font-weight: 500;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.filtri-gruppo-campi select,
+.filtri-gruppo-campi input {
+	width: 100%;
+	min-width: 0;
+}
+
+.campo-coppia {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+	gap: 0.4rem;
+	align-items: center;
+}
+
+.filtri-attivi {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+	align-items: center;
+	margin-top: 0.9rem;
+}
+
+/* ─────────────────────────────────────── multi-select «escludi abbonamenti» */
+
+.filtri-gruppo-largo {
+	grid-column: 1 / -1;
+}
+
+.escludi-abb-barra {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	align-items: center;
+	margin-bottom: 0.5rem;
+}
+
+.escludi-abb-barra input[type='search'] {
+	flex: 1 1 14rem;
+	width: auto;
+}
+
+.escludi-abb-lista {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+	gap: 0.15rem 1rem;
+	max-height: 12rem;
+	overflow-y: auto;
+	padding: 0.5rem 0.6rem;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	background: var(--surface);
+}
+
+.escludi-abb-voce {
+	display: flex;
+	align-items: center;
+	gap: 0.45rem;
+	font-size: var(--text-sm);
+	cursor: pointer;
+}
+
+.escludi-abb-voce[hidden] {
+	display: none;
+}
+
+.escludi-abb-voce input {
+	width: auto;
+	flex: none;
+}
+
+.escludi-abb-nome {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
