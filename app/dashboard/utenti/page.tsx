@@ -4,7 +4,8 @@ import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { puoAmministrare } from '@/lib/auth/permessi'
 import { ordinaPerCognome } from '@/lib/staff'
 import { invitaStaff, leggiAccessi } from './actions'
-import { RigaUtente, type DatiUtente } from './RigaUtente'
+import type { DatiUtente } from './RigaUtente'
+import { ElencoUtenti } from './ElencoUtenti'
 
 export const dynamic = 'force-dynamic'
 
@@ -121,17 +122,7 @@ export default async function UtentiPage({
             altri.
           </p>
         ) : (
-          <ul className="utenti">
-            {utenti.map((u) => (
-              <RigaUtente
-                key={u.email}
-                u={u}
-                amministra={amministra}
-                eSeStesso={u.email === email}
-                accesso={accessi[u.email.toLowerCase()] ?? null}
-              />
-            ))}
-          </ul>
+          <ElencoUtenti utenti={utenti} amministra={amministra} emailCorrente={email} accessi={accessi} />
         )}
       </div>
     </>
