@@ -180,6 +180,11 @@ const DEFINIZIONI = [
   // stanno tutti sotto questo unico permesso, come core-manager copre sia
   // l'indice sia il suo report.
   { chiave: 'abbonamenti', label: 'Abbonamenti', href: '/dashboard/abbonamenti', gruppo: 'Abbonamenti' },
+  // Il report dell'INCASSATO per la contabilità interna: i movimenti di cassa
+  // di Info4U, riconciliati con le vendite. Dati finanziari, quindi nel gruppo
+  // Amministrazione: un nuovo invitato non lo riceve mai di default (vedi
+  // app/dashboard/utenti/actions.ts), lo si abilita a mano.
+  { chiave: 'incassato', label: 'Incassato', href: '/dashboard/incassato', gruppo: 'Amministrazione' },
   // Il report sintetico per la direzione (MTD/YTD su abbonamenti venduti,
   // contatti acquisiti, campagne, primo canale delle vendite) e la sua pagina
   // di gestione campagne stanno sotto lo stesso permesso, come abbonamenti

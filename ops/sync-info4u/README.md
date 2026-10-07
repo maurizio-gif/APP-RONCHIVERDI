@@ -194,6 +194,57 @@ in testa allo script per i dettagli.
   altre viste di reportistica (vendite mensili/giornaliere...) per ora no —
   vedi la nota in `2026-09-21-abbonamenti-cancellati.sql`.
 
+## Transazioni di cassa (incassato)
+
+Oltre alle vendite, lo script copia i movimenti di
+`dbo.CassaMovimenti` **dal 1 gennaio 2023 in poi** (`TransazioniDal` in
+`config.json`, default `2023-01-01`; niente prima di quella data) nella tabella Supabase `transazioni` (una riga per
+movimento, chiave `source_movimento_id`), con il metodo di pagamento già
+decodificato da `CassaTipiPagamenti`. Serve al report dell'**incassato**: il
+venduto (`abbonamenti`) e l'incassato non coincidono — rate, eliminazioni,
+storni, bonifici e finanziamenti.
+
+Richiede `scripts/sql/2026-10-07-transazioni-cassa.sql` già eseguito su
+Supabase. Il primo giro scarica lo storico dal 2023 (circa 120-130.000 righe, 1000
+per batch, 30 batch per esecuzione: bastano 4-5 esecuzioni): come per le
+vendite, vanno lanciate a mano più esecuzioni finché il log non dice
+«Transazioni: nessun nuovo movimento».
+
+- A ogni esecuzione: i movimenti con `IdCassaMovimento` oltre il watermark.
+- Ogni 20 ore (`RefreshTransazioniOgniOre`): rilegge i movimenti degli ultimi
+  60 giorni (`RefreshTransazioniGiorniIndietro`), per intercettare un metodo
+  di pagamento corretto dopo un «Da definire», e segna `cancellato_il` quelli
+  spariti da Info4U (mai una DELETE).
+- Non copia `NomeUtente` né `Note` (dati personali / testo libero): la
+  persona si ricava da `persona_id`. `Causale` si tronca a 120 caratteri.
+
+Da sapere sui dati: `tipo_servizio = 'A'` è ~99% dell'incassato; `C`
+(cauzioni) si annulla da sé e non è ricavo; eliminare una vendita in Info4U
+aggiunge un movimento negativo («ABBONAMENTI: Elimina…»), quindi la somma di
+tutti i movimenti è già netta; i bonifici hanno `MovimentaCassa = 0` ma sono
+~1/4 del totale; la data di bonifici e finanziamenti è quella di
+registrazione, non dell'accredito.
+
+## Piano rate
+
+Lo script copia anche `dbo.AbbonamentiPagamenti` nella tabella Supabase
+`abbonamenti_rate` (una riga per rata, chiave `source_rata_id`): rate con
+scadenza o pagamento dal 2023 in poi. Richiede
+`scripts/sql/2026-10-07-abbonamenti-rate.sql` già eseguito.
+
+- Nuove rate a ogni esecuzione (watermark su `IDRata`).
+- Ogni 6 ore (`RefreshRateOgniOre`) rilegge le rate con scadenza o pagamento
+  negli ultimi 60 giorni (`RefreshRateGiorniIndietro`) e tutte le future: una
+  rata si paga dopo la creazione, e un insoluto pagato non deve restare tale.
+  Segna `cancellato_il` quelle sparite da Info4U.
+- `transazione_errore` è l'esito dell'addebito automatico (carta/SEPA): se la
+  banca l'ha rifiutato c'è il motivo.
+
+La vista `rate_abbonamenti` dà a ogni rata lo stato (pagata / insoluta / da
+pagare) e `abbonamenti_incassato` aggiunge per vendita rate pagate, insolute e
+ancora da pagare: il report «Incassato» spiega così una vendita «da
+incassare» con le rate, invece di lasciarla senza motivo.
+
 ## Cosa NON fa (ancora)
 
 - Non fa nessuna automazione sui rinnovi o sulle scadenze.
