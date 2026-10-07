@@ -10,8 +10,10 @@ export const dynamic = 'force-dynamic'
 // oggi non sono registrate in nessuna tabella (quelle dedicate sono ferme a
 // marzo 2025): l'operatore sposta a mano la data di fine dell'abbonamento.
 // Qui si confronta la scadenza reale con quella che spetterebbe dalla durata
-// (vedi scripts/sql/2026-10-07-scadenze-spostate.sql). Info4U non dice chi
-// ha fatto lo spostamento: la pagina non ha la colonna Operatore.
+// (vedi scripts/sql/2026-10-07-scadenze-spostate.sql). Chi ha fatto la
+// proroga e quando viene dal registro delle azioni di Info4U (AppLog, vedi
+// scripts/sql/2026-10-07-abbonamenti-modifiche.sql): per gli abbonamenti
+// senza una modifica registrata la colonna è vuota.
 //
 // I due numeri da non confondere hanno ciascuno il suo campo e la sua
 // colonna: la DURATA dell'abbonamento (quanti mesi ha comprato) e il PERIODO
@@ -54,6 +56,9 @@ type Riga = {
   data_disdetta: string | null
   ultima_variazione_il: string | null
   durata: number | null
+  proroga_il: string | null
+  proroga_giorni: number | null
+  proroga_operatore: string | null
 }
 
 type SearchParams = {
@@ -69,6 +74,7 @@ type SearchParams = {
   stato?: string
   ordine?: string
   pagina?: string
+  operatore?: string
 }
 
 const data = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(2, 4)}` : '—')
@@ -96,6 +102,7 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
   const foA = dataValida(searchParams.fo_a)
   const fnDa = dataValida(searchParams.fn_da)
   const fnA = dataValida(searchParams.fn_a)
+  const operatore = (searchParams.operatore ?? '').slice(0, 60).trim() || null
   const pagina = Math.max(1, Number(searchParams.pagina) || 1)
 
   // La ricerca di testo riguarda solo cliente e abbonamento: durata e giorni
@@ -121,6 +128,7 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
   // mantengono.
   const attivi: Record<string, string> = { stato, ordine }
   if (cerca) attivi.q = cerca
+  if (operatore) attivi.operatore = operatore
   if (durata) attivi.durata = String(durata)
   if (da !== null) attivi.da = String(da)
   if (a !== null) attivi.a = String(a)
@@ -135,7 +143,7 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
   }
   const href = (extra: Record<string, string>) => costruisci({ ...attivi, ...extra }, escludi)
   const filtriAttivi = Boolean(
-    cerca || durata || da !== null || a !== null || foDa || foA || fnDa || fnA || escludi.length > 0 || stato !== 'attive' || ordine !== 'recenti'
+    cerca || operatore || durata || da !== null || a !== null || foDa || foA || fnDa || fnA || escludi.length > 0 || stato !== 'attive' || ordine !== 'recenti'
   )
   // Il link che toglie UN filtro e lascia gli altri.
   const senza = (...chiavi: string[]) => {
@@ -150,6 +158,7 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
   // loro menu sempre visibile: non si ripetono qui).
   const etichette: { testo: string; togli: string }[] = []
   if (cerca) etichette.push({ testo: `Cerca: ${cerca}`, togli: senza('q') })
+  if (operatore) etichette.push({ testo: `Operatore: ${operatore}`, togli: senza('operatore') })
   if (durata) etichette.push({ testo: `Durata: ${durata} ${durata === 1 ? 'mese' : 'mesi'}`, togli: senza('durata') })
   if (da !== null || a !== null)
     etichette.push({ testo: `Sospensione: ${intervallo(da === null ? null : String(da), a === null ? null : String(a))} giorni`, togli: senza('da', 'a') })
@@ -162,7 +171,7 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
       testo: escludi.length === 1 ? `Escluso: ${escludi[0]}` : `Esclusi ${escludi.length} abbonamenti`,
       togli: senza('escludi'),
     })
-  const avanzatiAttivi = Boolean(durata || da !== null || a !== null || foDa || foA || fnDa || fnA || escludi.length > 0)
+  const avanzatiAttivi = Boolean(operatore || durata || da !== null || a !== null || foDa || foA || fnDa || fnA || escludi.length > 0)
 
   const conta = async (attive: boolean | null) => {
     let c = supabase.from('scadenze_spostate').select('source_iscrizione_id', { count: 'exact', head: true })
@@ -174,12 +183,13 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
   let q = supabase
     .from('scadenze_spostate')
     .select(
-      'source_iscrizione_id, persona_id, persona_nome, persona_cognome, abbonamento, variante, data_inizio, scadenza_prevista, data_fine, giorni_spostati, attiva, data_disdetta, ultima_variazione_il, durata',
+      'source_iscrizione_id, persona_id, persona_nome, persona_cognome, abbonamento, variante, data_inizio, scadenza_prevista, data_fine, giorni_spostati, attiva, data_disdetta, ultima_variazione_il, durata, proroga_il, proroga_giorni, proroga_operatore',
       { count: 'exact' }
     )
     .gte('giorni_spostati', Math.max(GIORNI_MINIMI, da ?? 0))
   if (a !== null) q = q.lte('giorni_spostati', a)
   if (durata) q = q.eq('durata', durata)
+  if (operatore) q = q.eq('proroga_operatore', operatore)
   if (escludi.length > 0) {
     // I nomi vanno fra virgolette (possono contenere virgole e parentesi), con
     // virgolette e barre rovesciate protette; e i nulli restano: «not in» da
@@ -203,11 +213,14 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
       ].join(',')
     )
   }
-  // L'ordinamento: di default le più recenti in alto — prima quelle di cui il
-  // CRM ha visto lo spostamento (la più recente per prima), poi le altre per
-  // scadenza.
+  // L'ordinamento: di default le più recenti in alto — prima quelle con una
+  // proroga registrata (la più recente per prima, dal registro di Info4U), poi
+  // quelle che il CRM ha visto cambiare, poi le altre per scadenza.
   if (ordine === 'recenti') {
-    q = q.order('ultima_variazione_il', { ascending: false, nullsFirst: false }).order('data_fine', { ascending: false })
+    q = q
+      .order('proroga_il', { ascending: false, nullsFirst: false })
+      .order('ultima_variazione_il', { ascending: false, nullsFirst: false })
+      .order('data_fine', { ascending: false })
   } else if (ordine === 'giorni') {
     q = q.order('giorni_spostati', { ascending: false }).order('data_fine', { ascending: false })
   } else if (ordine === 'fine') {
@@ -236,17 +249,33 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
     (x, y) => y.n - x.n || x.nome.localeCompare(y.nome, 'it')
   )
 
-  const trentaGiorniFa = new Date(Date.now() - 30 * 86400000).toISOString()
-  const [{ data: righe, count, error }, attive, totale, { count: recenti }] = await Promise.all([
+  // Le proroghe degli ultimi 90 giorni dal registro delle azioni di Info4U,
+  // una riga per modifica: servono al conteggio dei 30 giorni, alla lista
+  // degli operatori nel filtro e al riepilogo «per operatore».
+  const novantaGiorniFa = new Date(Date.now() - 90 * 86400000).toISOString()
+  const trentaGiorniFa = new Date(Date.now() - 30 * 86400000).getTime()
+  const [{ data: righe, count, error }, attive, totale, { data: proroghe }] = await Promise.all([
     q.order('source_iscrizione_id', { ascending: false }).range((pagina - 1) * PAGINA, pagina * PAGINA - 1),
     conta(true),
     conta(null),
     supabase
-      .from('abbonamenti_scadenze_variazioni')
-      .select('id', { count: 'exact', head: true })
-      .gte('rilevata_il', trentaGiorniFa)
-      .neq('giorni', 0),
+      .from('proroghe_abbonamenti')
+      .select('data_operazione, operatore_nome, proroga_giorni')
+      .gte('data_operazione', novantaGiorniFa)
+      .order('data_operazione', { ascending: false })
+      .limit(5000),
   ])
+  const prorogheRecenti = (proroghe ?? []) as { data_operazione: string; operatore_nome: string | null; proroga_giorni: number }[]
+  const ultimi30 = prorogheRecenti.filter((r) => new Date(r.data_operazione).getTime() >= trentaGiorniFa).length
+  const perOperatore = new Map<string, { n: number; giorni: number }>()
+  for (const r of prorogheRecenti) {
+    const nome = r.operatore_nome ?? '—'
+    const o = perOperatore.get(nome) ?? { n: 0, giorni: 0 }
+    o.n += 1
+    o.giorni += r.proroga_giorni
+    perOperatore.set(nome, o)
+  }
+  const operatoriOrdinati = Array.from(perOperatore.entries()).sort((x, y) => y[1].n - x[1].n)
 
   const elenco = (righe ?? []) as unknown as Riga[]
   const nElenco = count ?? 0
@@ -262,8 +291,8 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
           In InfoRYOU una sospensione si registra spostando in avanti la data di fine dell’abbonamento: non esiste una
           tabella delle sospensioni. La <strong>data fine originaria</strong> è quella che spetta dalla durata
           dell’abbonamento (inizio + durata); il <strong>periodo di sospensione</strong> è di quanti giorni è stata
-          spostata. Può trattarsi di una sospensione, ma anche di un mese omaggio o di una correzione: il dato non lo
-          distingue, e non dice <strong>chi</strong> ha spostato la scadenza.
+          spostata. L’<strong>operatore</strong> e la data della proroga vengono dal registro delle azioni di InfoRYOU
+          (dal 2023). Può trattarsi di una sospensione, ma anche di un mese omaggio o di una correzione.
         </p>
         <Link href="/dashboard/abbonamenti" className="muted">
           ← Torna ad Abbonamenti
@@ -277,10 +306,10 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
           <span className="stat-nota">Abbonamenti non ancora scaduti.</span>
         </div>
         <div className="stat">
-          <span className="stat-label">Spostamenti negli ultimi 30 giorni</span>
-          <span className="stat-valore">{(recenti ?? 0).toLocaleString('it-IT')}</span>
+          <span className="stat-label">Proroghe negli ultimi 30 giorni</span>
+          <span className="stat-valore">{ultimi30.toLocaleString('it-IT')}</span>
           <span className="stat-nota">
-            Cambi di scadenza visti dal CRM (anche anticipi, come le disdette). Il registro parte dal primo sync dopo l’attivazione.
+            Scadenze spostate in avanti, registrate da un operatore. Le correzioni di data di inizio non contano.
           </span>
         </div>
         <div className="stat">
@@ -289,6 +318,38 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
           <span className="stat-nota">Dal 2023, tra abbonamenti in corso e già scaduti.</span>
         </div>
       </div>
+
+      {operatoriOrdinati.length > 0 && (
+        <details className="card">
+          <summary className="filtri-titolo" style={{ cursor: 'pointer' }}>
+            Proroghe per operatore, ultimi 90 giorni
+          </summary>
+          <div className="tabella-wrap">
+            <table className="tabella tabella-compatta">
+              <thead>
+                <tr>
+                  <th>Operatore</th>
+                  <th className="cella-importo">Proroghe</th>
+                  <th className="cella-importo">Giorni concessi</th>
+                  <th className="cella-importo">Media</th>
+                </tr>
+              </thead>
+              <tbody>
+                {operatoriOrdinati.map(([nome, o]) => (
+                  <tr key={nome}>
+                    <td>
+                      <Link href={href({ operatore: nome, pagina: '1' })}>{nome}</Link>
+                    </td>
+                    <td className="cella-importo">{o.n}</td>
+                    <td className="cella-importo">{o.giorni}</td>
+                    <td className="cella-importo">{Math.round(o.giorni / o.n)} gg</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
 
       <form method="get" className="card filtri-barra-card" role="search">
         <div className="filtri-barra">
@@ -326,6 +387,17 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
         <details className="filtri-avanzati" open={avanzatiAttivi}>
           <summary>Altri filtri: durata, sospensione, date, abbonamenti esclusi{avanzatiAttivi ? ' · attivi' : ''}</summary>
           <div className="filtri-griglia">
+            <fieldset className="filtri-gruppo-campi">
+              <legend>Operatore della proroga</legend>
+              <select name="operatore" defaultValue={operatore ?? ''} aria-label="Operatore della proroga">
+                <option value="">Tutti</option>
+                {operatoriOrdinati.map(([nome]) => (
+                  <option key={nome} value={nome}>
+                    {nome}
+                  </option>
+                ))}
+              </select>
+            </fieldset>
             <fieldset className="filtri-gruppo-campi">
               <legend>Durata abbonamento</legend>
               <select id="f-durata" name="durata" defaultValue={durata ? String(durata) : ''} aria-label="Durata abbonamento">
@@ -388,7 +460,7 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
         {error ? (
           <p className="vuoto">
             Non riesco a leggere i dati: {error.message}. Se manca una colonna o la vista, esegui
-            scripts/sql/2026-10-07-scadenze-spostate.sql nel SQL Editor di Supabase.
+            scripts/sql/2026-10-07-scadenze-spostate.sql e poi 2026-10-07-abbonamenti-modifiche.sql nel SQL Editor di Supabase.
           </p>
         ) : elenco.length === 0 ? (
           <p className="vuoto">Nessun abbonamento con questi filtri.</p>
@@ -409,7 +481,8 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
                     <th title="Scadenza che spetta dalla durata: inizio + durata">Fine originaria</th>
                     <th title="Scadenza attuale in InfoRYOU">Fine nuova</th>
                     <th className="cella-importo" title="Giorni di cui è stata spostata la scadenza">Sospensione</th>
-                    <th title="Quando il CRM ha visto cambiare la scadenza">Rilevato</th>
+                    <th title="Ultima proroga registrata: data e giorni aggiunti">Ultima proroga</th>
+                    <th title="Operatore che ha spostato la scadenza (registro di InfoRYOU)">Operatore</th>
                     <th>Stato</th>
                   </tr>
                 </thead>
@@ -438,10 +511,16 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
                           {r.giorni_spostati > SOGLIA_LUNGA && <span className="badge badge-warn">lunga</span>}
                         </td>
                         <td className="cella-nowrap">
-                          {r.ultima_variazione_il
-                            ? new Date(r.ultima_variazione_il).toLocaleDateString('it-IT', { timeZone: 'Europe/Rome', day: '2-digit', month: '2-digit', year: '2-digit' })
-                            : '—'}
+                          {r.proroga_il ? (
+                            <>
+                              {new Date(r.proroga_il).toLocaleDateString('it-IT', { timeZone: 'Europe/Rome', day: '2-digit', month: '2-digit', year: '2-digit' })}
+                              <span className="nota-in-riga">+{r.proroga_giorni} gg</span>
+                            </>
+                          ) : (
+                            '—'
+                          )}
                         </td>
+                        <td className="cella-nowrap">{r.proroga_operatore ?? '—'}</td>
                         <td>
                           <span className={`badge ${r.attiva ? 'badge-info' : 'badge-off'}`}>{r.attiva ? 'In corso' : 'Scaduto'}</span>
                           {r.data_disdetta && <span className="nota-in-riga">disdetto il {data(r.data_disdetta)}</span>}
