@@ -8,6 +8,7 @@ import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import { TabellaScadenze, type RigaScadenza } from '../scadenze/TabellaScadenze'
 import { caricaNoteScadenze } from '../scadenze/note'
 import { GraficoRinnovi } from '../scadenze/GraficoRinnovi'
+import { BottoneStampa } from './BottoneStampa'
 import { GuidaVideo } from '@/components/GuidaVideo'
 
 export const dynamic = 'force-dynamic'
@@ -85,7 +86,9 @@ export default async function RinnoviPage({ searchParams }: { searchParams: { me
 
   return (
     <div>
-      <GuidaVideo vidyardId="yoAsuxe9cahh95DDoB1iKP" titolo="Gestione efficiente dei rinnovi abbonamenti" />
+      <div className="no-stampa">
+        <GuidaVideo vidyardId="yoAsuxe9cahh95DDoB1iKP" titolo="Gestione efficiente dei rinnovi abbonamenti" />
+      </div>
 
       <div className="page-head">
         <p className="eyebrow">Abbonamenti</p>
@@ -94,15 +97,16 @@ export default async function RinnoviPage({ searchParams }: { searchParams: { me
           {totale} in scadenza in {etichettaMese(meseRichiesto)}
           {totale > 0 && ` — ${daRichiamare} non ancora rinnovati, ${totale - daRichiamare} già rinnovati`}.
         </p>
+        {righe.length > 0 && <BottoneStampa />}
       </div>
 
       {righe.length > 0 && (
-        <div className="card">
+        <div className="card no-stampa">
           <GraficoRinnovi righe={righe} />
         </div>
       )}
 
-      <div className="report-mese-nav">
+      <div className="report-mese-nav no-stampa">
         <Link href={hrefMese(mesePiu(meseRichiesto, -1))} className="btn btn-ghost btn-sm">
           ← Mese prec.
         </Link>

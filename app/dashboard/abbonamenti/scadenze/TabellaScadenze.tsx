@@ -933,7 +933,7 @@ function RigaTabella({
       <td className="cella-nowrap">{r.rinnovo_id ? dataBreveAnno(r.rinnovo_data_inizio) : '—'}</td>
       <td className="cella-nowrap">{r.rinnovo_id ? dataBreveAnno(r.rinnovo_data_fine) : '—'}</td>
       <td className="cella-nowrap">{r.rinnovo_id ? (euro(r.rinnovo_totale) ?? '—') : '—'}</td>
-      <td className="cella-centrata">
+      <td className="cella-centrata no-stampa">
         <CellaEscludiReport
           abbonamentoId={r.id}
           valoreIniziale={r.escluso_da_report}
@@ -1027,7 +1027,7 @@ function ScorrimentoTabella({ children }: { children: React.ReactNode }) {
   return (
     <>
       {scorrevole && (
-        <div className="tabella-scorri-barra">
+        <div className="tabella-scorri-barra no-stampa">
           <div className="tabella-scorri-salti" role="group" aria-label="Vai alle colonne">
             {GRUPPI_COLONNE.map((g) => (
               <button
@@ -1291,7 +1291,7 @@ export function TabellaScadenze({
 
   return (
     <>
-      <div className="card">
+      <div className="card no-stampa">
         <p className="filtri-titolo">Stato, trattativa e assegnatario</p>
         <div className="form-row">
           <div className="field">
@@ -1494,7 +1494,7 @@ export function TabellaScadenze({
                   <Intestazione colonna="rinnovo_data_inizio">Nuovo inizio</Intestazione>
                   <Intestazione colonna="rinnovo_data_fine">Nuova scadenza</Intestazione>
                   <Intestazione colonna="rinnovo_totale">Nuovo importo</Intestazione>
-                  <th>Escludi da report</th>
+                  <th className="no-stampa">Escludi da report</th>
                 </tr>
               </thead>
               <tbody>

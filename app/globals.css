@@ -7925,3 +7925,91 @@ table.tabella-compatta .nota-in-riga {
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
+
+/* ───────────────────────────────────────────── stampa Rinnovi Core (A4/A3) */
+
+.stampa-comandi {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	margin-top: 0.75rem;
+}
+
+.stampa-formato {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+}
+
+@media print {
+	body.stampa-rinnovi {
+		background: #fff;
+		color: #000;
+	}
+
+	body.stampa-rinnovi .sidebar,
+	body.stampa-rinnovi .no-stampa,
+	body.stampa-rinnovi .eyebrow {
+		display: none !important;
+	}
+
+	body.stampa-rinnovi .app-shell {
+		display: block;
+	}
+
+	body.stampa-rinnovi .main-content {
+		padding: 0;
+	}
+
+	body.stampa-rinnovi .page-head {
+		margin-bottom: 0.5rem;
+	}
+
+	body.stampa-rinnovi .card {
+		border: 0;
+		box-shadow: none;
+		padding: 0;
+		background: transparent;
+	}
+
+	body.stampa-rinnovi .tabella-scorri-area {
+		max-height: none;
+		overflow: visible;
+	}
+
+	body.stampa-rinnovi .tabella-scorri thead th,
+	body.stampa-rinnovi .tabella-scorri tbody td:first-child {
+		position: static;
+		box-shadow: none;
+		background: transparent;
+	}
+
+	body.stampa-rinnovi .tabella-scorri::after {
+		display: none;
+	}
+
+	body.stampa-rinnovi table.tabella {
+		width: 100%;
+		font-size: 7.5pt;
+	}
+
+	body.stampa-rinnovi table.tabella th,
+	body.stampa-rinnovi table.tabella td {
+		padding: 2px 4px;
+		white-space: normal;
+		border-bottom: 1px solid #bbb;
+	}
+
+	body.stampa-rinnovi thead {
+		display: table-header-group;
+	}
+
+	body.stampa-rinnovi tr {
+		break-inside: avoid;
+	}
+
+	body.stampa-rinnovi * {
+		-webkit-print-color-adjust: exact;
+		print-color-adjust: exact;
+	}
+}
