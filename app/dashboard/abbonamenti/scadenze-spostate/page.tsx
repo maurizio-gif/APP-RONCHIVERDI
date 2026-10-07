@@ -282,16 +282,16 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
               <strong>{mediaGiorni} giorni</strong>.
             </p>
             <div className="tabella-wrap">
-              <table className="tabella">
+              <table className="tabella tabella-compatta">
                 <thead>
                   <tr>
                     <th>Cliente</th>
                     <th>Abbonamento</th>
-                    <th className="cella-importo">Durata abbonamento</th>
-                    <th>Data fine originaria</th>
-                    <th>Data fine nuova</th>
-                    <th className="cella-importo">Sospensione</th>
-                    <th>Spostamento rilevato</th>
+                    <th className="cella-importo" title="Durata dell’abbonamento acquistato">Durata</th>
+                    <th title="Scadenza che spetta dalla durata: inizio + durata">Fine originaria</th>
+                    <th title="Scadenza attuale in InfoRYOU">Fine nuova</th>
+                    <th className="cella-importo" title="Giorni di cui è stata spostata la scadenza">Sospensione</th>
+                    <th title="Quando il CRM ha visto cambiare la scadenza">Rilevato</th>
                     <th>Stato</th>
                   </tr>
                 </thead>
@@ -303,9 +303,12 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
                         <td className="cella-persona">
                           {r.persona_id ? <Link href={`/dashboard/persone/${r.persona_id}`}>{persona || 'Senza nome'}</Link> : '—'}
                         </td>
-                        <td className="cella-persona">
+                        <td
+                          className="cella-troncata"
+                          title={[r.abbonamento, r.variante].filter(Boolean).join(' · ') || undefined}
+                        >
                           {r.abbonamento ?? '—'}
-                          {r.variante && <span className="stat-nota">{r.variante}</span>}
+                          {r.variante && <span className="nota-in-riga">{r.variante}</span>}
                         </td>
                         <td className="cella-importo">
                           {r.durata ? `${r.durata} ${r.durata === 1 ? 'mese' : 'mesi'}` : '—'}
@@ -323,7 +326,7 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
                         </td>
                         <td>
                           <span className={`badge ${r.attiva ? 'badge-info' : 'badge-off'}`}>{r.attiva ? 'In corso' : 'Scaduto'}</span>
-                          {r.data_disdetta && <span className="stat-nota">disdetto il {data(r.data_disdetta)}</span>}
+                          {r.data_disdetta && <span className="nota-in-riga">disdetto il {data(r.data_disdetta)}</span>}
                         </td>
                       </tr>
                     )

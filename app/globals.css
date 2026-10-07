@@ -7743,3 +7743,37 @@ table.tabella tr.riga-totale td {
 	opacity: 0.4;
 	pointer-events: none;
 }
+
+/* ───────────────────────────────────────────── tabella a righe strette */
+
+/* Una riga per elemento: niente a capo, celle compatte. Il nome del cliente
+   resta sempre intero su una riga (chi cerca un nome lo legge senza
+   ricomporlo da tre righe); se le colonne non stanno nella pagina scorre il
+   contenitore, non si spezzano le celle. Il nome dell'abbonamento, che è
+   spesso lungo, si accorcia con i puntini e per esteso sta nel suggerimento. */
+table.tabella-compatta td {
+	padding: 0.4rem 0.6rem;
+	vertical-align: middle;
+	white-space: nowrap;
+}
+
+table.tabella-compatta th {
+	padding: 0.5rem 0.6rem;
+}
+
+table.tabella-compatta .cella-persona {
+	max-width: none;
+	overflow-wrap: normal;
+}
+
+table.tabella-compatta .cella-troncata {
+	max-width: 20rem;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+table.tabella-compatta .nota-in-riga {
+	margin-left: 0.4rem;
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+}
