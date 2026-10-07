@@ -7777,3 +7777,95 @@ table.tabella-compatta .nota-in-riga {
 	color: var(--text-muted);
 	font-size: var(--text-2xs);
 }
+
+/* ───────────────────────────────────────────── barra filtri compatta */
+
+/* Ricerca e due menu sempre visibili su una riga; i filtri meno usati in un
+   pannello a scomparsa (<details>, senza JavaScript) che si apre da solo se
+   uno è attivo; i filtri attivi sotto, come etichette da togliere una a una. */
+.filtri-barra {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+	align-items: flex-end;
+}
+
+.filtri-barra .field {
+	margin: 0;
+	min-width: 11rem;
+}
+
+.filtri-barra .filtri-barra-cerca {
+	flex: 1 1 18rem;
+}
+
+.filtri-barra-azioni {
+	display: flex;
+	gap: 0.5rem;
+}
+
+.filtri-avanzati {
+	margin-top: 0.9rem;
+	border-top: 1px solid var(--border);
+	padding-top: 0.6rem;
+}
+
+.filtri-avanzati > summary {
+	cursor: pointer;
+	color: var(--text-muted);
+	font-size: var(--text-sm);
+	list-style: none;
+}
+
+.filtri-avanzati > summary::before {
+	content: '▸ ';
+}
+
+.filtri-avanzati[open] > summary::before {
+	content: '▾ ';
+}
+
+.filtri-griglia {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+	gap: 0.75rem 1.25rem;
+	margin-top: 0.75rem;
+}
+
+.filtri-gruppo-campi {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	min-width: 0;
+}
+
+.filtri-gruppo-campi legend {
+	padding: 0;
+	margin-bottom: 0.3rem;
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+	font-weight: 500;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.filtri-gruppo-campi select,
+.filtri-gruppo-campi input {
+	width: 100%;
+	min-width: 0;
+}
+
+.campo-coppia {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+	gap: 0.4rem;
+	align-items: center;
+}
+
+.filtri-attivi {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+	align-items: center;
+	margin-top: 0.9rem;
+}
