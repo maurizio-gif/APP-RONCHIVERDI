@@ -245,6 +245,19 @@ pagare) e `abbonamenti_incassato` aggiunge per vendita rate pagate, insolute e
 ancora da pagare: il report «Incassato» spiega così una vendita «da
 incassare» con le rate, invece di lasciarla senza motivo.
 
+## Sospensioni
+
+Lo script copia `dbo.AbbonamentiSospensioni` nella tabella Supabase
+`abbonamenti_sospensioni` (una riga per sospensione): vendita, date, giorni
+netti, causale scritta e causale da elenco (`SospensioniCausali`). Richiede
+`scripts/sql/2026-10-07-sospensioni.sql` già eseguito.
+
+Info4U non registra in quella tabella chi ha inserito la sospensione né
+quando: `operatore_nome` e `inserita_il` restano vuote finché non si trova un
+registro delle azioni da cui ricavarli. Le colonne sospensione di
+`abbonamenti` (data_inizio_sospensione...) sono un residuo, ferme a marzo
+2025.
+
 ## Cosa NON fa (ancora)
 
 - Non fa nessuna automazione sui rinnovi o sulle scadenze.

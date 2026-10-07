@@ -1190,6 +1190,199 @@ function Sync-Rate {
     Set-UltimoRefreshRate -Quando (Get-Date)
 }
 
+# ───────────────────────────────────────────────────────────── sospensioni
+
+# dbo.AbbonamentiSospensioni: una riga per sospensione di una vendita. Info4U
+# non vi registra chi l'ha inserita ne' quando (solo vendita, date, giorni
+# netti e causale), quindi operatore e data di inserimento non si copiano.
+# Le sospensioni sono poche migliaia: nuove righe a ogni giro, e ogni
+# $refreshRateOgniOre un giro completo (una sospensione si accorcia o si
+# estende dopo l'inserimento) con riconciliazione di quelle sparite.
+$querySelectSospensioni = @"
+SELECT
+    s.IDAbbonamentoSospensioni,
+    s.IDIscrizione,
+    s.DataInizio,
+    s.DataFine,
+    s.GGNetti,
+    LEFT(s.Causale, 300) AS Causale,
+    s.IDSospensioneCausale,
+    sc.Descrizione AS CausaleDescrizione
+FROM dbo.AbbonamentiSospensioni s
+LEFT JOIN dbo.SospensioniCausali sc ON sc.IDSospensioneCausale = s.IDSospensioneCausale
+"@
+
+function Get-UltimaSospensioneSincronizzata {
+    $url = "$($config.Supabase.Url)/rest/v1/abbonamenti_sospensioni?select=source_sospensione_id&order=source_sospensione_id.desc&limit=1"
+    $risposta = Invoke-RestMethod -Uri $url -Headers $supabaseHeaders -Method Get
+    if ($risposta.Count -gt 0) { return [int]$risposta[0].source_sospensione_id }
+    return 0
+}
+
+function Get-UltimoRefreshSospensioni {
+    $url = "$($config.Supabase.Url)/rest/v1/sync_info4u_stato?chiave=eq.refresh_sospensioni&select=valore"
+    $risposta = Invoke-RestMethod -Uri $url -Headers $supabaseHeaders -Method Get
+    if ($risposta.Count -gt 0) { return [datetime]$risposta[0].valore }
+    return $null
+}
+
+function Set-UltimoRefreshSospensioni {
+    param([datetime]$Quando)
+    $corpo = @{ chiave = "refresh_sospensioni"; valore = $Quando.ToString("o") } | ConvertTo-Json
+    $headers = $supabaseHeaders.Clone()
+    $headers["Prefer"] = "resolution=merge-duplicates"
+    Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/sync_info4u_stato?on_conflict=chiave" `
+        -Headers $headers -Method Post -Corpo $corpo | Out-Null
+}
+
+# Le sospensioni finite prima di $transazioniDal non servono (come per rate e
+# movimenti); quelle senza data di fine entrano sempre.
+function Get-SospensioniDaSincronizzare {
+    param([int]$LastId, [int]$Top)
+
+    $comandoText = ($querySelectSospensioni -replace '^SELECT', "SELECT TOP ($Top)") +
+        "`nWHERE s.IDAbbonamentoSospensioni > @LastId AND (s.DataFine >= @Dal OR s.DataFine IS NULL)`nORDER BY s.IDAbbonamentoSospensioni ASC"
+
+    return Invoke-QueryDbgym -CommandText $comandoText -Parametri @{ "@LastId" = $LastId; "@Dal" = $transazioniDal }
+}
+
+function Send-SospensioniUpsert {
+    param([array]$Righe)
+
+    $visti = @{}
+    $sospensioni = foreach ($r in $Righe) {
+        $idSospensione = [int]$r.IDAbbonamentoSospensioni
+        if ($visti.ContainsKey($idSospensione)) { continue }
+        $visti[$idSospensione] = $true
+
+        [ordered]@{
+            source_sospensione_id = $idSospensione
+            source_iscrizione_id  = if ($r.IDIscrizione -is [System.DBNull]) { $null } else { [int]$r.IDIscrizione }
+            data_inizio           = Get-DataPulita $r.DataInizio
+            data_fine             = Get-DataPulita $r.DataFine
+            giorni_netti          = if ($r.GGNetti -is [System.DBNull]) { $null } else { [int]$r.GGNetti }
+            causale               = Get-TestoPulito $r.Causale
+            source_causale_id     = if ($r.IDSospensioneCausale -is [System.DBNull]) { $null } else { [int]$r.IDSospensioneCausale }
+            causale_descrizione   = Get-TestoPulito $r.CausaleDescrizione
+            # Appena letta da una query live: esiste ancora in Info4U.
+            cancellato_il         = $null
+        }
+    }
+    if (-not $sospensioni) { return }
+
+    $url = "$($config.Supabase.Url)/rest/v1/abbonamenti_sospensioni?on_conflict=source_sospensione_id"
+    $corpo = $sospensioni | ConvertTo-Json -Depth 5
+    $headers = $supabaseHeaders.Clone()
+    $headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
+
+    Invoke-SupabaseScrittura -Uri $url -Headers $headers -Method Post -Corpo $corpo | Out-Null
+}
+
+# Tutte le sospensioni non cancellate secondo Supabase contro Info4U: quelle
+# sparite si segnano cancellate (mai una DELETE). Sono poche migliaia, si
+# ricontrollano per intero.
+function Compare-CancellazioniSospensioni {
+    $idCandidati = [System.Collections.Generic.List[int]]::new()
+    $scorrimento = 0
+    do {
+        $filtro = "cancellato_il=is.null&select=source_sospensione_id&order=source_sospensione_id.asc&limit=1000&offset=$scorrimento"
+        $pagina = @(Invoke-RestMethod -Uri "$($config.Supabase.Url)/rest/v1/abbonamenti_sospensioni?$filtro" -Headers $supabaseHeaders -Method Get |
+            ForEach-Object { $_ })
+        foreach ($r in $pagina) { $idCandidati.Add([int]$r.source_sospensione_id) }
+        $scorrimento += 1000
+    } while ($pagina.Count -eq 1000)
+
+    if ($idCandidati.Count -eq 0) { return }
+
+    $idCancellati = [System.Collections.Generic.List[int]]::new()
+    $connessione = New-Object System.Data.SqlClient.SqlConnection $connectionString
+    try {
+        $connessione.Open()
+        for ($i = 0; $i -lt $idCandidati.Count; $i += 1000) {
+            $blocco = $idCandidati.GetRange($i, [Math]::Min(1000, $idCandidati.Count - $i))
+            $elenco = ($blocco -join ",")
+            $comando = $connessione.CreateCommand()
+            $comando.CommandText = "SELECT IDAbbonamentoSospensioni FROM dbo.AbbonamentiSospensioni WHERE IDAbbonamentoSospensioni IN ($elenco)"
+            $lettore = $comando.ExecuteReader()
+            $trovati = [System.Collections.Generic.HashSet[int]]::new()
+            while ($lettore.Read()) { $trovati.Add([int]$lettore["IDAbbonamentoSospensioni"]) | Out-Null }
+            $lettore.Close()
+
+            foreach ($id in $blocco) {
+                if (-not $trovati.Contains($id)) { $idCancellati.Add($id) }
+            }
+        }
+    }
+    finally {
+        $connessione.Close()
+    }
+
+    if ($idCancellati.Count -eq 0) {
+        Write-Log "Riconciliazione sospensioni: nessuna sospensione risulta cancellata in Info4U."
+        return
+    }
+
+    Write-Log "Riconciliazione sospensioni: $($idCancellati.Count) sospensioni non trovate piu' in Info4U, le segno cancellate." "WARN"
+    $elencoIdCancellati = ($idCancellati -join ",")
+    $corpo = @{ cancellato_il = (Get-Date).ToString("o") } | ConvertTo-Json
+    Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/abbonamenti_sospensioni?source_sospensione_id=in.($elencoIdCancellati)" `
+        -Headers $supabaseHeaders -Method Patch -Corpo $corpo | Out-Null
+}
+
+function Sync-Sospensioni {
+    $lastId = Get-UltimaSospensioneSincronizzata
+    Write-Log "Sospensioni, watermark di partenza: source_sospensione_id > $lastId"
+
+    $totale = 0
+    for ($batch = 1; $batch -le $maxBatchesTransazioni; $batch++) {
+        $righe = Get-SospensioniDaSincronizzare -LastId $lastId -Top $batchSizeTransazioni
+        if ($righe.Count -eq 0) {
+            Write-Log "Sospensioni: nessuna nuova sospensione, al passo con la sorgente."
+            break
+        }
+
+        Send-SospensioniUpsert -Righe $righe
+
+        $lastId = [int]$righe[$righe.Count - 1].IDAbbonamentoSospensioni
+        $totale += $righe.Count
+        Write-Log "Sospensioni, batch ${batch}: $($righe.Count) righe, watermark ora a $lastId."
+
+        if ($righe.Count -lt $batchSizeTransazioni) { break }
+    }
+    Write-Log "Sospensioni: $totale sospensioni sincronizzate in questa esecuzione."
+
+    if ($totale -ge ($batchSizeTransazioni * $maxBatchesTransazioni)) {
+        Write-Log "Sospensioni: storico ancora in corso, salto il refresh di questo giro."
+        return
+    }
+
+    $ultimoRefresh = Get-UltimoRefreshSospensioni
+    $orePassate = if ($ultimoRefresh) { (New-TimeSpan -Start $ultimoRefresh -End (Get-Date)).TotalHours } else { [double]::PositiveInfinity }
+    if ($orePassate -lt $refreshRateOgniOre) { return }
+
+    Write-Log "Refresh sospensioni: ultimo giro $(if ($ultimoRefresh) { "$([math]::Round($orePassate,1)) ore fa" } else { 'mai fatto' }) (soglia ${refreshRateOgniOre}h) - riparto."
+
+    $lastIdRefresh = 0
+    $totaleRefresh = 0
+    for ($batch = 1; $batch -le $maxBatchesTransazioni; $batch++) {
+        $righe = Get-SospensioniDaSincronizzare -LastId $lastIdRefresh -Top $batchSizeTransazioni
+        if ($righe.Count -eq 0) { break }
+
+        Send-SospensioniUpsert -Righe $righe
+
+        $lastIdRefresh = [int]$righe[$righe.Count - 1].IDAbbonamentoSospensioni
+        $totaleRefresh += $righe.Count
+        Write-Log "Refresh sospensioni, batch ${batch}: $($righe.Count) righe."
+
+        if ($righe.Count -lt $batchSizeTransazioni) { break }
+    }
+    Write-Log "Refresh sospensioni: $totaleRefresh sospensioni riprocessate in questa esecuzione."
+
+    Compare-CancellazioniSospensioni
+
+    Set-UltimoRefreshSospensioni -Quando (Get-Date)
+}
+
 # ─────────────────────────────────────────────────────────────────── run
 
 Write-Log "Avvio sincronizzazione."
@@ -1276,6 +1469,8 @@ try {
     Sync-Transazioni
 
     Sync-Rate
+
+    Sync-Sospensioni
 }
 catch {
     # $_.Exception.Message da solo, per un errore HTTP, e' solo "(500)
