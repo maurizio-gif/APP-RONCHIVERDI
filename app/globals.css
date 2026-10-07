@@ -7712,3 +7712,34 @@ table.tabella tr.is-mia td {
 .azioni-gruppo .azione-riga.is-arretrata {
 	border-left-color: transparent;
 }
+
+/* ───────────────────────────────────────────────────────── report incassato */
+
+.cella-importo {
+	text-align: right;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Uscite, storni, rimborsi: gli importi negativi si leggono a colpo d'occhio. */
+.importo-neg {
+	color: var(--error, #b3261e);
+}
+
+table.tabella tr.riga-totale td {
+	border-top: 2px solid var(--border-strong);
+	background: var(--surface-2, transparent);
+}
+
+.elenco-controlli {
+	margin: 0.5rem 0 0;
+	padding-left: 1.1rem;
+	display: grid;
+	gap: 0.5rem;
+	font-size: var(--text-sm);
+}
+
+.is-disabilitato {
+	opacity: 0.4;
+	pointer-events: none;
+}

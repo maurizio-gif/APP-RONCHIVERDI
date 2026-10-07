@@ -157,6 +157,14 @@ const DISEGNI: Record<string, React.ReactNode> = {
       <circle cx="6" cy="19" r="1.6" />
     </>
   ),
+  // Incassato: la banconota con la riga dei conti.
+  incassato: (
+    <>
+      <rect x="3" y="6.5" width="18" height="11" rx="1.8" />
+      <circle cx="12" cy="12" r="2.6" />
+      <path d="M6.5 10v4M17.5 10v4" />
+    </>
+  ),
   // Controllo operatori: il registro delle azioni.
   'log-operatori': (
     <>

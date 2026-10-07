@@ -110,6 +110,27 @@ $refreshApertiOgniOre = if ($config.RefreshApertiOgniOre) { [double]$config.Refr
 $refreshApertiGiorniIndietro = if ($config.RefreshApertiGiorniIndietro) { [int]$config.RefreshApertiGiorniIndietro } else { 400 }
 $maxBatchesRefreshAperti = if ($config.MaxBatchesRefreshAperti) { [int]$config.MaxBatchesRefreshAperti } else { 50 }
 
+# Transazioni di cassa (dbo.CassaMovimenti): blocchi piu' grandi di quelli
+# delle vendite perche' le righe sono piccole e lo storico e' lungo (qualche
+# centinaio di migliaia). Il refresh rilegge i movimenti degli ultimi
+# $refreshTransazioniGiorniIndietro giorni: serve a intercettare il metodo di
+# pagamento corretto dopo un "Da definire" e i movimenti spariti da Info4U.
+# Data da cui si migrano i movimenti (config: TransazioniDal, formato
+# yyyy-MM-dd). Niente prima del 1 gennaio 2023: lo storico precedente non
+# serve al report e non entra nel CRM.
+$transazioniDal = if ($config.TransazioniDal) { [datetime]::ParseExact([string]$config.TransazioniDal, "yyyy-MM-dd", $null) } else { [datetime]"2023-01-01" }
+# Piano rate (dbo.AbbonamentiPagamenti): rate con scadenza o pagamento da
+# $transazioniDal in poi, piu' quelle senza data. A differenza dei movimenti
+# di cassa una rata CAMBIA dopo la creazione (si paga, si corregge): oltre ai
+# nuovi ID serve il refresh, e piu' frequente (6 ore) perche' un insoluto
+# pagato non deve restare «insoluto» per un giorno intero.
+$refreshRateOgniOre = if ($config.RefreshRateOgniOre) { [double]$config.RefreshRateOgniOre } else { 6 }
+$refreshRateGiorniIndietro = if ($config.RefreshRateGiorniIndietro) { [int]$config.RefreshRateGiorniIndietro } else { 60 }
+$batchSizeTransazioni = if ($config.BatchSizeTransazioni) { [int]$config.BatchSizeTransazioni } else { 1000 }
+$maxBatchesTransazioni = if ($config.MaxBatchesTransazioni) { [int]$config.MaxBatchesTransazioni } else { 30 }
+$refreshTransazioniOgniOre = if ($config.RefreshTransazioniOgniOre) { [double]$config.RefreshTransazioniOgniOre } else { 20 }
+$refreshTransazioniGiorniIndietro = if ($config.RefreshTransazioniGiorniIndietro) { [int]$config.RefreshTransazioniGiorniIndietro } else { 60 }
+
 $supabaseHeaders = @{
     "apikey"        = $config.Supabase.ServiceRoleKey
     "Authorization" = "Bearer $($config.Supabase.ServiceRoleKey)"
@@ -700,6 +721,475 @@ function Compare-CancellazioniOrigine {
         -Headers $supabaseHeaders -Method Patch -Corpo $corpo | Out-Null
 }
 
+# ─────────────────────────────────────────────────────── transazioni cassa
+
+# Una riga per movimento di dbo.CassaMovimenti, di ogni tipo e senza filtri:
+# cosa conta come incassato lo decide la vista incassato_mensile su Supabase
+# (vedi scripts/sql/2026-10-07-transazioni-cassa.sql), non questa query.
+# NomeUtente e Note non si leggono: sono dati personali o testo libero.
+# LEFT JOIN su CassaTipiPagamenti: un movimento senza metodo (le cauzioni)
+# resta, con metodo nullo.
+$querySelectMovimenti = @"
+SELECT
+    cm.IdCassaMovimento,
+    cm.IdUtente,
+    cm.IDIscrizione,
+    cm.IdServizio,
+    cm.TipoServizio,
+    cm.DescrizioneServizio,
+    LEFT(cm.Causale, 120) AS Causale,
+    cm.DataOperazione,
+    cm.Importo,
+    cm.IDTipoPagamento,
+    tp.Descrizione AS MetodoPagamento,
+    tp.MovimentaCassa,
+    cm.IDCassaMovimentoStorno,
+    cm.IdOperatore,
+    cm.NomeOperatore,
+    cm.Cassetto
+FROM dbo.CassaMovimenti cm
+LEFT JOIN dbo.CassaTipiPagamenti tp ON tp.IDTipoPagamento = cm.IDTipoPagamento
+"@
+
+function Get-UltimoMovimentoSincronizzato {
+    $url = "$($config.Supabase.Url)/rest/v1/transazioni?select=source_movimento_id&order=source_movimento_id.desc&limit=1"
+    $risposta = Invoke-RestMethod -Uri $url -Headers $supabaseHeaders -Method Get
+    if ($risposta.Count -gt 0) { return [int]$risposta[0].source_movimento_id }
+    return 0
+}
+
+function Get-UltimoRefreshTransazioni {
+    $url = "$($config.Supabase.Url)/rest/v1/sync_info4u_stato?chiave=eq.refresh_transazioni&select=valore"
+    $risposta = Invoke-RestMethod -Uri $url -Headers $supabaseHeaders -Method Get
+    if ($risposta.Count -gt 0) { return [datetime]$risposta[0].valore }
+    return $null
+}
+
+function Set-UltimoRefreshTransazioni {
+    param([datetime]$Quando)
+    $corpo = @{ chiave = "refresh_transazioni"; valore = $Quando.ToString("o") } | ConvertTo-Json
+    $headers = $supabaseHeaders.Clone()
+    $headers["Prefer"] = "resolution=merge-duplicates"
+    Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/sync_info4u_stato?on_conflict=chiave" `
+        -Headers $headers -Method Post -Corpo $corpo | Out-Null
+}
+
+function Get-MovimentiDaSincronizzare {
+    param([int]$LastId, [int]$Top)
+
+    $comandoText = ($querySelectMovimenti -replace '^SELECT', "SELECT TOP ($Top)") +
+        "`nWHERE cm.IdCassaMovimento > @LastId AND cm.DataOperazione >= @Dal`nORDER BY cm.IdCassaMovimento ASC"
+
+    return Invoke-QueryDbgym -CommandText $comandoText -Parametri @{ "@LastId" = $LastId; "@Dal" = $transazioniDal }
+}
+
+# I movimenti recenti secondo Info4U adesso, per il refresh: @LastId pagina
+# solo all'interno di UN giro, come per le vendite aperte.
+function Get-MovimentiRecentiDaSincronizzare {
+    param([int]$LastId, [int]$Top, [datetime]$Soglia)
+
+    $comandoText = ($querySelectMovimenti -replace '^SELECT', "SELECT TOP ($Top)") +
+        "`nWHERE cm.IdCassaMovimento > @LastId AND cm.DataOperazione >= @Soglia`nORDER BY cm.IdCassaMovimento ASC"
+
+    return Invoke-QueryDbgym -CommandText $comandoText -Parametri @{ "@LastId" = $LastId; "@Soglia" = $Soglia }
+}
+
+function Send-TransazioniUpsert {
+    param([array]$Righe)
+
+    # Dedup per sicurezza (stesso motivo di Send-AbbonamentiUpsert): PostgREST
+    # rifiuta un upsert che tocca due volte la stessa chiave nello stesso
+    # comando.
+    $visti = @{}
+    $transazioni = foreach ($r in $Righe) {
+        $idMovimento = [int]$r.IdCassaMovimento
+        if ($visti.ContainsKey($idMovimento)) { continue }
+        $visti[$idMovimento] = $true
+
+        [ordered]@{
+            source_movimento_id        = $idMovimento
+            source_utente_id           = if ($r.IdUtente -is [System.DBNull]) { $null } else { [int]$r.IdUtente }
+            source_iscrizione_id       = if ($r.IDIscrizione -is [System.DBNull]) { $null } else { [int]$r.IDIscrizione }
+            source_servizio_id         = if ($r.IdServizio -is [System.DBNull]) { $null } else { [int]$r.IdServizio }
+            tipo_servizio              = Get-TestoPulito $r.TipoServizio
+            descrizione_servizio       = Get-TestoPulito $r.DescrizioneServizio
+            causale                    = Get-TestoPulito $r.Causale
+            data_operazione            = Get-IstantePulito $r.DataOperazione
+            importo                    = Get-NumeroPulito $r.Importo
+            source_tipo_pagamento_id   = if ($r.IDTipoPagamento -is [System.DBNull]) { $null } else { [int]$r.IDTipoPagamento }
+            metodo_pagamento           = Get-TestoPulito $r.MetodoPagamento
+            movimenta_cassa            = Get-BoolPulito $r.MovimentaCassa
+            source_movimento_storno_id = if ($r.IDCassaMovimentoStorno -is [System.DBNull]) { $null } else { [int]$r.IDCassaMovimentoStorno }
+            operatore_id               = if ($r.IdOperatore -is [System.DBNull]) { $null } else { [int]$r.IdOperatore }
+            operatore_nome             = Get-TestoPulito $r.NomeOperatore
+            cassetto                   = Get-TestoPulito $r.Cassetto
+            # Appena letto da una query live: esiste ancora in Info4U.
+            cancellato_il              = $null
+        }
+    }
+    if (-not $transazioni) { return }
+
+    $url = "$($config.Supabase.Url)/rest/v1/transazioni?on_conflict=source_movimento_id"
+    $corpo = $transazioni | ConvertTo-Json -Depth 5
+    $headers = $supabaseHeaders.Clone()
+    $headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
+
+    Invoke-SupabaseScrittura -Uri $url -Headers $headers -Method Post -Corpo $corpo | Out-Null
+}
+
+# I movimenti che Supabase ha nella finestra recente e Info4U non ha piu'
+# (cancellati da un operatore dopo il sync) si segnano cancellati: stessa
+# logica di Compare-CancellazioniOrigine, mai una DELETE. Solo nella
+# finestra del refresh: piu' indietro si presume che non cambi piu' nulla.
+function Compare-CancellazioniTransazioni {
+    param([datetime]$Soglia)
+
+    $sogliaTesto = $Soglia.ToString("yyyy-MM-dd")
+    $idCandidati = [System.Collections.Generic.List[int]]::new()
+    $scorrimento = 0
+    do {
+        $filtro = "cancellato_il=is.null&data_operazione=gte.$sogliaTesto" +
+            "&select=source_movimento_id&order=source_movimento_id.asc&limit=1000&offset=$scorrimento"
+        # Vedi il commento in Compare-CancellazioniOrigine: la pipeline srotola
+        # l'array JSON che PowerShell 5.1 altrimenti restituisce come un
+        # oggetto solo.
+        $pagina = @(Invoke-RestMethod -Uri "$($config.Supabase.Url)/rest/v1/transazioni?$filtro" -Headers $supabaseHeaders -Method Get |
+            ForEach-Object { $_ })
+        foreach ($r in $pagina) { $idCandidati.Add([int]$r.source_movimento_id) }
+        $scorrimento += 1000
+    } while ($pagina.Count -eq 1000)
+
+    if ($idCandidati.Count -eq 0) {
+        Write-Log "Riconciliazione transazioni: nessun movimento recente da ricontrollare."
+        return
+    }
+
+    Write-Log "Riconciliazione transazioni: $($idCandidati.Count) movimenti recenti da ricontrollare contro Info4U."
+
+    $idCancellati = [System.Collections.Generic.List[int]]::new()
+    $connessione = New-Object System.Data.SqlClient.SqlConnection $connectionString
+    try {
+        $connessione.Open()
+        for ($i = 0; $i -lt $idCandidati.Count; $i += 1000) {
+            $blocco = $idCandidati.GetRange($i, [Math]::Min(1000, $idCandidati.Count - $i))
+            # Tutti [int] appena letti da Supabase: l'IN(...) per
+            # concatenazione e' sicuro.
+            $elenco = ($blocco -join ",")
+            $comando = $connessione.CreateCommand()
+            $comando.CommandText = "SELECT IdCassaMovimento FROM dbo.CassaMovimenti WHERE IdCassaMovimento IN ($elenco)"
+            $lettore = $comando.ExecuteReader()
+            $trovati = [System.Collections.Generic.HashSet[int]]::new()
+            while ($lettore.Read()) { $trovati.Add([int]$lettore["IdCassaMovimento"]) | Out-Null }
+            $lettore.Close()
+
+            foreach ($id in $blocco) {
+                if (-not $trovati.Contains($id)) { $idCancellati.Add($id) }
+            }
+        }
+    }
+    finally {
+        $connessione.Close()
+    }
+
+    if ($idCancellati.Count -eq 0) {
+        Write-Log "Riconciliazione transazioni: nessun movimento risulta cancellato in Info4U."
+        return
+    }
+
+    Write-Log "Riconciliazione transazioni: $($idCancellati.Count) movimenti non trovati piu' in Info4U, li segno cancellati." "WARN"
+    $elencoIdCancellati = ($idCancellati -join ",")
+    $corpo = @{ cancellato_il = (Get-Date).ToString("o") } | ConvertTo-Json
+    Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/transazioni?source_movimento_id=in.($elencoIdCancellati)" `
+        -Headers $supabaseHeaders -Method Patch -Corpo $corpo | Out-Null
+}
+
+# Il giro intero delle transazioni: nuovi movimenti a ogni esecuzione, poi
+# (ogni $refreshTransazioniOgniOre) rilettura della finestra recente e
+# riconciliazione dei cancellati.
+function Sync-Transazioni {
+    $lastIdMovimenti = Get-UltimoMovimentoSincronizzato
+    Write-Log "Transazioni, watermark di partenza: source_movimento_id > $lastIdMovimenti"
+
+    $totale = 0
+    for ($batch = 1; $batch -le $maxBatchesTransazioni; $batch++) {
+        $righe = Get-MovimentiDaSincronizzare -LastId $lastIdMovimenti -Top $batchSizeTransazioni
+        if ($righe.Count -eq 0) {
+            Write-Log "Transazioni: nessun nuovo movimento, al passo con la sorgente."
+            break
+        }
+
+        Send-TransazioniUpsert -Righe $righe
+
+        $lastIdMovimenti = [int]$righe[$righe.Count - 1].IdCassaMovimento
+        $totale += $righe.Count
+        Write-Log "Transazioni, batch ${batch}: $($righe.Count) righe, watermark ora a $lastIdMovimenti."
+
+        if ($righe.Count -lt $batchSizeTransazioni) { break }
+    }
+    Write-Log "Transazioni: $totale movimenti sincronizzati in questa esecuzione."
+
+    # Il refresh solo a storico recuperato: finche' il watermark non ha
+    # raggiunto la fine, le righe recenti non sono ancora nemmeno arrivate.
+    if ($totale -ge ($batchSizeTransazioni * $maxBatchesTransazioni)) {
+        Write-Log "Transazioni: storico ancora in corso, salto il refresh di questo giro."
+        return
+    }
+
+    $ultimoRefresh = Get-UltimoRefreshTransazioni
+    $orePassate = if ($ultimoRefresh) { (New-TimeSpan -Start $ultimoRefresh -End (Get-Date)).TotalHours } else { [double]::PositiveInfinity }
+    if ($orePassate -lt $refreshTransazioniOgniOre) { return }
+
+    Write-Log "Refresh transazioni: ultimo giro $(if ($ultimoRefresh) { "$([math]::Round($orePassate,1)) ore fa" } else { 'mai fatto' }) (soglia ${refreshTransazioniOgniOre}h) - riparto."
+
+    $soglia = (Get-Date).Date.AddDays(-$refreshTransazioniGiorniIndietro)
+    if ($soglia -lt $transazioniDal) { $soglia = $transazioniDal }
+    $lastIdRefresh = 0
+    $totaleRefresh = 0
+    for ($batch = 1; $batch -le $maxBatchesTransazioni; $batch++) {
+        $righe = Get-MovimentiRecentiDaSincronizzare -LastId $lastIdRefresh -Top $batchSizeTransazioni -Soglia $soglia
+        if ($righe.Count -eq 0) { break }
+
+        Send-TransazioniUpsert -Righe $righe
+
+        $lastIdRefresh = [int]$righe[$righe.Count - 1].IdCassaMovimento
+        $totaleRefresh += $righe.Count
+        Write-Log "Refresh transazioni, batch ${batch}: $($righe.Count) righe."
+
+        if ($righe.Count -lt $batchSizeTransazioni) { break }
+    }
+    Write-Log "Refresh transazioni: $totaleRefresh movimenti riprocessati in questa esecuzione."
+
+    Compare-CancellazioniTransazioni -Soglia $soglia
+
+    # Segnato solo a giro completo: se si interrompe, il prossimo riparte.
+    Set-UltimoRefreshTransazioni -Quando (Get-Date)
+}
+
+# ───────────────────────────────────────────────────────────── piano rate
+
+# Una riga per rata di dbo.AbbonamentiPagamenti. TransazioneErrore e' l'esito
+# dell'addebito automatico (carta/SEPA): se la banca l'ha rifiutato c'e' il
+# motivo, ed e' il dato piu' utile a chi controlla gli insoluti.
+$querySelectRate = @"
+SELECT
+    ap.IDRata,
+    ap.IDIscrizione,
+    ap.IDCassaMovimento,
+    ap.DataRata,
+    ap.Importo,
+    ap.DataPagato,
+    ap.IDTipoPagamento,
+    tp.Descrizione AS MetodoPagamento,
+    ap.IdOperatore,
+    ap.NomeOperatore,
+    ap.TransazioneErrore,
+    ap.TransazioneData
+FROM dbo.AbbonamentiPagamenti ap
+LEFT JOIN dbo.CassaTipiPagamenti tp ON tp.IDTipoPagamento = ap.IDTipoPagamento
+"@
+
+function Get-UltimaRataSincronizzata {
+    $url = "$($config.Supabase.Url)/rest/v1/abbonamenti_rate?select=source_rata_id&order=source_rata_id.desc&limit=1"
+    $risposta = Invoke-RestMethod -Uri $url -Headers $supabaseHeaders -Method Get
+    if ($risposta.Count -gt 0) { return [int]$risposta[0].source_rata_id }
+    return 0
+}
+
+function Get-UltimoRefreshRate {
+    $url = "$($config.Supabase.Url)/rest/v1/sync_info4u_stato?chiave=eq.refresh_rate&select=valore"
+    $risposta = Invoke-RestMethod -Uri $url -Headers $supabaseHeaders -Method Get
+    if ($risposta.Count -gt 0) { return [datetime]$risposta[0].valore }
+    return $null
+}
+
+function Set-UltimoRefreshRate {
+    param([datetime]$Quando)
+    $corpo = @{ chiave = "refresh_rate"; valore = $Quando.ToString("o") } | ConvertTo-Json
+    $headers = $supabaseHeaders.Clone()
+    $headers["Prefer"] = "resolution=merge-duplicates"
+    Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/sync_info4u_stato?on_conflict=chiave" `
+        -Headers $headers -Method Post -Corpo $corpo | Out-Null
+}
+
+# Nuove rate: ID oltre il watermark. Una rata senza nessuna data (ne' scadenza
+# ne' pagamento) entra comunque: non si puo' escludere per data cio' che non
+# ne ha.
+function Get-RateDaSincronizzare {
+    param([int]$LastId, [int]$Top)
+
+    $comandoText = ($querySelectRate -replace '^SELECT', "SELECT TOP ($Top)") +
+        "`nWHERE ap.IDRata > @LastId AND (ap.DataRata >= @Dal OR ap.DataPagato >= @Dal OR (ap.DataRata IS NULL AND ap.DataPagato IS NULL))`nORDER BY ap.IDRata ASC"
+
+    return Invoke-QueryDbgym -CommandText $comandoText -Parametri @{ "@LastId" = $LastId; "@Dal" = $transazioniDal }
+}
+
+# Refresh: le rate recenti o future secondo Info4U adesso (scadenza o
+# pagamento dalla soglia in poi). Una rata vecchia, non pagata e mai toccata
+# non cambia: non serve rileggerla.
+function Get-RateRecentiDaSincronizzare {
+    param([int]$LastId, [int]$Top, [datetime]$Soglia)
+
+    $comandoText = ($querySelectRate -replace '^SELECT', "SELECT TOP ($Top)") +
+        "`nWHERE ap.IDRata > @LastId AND (ap.DataRata >= @Soglia OR ap.DataPagato >= @Soglia)`nORDER BY ap.IDRata ASC"
+
+    return Invoke-QueryDbgym -CommandText $comandoText -Parametri @{ "@LastId" = $LastId; "@Soglia" = $Soglia }
+}
+
+function Send-RateUpsert {
+    param([array]$Righe)
+
+    $visti = @{}
+    $rate = foreach ($r in $Righe) {
+        $idRata = [int]$r.IDRata
+        if ($visti.ContainsKey($idRata)) { continue }
+        $visti[$idRata] = $true
+
+        [ordered]@{
+            source_rata_id           = $idRata
+            source_iscrizione_id     = if ($r.IDIscrizione -is [System.DBNull]) { $null } else { [int]$r.IDIscrizione }
+            source_movimento_id      = if ($r.IDCassaMovimento -is [System.DBNull]) { $null } else { [int]$r.IDCassaMovimento }
+            data_rata                = Get-DataPulita $r.DataRata
+            importo                  = Get-NumeroPulito $r.Importo
+            data_pagato              = Get-IstantePulito $r.DataPagato
+            source_tipo_pagamento_id = if ($r.IDTipoPagamento -is [System.DBNull]) { $null } else { [int]$r.IDTipoPagamento }
+            metodo_pagamento         = Get-TestoPulito $r.MetodoPagamento
+            operatore_id             = if ($r.IdOperatore -is [System.DBNull]) { $null } else { [int]$r.IdOperatore }
+            operatore_nome           = Get-TestoPulito $r.NomeOperatore
+            transazione_errore       = Get-TestoPulito $r.TransazioneErrore
+            transazione_data         = Get-IstantePulito $r.TransazioneData
+            # Appena letta da una query live: esiste ancora in Info4U.
+            cancellato_il            = $null
+        }
+    }
+    if (-not $rate) { return }
+
+    $url = "$($config.Supabase.Url)/rest/v1/abbonamenti_rate?on_conflict=source_rata_id"
+    $corpo = $rate | ConvertTo-Json -Depth 5
+    $headers = $supabaseHeaders.Clone()
+    $headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
+
+    Invoke-SupabaseScrittura -Uri $url -Headers $headers -Method Post -Corpo $corpo | Out-Null
+}
+
+# Le rate che Supabase ha con scadenza dalla soglia in poi (comprese tutte le
+# future) e Info4U non ha piu': una vendita eliminata si porta via il suo
+# piano rate. Segnate cancellate, mai una DELETE.
+function Compare-CancellazioniRate {
+    param([datetime]$Soglia)
+
+    $sogliaTesto = $Soglia.ToString("yyyy-MM-dd")
+    $idCandidati = [System.Collections.Generic.List[int]]::new()
+    $scorrimento = 0
+    do {
+        $filtro = "cancellato_il=is.null&data_rata=gte.$sogliaTesto" +
+            "&select=source_rata_id&order=source_rata_id.asc&limit=1000&offset=$scorrimento"
+        $pagina = @(Invoke-RestMethod -Uri "$($config.Supabase.Url)/rest/v1/abbonamenti_rate?$filtro" -Headers $supabaseHeaders -Method Get |
+            ForEach-Object { $_ })
+        foreach ($r in $pagina) { $idCandidati.Add([int]$r.source_rata_id) }
+        $scorrimento += 1000
+    } while ($pagina.Count -eq 1000)
+
+    if ($idCandidati.Count -eq 0) {
+        Write-Log "Riconciliazione rate: nessuna rata da ricontrollare."
+        return
+    }
+
+    Write-Log "Riconciliazione rate: $($idCandidati.Count) rate da ricontrollare contro Info4U."
+
+    $idCancellati = [System.Collections.Generic.List[int]]::new()
+    $connessione = New-Object System.Data.SqlClient.SqlConnection $connectionString
+    try {
+        $connessione.Open()
+        for ($i = 0; $i -lt $idCandidati.Count; $i += 1000) {
+            $blocco = $idCandidati.GetRange($i, [Math]::Min(1000, $idCandidati.Count - $i))
+            $elenco = ($blocco -join ",")
+            $comando = $connessione.CreateCommand()
+            $comando.CommandText = "SELECT IDRata FROM dbo.AbbonamentiPagamenti WHERE IDRata IN ($elenco)"
+            $lettore = $comando.ExecuteReader()
+            $trovati = [System.Collections.Generic.HashSet[int]]::new()
+            while ($lettore.Read()) { $trovati.Add([int]$lettore["IDRata"]) | Out-Null }
+            $lettore.Close()
+
+            foreach ($id in $blocco) {
+                if (-not $trovati.Contains($id)) { $idCancellati.Add($id) }
+            }
+        }
+    }
+    finally {
+        $connessione.Close()
+    }
+
+    if ($idCancellati.Count -eq 0) {
+        Write-Log "Riconciliazione rate: nessuna rata risulta cancellata in Info4U."
+        return
+    }
+
+    Write-Log "Riconciliazione rate: $($idCancellati.Count) rate non trovate piu' in Info4U, le segno cancellate." "WARN"
+    $elencoIdCancellati = ($idCancellati -join ",")
+    $corpo = @{ cancellato_il = (Get-Date).ToString("o") } | ConvertTo-Json
+    Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/abbonamenti_rate?source_rata_id=in.($elencoIdCancellati)" `
+        -Headers $supabaseHeaders -Method Patch -Corpo $corpo | Out-Null
+}
+
+# Il giro intero delle rate: nuove a ogni esecuzione, poi (ogni
+# $refreshRateOgniOre) rilettura delle recenti e future e riconciliazione.
+function Sync-Rate {
+    $lastIdRate = Get-UltimaRataSincronizzata
+    Write-Log "Rate, watermark di partenza: source_rata_id > $lastIdRate"
+
+    $totale = 0
+    for ($batch = 1; $batch -le $maxBatchesTransazioni; $batch++) {
+        $righe = Get-RateDaSincronizzare -LastId $lastIdRate -Top $batchSizeTransazioni
+        if ($righe.Count -eq 0) {
+            Write-Log "Rate: nessuna nuova rata, al passo con la sorgente."
+            break
+        }
+
+        Send-RateUpsert -Righe $righe
+
+        $lastIdRate = [int]$righe[$righe.Count - 1].IDRata
+        $totale += $righe.Count
+        Write-Log "Rate, batch ${batch}: $($righe.Count) righe, watermark ora a $lastIdRate."
+
+        if ($righe.Count -lt $batchSizeTransazioni) { break }
+    }
+    Write-Log "Rate: $totale rate sincronizzate in questa esecuzione."
+
+    if ($totale -ge ($batchSizeTransazioni * $maxBatchesTransazioni)) {
+        Write-Log "Rate: storico ancora in corso, salto il refresh di questo giro."
+        return
+    }
+
+    $ultimoRefresh = Get-UltimoRefreshRate
+    $orePassate = if ($ultimoRefresh) { (New-TimeSpan -Start $ultimoRefresh -End (Get-Date)).TotalHours } else { [double]::PositiveInfinity }
+    if ($orePassate -lt $refreshRateOgniOre) { return }
+
+    Write-Log "Refresh rate: ultimo giro $(if ($ultimoRefresh) { "$([math]::Round($orePassate,1)) ore fa" } else { 'mai fatto' }) (soglia ${refreshRateOgniOre}h) - riparto."
+
+    $soglia = (Get-Date).Date.AddDays(-$refreshRateGiorniIndietro)
+    if ($soglia -lt $transazioniDal) { $soglia = $transazioniDal }
+    $lastIdRefresh = 0
+    $totaleRefresh = 0
+    for ($batch = 1; $batch -le $maxBatchesTransazioni; $batch++) {
+        $righe = Get-RateRecentiDaSincronizzare -LastId $lastIdRefresh -Top $batchSizeTransazioni -Soglia $soglia
+        if ($righe.Count -eq 0) { break }
+
+        Send-RateUpsert -Righe $righe
+
+        $lastIdRefresh = [int]$righe[$righe.Count - 1].IDRata
+        $totaleRefresh += $righe.Count
+        Write-Log "Refresh rate, batch ${batch}: $($righe.Count) righe."
+
+        if ($righe.Count -lt $batchSizeTransazioni) { break }
+    }
+    Write-Log "Refresh rate: $totaleRefresh rate riprocessate in questa esecuzione."
+
+    Compare-CancellazioniRate -Soglia $soglia
+
+    # Segnato solo a giro completo: se si interrompe, il prossimo riparte.
+    Set-UltimoRefreshRate -Quando (Get-Date)
+}
+
 # ─────────────────────────────────────────────────────────────────── run
 
 Write-Log "Avvio sincronizzazione."
@@ -782,6 +1272,10 @@ try {
         # mai stato per intero.
         Set-UltimoRefreshAperti -Quando (Get-Date)
     }
+
+    Sync-Transazioni
+
+    Sync-Rate
 }
 catch {
     # $_.Exception.Message da solo, per un errore HTTP, e' solo "(500)
