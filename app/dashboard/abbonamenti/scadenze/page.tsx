@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
+import { puoRiassegnare } from '@/lib/auth/permessi'
 import { caricaGruppi } from '@/lib/abbonamenti'
 import { etichettaMese, mesePiu, oggiRoma, primoDelMese } from '@/lib/agenda'
 import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
@@ -42,6 +43,7 @@ export default async function ScadenzeAbbonamentiPage({
   const nomiStaff = mappaNomiStaff(staffOrdinato)
   const operatoriSegreteria = staffOrdinato.filter((s) => s.operatore_segreteria).map((s) => s.email)
   const io = emailCorrente()
+  const possoRiassegnare = await puoRiassegnare(io)
 
   // PostgREST tronca comunque una select a 1000 righe, `.limit()` chiesto
   // dal client o no — e un mese di punta (settembre, oltre 1500 scadenze)
@@ -58,7 +60,7 @@ export default async function ScadenzeAbbonamentiPage({
     let query = supabase
       .from('abbonamenti_scadenze')
       .select(
-        'id, persona_id, abbonamento, gruppo_id, data_inizio, data_fine, totale, nome, cognome, email, cellulare, rinnovato, rinnovo_id, rinnovo_abbonamento, rinnovo_data_inizio, rinnovo_data_fine, rinnovo_totale, operatore_nome, stato_manuale, motivo_non_rinnovo, note_non_rinnovo, nota, assegnato_a, escluso_da_report, durata, periodo, rinnovo_durata, rinnovo_periodo',
+        'id, persona_id, abbonamento, gruppo_id, data_inizio, data_fine, totale, nome, cognome, email, cellulare, rinnovato, rinnovo_id, rinnovo_abbonamento, rinnovo_data_inizio, rinnovo_data_fine, rinnovo_totale, venditore_nome, stato_manuale, motivo_non_rinnovo, note_non_rinnovo, nota, assegnato_a, escluso_da_report, durata, periodo, rinnovo_durata, rinnovo_periodo',
       )
       .gte('data_fine', meseRichiesto)
       .lt('data_fine', mesePiu(meseRichiesto, 1))
@@ -141,6 +143,7 @@ export default async function ScadenzeAbbonamentiPage({
           operatoriSegreteria={operatoriSegreteria}
           nomiStaff={nomiStaff}
           io={io}
+          possoRiassegnare={possoRiassegnare}
         />
       )}
     </div>
