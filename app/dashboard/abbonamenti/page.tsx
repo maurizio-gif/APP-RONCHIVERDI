@@ -441,8 +441,8 @@ export default async function AbbonamentiPage() {
           <Link href="/dashboard/abbonamenti/rinnovi" className="btn btn-grande">
             Rinnovi Core
           </Link>
-          <Link href="/dashboard/abbonamenti/sospensioni" className="btn btn-grande">
-            Sospensioni
+          <Link href="/dashboard/abbonamenti/scadenze-spostate" className="btn btn-grande">
+            Sospensioni (scadenze spostate)
           </Link>
         </div>
       </div>
