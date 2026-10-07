@@ -7869,3 +7869,59 @@ table.tabella-compatta .nota-in-riga {
 	align-items: center;
 	margin-top: 0.9rem;
 }
+
+/* ─────────────────────────────────────── multi-select «escludi abbonamenti» */
+
+.filtri-gruppo-largo {
+	grid-column: 1 / -1;
+}
+
+.escludi-abb-barra {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	align-items: center;
+	margin-bottom: 0.5rem;
+}
+
+.escludi-abb-barra input[type='search'] {
+	flex: 1 1 14rem;
+	width: auto;
+}
+
+.escludi-abb-lista {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+	gap: 0.15rem 1rem;
+	max-height: 12rem;
+	overflow-y: auto;
+	padding: 0.5rem 0.6rem;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	background: var(--surface);
+}
+
+.escludi-abb-voce {
+	display: flex;
+	align-items: center;
+	gap: 0.45rem;
+	font-size: var(--text-sm);
+	cursor: pointer;
+}
+
+.escludi-abb-voce[hidden] {
+	display: none;
+}
+
+.escludi-abb-voce input {
+	width: auto;
+	flex: none;
+}
+
+.escludi-abb-nome {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

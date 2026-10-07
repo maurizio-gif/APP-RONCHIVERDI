@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
+import { EscludiAbbonamenti } from './EscludiAbbonamenti'
 
 export const dynamic = 'force-dynamic'
 
@@ -56,6 +57,7 @@ type Riga = {
 }
 
 type SearchParams = {
+  escludi?: string | string[]
   q?: string
   durata?: string
   da?: string
@@ -101,6 +103,11 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
   // abbonamento o variante («rossi silver»). Si tolgono i caratteri che nella
   // sintassi dei filtri di PostgREST separano o racchiudono i valori: lasciati
   // dentro, spezzerebbero il filtro.
+  // Gli abbonamenti esclusi: lo stesso parametro ripetuto (?escludi=A&escludi=B),
+  // quindi può arrivare come testo o come elenco.
+  const escludi = Array.from(
+    new Set([searchParams.escludi ?? []].flat().map((v) => v.trim()).filter((v) => v && v.length <= 120))
+  ).slice(0, 60)
   const cerca = (searchParams.q ?? '').slice(0, 80).trim()
   const parole = cerca
     .replace(/[,()%*\\:"]/g, ' ')
@@ -121,16 +128,20 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
   if (foA) attivi.fo_a = foA
   if (fnDa) attivi.fn_da = fnDa
   if (fnA) attivi.fn_a = fnA
-  const href = (extra: Record<string, string>) =>
-    `/dashboard/abbonamenti/scadenze-spostate?${new URLSearchParams({ ...attivi, ...extra }).toString()}`
+  const costruisci = (p: Record<string, string>, esclusi: string[]) => {
+    const ricerca = new URLSearchParams(p)
+    for (const nome of esclusi) ricerca.append('escludi', nome)
+    return `/dashboard/abbonamenti/scadenze-spostate?${ricerca.toString()}`
+  }
+  const href = (extra: Record<string, string>) => costruisci({ ...attivi, ...extra }, escludi)
   const filtriAttivi = Boolean(
-    cerca || durata || da !== null || a !== null || foDa || foA || fnDa || fnA || stato !== 'attive' || ordine !== 'recenti'
+    cerca || durata || da !== null || a !== null || foDa || foA || fnDa || fnA || escludi.length > 0 || stato !== 'attive' || ordine !== 'recenti'
   )
   // Il link che toglie UN filtro e lascia gli altri.
   const senza = (...chiavi: string[]) => {
     const p = { ...attivi }
     for (const k of chiavi) delete p[k]
-    return `/dashboard/abbonamenti/scadenze-spostate?${new URLSearchParams(p).toString()}`
+    return costruisci(p, chiavi.includes('escludi') ? [] : escludi)
   }
   const dataIt = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
   const intervallo = (x: string | null, y: string | null) =>
@@ -146,7 +157,12 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
     etichette.push({ testo: `Fine originaria: ${intervallo(foDa && dataIt(foDa), foA && dataIt(foA))}`, togli: senza('fo_da', 'fo_a') })
   if (fnDa || fnA)
     etichette.push({ testo: `Fine nuova: ${intervallo(fnDa && dataIt(fnDa), fnA && dataIt(fnA))}`, togli: senza('fn_da', 'fn_a') })
-  const avanzatiAttivi = Boolean(durata || da !== null || a !== null || foDa || foA || fnDa || fnA)
+  if (escludi.length > 0)
+    etichette.push({
+      testo: escludi.length === 1 ? `Escluso: ${escludi[0]}` : `Esclusi ${escludi.length} abbonamenti`,
+      togli: senza('escludi'),
+    })
+  const avanzatiAttivi = Boolean(durata || da !== null || a !== null || foDa || foA || fnDa || fnA || escludi.length > 0)
 
   const conta = async (attive: boolean | null) => {
     let c = supabase.from('scadenze_spostate').select('source_iscrizione_id', { count: 'exact', head: true })
@@ -164,6 +180,13 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
     .gte('giorni_spostati', Math.max(GIORNI_MINIMI, da ?? 0))
   if (a !== null) q = q.lte('giorni_spostati', a)
   if (durata) q = q.eq('durata', durata)
+  if (escludi.length > 0) {
+    // I nomi vanno fra virgolette (possono contenere virgole e parentesi), con
+    // virgolette e barre rovesciate protette; e i nulli restano: «not in» da
+    // solo toglierebbe anche gli abbonamenti senza nome.
+    const elencoEsclusi = escludi.map((n) => `"${n.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join(',')
+    q = q.or(`abbonamento.is.null,abbonamento.not.in.(${elencoEsclusi})`)
+  }
   if (foDa) q = q.gte('scadenza_prevista', foDa)
   if (foA) q = q.lte('scadenza_prevista', foA)
   if (fnDa) q = q.gte('data_fine', fnDa)
@@ -192,6 +215,26 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
   } else {
     q = q.order('persona_cognome', { ascending: true, nullsFirst: false }).order('persona_nome', { ascending: true, nullsFirst: false })
   }
+
+  // I prodotti presenti nel report, con quante scadenze spostate hanno, per la
+  // lista da cui escluderli. Si leggono a pagine: sono ~2.000 righe, oltre il
+  // limite di 1.000 per risposta.
+  const conteggioProdotti = new Map<string, number>()
+  for (let pag = 0; pag < 10; pag++) {
+    const { data: nomi } = await supabase
+      .from('scadenze_spostate')
+      .select('abbonamento')
+      .order('source_iscrizione_id')
+      .range(pag * 1000, pag * 1000 + 999)
+    for (const r of nomi ?? []) {
+      const nome = (r as { abbonamento: string | null }).abbonamento
+      if (nome) conteggioProdotti.set(nome, (conteggioProdotti.get(nome) ?? 0) + 1)
+    }
+    if (!nomi || nomi.length < 1000) break
+  }
+  const prodotti = Array.from(conteggioProdotti, ([nome, n]) => ({ nome, n })).sort(
+    (x, y) => y.n - x.n || x.nome.localeCompare(y.nome, 'it')
+  )
 
   const trentaGiorniFa = new Date(Date.now() - 30 * 86400000).toISOString()
   const [{ data: righe, count, error }, attive, totale, { count: recenti }] = await Promise.all([
@@ -281,7 +324,7 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
         </div>
 
         <details className="filtri-avanzati" open={avanzatiAttivi}>
-          <summary>Altri filtri: durata, giorni di sospensione, date{avanzatiAttivi ? ' · attivi' : ''}</summary>
+          <summary>Altri filtri: durata, sospensione, date, abbonamenti esclusi{avanzatiAttivi ? ' · attivi' : ''}</summary>
           <div className="filtri-griglia">
             <fieldset className="filtri-gruppo-campi">
               <legend>Durata abbonamento</legend>
@@ -317,6 +360,10 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
                 <span aria-hidden="true">–</span>
                 <input name="fn_a" type="date" defaultValue={fnA ?? ''} aria-label="Fine nuova al" />
               </div>
+            </fieldset>
+            <fieldset className="filtri-gruppo-campi filtri-gruppo-largo">
+              <legend>Escludi abbonamenti</legend>
+              <EscludiAbbonamenti prodotti={prodotti} iniziali={escludi} />
             </fieldset>
           </div>
         </details>
