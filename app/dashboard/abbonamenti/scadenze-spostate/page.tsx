@@ -39,9 +39,10 @@ type Riga = {
   attiva: boolean
   data_disdetta: string | null
   ultima_variazione_il: string | null
+  durata: number | null
 }
 
-type SearchParams = { stato?: string; fascia?: string; pagina?: string }
+type SearchParams = { stato?: string; fascia?: string; pagina?: string; q?: string }
 
 const data = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(2, 4)}` : '—')
 
@@ -53,11 +54,24 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
     : 'attive'
   const fascia = FASCE.find((f) => f.chiave === searchParams.fascia) ?? FASCE[0]
   const pagina = Math.max(1, Number(searchParams.pagina) || 1)
+  // La ricerca: ogni parola deve comparire in nome, cognome, abbonamento o
+  // variante (così «rossi silver» trova Rossi con un abbonamento Silver); una
+  // parola fatta solo di cifre cerca anche i giorni di sospensione («30») e
+  // trova pure le durate scritte nel nome del prodotto («12 mesi»). Si tolgono
+  // i caratteri che nella sintassi dei filtri di PostgREST separano o
+  // racchiudono i valori: lasciati dentro, spezzerebbero il filtro.
+  const cerca = (searchParams.q ?? '').slice(0, 80).trim()
+  const parole = cerca
+    .replace(/[,()%*\\:"]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 5)
 
   const supabase = createSupabaseServiceClient()
 
   function href(extra: Record<string, string | null>): string {
     const p: Record<string, string> = { stato, fascia: fascia.chiave }
+    if (cerca) p.q = cerca
     for (const [k, v] of Object.entries(extra)) {
       if (v === null) delete p[k]
       else p[k] = v
@@ -75,13 +89,32 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
   let q = supabase
     .from('scadenze_spostate')
     .select(
-      'source_iscrizione_id, persona_id, persona_nome, persona_cognome, abbonamento, variante, data_inizio, scadenza_prevista, data_fine, giorni_spostati, attiva, data_disdetta, ultima_variazione_il',
+      'source_iscrizione_id, persona_id, persona_nome, persona_cognome, abbonamento, variante, data_inizio, scadenza_prevista, data_fine, giorni_spostati, attiva, data_disdetta, ultima_variazione_il, durata',
       { count: 'exact' }
     )
     .gte('giorni_spostati', fascia.da)
   if (fascia.a !== null) q = q.lte('giorni_spostati', fascia.a)
   if (stato === 'attive') q = q.eq('attiva', true)
   if (stato === 'scadute') q = q.eq('attiva', false)
+  for (const parola of parole) {
+    // «12m» = abbonamenti da 12 mesi, «30g» = 30 giorni di sospensione: la
+    // lettera toglie l'ambiguità. Un numero da solo cerca in tutti i campi.
+    const mesi = /^(\d{1,2})m$/i.exec(parola)
+    const giorni = /^(\d{1,4})g$/i.exec(parola)
+    let campi: string[]
+    if (mesi) campi = [`durata.eq.${mesi[1]}`]
+    else if (giorni) campi = [`giorni_spostati.eq.${giorni[1]}`]
+    else {
+      campi = [
+        `persona_cognome.ilike.%${parola}%`,
+        `persona_nome.ilike.%${parola}%`,
+        `abbonamento.ilike.%${parola}%`,
+        `variante.ilike.%${parola}%`,
+      ]
+      if (/^\d{1,4}$/.test(parola)) campi.push(`giorni_spostati.eq.${parola}`, `durata.eq.${parola}`)
+    }
+    q = q.or(campi.join(','))
+  }
 
   const trentaGiorniFa = new Date(Date.now() - 30 * 86400000).toISOString()
   const [{ data: righe, count, error }, attive, totale, { count: recenti }] = await Promise.all([
@@ -142,6 +175,38 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
         </div>
       </div>
 
+      <form method="get" className="card" role="search">
+        <input type="hidden" name="stato" value={stato} />
+        <input type="hidden" name="fascia" value={fascia.chiave} />
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label htmlFor="cerca-sospensioni">Cerca</label>
+          <div className="form-row">
+            <input
+              id="cerca-sospensioni"
+              name="q"
+              type="search"
+              defaultValue={cerca}
+              placeholder="Cliente, abbonamento, durata (es. rossi silver 12m)"
+              autoComplete="off"
+              style={{ flex: 1 }}
+            />
+            <button type="submit" className="btn">
+              Cerca
+            </button>
+            {cerca && (
+              <Link href={href({ q: null, pagina: null })} className="btn btn-ghost">
+                Azzera
+              </Link>
+            )}
+          </div>
+          <p className="field-hint">
+            Ogni parola deve comparire nel nome del cliente o dell’abbonamento. <strong>12m</strong> cerca gli
+            abbonamenti da 12 mesi, <strong>30g</strong> le sospensioni di 30 giorni; un numero da solo cerca in
+            entrambi.
+          </p>
+        </div>
+      </form>
+
       <div className="filtri">
         <p className="filtri-titolo">Abbonamenti sospesi</p>
         <div className="filtri-gruppi">
@@ -182,6 +247,7 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
                   <tr>
                     <th>Cliente</th>
                     <th>Abbonamento</th>
+                    <th className="cella-importo">Durata</th>
                     <th>Data fine originaria</th>
                     <th>Data fine nuova</th>
                     <th className="cella-importo">Periodo di sospensione</th>
@@ -201,6 +267,7 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
                           {r.abbonamento ?? '—'}
                           {r.variante && <span className="stat-nota">{r.variante}</span>}
                         </td>
+                        <td className="cella-importo">{r.durata ? `${r.durata} ${r.durata === 1 ? 'mese' : 'mesi'}` : '—'}</td>
                         <td className="cella-nowrap">{data(r.scadenza_prevista)}</td>
                         <td className="cella-nowrap">{data(r.data_fine)}</td>
                         <td className="cella-importo">

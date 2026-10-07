@@ -82,7 +82,9 @@ select
 	a.data_disdetta,
 	-- Quando il CRM ha visto cambiare la scadenza l'ultima volta (se è successo
 	-- da quando c'è il registro): serve a ordinare le più recenti in alto.
-	(select max(v.rilevata_il) from public.abbonamenti_scadenze_variazioni v where v.abbonamento_id = a.id) as ultima_variazione_il
+	(select max(v.rilevata_il) from public.abbonamenti_scadenze_variazioni v where v.abbonamento_id = a.id) as ultima_variazione_il,
+	-- Durata dell'abbonamento in mesi (12 = annuale), per cercare e leggere.
+	a.durata
 from public.abbonamenti a
 left join public.persone p on p.id = a.persona_id
 where a.cancellato_il is null
