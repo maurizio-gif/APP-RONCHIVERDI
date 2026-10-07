@@ -245,6 +245,23 @@ pagare) e `abbonamenti_incassato` aggiunge per vendita rate pagate, insolute e
 ancora da pagare: il report «Incassato» spiega così una vendita «da
 incassare» con le rate, invece di lasciarla senza motivo.
 
+## Modifiche degli abbonamenti (chi sposta le scadenze)
+
+Le sospensioni non sono registrate in nessuna tabella dedicata (le tabelle
+Sospensioni sono ferme a marzo 2025): l'operatore sposta a mano la data di
+fine. Il registro delle azioni di Info4U, `dbo.AppLog`, scrive però una riga
+per ogni modifica di un abbonamento («ABBONAMENTI MODIFICA: cambiata data
+inizio in ... e data fine in ... (precedente ...)») con operatore e socio.
+Lo script copia quelle righe, dal 2023, nella tabella `abbonamenti_modifiche`
+leggendone date e IDIscrizione. Richiede
+`scripts/sql/2026-10-07-abbonamenti-modifiche.sql` già eseguito.
+
+Una **proroga** è una modifica in cui la fine si sposta più dell'inizio
+(`proroga_giorni` > 0); se inizio e fine slittano insieme è una correzione di
+data. Il registro non cambia a posteriori: solo watermark su `IdLog`. Del
+socio si copia l'ID, non il nome. Le righe il cui testo non ha le date
+restano con `interpretata = false`.
+
 ## Cosa NON fa (ancora)
 
 - Non fa nessuna automazione sui rinnovi o sulle scadenze.

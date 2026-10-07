@@ -1190,6 +1190,125 @@ function Sync-Rate {
     Set-UltimoRefreshRate -Quando (Get-Date)
 }
 
+# ─────────────────────────────────────────────────── modifiche abbonamenti
+
+# Il registro delle azioni di Info4U (dbo.AppLog) scrive una riga per ogni
+# modifica di un abbonamento, con operatore, socio e un testo del tipo
+#   ABBONAMENTI MODIFICA: cambiata data inizio in 21/09/2026 e data fine
+#   abbonamento in 06/06/2027 (precedente data inizio: 21/09/2026 - data fine:
+#   20/05/2027) all'abbonamento <nome> (IDIscrizione ...)
+# Da li' si ricava chi ha spostato una scadenza e quando: il dato che le
+# tabelle delle sospensioni non hanno. Il registro non cambia mai a
+# posteriori, quindi basta il watermark su IdLog: niente refresh, niente
+# riconciliazione. Del socio si copia solo l'ID, non il nome (colonna Utente).
+$querySelectModifiche = @"
+SELECT
+    l.IdLog,
+    l.IdOperatore,
+    l.NomeOperatore,
+    l.IdUtente,
+    l.DataOperazione,
+    LEFT(l.Descrizione, 600) AS Descrizione
+FROM dbo.AppLog l
+"@
+
+function Get-UltimaModificaSincronizzata {
+    $url = "$($config.Supabase.Url)/rest/v1/abbonamenti_modifiche?select=source_log_id&order=source_log_id.desc&limit=1"
+    $risposta = Invoke-RestMethod -Uri $url -Headers $supabaseHeaders -Method Get
+    if ($risposta.Count -gt 0) { return [int]$risposta[0].source_log_id }
+    return 0
+}
+
+# Solo le modifiche degli abbonamenti, dal $transazioniDal in poi. Il
+# watermark su IdLog (chiave primaria) limita la lettura alle righe nuove: il
+# registro ha quasi 2 milioni di righe, ma ogni giro ne guarda solo le ultime.
+function Get-ModificheDaSincronizzare {
+    param([int]$LastId, [int]$Top)
+
+    $comandoText = ($querySelectModifiche -replace '^SELECT', "SELECT TOP ($Top)") +
+        "`nWHERE l.IdLog > @LastId AND l.Descrizione LIKE 'ABBONAMENTI MODIFICA:%' AND l.DataOperazione >= @Dal`nORDER BY l.IdLog ASC"
+
+    return Invoke-QueryDbgym -CommandText $comandoText -Parametri @{ "@LastId" = $LastId; "@Dal" = $transazioniDal }
+}
+
+# «21/09/2026» -> «2026-09-21», o $null.
+function ConvertTo-DataIso {
+    param([string]$Testo)
+    if (-not $Testo) { return $null }
+    try { return [datetime]::ParseExact($Testo, "dd/MM/yyyy", [System.Globalization.CultureInfo]::InvariantCulture).ToString("yyyy-MM-dd") }
+    catch { return $null }
+}
+
+function Send-ModificheUpsert {
+    param([array]$Righe)
+
+    $visti = @{}
+    $modifiche = foreach ($r in $Righe) {
+        $idLog = [int]$r.IdLog
+        if ($visti.ContainsKey($idLog)) { continue }
+        $visti[$idLog] = $true
+
+        $testo = [string]$r.Descrizione
+        # Ogni pezzo e' letto da solo: un formato che ne ha meno dei soliti
+        # (per esempio la sola data di inizio) lascia nulli gli altri, e la riga
+        # resta non interpretata invece di falsare un calcolo.
+        $inizioNuovo = [regex]::Match($testo, 'data inizio in (\d{2}/\d{2}/\d{4})').Groups[1].Value
+        $fineNuova = [regex]::Match($testo, 'data fine abbonamento in (\d{2}/\d{2}/\d{4})').Groups[1].Value
+        $inizioPrec = [regex]::Match($testo, 'precedente data inizio:\s*(\d{2}/\d{2}/\d{4})').Groups[1].Value
+        $finePrec = [regex]::Match($testo, 'data fine:\s*(\d{2}/\d{2}/\d{4})').Groups[1].Value
+        $idIscrizione = [regex]::Match($testo, 'IDIscrizione\D{0,4}(\d+)').Groups[1].Value
+
+        $fineNuovaIso = ConvertTo-DataIso $fineNuova
+        $finePrecIso = ConvertTo-DataIso $finePrec
+
+        [ordered]@{
+            source_log_id        = $idLog
+            data_operazione      = Get-IstantePulito $r.DataOperazione
+            operatore_id         = if ($r.IdOperatore -is [System.DBNull]) { $null } else { [int]$r.IdOperatore }
+            operatore_nome       = Get-TestoPulito $r.NomeOperatore
+            source_utente_id     = if ($r.IdUtente -is [System.DBNull]) { $null } else { [int]$r.IdUtente }
+            source_iscrizione_id = if ($idIscrizione) { [int]$idIscrizione } else { $null }
+            inizio_precedente    = ConvertTo-DataIso $inizioPrec
+            fine_precedente      = $finePrecIso
+            inizio_nuovo         = ConvertTo-DataIso $inizioNuovo
+            fine_nuova           = $fineNuovaIso
+            descrizione          = $testo
+            interpretata         = [bool]($fineNuovaIso -and $finePrecIso -and $idIscrizione)
+        }
+    }
+    if (-not $modifiche) { return }
+
+    $url = "$($config.Supabase.Url)/rest/v1/abbonamenti_modifiche?on_conflict=source_log_id"
+    $corpo = $modifiche | ConvertTo-Json -Depth 5
+    $headers = $supabaseHeaders.Clone()
+    $headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
+
+    Invoke-SupabaseScrittura -Uri $url -Headers $headers -Method Post -Corpo $corpo | Out-Null
+}
+
+function Sync-ModificheAbbonamenti {
+    $lastId = Get-UltimaModificaSincronizzata
+    Write-Log "Modifiche abbonamenti, watermark di partenza: source_log_id > $lastId"
+
+    $totale = 0
+    for ($batch = 1; $batch -le $maxBatchesTransazioni; $batch++) {
+        $righe = Get-ModificheDaSincronizzare -LastId $lastId -Top $batchSizeTransazioni
+        if ($righe.Count -eq 0) {
+            Write-Log "Modifiche abbonamenti: nessuna nuova modifica, al passo con la sorgente."
+            break
+        }
+
+        Send-ModificheUpsert -Righe $righe
+
+        $lastId = [int]$righe[$righe.Count - 1].IdLog
+        $totale += $righe.Count
+        Write-Log "Modifiche abbonamenti, batch ${batch}: $($righe.Count) righe, watermark ora a $lastId."
+
+        if ($righe.Count -lt $batchSizeTransazioni) { break }
+    }
+    Write-Log "Modifiche abbonamenti: $totale modifiche sincronizzate in questa esecuzione."
+}
+
 # ─────────────────────────────────────────────────────────────────── run
 
 Write-Log "Avvio sincronizzazione."
@@ -1276,6 +1395,8 @@ try {
     Sync-Transazioni
 
     Sync-Rate
+
+    Sync-ModificheAbbonamenti
 }
 catch {
     # $_.Exception.Message da solo, per un errore HTTP, e' solo "(500)
