@@ -11,18 +11,31 @@ export const dynamic = 'force-dynamic'
 // Qui si confronta la scadenza reale con quella che spetterebbe dalla durata
 // (vedi scripts/sql/2026-10-07-scadenze-spostate.sql). Info4U non dice chi
 // ha fatto lo spostamento: la pagina non ha la colonna Operatore.
+//
+// I due numeri da non confondere hanno ciascuno il suo campo e la sua
+// colonna: la DURATA dell'abbonamento (quanti mesi ha comprato) e il PERIODO
+// DI SOSPENSIONE (di quanti giorni è stata spostata la scadenza).
 
 const STATI = ['attive', 'scadute', 'tutte'] as const
 type Stato = (typeof STATI)[number]
-const ETICHETTE_STATO: Record<Stato, string> = { attive: 'In corso', scadute: 'Già scadute', tutte: 'Tutte' }
+const ETICHETTE_STATO: Record<Stato, string> = { attive: 'In corso', scadute: 'Già scaduti', tutte: 'Tutti' }
 
-const FASCE = [
-  { chiave: 'tutte', nome: 'Qualsiasi durata', da: 4, a: null },
-  { chiave: 'breve', nome: '4–14 giorni', da: 4, a: 14 },
-  { chiave: 'media', nome: '15–45 giorni', da: 15, a: 45 },
-  { chiave: 'lunga', nome: 'Oltre 45 giorni', da: 46, a: null },
-] as const
+const ORDINI = ['recenti', 'giorni', 'fine', 'cliente'] as const
+type Ordine = (typeof ORDINI)[number]
+const ETICHETTE_ORDINE: Record<Ordine, string> = {
+  recenti: 'Più recenti',
+  giorni: 'Sospensione più lunga',
+  fine: 'Scadenza più lontana',
+  cliente: 'Cliente (A–Z)',
+}
 
+// Le durate in mesi con cui si vendono gli abbonamenti (dai dati dal 2023).
+const DURATE = [1, 3, 4, 6, 8, 9, 12] as const
+
+// Sotto i 4 giorni di scarto la vista non mostra nulla (sono arrotondamenti
+// di fine mese, non sospensioni).
+const GIORNI_MINIMI = 4
+const SOGLIA_LUNGA = 90
 const PAGINA = 100
 
 type Riga = {
@@ -42,9 +55,21 @@ type Riga = {
   durata: number | null
 }
 
-type SearchParams = { stato?: string; fascia?: string; pagina?: string; q?: string }
+type SearchParams = {
+  q?: string
+  durata?: string
+  da?: string
+  a?: string
+  stato?: string
+  ordine?: string
+  pagina?: string
+}
 
 const data = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(2, 4)}` : '—')
+const intero = (v: string | undefined, max: number): number | null => {
+  const n = Number(v)
+  return v && Number.isInteger(n) && n >= 0 && n <= max ? n : null
+}
 
 export default async function ScadenzeSpostatePage({ searchParams }: { searchParams: SearchParams }) {
   if (!(await utenteHaSezione('abbonamenti'))) redirect('/dashboard')
@@ -52,14 +77,19 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
   const stato: Stato = (STATI as readonly string[]).includes(searchParams.stato ?? '')
     ? (searchParams.stato as Stato)
     : 'attive'
-  const fascia = FASCE.find((f) => f.chiave === searchParams.fascia) ?? FASCE[0]
+  const ordine: Ordine = (ORDINI as readonly string[]).includes(searchParams.ordine ?? '')
+    ? (searchParams.ordine as Ordine)
+    : 'recenti'
+  const durata = DURATE.find((d) => String(d) === searchParams.durata) ?? null
+  const da = intero(searchParams.da, 9999)
+  const a = intero(searchParams.a, 9999)
   const pagina = Math.max(1, Number(searchParams.pagina) || 1)
-  // La ricerca: ogni parola deve comparire in nome, cognome, abbonamento o
-  // variante (così «rossi silver» trova Rossi con un abbonamento Silver); una
-  // parola fatta solo di cifre cerca anche i giorni di sospensione («30») e
-  // trova pure le durate scritte nel nome del prodotto («12 mesi»). Si tolgono
-  // i caratteri che nella sintassi dei filtri di PostgREST separano o
-  // racchiudono i valori: lasciati dentro, spezzerebbero il filtro.
+
+  // La ricerca di testo riguarda solo cliente e abbonamento: durata e giorni
+  // hanno i loro campi. Ogni parola deve comparire in nome, cognome,
+  // abbonamento o variante («rossi silver»). Si tolgono i caratteri che nella
+  // sintassi dei filtri di PostgREST separano o racchiudono i valori: lasciati
+  // dentro, spezzerebbero il filtro.
   const cerca = (searchParams.q ?? '').slice(0, 80).trim()
   const parole = cerca
     .replace(/[,()%*\\:"]/g, ' ')
@@ -69,20 +99,21 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
 
   const supabase = createSupabaseServiceClient()
 
-  function href(extra: Record<string, string | null>): string {
-    const p: Record<string, string> = { stato, fascia: fascia.chiave }
-    if (cerca) p.q = cerca
-    for (const [k, v] of Object.entries(extra)) {
-      if (v === null) delete p[k]
-      else p[k] = v
-    }
-    return `/dashboard/abbonamenti/scadenze-spostate?${new URLSearchParams(p).toString()}`
-  }
+  // I parametri attivi, per costruire link (paginazione, azzera) che li
+  // mantengono.
+  const attivi: Record<string, string> = { stato, ordine }
+  if (cerca) attivi.q = cerca
+  if (durata) attivi.durata = String(durata)
+  if (da !== null) attivi.da = String(da)
+  if (a !== null) attivi.a = String(a)
+  const href = (extra: Record<string, string>) =>
+    `/dashboard/abbonamenti/scadenze-spostate?${new URLSearchParams({ ...attivi, ...extra }).toString()}`
+  const filtriAttivi = Boolean(cerca || durata || da !== null || a !== null || stato !== 'attive' || ordine !== 'recenti')
 
   const conta = async (attive: boolean | null) => {
-    let q = supabase.from('scadenze_spostate').select('source_iscrizione_id', { count: 'exact', head: true })
-    if (attive !== null) q = q.eq('attiva', attive)
-    const { count } = await q
+    let c = supabase.from('scadenze_spostate').select('source_iscrizione_id', { count: 'exact', head: true })
+    if (attive !== null) c = c.eq('attiva', attive)
+    const { count } = await c
     return count ?? 0
   }
 
@@ -92,39 +123,37 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
       'source_iscrizione_id, persona_id, persona_nome, persona_cognome, abbonamento, variante, data_inizio, scadenza_prevista, data_fine, giorni_spostati, attiva, data_disdetta, ultima_variazione_il, durata',
       { count: 'exact' }
     )
-    .gte('giorni_spostati', fascia.da)
-  if (fascia.a !== null) q = q.lte('giorni_spostati', fascia.a)
+    .gte('giorni_spostati', Math.max(GIORNI_MINIMI, da ?? 0))
+  if (a !== null) q = q.lte('giorni_spostati', a)
+  if (durata) q = q.eq('durata', durata)
   if (stato === 'attive') q = q.eq('attiva', true)
   if (stato === 'scadute') q = q.eq('attiva', false)
   for (const parola of parole) {
-    // «12m» = abbonamenti da 12 mesi, «30g» = 30 giorni di sospensione: la
-    // lettera toglie l'ambiguità. Un numero da solo cerca in tutti i campi.
-    const mesi = /^(\d{1,2})m$/i.exec(parola)
-    const giorni = /^(\d{1,4})g$/i.exec(parola)
-    let campi: string[]
-    if (mesi) campi = [`durata.eq.${mesi[1]}`]
-    else if (giorni) campi = [`giorni_spostati.eq.${giorni[1]}`]
-    else {
-      campi = [
+    q = q.or(
+      [
         `persona_cognome.ilike.%${parola}%`,
         `persona_nome.ilike.%${parola}%`,
         `abbonamento.ilike.%${parola}%`,
         `variante.ilike.%${parola}%`,
-      ]
-      if (/^\d{1,4}$/.test(parola)) campi.push(`giorni_spostati.eq.${parola}`, `durata.eq.${parola}`)
-    }
-    q = q.or(campi.join(','))
+      ].join(',')
+    )
+  }
+  // L'ordinamento: di default le più recenti in alto — prima quelle di cui il
+  // CRM ha visto lo spostamento (la più recente per prima), poi le altre per
+  // scadenza.
+  if (ordine === 'recenti') {
+    q = q.order('ultima_variazione_il', { ascending: false, nullsFirst: false }).order('data_fine', { ascending: false })
+  } else if (ordine === 'giorni') {
+    q = q.order('giorni_spostati', { ascending: false }).order('data_fine', { ascending: false })
+  } else if (ordine === 'fine') {
+    q = q.order('data_fine', { ascending: false })
+  } else {
+    q = q.order('persona_cognome', { ascending: true, nullsFirst: false }).order('persona_nome', { ascending: true, nullsFirst: false })
   }
 
   const trentaGiorniFa = new Date(Date.now() - 30 * 86400000).toISOString()
   const [{ data: righe, count, error }, attive, totale, { count: recenti }] = await Promise.all([
-    // Le più recenti in alto: prima quelle di cui il CRM ha visto lo
-    // spostamento (la più recente per prima), poi le altre per scadenza.
-    q
-      .order('ultima_variazione_il', { ascending: false, nullsFirst: false })
-      .order('data_fine', { ascending: false })
-      .order('source_iscrizione_id', { ascending: false })
-      .range((pagina - 1) * PAGINA, pagina * PAGINA - 1),
+    q.order('source_iscrizione_id', { ascending: false }).range((pagina - 1) * PAGINA, pagina * PAGINA - 1),
     conta(true),
     conta(null),
     supabase
@@ -146,9 +175,10 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
         <h1>Sospensioni (scadenze spostate)</h1>
         <p className="muted">
           In InfoRYOU una sospensione si registra spostando in avanti la data di fine dell’abbonamento: non esiste una
-          tabella delle sospensioni. Qui si vedono gli abbonamenti a mesi la cui scadenza è più avanti di quella che
-          spetterebbe dalla durata (inizio + durata): la «data fine originaria» è quella calcolata dalla durata, e il «periodo di sospensione» è di quanti giorni è stata spostata. Può trattarsi di una sospensione, ma anche di un mese omaggio o
-          di una correzione: il dato non lo distingue, e non dice <strong>chi</strong> ha spostato la scadenza.
+          tabella delle sospensioni. La <strong>data fine originaria</strong> è quella che spetta dalla durata
+          dell’abbonamento (inizio + durata); il <strong>periodo di sospensione</strong> è di quanti giorni è stata
+          spostata. Può trattarsi di una sospensione, ma anche di un mese omaggio o di una correzione: il dato non lo
+          distingue, e non dice <strong>chi</strong> ha spostato la scadenza.
         </p>
         <Link href="/dashboard/abbonamenti" className="muted">
           ← Torna ad Abbonamenti
@@ -171,66 +201,75 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
         <div className="stat">
           <span className="stat-label">Spostate in tutto</span>
           <span className="stat-valore">{totale.toLocaleString('it-IT')}</span>
-          <span className="stat-nota">Dal 2023, tra abbonamenti in corso e già scaduti. Durata media in elenco: {mediaGiorni} giorni.</span>
+          <span className="stat-nota">Dal 2023, tra abbonamenti in corso e già scaduti.</span>
         </div>
       </div>
 
       <form method="get" className="card" role="search">
-        <input type="hidden" name="stato" value={stato} />
-        <input type="hidden" name="fascia" value={fascia.chiave} />
-        <div className="field" style={{ marginBottom: 0 }}>
-          <label htmlFor="cerca-sospensioni">Cerca</label>
-          <div className="form-row">
-            <input
-              id="cerca-sospensioni"
-              name="q"
-              type="search"
-              defaultValue={cerca}
-              placeholder="Cliente, abbonamento, durata (es. rossi silver 12m)"
-              autoComplete="off"
-              style={{ flex: 1 }}
-            />
+        <p className="filtri-titolo">Cerca e filtra</p>
+        <div className="form-row">
+          <div className="field" style={{ flex: '2 1 16rem' }}>
+            <label htmlFor="f-q">Cliente o abbonamento</label>
+            <input id="f-q" name="q" type="search" defaultValue={cerca} placeholder="es. rossi silver" autoComplete="off" />
+          </div>
+          <div className="field">
+            <label htmlFor="f-durata">Durata abbonamento</label>
+            <select id="f-durata" name="durata" defaultValue={durata ? String(durata) : ''}>
+              <option value="">Tutte</option>
+              {DURATE.map((d) => (
+                <option key={d} value={d}>
+                  {d === 12 ? '12 mesi (annuale)' : d === 1 ? '1 mese' : `${d} mesi`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="f-da">Sospensione da (giorni)</label>
+            <input id="f-da" name="da" type="number" min={GIORNI_MINIMI} max={9999} defaultValue={da ?? ''} placeholder={String(GIORNI_MINIMI)} />
+          </div>
+          <div className="field">
+            <label htmlFor="f-a">a (giorni)</label>
+            <input id="f-a" name="a" type="number" min={GIORNI_MINIMI} max={9999} defaultValue={a ?? ''} placeholder="nessun limite" />
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="field">
+            <label htmlFor="f-stato">Stato</label>
+            <select id="f-stato" name="stato" defaultValue={stato}>
+              {STATI.map((s) => (
+                <option key={s} value={s}>
+                  {ETICHETTE_STATO[s]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="f-ordine">Ordina per</label>
+            <select id="f-ordine" name="ordine" defaultValue={ordine}>
+              {ORDINI.map((o) => (
+                <option key={o} value={o}>
+                  {ETICHETTE_ORDINE[o]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field" style={{ alignSelf: 'flex-end' }}>
             <button type="submit" className="btn">
-              Cerca
-            </button>
-            {cerca && (
-              <Link href={href({ q: null, pagina: null })} className="btn btn-ghost">
+              Applica
+            </button>{' '}
+            {filtriAttivi && (
+              <Link href="/dashboard/abbonamenti/scadenze-spostate" className="btn btn-ghost">
                 Azzera
               </Link>
             )}
           </div>
-          <p className="field-hint">
-            Ogni parola deve comparire nel nome del cliente o dell’abbonamento. <strong>12m</strong> cerca gli
-            abbonamenti da 12 mesi, <strong>30g</strong> le sospensioni di 30 giorni; un numero da solo cerca in
-            entrambi.
-          </p>
         </div>
       </form>
-
-      <div className="filtri">
-        <p className="filtri-titolo">Abbonamenti sospesi</p>
-        <div className="filtri-gruppi">
-          <fieldset className="filtro-gruppo">
-            {STATI.map((s) => (
-              <Link key={s} href={href({ stato: s, pagina: null })} className={`chip${stato === s ? ' is-attivo' : ''}`}>
-                {ETICHETTE_STATO[s]}
-              </Link>
-            ))}
-          </fieldset>
-          <fieldset className="filtro-gruppo">
-            {FASCE.map((f) => (
-              <Link key={f.chiave} href={href({ fascia: f.chiave, pagina: null })} className={`chip${fascia.chiave === f.chiave ? ' is-attivo' : ''}`}>
-                {f.nome}
-              </Link>
-            ))}
-          </fieldset>
-        </div>
-      </div>
 
       <div className="card">
         {error ? (
           <p className="vuoto">
-            Non riesco a leggere i dati: {error.message}. Se la vista non esiste, esegui
+            Non riesco a leggere i dati: {error.message}. Se manca una colonna o la vista, esegui
             scripts/sql/2026-10-07-scadenze-spostate.sql nel SQL Editor di Supabase.
           </p>
         ) : elenco.length === 0 ? (
@@ -238,8 +277,9 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
         ) : (
           <>
             <p className="muted">
-              {nElenco.toLocaleString('it-IT')} abbonamenti{pagine > 1 ? `, pagina ${pagina} di ${pagine}` : ''}, le
-              più recenti in alto.
+              <strong>{nElenco.toLocaleString('it-IT')}</strong> abbonamenti
+              {pagine > 1 ? `, pagina ${pagina} di ${pagine}` : ''} · sospensione media in questa pagina:{' '}
+              <strong>{mediaGiorni} giorni</strong>.
             </p>
             <div className="tabella-wrap">
               <table className="tabella">
@@ -247,10 +287,10 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
                   <tr>
                     <th>Cliente</th>
                     <th>Abbonamento</th>
-                    <th className="cella-importo">Durata</th>
+                    <th className="cella-importo">Durata abbonamento</th>
                     <th>Data fine originaria</th>
                     <th>Data fine nuova</th>
-                    <th className="cella-importo">Periodo di sospensione</th>
+                    <th className="cella-importo">Sospensione</th>
                     <th>Spostamento rilevato</th>
                     <th>Stato</th>
                   </tr>
@@ -267,12 +307,14 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
                           {r.abbonamento ?? '—'}
                           {r.variante && <span className="stat-nota">{r.variante}</span>}
                         </td>
-                        <td className="cella-importo">{r.durata ? `${r.durata} ${r.durata === 1 ? 'mese' : 'mesi'}` : '—'}</td>
+                        <td className="cella-importo">
+                          {r.durata ? `${r.durata} ${r.durata === 1 ? 'mese' : 'mesi'}` : '—'}
+                        </td>
                         <td className="cella-nowrap">{data(r.scadenza_prevista)}</td>
                         <td className="cella-nowrap">{data(r.data_fine)}</td>
                         <td className="cella-importo">
-                          {r.giorni_spostati} giorni
-                          {r.giorni_spostati > 90 && <span className="badge badge-warn">lunga</span>}
+                          <strong>{r.giorni_spostati} giorni</strong>
+                          {r.giorni_spostati > SOGLIA_LUNGA && <span className="badge badge-warn">lunga</span>}
                         </td>
                         <td className="cella-nowrap">
                           {r.ultima_variazione_il
