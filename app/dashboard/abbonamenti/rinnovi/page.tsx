@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
+import { puoRiassegnare } from '@/lib/auth/permessi'
 import { caricaGruppi } from '@/lib/abbonamenti'
 import { etichettaMese, mesePiu, oggiRoma, primoDelMese } from '@/lib/agenda'
 import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
@@ -43,6 +44,7 @@ export default async function RinnoviPage({ searchParams }: { searchParams: { me
   const nomiStaff = mappaNomiStaff(staffOrdinato)
   const operatoriSegreteria = staffOrdinato.filter((s) => s.operatore_segreteria).map((s) => s.email)
   const io = emailCorrente()
+  const possoRiassegnare = await puoRiassegnare(io)
 
   const righeGrezze: RigaScadenza[] = []
   let erroreScadenze: { message: string } | null = null
@@ -53,7 +55,7 @@ export default async function RinnoviPage({ searchParams }: { searchParams: { me
       const { data, error } = await supabase
         .from('abbonamenti_scadenze')
         .select(
-          'id, persona_id, abbonamento, gruppo_id, data_inizio, data_fine, totale, nome, cognome, email, cellulare, rinnovato, rinnovo_id, rinnovo_abbonamento, rinnovo_data_inizio, rinnovo_data_fine, rinnovo_totale, operatore_nome, stato_manuale, motivo_non_rinnovo, note_non_rinnovo, nota, assegnato_a, escluso_da_report, durata, periodo, rinnovo_durata, rinnovo_periodo',
+          'id, persona_id, abbonamento, gruppo_id, data_inizio, data_fine, totale, nome, cognome, email, cellulare, rinnovato, rinnovo_id, rinnovo_abbonamento, rinnovo_data_inizio, rinnovo_data_fine, rinnovo_totale, venditore_nome, stato_manuale, motivo_non_rinnovo, note_non_rinnovo, nota, assegnato_a, escluso_da_report, durata, periodo, rinnovo_durata, rinnovo_periodo',
         )
         .eq('gruppo_id', gruppoCore.id)
         .gte('data_fine', meseRichiesto)
@@ -142,6 +144,7 @@ export default async function RinnoviPage({ searchParams }: { searchParams: { me
           operatoriSegreteria={operatoriSegreteria}
           nomiStaff={nomiStaff}
           io={io}
+          possoRiassegnare={possoRiassegnare}
         />
       )}
     </div>

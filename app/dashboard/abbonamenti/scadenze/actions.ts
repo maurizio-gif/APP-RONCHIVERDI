@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
+import { puoRiassegnare } from '@/lib/auth/permessi'
 import { MOTIVI_NON_RINNOVO } from './motivi'
 import { TIPI_NOTA, type NotaScadenza, type TipoNota } from './note'
 
@@ -161,6 +162,19 @@ export async function assegnaScadenza(abbonamentoId: string, email: string | nul
 
   const destinatario = email?.trim().toLowerCase() || null
   const supabase = createSupabaseServiceClient()
+
+  // Un rinnovo già assegnato lo sposta solo chi lo ha in mano o chi ha il
+  // permesso "Può riassegnare" (la responsabile): il controllo vero è qui,
+  // la tendina disabilitata in pagina è solo cortesia.
+  const { data: attuale } = await supabase
+    .from('abbonamenti_scadenze_lavorazione')
+    .select('assegnato_a')
+    .eq('abbonamento_id', abbonamentoId)
+    .maybeSingle()
+  const titolare = (attuale?.assegnato_a as string | null)?.toLowerCase() ?? null
+  if (titolare && titolare !== chiEsegue.toLowerCase() && !(await puoRiassegnare(chiEsegue))) {
+    return { ok: false, errore: 'Questo rinnovo è assegnato a un\'altra persona: solo lei o la responsabile può riassegnarlo.' }
+  }
 
   if (destinatario) {
     const { data: chi } = await supabase

@@ -38,7 +38,7 @@ export type RigaScadenza = {
   rinnovo_data_inizio: string | null
   rinnovo_data_fine: string | null
   rinnovo_totale: number | null
-  operatore_nome: string | null
+  venditore_nome: string | null
   // Lavorazione manuale del rinnovo: nessuna sincronizzazione la scrive, la
   // imposta solo chi lavora la scadenza — vedi actions.ts e
   // abbonamenti_scadenze_lavorazione. null = ancora da valutare.
@@ -70,7 +70,7 @@ type Colonna =
   | 'rinnovo_data_inizio'
   | 'rinnovo_data_fine'
   | 'rinnovo_totale'
-  | 'operatore'
+  | 'venditore'
 
 // ISO 'YYYY-MM-DD' ordina correttamente anche come testo: nessun bisogno di
 // passare da Date per le colonne data. rinnovato diventa 0/1 per stare nello
@@ -90,7 +90,7 @@ const TIPO_COLONNA: Record<Colonna, 'testo' | 'numero'> = {
   rinnovo_data_inizio: 'testo',
   rinnovo_data_fine: 'testo',
   rinnovo_totale: 'numero',
-  operatore: 'testo',
+  venditore: 'testo',
 }
 
 function confronta(a: string | number | null, b: string | number | null, tipo: 'testo' | 'numero'): number {
@@ -139,8 +139,8 @@ function valoreColonna(
       return r.rinnovo_data_fine
     case 'rinnovo_totale':
       return r.rinnovo_totale
-    case 'operatore':
-      return r.operatore_nome
+    case 'venditore':
+      return r.venditore_nome
   }
 }
 
@@ -166,7 +166,7 @@ type Filtri = {
   rinnovoDataFineA: string
   rinnovoTotaleMin: string
   rinnovoTotaleMax: string
-  operatore: string
+  venditore: string
 }
 
 const FILTRI_VUOTI: Filtri = {
@@ -188,7 +188,7 @@ const FILTRI_VUOTI: Filtri = {
   rinnovoDataFineA: '',
   rinnovoTotaleMin: '',
   rinnovoTotaleMax: '',
-  operatore: '',
+  venditore: '',
   stato: '',
   assegnatario: '',
 }
@@ -235,7 +235,7 @@ function corrisponde(r: RigaScadenza, f: Filtri): boolean {
     return false
   if (f.rinnovoTotaleMax && (r.rinnovo_totale === null || Number(r.rinnovo_totale) > Number(f.rinnovoTotaleMax)))
     return false
-  if (f.operatore && !(r.operatore_nome ?? '').toLowerCase().includes(f.operatore.trim().toLowerCase())) return false
+  if (f.venditore && r.venditore_nome !== f.venditore) return false
   return true
 }
 
@@ -437,12 +437,14 @@ function CellaAssegnatario({
   operatori,
   nomiStaff,
   io,
+  possoRiassegnare,
 }: {
   abbonamentoId: string
   valoreIniziale: string | null
   operatori: string[]
   nomiStaff: Record<string, string>
   io: string | null
+  possoRiassegnare: boolean
 }) {
   const [valore, setValore] = useState(valoreIniziale)
   const [errore, setErrore] = useState<string | null>(null)
@@ -469,7 +471,7 @@ function CellaAssegnatario({
         operatori={operatori}
         nomiStaff={nomiStaff}
         io={io}
-        disabled={inCorso}
+        disabled={inCorso || (!!valore && valore !== io && !possoRiassegnare)}
         ariaLabel="Assegnatario"
       />
       {errore && (
@@ -807,6 +809,7 @@ function RigaTabella({
   operatoriSegreteria,
   nomiStaff,
   io,
+  possoRiassegnare,
 }: {
   r: RigaScadenza
   note: NotaScadenza[]
@@ -815,6 +818,7 @@ function RigaTabella({
   operatoriSegreteria: string[]
   nomiStaff: Record<string, string>
   io: string | null
+  possoRiassegnare: boolean
 }) {
   const [statoAttuale, setStatoAttuale] = useState<StatoManuale>(r.stato_manuale)
   const [esclusoAttuale, setEsclusoAttuale] = useState(r.escluso_da_report)
@@ -860,6 +864,7 @@ function RigaTabella({
           operatori={operatoriSegreteria}
           nomiStaff={nomiStaff}
           io={io}
+          possoRiassegnare={possoRiassegnare}
         />
       </td>
       <td className="cella-prodotto">
@@ -870,7 +875,7 @@ function RigaTabella({
       <td className="cella-nowrap">{dataBreveAnno(r.data_inizio)}</td>
       <td className="cella-nowrap">{dataBreveAnno(r.data_fine)}</td>
       <td className="cella-nowrap">{euro(r.totale) ?? '—'}</td>
-      <td>{r.operatore_nome ?? '—'}</td>
+      <td>{r.venditore_nome ?? '—'}</td>
       <td className="cella-nowrap">
         {esclusoAttuale ? (
           <span className="badge badge-off">Escluso</span>
@@ -1083,7 +1088,7 @@ const CHIAVI_SCADENZA: (keyof Filtri | [keyof Filtri, keyof Filtri])[] = [
   'prodotto',
   'durata',
   'gruppo',
-  'operatore',
+  'venditore',
   ['dataInizioDa', 'dataInizioA'],
   ['dataFineDa', 'dataFineA'],
   ['totaleMin', 'totaleMax'],
@@ -1183,6 +1188,7 @@ export function TabellaScadenze({
   operatoriSegreteria,
   nomiStaff,
   io,
+  possoRiassegnare = false,
 }: {
   righe: RigaScadenza[]
   // Lo storico delle note di gestione per abbonamento (vedi note.ts), la più
@@ -1202,6 +1208,8 @@ export function TabellaScadenze({
   // suo nome.
   nomiStaff: Record<string, string>
   io: string | null
+  // Chi può spostare un rinnovo già assegnato ad altri (la responsabile).
+  possoRiassegnare?: boolean
 }) {
   const nomeGruppo = useMemo(() => new Map(gruppi.map((g) => [g.id, g.nome])), [gruppi])
 
@@ -1234,6 +1242,13 @@ export function TabellaScadenze({
 
   // Le durate presenti nel mese, dalla più breve alla più lunga: l'elenco
   // fisso di tutte quelle possibili offrirebbe scelte che non trovano niente.
+  const venditoriDisponibili = useMemo(
+    () =>
+      [...new Set(righe.map((r) => r.venditore_nome).filter((n): n is string => !!n))].sort((a, b) =>
+        a.localeCompare(b, 'it')
+      ),
+    [righe]
+  )
   const durateDisponibili = useMemo(() => {
     const perEtichetta = new Map<string, number>()
     for (const r of righe) {
@@ -1331,7 +1346,7 @@ export function TabellaScadenze({
 
         <SezioneFiltri
           titolo="Abbonamento in scadenza"
-          campi={`Persona, prodotto, durata${nascondiGruppo ? '' : ', gruppo'}, operatore, date e importo`}
+          campi={`Persona, prodotto, durata${nascondiGruppo ? '' : ', gruppo'}, venditore, date e importo`}
           attivi={contaAttivi(filtri, CHIAVI_SCADENZA)}
           aperta={apertoScadenza}
           onCambia={setApertoScadenza}
@@ -1373,11 +1388,17 @@ export function TabellaScadenze({
                 </select>
               </div>
             )}
-            <CampoTesto
-              label="Operatore"
-              valore={filtri.operatore}
-              onCambia={(v) => aggiornaFiltro('operatore', v)}
-            />
+            <div className="field">
+              <label>Venditore</label>
+              <select value={filtri.venditore} onChange={(e) => aggiornaFiltro('venditore', e.target.value)}>
+                <option value="">Tutti</option>
+                {venditoriDisponibili.map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="form-row">
             <CampoIntervallo
@@ -1482,7 +1503,12 @@ export function TabellaScadenze({
                   <Intestazione colonna="data_inizio" ancora="scadenza">Inizio</Intestazione>
                   <Intestazione colonna="data_fine">Scadenza</Intestazione>
                   <Intestazione colonna="totale">Importo</Intestazione>
-                  <Intestazione colonna="operatore">Operatore</Intestazione>
+                  <Intestazione colonna="venditore">
+                    <span style={{ display: 'block', textAlign: 'left' }}>
+                      Venditore
+                      <small style={{ display: 'block', fontWeight: 400 }}>abbonamento in scadenza</small>
+                    </span>
+                  </Intestazione>
                   <Intestazione colonna="rinnovato">Rinnovo</Intestazione>
                   <th data-ancora="lavorazione">Note di gestione</th>
                   <Intestazione colonna="stato">Trattativa</Intestazione>
@@ -1508,6 +1534,7 @@ export function TabellaScadenze({
                     operatoriSegreteria={operatoriSegreteria}
                     nomiStaff={nomiStaff}
                     io={io}
+                    possoRiassegnare={possoRiassegnare}
                   />
                 ))}
               </tbody>
