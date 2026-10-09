@@ -108,7 +108,7 @@ $maxBatches = if ($config.MaxBatchesPerRun) { [int]$config.MaxBatchesPerRun } el
 # nostra copia, che potrebbe essere proprio quella non aggiornata).
 $refreshApertiOgniOre = if ($config.RefreshApertiOgniOre) { [double]$config.RefreshApertiOgniOre } else { 20 }
 $refreshApertiGiorniIndietro = if ($config.RefreshApertiGiorniIndietro) { [int]$config.RefreshApertiGiorniIndietro } else { 400 }
-$maxBatchesRefreshAperti = if ($config.MaxBatchesRefreshAperti) { [int]$config.MaxBatchesRefreshAperti } else { 50 }
+$maxBatchesRefreshAperti = if ($config.MaxBatchesRefreshAperti) { [int]$config.MaxBatchesRefreshAperti } else { 200 }
 
 # Transazioni di cassa (dbo.CassaMovimenti): blocchi piu' grandi di quelli
 # delle vendite perche' le righe sono piccole e lo storico e' lungo (qualche
@@ -1363,10 +1363,12 @@ try {
         $lastIdAperti = 0
         $totaleRigheAperte = 0
 
+        $refreshCompleto = $false
         for ($batch = 1; $batch -le $maxBatchesRefreshAperti; $batch++) {
             $righe = Get-RigheAperteDaSincronizzare -LastId $lastIdAperti -Top $batchSize -Soglia $soglia
             if ($righe.Count -eq 0) {
                 Write-Log "Refresh vendite aperte: nessuna riga rimasta da riprocessare."
+                $refreshCompleto = $true
                 break
             }
 
@@ -1378,7 +1380,14 @@ try {
             $totaleRigheAperte += $righe.Count
             Write-Log "Refresh vendite aperte, batch ${batch}: $($righe.Count) righe."
 
-            if ($righe.Count -lt $batchSize) { break }
+            if ($righe.Count -lt $batchSize) { $refreshCompleto = $true; break }
+        }
+
+        # Le righe vanno per IDIscrizione crescente: se il tetto di batch scatta
+        # prima della fine, restano fuori proprio le vendite piu' recenti, che
+        # sono quelle ancora modificate (prodotto cambiato, sospensioni...).
+        if (-not $refreshCompleto) {
+            Write-Log "ATTENZIONE: refresh vendite aperte troncato a $maxBatchesRefreshAperti batch (ultimo IDIscrizione $lastIdAperti): le vendite piu' recenti NON sono state riallineate. Alza MaxBatchesRefreshAperti in config.json."
         }
 
         Write-Log "Refresh vendite aperte: $totaleRigheAperte righe riprocessate in questa esecuzione."
