@@ -67,7 +67,7 @@ riempilo:
   "MaxBatchesPerRun": 20,
   "RefreshApertiOgniOre": 20,
   "RefreshApertiGiorniIndietro": 400,
-  "MaxBatchesRefreshAperti": 50
+  "MaxBatchesRefreshAperti": 200
 }
 ```
 
