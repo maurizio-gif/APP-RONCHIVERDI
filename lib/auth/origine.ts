@@ -24,6 +24,11 @@ export type Origine = {
 const LOGIN_STORICI_MAX = 200
 const GIORNI_STORICO = 90
 
+// Chi riceve in copia l'avviso di accesso da un paese insolito, oltre
+// all'utente: chi controlla gli accessi non deve dipendere dal fatto che
+// l'utente legga la propria posta.
+const AVVISO_CONTROLLO_A = process.env.ACCESSI_AVVISO_A ?? 'digital@ronchiverdi.it'
+
 function decodifica(v: string | null): string | null {
   if (!v) return null
   try {
@@ -154,6 +159,7 @@ async function avvisaUtente(email: string, o: Origine): Promise<void> {
     minute: '2-digit',
   })
   const righe = [
+    `Account: ${email}`,
     `Quando: ${quando}`,
     `Da: ${luogo}`,
     ...(o.ip ? [`Indirizzo IP: ${o.ip}`] : []),
@@ -162,6 +168,7 @@ async function avvisaUtente(email: string, o: Origine): Promise<void> {
 
   await inviaEmail({
     a: email,
+    cc: AVVISO_CONTROLLO_A && AVVISO_CONTROLLO_A !== email ? [AVVISO_CONTROLLO_A] : undefined,
     oggetto: 'Nuovo accesso al CRM Ronchiverdi da un luogo insolito',
     testo:
       `È stato effettuato un accesso al CRM Ronchiverdi con il tuo account da un paese ` +
