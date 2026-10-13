@@ -10,6 +10,12 @@ import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 export const AZIONI_LOG: Record<string, string> = {
   login: 'Accesso riuscito',
   login_fallito: 'Accesso rifiutato',
+  // Scritte da segnalaAccessoInusuale (lib/auth/origine.ts) quando l'utente
+  // entra da un paese o da un IP che non compare nei suoi accessi degli
+  // ultimi 90 giorni. Vengono scritte prima della riga "login" dello stesso
+  // accesso.
+  login_nuovo_paese: 'Accesso da un paese insolito',
+  login_nuovo_ip: 'Accesso da un IP nuovo',
   logout: 'Uscita',
   logout_inattivita: 'Uscita automatica per inattività',
   password_impostata: 'Password impostata',
@@ -118,6 +124,10 @@ export const ETICHETTE_DETTAGLIO: Record<string, string> = {
   nome: 'nome',
   cognome: 'cognome',
   durata_minuti: 'durata',
+  ip: 'IP',
+  paese: 'paese',
+  citta: 'città',
+  browser: 'dispositivo',
 }
 
 export function dettagliLeggibili(d: unknown): string {
