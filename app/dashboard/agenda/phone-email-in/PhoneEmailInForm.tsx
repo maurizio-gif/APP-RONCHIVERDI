@@ -359,7 +359,7 @@ export function PhoneEmailInForm({ commerciali }: { commerciali: CommercialeLead
         {errore && <p className="error-banner">{errore}</p>}
 
         <button type="submit" className="btn" disabled={inCorso}>
-          {inCorso ? 'Salvataggio…' : programma ? 'Registra e programma' : 'Registra'}
+          {inCorso ? 'Salvataggio…' : 'Salva'}
         </button>
       </form>
     </>
