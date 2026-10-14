@@ -6,7 +6,13 @@ import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { puoCancellare } from '@/lib/auth/permessi'
 import { registraLog } from '@/lib/audit'
 import { preparaEvento, type EventoDaProgrammare, type ModoEvento } from '@/lib/eventi'
-import { AVVISO_TRATTATIVA, AVVISO_TRATTATIVA_LIBERA, trattativaPerEvento } from '@/lib/trattative-server'
+import { ETICHETTE_TIPO, adessoRoma, dataBreve, oggiRoma, type TipoVoce } from '@/lib/agenda'
+import {
+  AVVISO_TRATTATIVA,
+  assegnaTrattativaDaEvento,
+  trattativaPerEvento,
+  type EsitoAssegnazioneLead,
+} from '@/lib/trattative-server'
 import {
   FONTE_MANUALE,
   nomePersona,
@@ -14,6 +20,9 @@ import {
   validaNuovoContatto,
   type ContattoDaCreare,
 } from '@/lib/persone'
+import { mappaNomiStaff, nomeDiEmail, type RigaStaff } from '@/lib/staff'
+import { dividiTestoContatto } from './nuovo-contatto'
+import type { ContattoScegliibile } from './NuovaVoce'
 
 // Risultato come valore di ritorno, non un throw: in produzione Next.js
 // oscura il messaggio di un errore lanciato da una Server Action.
@@ -69,9 +78,6 @@ export async function creaVoce(formData: FormData): Promise<Esito> {
 
   const modoGrezzo = String(formData.get('modo') ?? 'programma')
   const modo: ModoEvento = modoGrezzo === 'registra' ? 'registra' : 'programma'
-  // Phone In / Email In: la trattativa che si apre non va a chi la registra,
-  // resta da assegnare — vedi trattativaPerEvento più sotto.
-  const nonAssegnare = String(formData.get('trattativa_da_assegnare') ?? '') === '1'
 
   const evento: EventoDaProgrammare = {
     titolo: String(formData.get('titolo') ?? ''),
@@ -133,11 +139,7 @@ export async function creaVoce(formData: FormData): Promise<Esito> {
   // nessuno ha messo in agenda. Non blocca il salvataggio se fallisce — vedi
   // trattativaPerEvento.
   //
-  // Operatore nullo quando non va assegnata (Phone In / Email In): la
-  // funzione SQL, senza operatore, apre la trattativa ma la lascia "da
-  // assegnare" invece di intestarla a chi scrive — stessa logica dei walk-in
-  // dal Guest Register del sito.
-  const azioneTrattativa = await trattativaPerEvento(contatto.id, nonAssegnare ? null : email)
+  const azioneTrattativa = await trattativaPerEvento(contatto.id, email)
 
   await registraLog(email, modo === 'registra' ? 'evento_registrato' : 'agenda_voce_creata', {
     entita: 'persona',
@@ -166,11 +168,301 @@ export async function creaVoce(formData: FormData): Promise<Esito> {
   // la trattativa aperta dall'evento. Separate da uno spazio invece che
   // scegliendone una — sono due sorprese diverse, e tacerne una perché ce
   // n'è un'altra è il modo di non farla scoprire a nessuno.
-  const mappaAvvisoTrattativa = nonAssegnare ? AVVISO_TRATTATIVA_LIBERA : AVVISO_TRATTATIVA
-  const avvisi = [contatto.avviso, azioneTrattativa && mappaAvvisoTrattativa[azioneTrattativa]]
+  const avvisi = [contatto.avviso, azioneTrattativa && AVVISO_TRATTATIVA[azioneTrattativa]]
     .filter(Boolean)
     .join(' ')
   return avvisi ? { ok: true, avviso: avvisi } : { ok: true }
+}
+
+// ─────────────────────────────────────────────── Phone In / Email In
+
+/** Cosa si registra: la telefonata ricevuta o l'email arrivata. */
+const TIPI_REGISTRA_INBOUND: TipoVoce[] = ['appuntamento_telefonico', 'email']
+/** Cosa si può programmare dopo: richiamare, o fissare il tour in sede. */
+const TIPI_PROGRAMMA_INBOUND: TipoVoce[] = ['appuntamento_telefonico', 'appuntamento_in_sede']
+
+/**
+ * Registra una telefonata o un'email arrivate alla segreteria, e
+ * facoltativamente programma il seguito.
+ *
+ * Il form ha tre sezioni (vedi phone-email-in/PhoneEmailInForm.tsx), e questa
+ * azione le ricontrolla tutte prima di scrivere qualunque cosa:
+ *
+ *  - **contatto**: scelto dopo la verifica, o nuovo con nome, cognome e
+ *    cellulare; più il commerciale a cui va il lead, obbligatorio;
+ *  - **registra**: tipo e note. Giorno e ora sono adesso — si registra
+ *    quello che è appena successo, e chiederli invitava a scriverli a caso —
+ *    e l'esito è «eseguita»: la telefonata c'è stata, l'email è arrivata;
+ *  - **programma**, facoltativo: una telefonata o un tour in sede, con giorno,
+ *    ora e durata scelti, in agenda del commerciale a cui va il lead — è lui
+ *    che richiama o accoglie, non la segreteria.
+ *
+ * Le due voci si validano insieme **prima** di toccare l'anagrafica, come in
+ * creaVoce: un seguito con l'ora nel passato non deve lasciare dietro di sé
+ * un contatto nuovo senza la telefonata per cui era stato creato.
+ */
+export async function registraPhoneEmailIn(formData: FormData): Promise<Esito> {
+  if (!(await autorizzato())) return { ok: false, errore: 'Non hai accesso all’agenda.' }
+
+  const email = emailCorrente()
+  const supabase = createSupabaseServiceClient()
+
+  // ── Contatto ────────────────────────────────────────────────────────────
+  const contattoNuovo = String(formData.get('contatto_modo') ?? '') === 'nuovo'
+  const personaScelta = String(formData.get('persona_id') ?? '').trim()
+
+  let titolo: string
+  if (contattoNuovo) {
+    // Validato qui solo per avere il nome da dare alle voci; lo rivalida
+    // creaContattoAMano prima di scrivere, con la stessa funzione.
+    const validato = validaNuovoContatto(
+      {
+        nome: String(formData.get('nuovo_nome') ?? ''),
+        cognome: String(formData.get('nuovo_cognome') ?? ''),
+        email: String(formData.get('nuovo_email') ?? ''),
+        cellulare: String(formData.get('nuovo_cellulare') ?? ''),
+        prefisso: String(formData.get('nuovo_prefisso') ?? ''),
+      },
+      { completo: true }
+    )
+    if ('errore' in validato) return { ok: false, errore: validato.errore }
+    titolo = nomePersona(validato.contatto)
+  } else {
+    if (!personaScelta) {
+      return {
+        ok: false,
+        errore: 'Prima verifica se il contatto c’è già: cercalo e sceglilo, o crealo dopo la ricerca.',
+      }
+    }
+    const { data: persona } = await supabase
+      .from('persone')
+      .select('id, nome, cognome, email, cellulare')
+      .eq('id', personaScelta)
+      .maybeSingle()
+    if (!persona) return { ok: false, errore: 'Contatto non trovato: rifai la verifica.' }
+    titolo = nomePersona(persona)
+  }
+
+  // Il commerciale a cui va il lead: uno dei commerciali, non un indirizzo
+  // qualsiasi arrivato nel form. Senza, una telefonata registrata qui apriva
+  // una trattativa di nessuno, che restava lì finché qualcuno non passava a
+  // prenderla.
+  const assegnatario = String(formData.get('assegna_lead_a') ?? '').trim().toLowerCase()
+  if (!assegnatario) return { ok: false, errore: 'Scegli a quale commerciale assegnare il lead.' }
+  const { data: righeCommerciali } = await supabase
+    .from('staff_users')
+    .select('email, nome, cognome')
+    .eq('commerciale', true)
+  const commerciali = (righeCommerciali ?? []) as RigaStaff[]
+  if (!commerciali.some((c) => c.email.toLowerCase() === assegnatario)) {
+    return { ok: false, errore: 'Il lead si assegna a un commerciale: riscegli dall’elenco.' }
+  }
+  const nomi = mappaNomiStaff(commerciali)
+
+  // ── Registra ────────────────────────────────────────────────────────────
+  const tipoRegistrato = String(formData.get('tipo') ?? '')
+  if (!TIPI_REGISTRA_INBOUND.includes(tipoRegistrato as TipoVoce)) {
+    return { ok: false, errore: 'Scegli cosa registrare: telefonata o email.' }
+  }
+  const note = String(formData.get('note') ?? '').trim()
+  if (!note) {
+    return { ok: false, errore: 'Scrivi le note: cosa ha chiesto o scritto, e cosa succede adesso.' }
+  }
+
+  const adesso = adessoRoma()
+  const oraAdesso = `${String(adesso.getUTCHours()).padStart(2, '0')}:${String(adesso.getUTCMinutes()).padStart(2, '0')}`
+  const registrato = preparaEvento(
+    {
+      titolo,
+      tipo: tipoRegistrato,
+      data: oggiRoma(),
+      ora: oraAdesso,
+      note,
+      modo: 'registra',
+      esito: 'eseguita',
+      notaEsito: note,
+    },
+    email
+  )
+  if ('errore' in registrato) return { ok: false, errore: registrato.errore }
+
+  // ── Programma (facoltativo) ─────────────────────────────────────────────
+  const conProgramma = String(formData.get('programma') ?? '') === '1'
+  let programmato: Record<string, unknown> | null = null
+  if (conProgramma) {
+    const tipoProgramma = String(formData.get('prog_tipo') ?? '')
+    if (!TIPI_PROGRAMMA_INBOUND.includes(tipoProgramma as TipoVoce)) {
+      return { ok: false, errore: 'Scegli cosa programmare: telefonata o tour in sede.' }
+    }
+    const data = String(formData.get('prog_data') ?? '').trim()
+    const ora = String(formData.get('prog_ora') ?? '').trim()
+    if (!data || !ora) {
+      return { ok: false, errore: 'Per programmare servono giorno e ora.' }
+    }
+    const preparato = preparaEvento(
+      {
+        titolo,
+        tipo: tipoProgramma,
+        data,
+        ora,
+        durataMinuti: Number(String(formData.get('prog_durata') ?? '')) || null,
+        // Le note del seguito, se ci sono; altrimenti quelle della telefonata
+        // appena registrata, che sono proprio ciò che serve sapere a chi
+        // richiama.
+        note: String(formData.get('prog_note') ?? '').trim() || note,
+        assegnatoA: assegnatario,
+        modo: 'programma',
+      },
+      email
+    )
+    if ('errore' in preparato) return { ok: false, errore: preparato.errore }
+    programmato = preparato.riga
+  }
+
+  // ── Scrittura ───────────────────────────────────────────────────────────
+  const contatto = contattoNuovo
+    ? await creaContattoAMano(formData, email, true)
+    : await contattoDallElenco(personaScelta)
+  if ('errore' in contatto) return { ok: false, errore: contatto.errore }
+
+  const collegamento = { entita: 'persona', entita_id: contatto.id }
+  const righe = [{ ...registrato.riga, ...collegamento }]
+  if (programmato) righe.push({ ...programmato, ...collegamento })
+  // Un insert solo per le due voci: o entrano tutte e due, o nessuna.
+  const { error } = await supabase.from('task').insert(righe)
+  if (error) {
+    console.error('Phone In / Email In non registrato:', error.message)
+    return { ok: false, errore: 'Non siamo riusciti a salvare. Riprova.' }
+  }
+
+  const lead = await assegnaTrattativaDaEvento(contatto.id, assegnatario, email)
+
+  await registraLog(email, 'evento_registrato', {
+    entita: 'persona',
+    entitaId: contatto.id,
+    dettagli: {
+      titolo,
+      tipo: tipoRegistrato,
+      phone_email_in: true,
+      contatto_creato: contatto.creato,
+      lead_assegnato_a: assegnatario,
+      lead_gia_di: lead?.giaDi ?? null,
+      trattativa: lead?.azione ?? null,
+      programmato: programmato
+        ? { tipo: programmato.tipo, data: programmato.data, ora: programmato.ora }
+        : null,
+    },
+  })
+
+  revalidatePath('/dashboard/agenda')
+  revalidatePath('/dashboard/richieste/richieste-club')
+  revalidatePath('/dashboard')
+  if (contatto.creato) revalidatePath('/dashboard/persone', 'layout')
+
+  const avvisoProgramma = programmato
+    ? `${ETICHETTE_TIPO[programmato.tipo as TipoVoce]} programmata per ${dataBreve(String(programmato.data))} alle ${programmato.ora}, in agenda di ${nomeDiEmail(assegnatario, nomi)}.`
+    : null
+  const avvisi = [contatto.avviso, avvisoLead(lead, assegnatario, nomi), avvisoProgramma]
+    .filter(Boolean)
+    .join(' ')
+  return avvisi ? { ok: true, avviso: avvisi } : { ok: true }
+}
+
+/**
+ * Cosa dire dopo un Phone In / Email In sul lead: a chi è andato, o perché non
+ * è andato a chi era stato scelto. Il caso da non tacere è il lead già seguito
+ * da un collega: chi ha scelto un commerciale si aspetta che sia suo.
+ */
+function avvisoLead(
+  lead: EsitoAssegnazioneLead | null,
+  assegnatario: string,
+  nomi: Record<string, string>
+): string | null {
+  if (!lead) {
+    return 'La trattativa non si è aperta: assegna il lead dalla scheda del contatto.'
+  }
+  if (lead.giaDi) {
+    return `La trattativa di questo contatto la segue già ${nomeDiEmail(lead.giaDi, nomi)}: resta a chi la segue, non è stata riassegnata.`
+  }
+  const chi = nomeDiEmail(assegnatario, nomi)
+  switch (lead.azione) {
+    case 'creata':
+      return `Aperta la trattativa di questo contatto, assegnata a ${chi}.`
+    case 'presa_in_carico':
+      return `La trattativa di questo contatto era libera: ora è assegnata a ${chi}.`
+    case 'avviata':
+      return `La trattativa di questo contatto, già di ${chi}, è passata in gestione.`
+    default:
+      return null
+  }
+}
+
+/** Quanti contatti mostra al più la verifica: oltre, si chiede di restringere. */
+const RISULTATI_VERIFICA = 20
+
+export type EsitoVerifica =
+  | { ok: true; contatti: ContattoScegliibile[]; altri: boolean }
+  | { ok: false; errore: string }
+
+/**
+ * La verifica «c'è già?» di Phone In / Email In, su **tutta** l'anagrafica.
+ *
+ * Il form dell'agenda filtra in memoria i 300 contatti più recenti: per
+ * scegliere chi ha appena scritto va bene, per dire «non esiste» no — in
+ * anagrafica ce ne sono più di ventimila, compresi tutti i soci Info4U, e un
+ * «nessun risultato» su un elenco parziale faceva creare il doppione di un
+ * socio.
+ *
+ * Nome e cognome (in qualsiasi ordine) ed email passano da cerca_persone, la
+ * stessa ricerca della sezione Contatti. Il cellulare no: là si confronta il
+ * testo, e «333 123 4567» non trova «+39 3331234567». Qui si cercano le
+ * ultime nove cifre fra le sole cifre del cellulare (cerca_persone_per_cellulare,
+ * scripts/sql/2026-10-14-cerca-persone-per-cellulare.sql) — non su
+ * `cellulare_norm`, che per quasi tutti i soci Info4U è vuoto.
+ */
+export async function cercaContattiPerVerifica(testo: string): Promise<EsitoVerifica> {
+  if (!(await autorizzato())) return { ok: false, errore: 'Non hai accesso all’agenda.' }
+
+  const cercato = testo.trim()
+  if (cercato.length < 3) {
+    return { ok: false, errore: 'Scrivi almeno tre caratteri: nome e cognome, email o cellulare.' }
+  }
+
+  const supabase = createSupabaseServiceClient()
+  const campi = dividiTestoContatto(cercato)
+
+  if (campi.cellulare) {
+    // Le ultime nove: tolgono il prefisso internazionale, scritto o no, e
+    // bastano a riconoscere un cellulare italiano.
+    const cifre = campi.cellulare.replace(/\D/g, '').slice(-9)
+    const { data, error } = await supabase.rpc('cerca_persone_per_cellulare', {
+      p_cifre: cifre,
+      p_limite: RISULTATI_VERIFICA + 1,
+    })
+    if (error) {
+      console.error('Verifica contatto per cellulare non riuscita:', error.message)
+      return { ok: false, errore: 'La ricerca non è riuscita. Riprova.' }
+    }
+    const righe = (data ?? []) as ContattoScegliibile[]
+    return { ok: true, contatti: righe.slice(0, RISULTATI_VERIFICA), altri: righe.length > RISULTATI_VERIFICA }
+  }
+
+  const { data, error } = await supabase.rpc('cerca_persone', {
+    p_query: cercato,
+    p_limite: RISULTATI_VERIFICA + 1,
+  })
+  if (error) {
+    console.error('Verifica contatto non riuscita:', error.message)
+    return { ok: false, errore: 'La ricerca non è riuscita. Riprova.' }
+  }
+  const righe = ((data ?? []) as ContattoScegliibile[]).map((r) => ({
+    id: r.id,
+    nome: r.nome,
+    cognome: r.cognome,
+    email: r.email,
+    cellulare: r.cellulare,
+  }))
+  return { ok: true, contatti: righe.slice(0, RISULTATI_VERIFICA), altri: righe.length > RISULTATI_VERIFICA }
 }
 
 type ContattoRisolto = {
@@ -218,14 +510,21 @@ async function contattoDallElenco(id: string): Promise<ContattoRisolto | { error
  */
 async function creaContattoAMano(
   formData: FormData,
-  email: string | null
+  email: string | null,
+  completo = false
 ): Promise<ContattoRisolto | { errore: string }> {
-  const validato = validaNuovoContatto({
-    nome: String(formData.get('nuovo_nome') ?? ''),
-    cognome: String(formData.get('nuovo_cognome') ?? ''),
-    email: String(formData.get('nuovo_email') ?? ''),
-    cellulare: String(formData.get('nuovo_cellulare') ?? ''),
-  })
+  const validato = validaNuovoContatto(
+    {
+      nome: String(formData.get('nuovo_nome') ?? ''),
+      cognome: String(formData.get('nuovo_cognome') ?? ''),
+      email: String(formData.get('nuovo_email') ?? ''),
+      cellulare: String(formData.get('nuovo_cellulare') ?? ''),
+      // Solo Phone In / Email In manda il prefisso della tendina: altrove il
+      // numero arriva com'è stato scritto.
+      prefisso: String(formData.get('nuovo_prefisso') ?? ''),
+    },
+    { completo }
+  )
   if ('errore' in validato) return validato
 
   const dati = validato.contatto

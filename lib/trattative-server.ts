@@ -44,18 +44,6 @@ export const AVVISO_TRATTATIVA: Record<AzioneTrattativa, string | null> = {
 }
 
 /**
- * Come AVVISO_TRATTATIVA, ma per chi registra senza intestarsi la trattativa
- * (Phone In / Email In — vedi NuovaVoce.tsx): con `p_operatore` nullo la
- * funzione SQL non assegna mai nessuno, quindi qui "in gestione a te" sarebbe
- * falso. `presa_in_carico` non compare: la SQL la sceglie solo quando
- * l'operatore non è nullo, quindi con questo flusso non può accadere.
- */
-export const AVVISO_TRATTATIVA_LIBERA: Partial<Record<AzioneTrattativa, string>> = {
-  creata: 'Aperta anche la trattativa di questo contatto: resta da assegnare, la prende chi se ne occupa.',
-  avviata: 'La trattativa di questo contatto è passata in gestione, ma resta da assegnare.',
-}
-
-/**
  * Assicura che la persona abbia una trattativa aperta, e la restituisce.
  *
  * **Non fallisce mai in modo rumoroso**, ed è voluto: l'evento è già scritto
@@ -90,6 +78,80 @@ export async function trattativaPerEvento(
     azione === 'invariata'
     ? azione
     : null
+}
+
+/** Com'è andata l'assegnazione del lead chiesta da Phone In / Email In. */
+export type EsitoAssegnazioneLead = {
+  azione: AzioneTrattativa
+  /**
+   * Chi segue già la trattativa, se non è il commerciale scelto: in quel caso
+   * la trattativa resta sua e non si riassegna (vedi assegnaTrattativaDaEvento).
+   */
+  giaDi: string | null
+}
+
+/**
+ * Phone In / Email In: la trattativa del contatto va al commerciale che sceglie
+ * chi registra, non a chi registra.
+ *
+ * Passa dalla stessa trattativa_per_evento, con il commerciale scelto come
+ * operatore: apre la trattativa intestata a lui, o gli assegna quella libera.
+ * Due cose si sistemano dopo:
+ *
+ *  - la funzione SQL scrive come autore dell'assegnazione (`assegnato_da`,
+ *    `stato_da`) l'operatore stesso, perché nell'agenda chi scrive e chi
+ *    riceve sono la stessa persona. Qui no: l'ha decisa la segreteria, e il
+ *    registro deve dire così;
+ *  - se la trattativa la segue già un altro commerciale, **resta sua**. Una
+ *    segreteria che risponde al telefono non riassegna il lead di un collega
+ *    (riassegnare spetta a chi la segue o a chi ha puo_riassegnare): si dice
+ *    a chi ha scritto, con il nome di chi la segue.
+ *
+ * Come trattativaPerEvento non fallisce in modo rumoroso: l'evento è già
+ * scritto. Ritorna null se la trattativa non si è potuta aprire, e chi chiama
+ * lo dice.
+ */
+export async function assegnaTrattativaDaEvento(
+  personaId: string,
+  assegnatario: string,
+  chiScrive: string | null
+): Promise<EsitoAssegnazioneLead | null> {
+  const supabase = createSupabaseServiceClient()
+  const { data, error } = await supabase.rpc('trattativa_per_evento', {
+    p_persona_id: personaId,
+    p_operatore: assegnatario,
+  })
+
+  if (error) {
+    console.error('Trattativa del Phone In non aperta:', error.message)
+    return null
+  }
+
+  const riga = Array.isArray(data) ? data[0] : data
+  const id = riga?.opportunita_id as string | undefined
+  const azione = riga?.azione as string | undefined
+  if (
+    !id ||
+    !(azione === 'creata' || azione === 'presa_in_carico' || azione === 'avviata' || azione === 'invariata')
+  ) {
+    return null
+  }
+
+  if (chiScrive && (azione === 'creata' || azione === 'presa_in_carico')) {
+    await supabase.from('opportunita').update({ assegnato_da: chiScrive, stato_da: chiScrive }).eq('id', id)
+  } else if (chiScrive && azione === 'avviata') {
+    await supabase.from('opportunita').update({ stato_da: chiScrive }).eq('id', id)
+  }
+
+  if (azione === 'creata' || azione === 'presa_in_carico') return { azione, giaDi: null }
+
+  const { data: trattativa } = await supabase
+    .from('opportunita')
+    .select('assegnato_a')
+    .eq('id', id)
+    .maybeSingle()
+  const titolare = (trattativa?.assegnato_a as string | null | undefined) ?? null
+  return { azione, giaDi: titolare && titolare !== assegnatario ? titolare : null }
 }
 
 // ── Chi chiude l'evento si prende la trattativa ───────────────────────────

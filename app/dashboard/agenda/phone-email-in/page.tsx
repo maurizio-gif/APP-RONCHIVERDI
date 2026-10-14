@@ -2,14 +2,10 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
-import { oggiRoma } from '@/lib/agenda'
-import { ordinaPerCognome, type RigaStaff } from '@/lib/staff'
-import { NuovaVoce, type ContattoScegliibile } from '../NuovaVoce'
+import { nomeStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
+import { PhoneEmailInForm, type CommercialeLead } from './PhoneEmailInForm'
 
 export const dynamic = 'force-dynamic'
-
-/** Quanti contatti si caricano per la tendina: stessa soglia usata nel resto dell'agenda. */
-const CONTATTI_NEL_FORM = 300
 
 // `staff=1` dice allo script di tracciamento del sito (tracking.client.js)
 // di non aprire nessuna sessione: chi clicca da qui è la segreteria, sul PC
@@ -18,10 +14,15 @@ const LINK_GUEST_REGISTER = 'https://www.ronchiverdi.it/guest-register?staff=1'
 
 // Chi telefona alla segreteria o scrive alla casella info quando nessun
 // commerciale è disponibile non deve sfuggire — ma non è passato dal banco,
-// quindi non è un walk-in. Qui si registra soltanto (mai una programmazione
-// futura), solo telefonata o email, e la trattativa che si apre resta da
-// assegnare invece di andare a chi la scrive — vedi le prop passate a
-// NuovaVoce e la logica in creaVoce (app/dashboard/agenda/actions.ts).
+// quindi non è un walk-in. Il form ha tre sezioni: il contatto (verificato
+// su tutta l'anagrafica prima di crearlo, e con il commerciale a cui va il
+// lead), la registrazione di cosa è arrivato, e un seguito facoltativo da
+// programmare — vedi PhoneEmailInForm e registraPhoneEmailIn
+// (app/dashboard/agenda/actions.ts).
+//
+// Nessun elenco di contatti caricato in pagina: la verifica cerca sul server
+// (cercaContattiPerVerifica), perché i 300 più recenti non bastano a dire
+// «non c'è».
 export default async function PhoneEmailInPage() {
   if (!(await utenteHaSezione('phone-email-in'))) {
     redirect('/dashboard')
@@ -29,25 +30,14 @@ export default async function PhoneEmailInPage() {
 
   const supabase = createSupabaseServiceClient()
 
-  const [{ data: staff }, { data: persone, error: errorePersone }] = await Promise.all([
-    supabase.from('staff_users').select('email, nome, cognome, commerciale'),
-    supabase
-      .from('persone_con_richieste')
-      .select('id, nome, cognome, email, cellulare')
-      .order('ultima_richiesta', { ascending: false, nullsFirst: false })
-      .limit(CONTATTI_NEL_FORM),
-  ])
-
-  if (errorePersone) {
-    console.error('Contatti per il form Phone In / Email In non letti:', errorePersone.message)
-  }
+  const { data: staff } = await supabase.from('staff_users').select('email, nome, cognome, commerciale')
 
   const staffOrdinato = ordinaPerCognome(
     (staff ?? []) as (RigaStaff & { commerciale?: boolean })[]
   )
-  const operatori = staffOrdinato.map((s) => s.email)
-  const contattiForm = (persone ?? []) as unknown as ContattoScegliibile[]
-  const contattiTroncati = contattiForm.length === CONTATTI_NEL_FORM
+  const commerciali: CommercialeLead[] = staffOrdinato
+    .filter((s) => s.commerciale)
+    .map((s) => ({ email: s.email, nome: nomeStaff(s) }))
 
   return (
     <>
@@ -71,19 +61,7 @@ export default async function PhoneEmailInPage() {
         </p>
       </div>
 
-      <NuovaVoce
-        giornoPredefinito={oggiRoma()}
-        operatori={operatori}
-        contatti={contattiForm}
-        contattiTroncati={contattiTroncati}
-        apertaInizialmente
-        tipiConsentiti={['appuntamento_telefonico', 'email']}
-        soloRegistrazione
-        trattativaDaAssegnare
-        assegnazioneVoceFissa
-        notaUnica
-        placeholderNote="Cosa ha chiesto o scritto, com'è andata, e cosa succede adesso"
-      />
+      <PhoneEmailInForm commerciali={commerciali} />
 
       <p className="muted">
         <Link className="link" href="/dashboard/agenda">
