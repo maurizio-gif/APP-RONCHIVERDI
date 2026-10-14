@@ -32,19 +32,21 @@ export default async function RinnoviPage({ searchParams }: { searchParams: { me
     ? primoDelMese(searchParams.mese!)
     : primoDelMese(oggiRoma())
 
+  const supabase = createSupabaseServiceClient()
+  const io = emailCorrente()
+
+  // Lo staff non dipende da niente: parte insieme alla catena gruppi →
+  // scadenze → note, che invece è in fila per forza (serve l'id del gruppo
+  // Core, poi gli id delle scadenze). Promise.resolve perché una query
+  // supabase-js parte solo quando qualcuno la aspetta: lasciata com'è,
+  // aspetterebbe il Promise.all in fondo invece di viaggiare adesso.
+  const staffInCorso = Promise.resolve(
+    supabase.from('staff_users').select('email, nome, cognome, operatore_segreteria')
+  )
+  const permessoInCorso = puoRiassegnare(io)
+
   const gruppi = await caricaGruppi()
   const gruppoCore = gruppi.find((g) => g.nome === 'CORE')
-
-  const supabase = createSupabaseServiceClient()
-
-  // Tutto lo staff per i nomi (anche chi firma una nota di gestione entrando
-  // da Abbonamenti), solo la segreteria per la tendina Assegnatario.
-  const { data: staff } = await supabase.from('staff_users').select('email, nome, cognome, operatore_segreteria')
-  const staffOrdinato = ordinaPerCognome((staff ?? []) as (RigaStaff & { operatore_segreteria: boolean | null })[])
-  const nomiStaff = mappaNomiStaff(staffOrdinato)
-  const operatoriSegreteria = staffOrdinato.filter((s) => s.operatore_segreteria).map((s) => s.email)
-  const io = emailCorrente()
-  const possoRiassegnare = await puoRiassegnare(io)
 
   const righeGrezze: RigaScadenza[] = []
   let erroreScadenze: { message: string } | null = null
@@ -73,10 +75,20 @@ export default async function RinnoviPage({ searchParams }: { searchParams: { me
     }
   }
   const righe = righeGrezze
-  const noteScadenze = await caricaNoteScadenze(
-    supabase,
-    righe.map((r) => r.id)
-  )
+  const [noteScadenze, { data: staff }, possoRiassegnare] = await Promise.all([
+    caricaNoteScadenze(
+      supabase,
+      righe.map((r) => r.id)
+    ),
+    staffInCorso,
+    permessoInCorso,
+  ])
+
+  // Tutto lo staff per i nomi (anche chi firma una nota di gestione entrando
+  // da Abbonamenti), solo la segreteria per la tendina Assegnatario.
+  const staffOrdinato = ordinaPerCognome((staff ?? []) as (RigaStaff & { operatore_segreteria: boolean | null })[])
+  const nomiStaff = mappaNomiStaff(staffOrdinato)
+  const operatoriSegreteria = staffOrdinato.filter((s) => s.operatore_segreteria).map((s) => s.email)
 
   const totale = righe.length
   const daRichiamare = righe.filter((r) => !r.rinnovato).length

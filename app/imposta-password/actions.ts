@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { createSupabaseServerClient } from '@/lib/supabase/serverClient'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { registraLog } from '@/lib/audit'
+import { invalidaRigheStaff } from '@/lib/auth/staff-server'
 
 export async function impostaPassword(formData: FormData) {
   const nome = String(formData.get('nome') ?? '').trim()
@@ -41,6 +42,7 @@ export async function impostaPassword(formData: FormData) {
   // è la tabella che Gestione utenti mostra e modifica.
   const supabaseService = createSupabaseServiceClient()
   await supabaseService.from('staff_users').update({ nome, cognome }).eq('email', user.email)
+  invalidaRigheStaff()
 
   await registraLog(user.email, 'password_impostata')
   redirect('/dashboard')

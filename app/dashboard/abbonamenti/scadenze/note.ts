@@ -39,12 +39,22 @@ export async function caricaNoteScadenze(
   abbonamentoIds: string[]
 ): Promise<Record<string, NotaScadenza[]>> {
   const perAbbonamento: Record<string, NotaScadenza[]> = {}
-  for (let i = 0; i < abbonamentoIds.length; i += BLOCCO) {
-    const { data, error } = await supabase
-      .from('abbonamenti_scadenze_note')
-      .select('id, abbonamento_id, tipo, testo, autore, creato_il')
-      .in('abbonamento_id', abbonamentoIds.slice(i, i + BLOCCO))
-      .order('creato_il', { ascending: false })
+  // I blocchi partono tutti insieme: in fila, un mese di punta pagava un
+  // andata e ritorno verso Supabase per ogni 150 scadenze prima di poter
+  // disegnare la tabella. Ogni abbonamento sta in un blocco solo, quindi
+  // l'ordine per data dentro le sue note non cambia.
+  const blocchi: string[][] = []
+  for (let i = 0; i < abbonamentoIds.length; i += BLOCCO) blocchi.push(abbonamentoIds.slice(i, i + BLOCCO))
+  const risposte = await Promise.all(
+    blocchi.map((ids) =>
+      supabase
+        .from('abbonamenti_scadenze_note')
+        .select('id, abbonamento_id, tipo, testo, autore, creato_il')
+        .in('abbonamento_id', ids)
+        .order('creato_il', { ascending: false })
+    )
+  )
+  for (const { data, error } of risposte) {
     if (error) {
       // Tabella non ancora creata o errore momentaneo: la tabella resta
       // usabile, solo senza storico — meglio che una pagina rotta.

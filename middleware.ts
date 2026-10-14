@@ -40,15 +40,28 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // getClaims e non getUser: getUser è un'andata e ritorno verso Supabase Auth
+  // su ogni richiesta del pannello — navigazioni, prefetch dei link e i due
+  // polling ogni venti secondi — ed è il primo tempo che si paga prima che la
+  // pagina cominci a caricare. getClaims verifica la firma del token in locale
+  // con la chiave pubblica del progetto (JWKS, tenuta in memoria da auth-js per
+  // dieci minuti); se il progetto firmasse ancora con il segreto simmetrico
+  // (HS256) ricade da solo su getUser, quindi non è mai meno sicuro di prima.
+  // Come getUser, rinfresca la sessione scaduta e riscrive i cookie via setAll.
+  //
+  // Cosa non vede più: un utente revocato lato Auth con un token ancora valido
+  // (al massimo un'ora). Il controllo che conta per il pannello è comunque
+  // staff_users, che il layout e le rotte interne verificano a ogni richiesta
+  // — e che Gestione utenti, togliendo un accesso, invalida all'istante (vedi
+  // invalidaRigheStaff in lib/auth/staff-server.ts).
+  const { data } = await supabase.auth.getClaims()
+  const email = typeof data?.claims?.email === 'string' ? data.claims.email : null
 
-  if (!user?.email) {
+  if (!email) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  requestHeaders.set(HEADER_EMAIL, user.email.trim().toLowerCase())
+  requestHeaders.set(HEADER_EMAIL, email.trim().toLowerCase())
 
   const response = NextResponse.next({ request: { headers: requestHeaders } })
   pendingCookies.forEach(({ name, value, options }) => response.cookies.set(name, value, options))

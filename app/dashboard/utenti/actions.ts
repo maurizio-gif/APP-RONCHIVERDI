@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
+import { invalidaRigheStaff } from '@/lib/auth/staff-server'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { CHIAVI_SEZIONI, SEZIONI, SEZIONI_ESTERNE, type SezioneChiave } from '@/lib/auth/sezioni'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
@@ -93,6 +94,9 @@ export async function invitaStaff(formData: FormData) {
     })
     if (error) redirect(urlErrore(error.message))
   }
+  // Subito dopo la scrittura e non in fondo: se l'invito via email fallisce
+  // si esce con un redirect, ma la riga in staff_users c'è già.
+  invalidaRigheStaff()
 
   // redirectTo esplicito: senza, Supabase usa il "Site URL" del progetto (di
   // default localhost:3000) e il link non arriva mai al pannello vero.
@@ -148,6 +152,7 @@ export async function impostaPuoInvitare(email: string, valore: boolean): Promis
     dettagli: { email_target: email, valore },
   })
 
+  invalidaRigheStaff()
   revalidatePath('/dashboard/utenti')
   return { ok: true }
 }
@@ -170,6 +175,7 @@ export async function impostaPuoCancellare(email: string, valore: boolean): Prom
     dettagli: { email_target: email, valore },
   })
 
+  invalidaRigheStaff()
   revalidatePath('/dashboard/utenti')
   return { ok: true }
 }
@@ -189,6 +195,7 @@ export async function impostaCommerciale(email: string, valore: boolean): Promis
     dettagli: { email_target: email, valore },
   })
 
+  invalidaRigheStaff()
   revalidatePath('/dashboard/utenti')
   return { ok: true }
 }
@@ -218,6 +225,7 @@ export async function impostaOperatoreSegreteria(
     dettagli: { email_target: email, valore },
   })
 
+  invalidaRigheStaff()
   revalidatePath('/dashboard/utenti')
   return { ok: true }
 }
@@ -240,6 +248,7 @@ export async function impostaPuoRiassegnare(email: string, valore: boolean): Pro
     dettagli: { email_target: email, valore },
   })
 
+  invalidaRigheStaff()
   revalidatePath('/dashboard/utenti')
   return { ok: true }
 }
@@ -268,6 +277,7 @@ export async function impostaSezioni(email: string, sezioni: string[]): Promise<
     dettagli: { email_target: email, sezioni: pulite },
   })
 
+  invalidaRigheStaff()
   revalidatePath('/dashboard/utenti')
   return { ok: true }
 }
@@ -295,6 +305,7 @@ export async function rimuoviStaff(email: string): Promise<Risultato> {
     dettagli: { email_target: email },
   })
 
+  invalidaRigheStaff()
   revalidatePath('/dashboard/utenti')
   return { ok: true }
 }

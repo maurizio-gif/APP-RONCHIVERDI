@@ -21,6 +21,31 @@ c'è nessuna sincronizzazione da mantenere fra due database.
 
 Migration in `scripts/sql/`, da eseguire in ordine dal SQL Editor di Supabase.
 
+## Velocità
+
+Quasi tutto il tempo di una pagina è fatto di andate e ritorni verso
+Supabase, non di lavoro del database. Tre regole tengono basso il conto:
+
+- **Le funzioni girano accanto al database.** Supabase sta in `eu-west-1`
+  (Irlanda), quindi `vercel.json` fissa la regione `dub1` (Dublino). Con
+  `cdg1` (Parigi) ogni lettura costava ~40 ms di solo viaggio in più, e una
+  pagina ne fa da tre a sei in fila. Se il progetto Supabase cambia regione,
+  va cambiata anche questa.
+- **Il middleware non chiama Supabase Auth.** Verifica il token con
+  `getClaims()` (firma controllata in locale con la chiave pubblica del
+  progetto), invece di `getUser()` a ogni navigazione e a ogni giro dei
+  polling.
+- **La riga di `staff_users` dell'operatore sta in cache** fino a 30 secondi
+  fra una richiesta e l'altra (`lib/auth/staff-server.ts`): è letta da ogni
+  pagina e da ogni polling. Chi scrive su `staff_users` dal pannello chiama
+  `invalidaRigheStaff()`, così un permesso tolto vale subito; solo una
+  modifica fatta a mano dal SQL Editor può metterci quei 30 secondi.
+
+Lato database, le viste aggregate degli abbonamenti filtrano per giorno e per
+mese con un indice (vedi `scripts/sql/2026-10-14-velocita-viste-abbonamenti.sql`):
+una vista nuova che raggruppa per data di vendita o di scadenza deve usare le
+stesse espressioni con il fuso esplicito, o torna a leggere tutta la tabella.
+
 ## Avvio in locale
 
 ```bash
