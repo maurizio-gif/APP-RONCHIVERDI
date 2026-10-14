@@ -1,6 +1,9 @@
 -- Velocità: le viste degli abbonamenti filtrabili per periodo con un indice,
 -- e la sincronizzazione Info4U che non riscrive più righe identiche.
 --
+-- Già eseguita in produzione il 14 ottobre 2026. Rieseguirla non fa danni:
+-- indici `if not exists`, viste e trigger `create or replace`.
+--
 -- Misurato il 14 ottobre 2026, a database scarico (EXPLAIN ANALYZE): il
 -- venduto mensile nuovo/rinnovo degli ultimi 24 mesi 1,3 s, le scadenze
 -- mensili 0,6 s, i prodotti 0,7 s — e in produzione, nel pomeriggio, con la
@@ -244,14 +247,16 @@ left join (
 -- cambia, quindi su una riga identica non avrebbe fatto niente comunque).
 -- Il nome comincia per zz_ perché i trigger BEFORE scattano in ordine
 -- alfabetico, e questo deve vedere la riga come la lasciano gli altri.
+--
+-- Il confronto è sui byte della riga: una riga scritta prima che alla
+-- tabella si aggiungessero colonne ha un formato più corto, e il primo update
+-- la riscrive comunque — una volta sola, poi anche lei viene saltata.
 
-drop trigger if exists zz_salta_update_identici on public.abbonamenti;
-create trigger zz_salta_update_identici
+create or replace trigger zz_salta_update_identici
 	before update on public.abbonamenti
 	for each row execute function suppress_redundant_updates_trigger();
 
-drop trigger if exists zz_salta_update_identici on public.persone;
-create trigger zz_salta_update_identici
+create or replace trigger zz_salta_update_identici
 	before update on public.persone
 	for each row execute function suppress_redundant_updates_trigger();
 
