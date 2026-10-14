@@ -67,7 +67,7 @@ riempilo:
   "MaxBatchesPerRun": 20,
   "RefreshApertiOgniOre": 20,
   "RefreshApertiGiorniIndietro": 400,
-  "MaxBatchesRefreshAperti": 200
+  "BatchesRefreshApertiPerGiro": 3
 }
 ```
 
@@ -184,6 +184,19 @@ in testa allo script per i dettagli.
   sposta `DataFine` in avanti in Info4U, ma il watermark su `IDIscrizione`
   da solo non se ne accorgerebbe mai (non ripassa su un ID già sotto il
   watermark). Stesso discorso per una disdetta o una correzione tardiva.
+- Il refresh non si fa in un'esecuzione sola: ~28.000 vendite aperte a 500
+  righe al minuto sono circa un'ora, e per tutto quel tempo il task restava
+  occupato — le vendite nuove aspettavano, e se l'esecuzione si
+  interrompeva a metà (stand-by, riavvio) il giro dopo ripartiva da zero.
+  Ora ogni esecuzione ne fa al massimo `BatchesRefreshApertiPerGiro` blocchi
+  (default 3, circa 3 minuti) e salva dopo ciascuno il punto a cui è
+  arrivata nella riga `refresh_aperti_in_corso` di `sync_info4u_stato`
+  (colonna `cursore`, vedi
+  `scripts/sql/2026-10-14-sync-info4u-stato-cursore.sql`): il giro dopo
+  prosegue da lì. Un refresh completo si spalma quindi su un'ora e mezza
+  circa di esecuzioni da 5 minuti, e le vendite nuove continuano a entrare
+  a ogni giro. Il vecchio `MaxBatchesRefreshAperti` non si legge più: se è
+  rimasto in `config.json` si può togliere.
 - Nello stesso giro, confronta gli ID delle vendite che secondo Supabase
   risultano ancora aperte con quelli che Info4U restituisce davvero in quel
   momento: quelli che non ci sono più (un operatore li ha cancellati in

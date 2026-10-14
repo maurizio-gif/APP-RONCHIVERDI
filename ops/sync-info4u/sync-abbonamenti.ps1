@@ -108,7 +108,15 @@ $maxBatches = if ($config.MaxBatchesPerRun) { [int]$config.MaxBatchesPerRun } el
 # nostra copia, che potrebbe essere proprio quella non aggiornata).
 $refreshApertiOgniOre = if ($config.RefreshApertiOgniOre) { [double]$config.RefreshApertiOgniOre } else { 20 }
 $refreshApertiGiorniIndietro = if ($config.RefreshApertiGiorniIndietro) { [int]$config.RefreshApertiGiorniIndietro } else { 400 }
-$maxBatchesRefreshAperti = if ($config.MaxBatchesRefreshAperti) { [int]$config.MaxBatchesRefreshAperti } else { 200 }
+# Il refresh non si fa piu' tutto in un'esecuzione: ~28.000 vendite aperte a
+# 500 righe al minuto sono un'ora, durante la quale il task resta occupato e
+# le vendite nuove aspettano (con «non avviare una nuova istanza» il giro da 5
+# minuti dopo non parte). Ogni esecuzione ne fa al massimo questi blocchi e
+# ricorda su Supabase dove e' arrivata (Get-RefreshApertiInCorso): il giro
+# dopo prosegue da li', e un'interruzione costa al piu' un blocco, non tutto.
+# Il vecchio MaxBatchesRefreshAperti (tetto per un refresh intero in una sola
+# esecuzione) non si legge piu'.
+$batchesRefreshApertiPerGiro = if ($config.BatchesRefreshApertiPerGiro) { [int]$config.BatchesRefreshApertiPerGiro } else { 3 }
 
 # Transazioni di cassa (dbo.CassaMovimenti): blocchi piu' grandi di quelli
 # delle vendite perche' le righe sono piccole e lo storico e' lungo (qualche
@@ -165,6 +173,33 @@ function Get-UltimoRefreshAperti {
 function Set-UltimoRefreshAperti {
     param([datetime]$Quando)
     $corpo = @{ chiave = "refresh_aperti"; valore = $Quando.ToString("o") } | ConvertTo-Json
+    $headers = $supabaseHeaders.Clone()
+    $headers["Prefer"] = "resolution=merge-duplicates"
+    Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/sync_info4u_stato?on_conflict=chiave" `
+        -Headers $headers -Method Post -Corpo $corpo | Out-Null
+}
+
+# Il refresh delle vendite aperte in corso, se ce n'e' uno: quando e'
+# iniziato e l'ultimo IDIscrizione gia' riprocessato. Riga
+# "refresh_aperti_in_corso", cursore nullo = nessun refresh in corso (vedi
+# scripts/sql/2026-10-14-sync-info4u-stato-cursore.sql).
+function Get-RefreshApertiInCorso {
+    $url = "$($config.Supabase.Url)/rest/v1/sync_info4u_stato?chiave=eq.refresh_aperti_in_corso&select=valore,cursore"
+    $risposta = Invoke-RestMethod -Uri $url -Headers $supabaseHeaders -Method Get
+    if ($risposta.Count -gt 0 -and $null -ne $risposta[0].cursore) {
+        return @{ Inizio = [datetime]$risposta[0].valore; Cursore = [int]$risposta[0].cursore }
+    }
+    return $null
+}
+
+function Set-RefreshApertiInCorso {
+    param([datetime]$Inizio, $Cursore)
+    $corpo = @{
+        chiave        = "refresh_aperti_in_corso"
+        valore        = $Inizio.ToString("o")
+        cursore       = $Cursore
+        aggiornato_il = (Get-Date).ToString("o")
+    } | ConvertTo-Json
     $headers = $supabaseHeaders.Clone()
     $headers["Prefer"] = "resolution=merge-duplicates"
     Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/sync_info4u_stato?on_conflict=chiave" `
@@ -1353,21 +1388,38 @@ try {
     # Supabase (Get-UltimoRefreshAperti), non sull'orologio del task
     # schedulato, cosi' resta corretto anche se il task salta un giro o gira
     # a orari irregolari.
-    $ultimoRefreshAperti = Get-UltimoRefreshAperti
-    $orePassate = if ($ultimoRefreshAperti) { (New-TimeSpan -Start $ultimoRefreshAperti -End (Get-Date)).TotalHours } else { [double]::PositiveInfinity }
+    #
+    # Un refresh si spalma su piu' esecuzioni: ognuna fa al massimo
+    # $batchesRefreshApertiPerGiro blocchi e salva il cursore dopo ciascuno
+    # (Set-RefreshApertiInCorso). Se ce n'e' uno in corso si prosegue quello,
+    # senza guardare la soglia di ore.
+    $refreshInCorso = Get-RefreshApertiInCorso
 
-    if ($orePassate -ge $refreshApertiOgniOre) {
-        Write-Log "Refresh vendite aperte: ultimo giro $(if ($ultimoRefreshAperti) { "$([math]::Round($orePassate,1)) ore fa" } else { 'mai fatto' }) (soglia ${refreshApertiOgniOre}h) — riparto."
+    if (-not $refreshInCorso) {
+        $ultimoRefreshAperti = Get-UltimoRefreshAperti
+        $orePassate = if ($ultimoRefreshAperti) { (New-TimeSpan -Start $ultimoRefreshAperti -End (Get-Date)).TotalHours } else { [double]::PositiveInfinity }
 
-        $soglia = (Get-Date).Date.AddDays(-$refreshApertiGiorniIndietro)
-        $lastIdAperti = 0
+        if ($orePassate -ge $refreshApertiOgniOre) {
+            Write-Log "Refresh vendite aperte: ultimo giro $(if ($ultimoRefreshAperti) { "$([math]::Round($orePassate,1)) ore fa" } else { 'mai fatto' }) (soglia ${refreshApertiOgniOre}h) - riparto da capo."
+            $refreshInCorso = @{ Inizio = (Get-Date); Cursore = 0 }
+            Set-RefreshApertiInCorso -Inizio $refreshInCorso.Inizio -Cursore 0
+        }
+    } else {
+        Write-Log "Refresh vendite aperte: in corso dal $($refreshInCorso.Inizio.ToString('yyyy-MM-dd HH:mm')), proseguo da IDIscrizione > $($refreshInCorso.Cursore)."
+    }
+
+    if ($refreshInCorso) {
+        # Soglia calcolata dall'inizio del refresh, non da oggi: se il refresh
+        # scavalca la mezzanotte, la finestra delle vendite "aperte" resta la
+        # stessa dal primo all'ultimo blocco.
+        $soglia = $refreshInCorso.Inizio.Date.AddDays(-$refreshApertiGiorniIndietro)
+        $lastIdAperti = $refreshInCorso.Cursore
         $totaleRigheAperte = 0
 
         $refreshCompleto = $false
-        for ($batch = 1; $batch -le $maxBatchesRefreshAperti; $batch++) {
+        for ($batch = 1; $batch -le $batchesRefreshApertiPerGiro; $batch++) {
             $righe = Get-RigheAperteDaSincronizzare -LastId $lastIdAperti -Top $batchSize -Soglia $soglia
             if ($righe.Count -eq 0) {
-                Write-Log "Refresh vendite aperte: nessuna riga rimasta da riprocessare."
                 $refreshCompleto = $true
                 break
             }
@@ -1378,27 +1430,26 @@ try {
             $ultimaRiga = $righe[$righe.Count - 1]
             $lastIdAperti = [int]$ultimaRiga.IDIscrizione
             $totaleRigheAperte += $righe.Count
-            Write-Log "Refresh vendite aperte, batch ${batch}: $($righe.Count) righe."
+            Set-RefreshApertiInCorso -Inizio $refreshInCorso.Inizio -Cursore $lastIdAperti
+            Write-Log "Refresh vendite aperte, batch ${batch}: $($righe.Count) righe, cursore ora a $lastIdAperti."
 
             if ($righe.Count -lt $batchSize) { $refreshCompleto = $true; break }
         }
 
-        # Le righe vanno per IDIscrizione crescente: se il tetto di batch scatta
-        # prima della fine, restano fuori proprio le vendite piu' recenti, che
-        # sono quelle ancora modificate (prodotto cambiato, sospensioni...).
-        if (-not $refreshCompleto) {
-            Write-Log "ATTENZIONE: refresh vendite aperte troncato a $maxBatchesRefreshAperti batch (ultimo IDIscrizione $lastIdAperti): le vendite piu' recenti NON sono state riallineate. Alza MaxBatchesRefreshAperti in config.json."
+        if ($refreshCompleto) {
+            Compare-CancellazioniOrigine -Soglia $soglia
+
+            # Segnato solo a refresh completato (incluse le eventuali
+            # cancellazioni), con l'ora d'inizio: le vendite riprocessate per
+            # prime sono aggiornate a quel momento, non alla fine. Poi il
+            # cursore torna nullo, cioe' nessun refresh in corso.
+            Set-UltimoRefreshAperti -Quando $refreshInCorso.Inizio
+            Set-RefreshApertiInCorso -Inizio $refreshInCorso.Inizio -Cursore $null
+            $oreDurata = (New-TimeSpan -Start $refreshInCorso.Inizio -End (Get-Date)).TotalHours
+            Write-Log "Refresh vendite aperte: completato ($totaleRigheAperte righe in questa esecuzione, iniziato $([math]::Round($oreDurata,1)) ore fa)."
+        } else {
+            Write-Log "Refresh vendite aperte: $totaleRigheAperte righe in questa esecuzione, prosegue al prossimo giro da IDIscrizione > $lastIdAperti."
         }
-
-        Write-Log "Refresh vendite aperte: $totaleRigheAperte righe riprocessate in questa esecuzione."
-
-        Compare-CancellazioniOrigine -Soglia $soglia
-
-        # Aggiornato solo a refresh completato (incluse le eventuali
-        # cancellazioni): se lo script si interrompe a meta', il prossimo
-        # giro riprova da capo invece di segnare un refresh che non c'e'
-        # mai stato per intero.
-        Set-UltimoRefreshAperti -Quando (Get-Date)
     }
 
     Sync-Transazioni
