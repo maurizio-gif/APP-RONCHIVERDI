@@ -69,6 +69,9 @@ export const AZIONI_LOG: Record<string, string> = {
   // trattativa dalla pipeline dicendo che non andava creata, ed è la riga che
   // si va a cercare quando i conti di un mese non tornano.
   trattativa_annullata: 'Trattativa annullata (non andava creata)',
+  // Scritta dal database (chiudi_trattative_inattive), con email
+  // 'regola-14-giorni': nessuna interazione da 14 giorni e niente in agenda.
+  trattativa_persa_inattiva: 'Trattativa persa in automatico (14 giorni senza interazioni)',
   permesso_commerciale_modificato: 'Permesso "Commerciale" modificato',
   permesso_riassegnare_modificato: 'Permesso "Può riassegnare" modificato',
   candidatura_stato: 'Curriculum: stato della candidatura cambiato',
