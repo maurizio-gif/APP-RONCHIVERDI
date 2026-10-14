@@ -522,26 +522,37 @@ export default async function RiepilogoPage({ searchParams }: { searchParams: Pa
     : 'oggi'
   const chi: ChiTask = searchParams.chi === 'miei' ? 'miei' : 'tutti'
   const cerca = (searchParams.q ?? '').trim().slice(0, 80)
-  const trovati = cerca ? await cercaContatti(cerca) : null
 
-  // I conti servono prima dell'elenco: senza una scheda scelta si apre su
-  // quelle da prendere, se ce ne sono, altrimenti sulle proprie.
-  const trattative = vedeTrattative ? await contatoriTrattative(email) : null
-  const vistaLead: VistaLead = VISTE_LEAD.some((v) => v.chiave === searchParams.lead)
+  // I conti servono prima dell'elenco solo quando la scheda non è scelta:
+  // allora si apre su quelle da prendere, se ce ne sono, altrimenti sulle
+  // proprie. Con la scheda nell'indirizzo l'elenco parte subito, insieme ai
+  // conti; senza, aspetta solo i conti e non il resto della pagina. Tutto il
+  // resto parte nello stesso momento: in fila, ogni lettura aggiungeva il suo
+  // andata e ritorno verso Supabase al tempo di caricamento.
+  const vistaScelta = VISTE_LEAD.some((v) => v.chiave === searchParams.lead)
     ? (searchParams.lead as VistaLead)
-    : trattative && trattative.libere === 0
-      ? 'mie'
-      : 'libere'
+    : null
+  const vistaDaiConti = (conti: { libere: number } | null): VistaLead =>
+    vistaScelta ?? (conti && conti.libere === 0 ? 'mie' : 'libere')
+  const contiInCorso = vedeTrattative ? contatoriTrattative(email) : Promise.resolve(null)
+  const leadInCorso = !vedeTrattative
+    ? Promise.resolve(null)
+    : vistaScelta
+      ? trattativeDaLavorare(email, vistaScelta)
+      : contiInCorso.then((conti) => trattativeDaLavorare(email, vistaDaiConti(conti)))
 
-  const [nomeUtente, lead, impegni, nonInstradate, { data: staff }] = await Promise.all([
+  const [trovati, trattative, nomeUtente, lead, impegni, nonInstradate, { data: staff }] = await Promise.all([
+    cerca ? cercaContatti(cerca) : Promise.resolve(null),
+    contiInCorso,
     getNomeUtente(email),
-    vedeTrattative ? trattativeDaLavorare(email, vistaLead) : Promise.resolve(null),
+    leadInCorso,
     vedeAgenda ? impegniDelGiorno(email, quando, chi) : Promise.resolve(null),
     amministra
       ? richiesteNonInstradate()
       : Promise.resolve({ totale: 0, motivi: [] as [string, number][] }),
     createSupabaseServiceClient().from('staff_users').select('email, nome, cognome, commerciale'),
   ])
+  const vistaLead = vistaDaiConti(trattative)
 
   const staffOrdinato = ordinaPerCognome((staff ?? []) as (RigaStaff & { commerciale?: boolean })[])
   const operatori = staffOrdinato.map((x) => x.email)

@@ -1,6 +1,6 @@
 {
   "framework": "nextjs",
-  "regions": ["cdg1"],
+  "regions": ["dub1"],
   "crons": [
     { "path": "/api/cron/report-direzionale", "schedule": "0 20 * * *" },
     { "path": "/api/cron/report-direzionale", "schedule": "0 21 * * *" },
