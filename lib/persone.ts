@@ -112,6 +112,82 @@ export type NuovoContatto = {
   cognome?: string | null
   email?: string | null
   cellulare?: string | null
+  /**
+   * Il prefisso internazionale scelto dalla tendina accanto al cellulare
+   * (Phone In / Email In). Assente altrove: lì il numero si scrive com'è.
+   */
+  prefisso?: string | null
+}
+
+// ───────────────────────────────────────────── prefisso internazionale
+
+/**
+ * I prefissi della tendina accanto al cellulare: l'Italia per prima e
+ * preselezionata, poi i paesi da cui chiama davvero chi si iscrive al club.
+ * Un elenco corto apposta: la tendina è piccola, e un numero di un paese che
+ * qui non c'è si scrive col suo «+» nel campo del numero (vedi conPrefisso).
+ * La tendina mostra prefisso e sigla («+39 IT»), il nome del paese sta nel
+ * suggerimento: per esteso la renderebbe larga quanto il campo del numero.
+ */
+export const PREFISSI_TELEFONO = [
+  { prefisso: '+39', sigla: 'IT', paese: 'Italia' },
+  { prefisso: '+41', sigla: 'CH', paese: 'Svizzera' },
+  { prefisso: '+33', sigla: 'FR', paese: 'Francia' },
+  { prefisso: '+49', sigla: 'DE', paese: 'Germania' },
+  { prefisso: '+43', sigla: 'AT', paese: 'Austria' },
+  { prefisso: '+44', sigla: 'GB', paese: 'Regno Unito' },
+  { prefisso: '+34', sigla: 'ES', paese: 'Spagna' },
+  { prefisso: '+351', sigla: 'PT', paese: 'Portogallo' },
+  { prefisso: '+32', sigla: 'BE', paese: 'Belgio' },
+  { prefisso: '+31', sigla: 'NL', paese: 'Paesi Bassi' },
+  { prefisso: '+30', sigla: 'GR', paese: 'Grecia' },
+  { prefisso: '+40', sigla: 'RO', paese: 'Romania' },
+  { prefisso: '+48', sigla: 'PL', paese: 'Polonia' },
+  { prefisso: '+7', sigla: 'RU', paese: 'Russia' },
+  { prefisso: '+1', sigla: 'US', paese: 'USA / Canada' },
+  { prefisso: '+971', sigla: 'AE', paese: 'Emirati Arabi' },
+  { prefisso: '+86', sigla: 'CN', paese: 'Cina' },
+] as const
+
+export const PREFISSO_PREDEFINITO = '+39'
+
+/** Vero se è uno dei prefissi della tendina. */
+export function ePrefissoValido(prefisso: string): boolean {
+  return PREFISSI_TELEFONO.some((p) => p.prefisso === prefisso)
+}
+
+/**
+ * Il cellulare da salvare: «+39 3331234567», lo stesso formato che hanno già
+ * i contatti arrivati dal sito. normalizza_cellulare lo riconosce (toglie il
+ * 39 davanti), quindi la deduplicazione non cambia.
+ *
+ * Se il numero porta già un suo prefisso — incollato con il «+» o con lo
+ * «00» — vince quello: aggiungerne un secondo davanti produrrebbe un numero
+ * che non esiste.
+ */
+export function conPrefisso(prefisso: string, numero: string): string {
+  const n = numero.trim()
+  if (/^(\+|00)/.test(n)) return n
+  return `${prefisso} ${n}`
+}
+
+/**
+ * Il contrario: da un numero scritto con il prefisso («+39 388 751 3684»,
+ * «0041 79…») ricava prefisso e numero, se il prefisso è nella tendina. Serve
+ * a riempire i due campi dal testo cercato nella verifica, invece di lasciare
+ * il «+39» scritto anche dentro il numero.
+ */
+export function separaPrefisso(cellulare: string): { prefisso: string | null; numero: string } {
+  const testo = cellulare.trim()
+  const conPiu = testo.replace(/^00/, '+')
+  // Dal più lungo al più corto: «+351» non deve essere letto come «+35» + «1…».
+  const ordinati = [...PREFISSI_TELEFONO].sort((a, b) => b.prefisso.length - a.prefisso.length)
+  for (const { prefisso } of ordinati) {
+    if (conPiu.startsWith(prefisso)) {
+      return { prefisso, numero: conPiu.slice(prefisso.length).trim() }
+    }
+  }
+  return { prefisso: null, numero: testo }
 }
 
 /** Un contatto nuovo con i campi puliti, pronto per l'anagrafica. */
@@ -141,20 +217,40 @@ export type ContattoDaCreare = {
  * Per questo la targhetta «Inserito a mano» conta: è da lì che si riconoscono
  * le righe da ricontrollare.
  *
+ * **Con `completo`, nome, cognome e cellulare.** Phone In / Email In: chi
+ * chiama o scrive non è al banco, e un lead che il commerciale non può
+ * richiamare non serve a niente. Lì il numero si chiede sempre, e il
+ * cognome con lui: nome+cognome+cellulare sono proprio le chiavi con cui
+ * trova_o_crea_persona riconosce chi c'era già.
+ *
  * La stessa funzione la usano il form e la Server Action: il form la chiama
  * prima di partire, il server prima di scrivere, e le due risposte non
  * possono divergere.
  */
 export function validaNuovoContatto(
-  c: NuovoContatto
+  c: NuovoContatto,
+  opzioni: { completo?: boolean } = {}
 ): { contatto: ContattoDaCreare } | { errore: string } {
   const pulito = (v: string | null | undefined) => (v ?? '').trim()
   const nome = pulito(c.nome)
   const cognome = pulito(c.cognome)
   const email = pulito(c.email).toLowerCase()
   const cellulare = pulito(c.cellulare)
+  const prefisso = pulito(c.prefisso)
 
   if (!nome) return { errore: 'Per creare un contatto serve almeno il nome.' }
+  if (prefisso && !ePrefissoValido(prefisso)) {
+    return { errore: 'Prefisso internazionale non riconosciuto: sceglilo dalla tendina.' }
+  }
+  if (opzioni.completo) {
+    if (!cognome) return { errore: 'Per creare il contatto serve anche il cognome.' }
+    if (!cellulare) return { errore: 'Per creare il contatto serve il cellulare: è il numero per richiamarlo.' }
+    // Sei cifre come in dividiTestoContatto: sotto non è un telefono, è un
+    // numero scritto a metà.
+    if (cellulare.replace(/\D/g, '').length < 6) {
+      return { errore: 'Il cellulare sembra incompleto: controlla il numero.' }
+    }
+  }
   // Nessuna validazione fine dell'email: qui il rischio non è un indirizzo
   // storto — quello si corregge — ma una riga che non si riesce a
   // riconoscere. Una chiocciola basta a distinguere un indirizzo da un nome
@@ -168,7 +264,7 @@ export function validaNuovoContatto(
       nome,
       cognome: cognome || null,
       email: email || null,
-      cellulare: cellulare || null,
+      cellulare: cellulare ? (prefisso ? conPrefisso(prefisso, cellulare) : cellulare) : null,
     },
   }
 }

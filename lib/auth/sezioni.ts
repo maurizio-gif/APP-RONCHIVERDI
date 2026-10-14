@@ -54,15 +54,16 @@ const DEFINIZIONI = [
     gruppo: 'Segreteria',
   },
   // Telefonate ed email arrivate quando nessun commerciale era disponibile:
-  // si registra soltanto (mai una programmazione futura), solo questi due
-  // tipi, e la trattativa che si apre resta da assegnare invece di andare a
-  // chi la scrive — come già succede per i walk-in dal Guest Register del
-  // sito (vedi NuovaVoce.tsx e creaVoce in app/dashboard/agenda/actions.ts).
+  // si registra cosa è arrivato (adesso, eseguita), con un seguito
+  // facoltativo da programmare; il contatto si verifica prima su tutta
+  // l'anagrafica, e il lead si assegna sempre a un commerciale scelto da chi
+  // registra (vedi phone-email-in/PhoneEmailInForm.tsx e registraPhoneEmailIn
+  // in app/dashboard/agenda/actions.ts).
   //
   // Sostituisce la vecchia scorciatoia "Aggiungi in agenda"
-  // (chiave 'agenda-nuova', rimossa): quella copriva anche la programmazione
-  // di un impegno futuro, che questa pagina non fa — chi ne ha bisogno apre
-  // l'agenda intera.
+  // (chiave 'agenda-nuova', rimossa). Qui si programma solo il seguito di
+  // ciò che si registra — una telefonata o un tour in sede — e non un
+  // impegno qualsiasi: per quello c'è l'agenda intera.
   {
     chiave: 'phone-email-in',
     label: 'Phone In / Email In',

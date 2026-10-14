@@ -617,6 +617,83 @@ a:hover {
 	text-decoration: none;
 }
 
+/* Phone In / Email In: la verifica «c'è già?» prima di creare un contatto
+   (VerificaContatto.tsx). Campo e pulsante sulla stessa riga, i risultati
+   come righe cliccabili: si sceglie toccando la persona, non da una tendina
+   in cui il nome si legge a metà. */
+.verifica-contatto {
+	display: flex;
+	gap: 0.5rem;
+	align-items: stretch;
+}
+
+.verifica-contatto input {
+	flex: 1;
+	min-width: 0;
+}
+
+/* Il prefisso a tendina attaccato al cellulare, nel contatto nuovo di Phone
+   In / Email In: piccolo, quanto basta per «+351 PT», e il resto della riga
+   al numero. */
+.cellulare-con-prefisso {
+	display: flex;
+	gap: 0.4rem;
+}
+
+.cellulare-con-prefisso select {
+	flex: 0 0 auto;
+	width: 7rem;
+}
+
+/* Il campo che lo contiene prende più spazio degli altri della riga: con
+   la tendina dentro, a pari larghezza il numero si leggeva a metà. */
+.form-row .field.field-cellulare {
+	flex-grow: 1.6;
+	min-width: 15rem;
+}
+
+.cellulare-con-prefisso input {
+	flex: 1;
+	min-width: 0;
+}
+
+.errore-campo {
+	color: var(--error);
+}
+
+.verifica-risultati {
+	margin: 0.5rem 0 0;
+	padding: 0;
+	list-style: none;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	max-height: 18rem;
+	overflow-y: auto;
+}
+
+.verifica-risultati li + li {
+	border-top: 1px solid var(--border);
+}
+
+.verifica-riga {
+	display: block;
+	width: 100%;
+	padding: 0.55rem 0.75rem;
+	background: none;
+	border: 0;
+	color: var(--text);
+	font: inherit;
+	font-size: var(--text-sm);
+	text-align: left;
+	cursor: pointer;
+	overflow-wrap: anywhere;
+}
+
+.verifica-riga:hover,
+.verifica-riga:focus-visible {
+	background: var(--accent-tint);
+}
+
 .form-row {
 	display: flex;
 	flex-wrap: wrap;
