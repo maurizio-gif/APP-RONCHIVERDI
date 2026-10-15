@@ -15,6 +15,12 @@ export const dynamic = 'force-dynamic'
 // scripts/sql/2026-10-07-abbonamenti-modifiche.sql): per gli abbonamenti
 // senza una modifica registrata la colonna è vuota.
 //
+// La DATA DI INSERIMENTO (inserita_il) è quando l'operatore ha spostato la
+// scadenza: la proroga dal registro di Info4U, o se manca l'ultima variazione
+// vista dalla sync (vedi scripts/sql/2026-10-15-scadenze-spostate-data-inserimento.sql).
+// Si filtra per intervallo e si ordina su quella: è la data con cui si lavora
+// la pagina, non quelle dell'abbonamento.
+//
 // I due numeri da non confondere hanno ciascuno il suo campo e la sua
 // colonna: la DURATA dell'abbonamento (quanti mesi ha comprato) e il PERIODO
 // DI SOSPENSIONE (di quanti giorni è stata spostata la scadenza).
@@ -23,10 +29,11 @@ const STATI = ['attive', 'scadute', 'tutte'] as const
 type Stato = (typeof STATI)[number]
 const ETICHETTE_STATO: Record<Stato, string> = { attive: 'In corso', scadute: 'Già scaduti', tutte: 'Tutti' }
 
-const ORDINI = ['recenti', 'giorni', 'fine', 'cliente'] as const
+const ORDINI = ['recenti', 'meno_recenti', 'giorni', 'fine', 'cliente'] as const
 type Ordine = (typeof ORDINI)[number]
 const ETICHETTE_ORDINE: Record<Ordine, string> = {
-  recenti: 'Più recenti',
+  recenti: 'Inserimento: più recenti',
+  meno_recenti: 'Inserimento: meno recenti',
   giorni: 'Sospensione più lunga',
   fine: 'Scadenza più lontana',
   cliente: 'Cliente (A–Z)',
@@ -59,6 +66,7 @@ type Riga = {
   proroga_il: string | null
   proroga_giorni: number | null
   proroga_operatore: string | null
+  inserita_il: string | null
 }
 
 type SearchParams = {
@@ -71,6 +79,8 @@ type SearchParams = {
   fo_a?: string
   fn_da?: string
   fn_a?: string
+  ins_da?: string
+  ins_a?: string
   stato?: string
   ordine?: string
   pagina?: string
@@ -78,6 +88,16 @@ type SearchParams = {
 }
 
 const data = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(2, 4)}` : '—')
+// Un istante (timestamptz) come giorno e ora di Roma: «14/10/26 17:32».
+const dataOra = (iso: string) =>
+  new Date(iso).toLocaleString('it-IT', {
+    timeZone: 'Europe/Rome',
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
 const dataValida = (v: string | undefined): string | null => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)) ? v : null)
 const intero = (v: string | undefined, max: number): number | null => {
   const n = Number(v)
@@ -102,6 +122,9 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
   const foA = dataValida(searchParams.fo_a)
   const fnDa = dataValida(searchParams.fn_da)
   const fnA = dataValida(searchParams.fn_a)
+  // La data in cui la sospensione è stata inserita, dal–al (giorni di Roma).
+  const insDa = dataValida(searchParams.ins_da)
+  const insA = dataValida(searchParams.ins_a)
   const operatore = (searchParams.operatore ?? '').slice(0, 60).trim() || null
   const pagina = Math.max(1, Number(searchParams.pagina) || 1)
 
@@ -136,6 +159,8 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
   if (foA) attivi.fo_a = foA
   if (fnDa) attivi.fn_da = fnDa
   if (fnA) attivi.fn_a = fnA
+  if (insDa) attivi.ins_da = insDa
+  if (insA) attivi.ins_a = insA
   const costruisci = (p: Record<string, string>, esclusi: string[]) => {
     const ricerca = new URLSearchParams(p)
     for (const nome of esclusi) ricerca.append('escludi', nome)
@@ -143,7 +168,7 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
   }
   const href = (extra: Record<string, string>) => costruisci({ ...attivi, ...extra }, escludi)
   const filtriAttivi = Boolean(
-    cerca || operatore || durata || da !== null || a !== null || foDa || foA || fnDa || fnA || escludi.length > 0 || stato !== 'attive' || ordine !== 'recenti'
+    cerca || operatore || durata || da !== null || a !== null || foDa || foA || fnDa || fnA || insDa || insA || escludi.length > 0 || stato !== 'attive' || ordine !== 'recenti'
   )
   // Il link che toglie UN filtro e lascia gli altri.
   const senza = (...chiavi: string[]) => {
@@ -158,6 +183,8 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
   // loro menu sempre visibile: non si ripetono qui).
   const etichette: { testo: string; togli: string }[] = []
   if (cerca) etichette.push({ testo: `Cerca: ${cerca}`, togli: senza('q') })
+  if (insDa || insA)
+    etichette.push({ testo: `Inserita: ${intervallo(insDa && dataIt(insDa), insA && dataIt(insA))}`, togli: senza('ins_da', 'ins_a') })
   if (operatore) etichette.push({ testo: `Operatore: ${operatore}`, togli: senza('operatore') })
   if (durata) etichette.push({ testo: `Durata: ${durata} ${durata === 1 ? 'mese' : 'mesi'}`, togli: senza('durata') })
   if (da !== null || a !== null)
@@ -183,7 +210,7 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
   let q = supabase
     .from('scadenze_spostate')
     .select(
-      'source_iscrizione_id, persona_id, persona_nome, persona_cognome, abbonamento, variante, data_inizio, scadenza_prevista, data_fine, giorni_spostati, attiva, data_disdetta, ultima_variazione_il, durata, proroga_il, proroga_giorni, proroga_operatore',
+      'source_iscrizione_id, persona_id, persona_nome, persona_cognome, abbonamento, variante, data_inizio, scadenza_prevista, data_fine, giorni_spostati, attiva, data_disdetta, ultima_variazione_il, durata, proroga_il, proroga_giorni, proroga_operatore, inserita_il',
       { count: 'exact' }
     )
     .gte('giorni_spostati', Math.max(GIORNI_MINIMI, da ?? 0))
@@ -201,6 +228,8 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
   if (foA) q = q.lte('scadenza_prevista', foA)
   if (fnDa) q = q.gte('data_fine', fnDa)
   if (fnA) q = q.lte('data_fine', fnA)
+  if (insDa) q = q.gte('inserita_giorno', insDa)
+  if (insA) q = q.lte('inserita_giorno', insA)
   if (stato === 'attive') q = q.eq('attiva', true)
   if (stato === 'scadute') q = q.eq('attiva', false)
   for (const parola of parole) {
@@ -213,13 +242,12 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
       ].join(',')
     )
   }
-  // L'ordinamento: di default le più recenti in alto — prima quelle con una
-  // proroga registrata (la più recente per prima, dal registro di Info4U), poi
-  // quelle che il CRM ha visto cambiare, poi le altre per scadenza.
-  if (ordine === 'recenti') {
+  // L'ordinamento: di default per data di inserimento, le più recenti in
+  // alto. In tutti e due i versi le righe senza data (proroghe più vecchie del
+  // registro di Info4U) vanno in fondo, per scadenza.
+  if (ordine === 'recenti' || ordine === 'meno_recenti') {
     q = q
-      .order('proroga_il', { ascending: false, nullsFirst: false })
-      .order('ultima_variazione_il', { ascending: false, nullsFirst: false })
+      .order('inserita_il', { ascending: ordine === 'meno_recenti', nullsFirst: false })
       .order('data_fine', { ascending: false })
   } else if (ordine === 'giorni') {
     q = q.order('giorni_spostati', { ascending: false }).order('data_fine', { ascending: false })
@@ -357,6 +385,14 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
             <label htmlFor="f-q">Cliente o abbonamento</label>
             <input id="f-q" name="q" type="search" defaultValue={cerca} placeholder="es. rossi silver" autoComplete="off" />
           </div>
+          <fieldset className="field filtri-barra-date">
+            <legend>Inserita dal – al</legend>
+            <div className="campo-coppia">
+              <input name="ins_da" type="date" defaultValue={insDa ?? ''} aria-label="Inserita dal" />
+              <span aria-hidden="true">–</span>
+              <input name="ins_a" type="date" defaultValue={insA ?? ''} aria-label="Inserita al" />
+            </div>
+          </fieldset>
           <div className="field">
             <label htmlFor="f-stato">Stato</label>
             <select id="f-stato" name="stato" defaultValue={stato}>
@@ -477,11 +513,13 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
                   <tr>
                     <th>Cliente</th>
                     <th>Abbonamento</th>
+                    <th title="Quando la scadenza è stata spostata: registro di InfoRYOU, o la variazione vista dal CRM">
+                      Inserita il
+                    </th>
                     <th className="cella-importo" title="Durata dell’abbonamento acquistato">Durata</th>
                     <th title="Scadenza che spetta dalla durata: inizio + durata">Fine originaria</th>
                     <th title="Scadenza attuale in InfoRYOU">Fine nuova</th>
                     <th className="cella-importo" title="Giorni di cui è stata spostata la scadenza">Sospensione</th>
-                    <th title="Ultima proroga registrata: data e giorni aggiunti">Ultima proroga</th>
                     <th title="Operatore che ha spostato la scadenza (registro di InfoRYOU)">Operatore</th>
                     <th>Stato</th>
                   </tr>
@@ -501,6 +539,22 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
                           {r.abbonamento ?? '—'}
                           {r.variante && <span className="nota-in-riga">{r.variante}</span>}
                         </td>
+                        <td className="cella-nowrap">
+                          {r.inserita_il ? (
+                            <>
+                              {dataOra(r.inserita_il)}
+                              {r.proroga_il ? (
+                                <span className="nota-in-riga">+{r.proroga_giorni} gg</span>
+                              ) : (
+                                <span className="nota-in-riga" title="Non è nel registro di InfoRYOU: è il giorno in cui il CRM ha visto cambiare la scadenza">
+                                  rilevata dal CRM
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
                         <td className="cella-importo">
                           {r.durata ? `${r.durata} ${r.durata === 1 ? 'mese' : 'mesi'}` : '—'}
                         </td>
@@ -509,16 +563,6 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
                         <td className="cella-importo">
                           <strong>{r.giorni_spostati} giorni</strong>
                           {r.giorni_spostati > SOGLIA_LUNGA && <span className="badge badge-warn">lunga</span>}
-                        </td>
-                        <td className="cella-nowrap">
-                          {r.proroga_il ? (
-                            <>
-                              {new Date(r.proroga_il).toLocaleDateString('it-IT', { timeZone: 'Europe/Rome', day: '2-digit', month: '2-digit', year: '2-digit' })}
-                              <span className="nota-in-riga">+{r.proroga_giorni} gg</span>
-                            </>
-                          ) : (
-                            '—'
-                          )}
                         </td>
                         <td className="cella-nowrap">{r.proroga_operatore ?? '—'}</td>
                         <td>
