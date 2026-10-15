@@ -9,7 +9,7 @@
 // il commento in lib/analytics.ts) — cambiarla sposterebbe anche i numeri già
 // pubblicati là.
 
-import { ORIGINE_BANCO } from './provenienza'
+import { ORIGINE_BANCO, ORIGINE_EVENTO } from './provenienza'
 import { dominioDi, type CoppiaUtm } from './analytics'
 
 /** Alias osservati per le stesse piattaforme (Meta usa sia "facebook"/"fb" sia "instagram"/"ig"). */
@@ -75,6 +75,8 @@ function piattaformaDaReferrer(referrer: string): string | null {
  */
 export function canaleGranulare(c: CoppiaUtm): string {
   if (c.origine === ORIGINE_BANCO) return 'Walk-in'
+  // Il QR di un evento: canale a sé, il nome dell'evento sta in utm_campaign.
+  if (c.origine === ORIGINE_EVENTO) return 'Evento'
 
   const s = String(c.utm_source ?? '').trim().toLowerCase()
   const m = String(c.utm_medium ?? '').trim().toLowerCase()

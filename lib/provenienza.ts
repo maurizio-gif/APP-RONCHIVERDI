@@ -12,6 +12,8 @@
 //
 //   sito           — il form del sito, generico o inline di pagina;
 //   guest-register — il banco, cioè il registro ospiti (`walk-in`);
+//   evento         — il QR di un evento: stesso form del Guest Register, aperto con
+//                    ?utm_source=evento (origine 'evento', scritta dal sito);
 //   phone-in       — una telefonata o un'email alla segreteria, registrata in
 //                    Phone In / Email In (origine 'phone-email-in', scritta da
 //                    assegnaTrattativaDaEvento in lib/trattative-server.ts);
@@ -30,7 +32,7 @@
 
 import { eFasciaValida, testoFascia } from '@/lib/agenda'
 
-export type ChiaveProvenienza = 'sito' | 'guest-register' | 'phone-in' | 'agenda' | 'altro'
+export type ChiaveProvenienza = 'sito' | 'guest-register' | 'evento' | 'phone-in' | 'agenda' | 'altro'
 
 export type Provenienza = {
   chiave: ChiaveProvenienza
@@ -44,6 +46,9 @@ export type Provenienza = {
 
 /** L'origine con cui il registro ospiti marca le proprie righe. */
 export const ORIGINE_BANCO = 'walk-in'
+
+/** L'origine con cui il sito marca chi si registra dal QR di un evento. */
+export const ORIGINE_EVENTO = 'evento'
 
 /** L'origine delle trattative aperte da Phone In / Email In. */
 export const ORIGINE_PHONE_IN = 'phone-email-in'
@@ -81,6 +86,14 @@ const GUEST_REGISTER: Provenienza = {
   etichetta: 'Walk-in',
   classe: 'da-banco',
   spiegazione: 'Registrato al banco: è già stato qui e ha parlato con la segreteria.',
+}
+
+const EVENTO: Provenienza = {
+  chiave: 'evento',
+  etichetta: 'Evento',
+  classe: 'da-evento',
+  spiegazione:
+    'Si è registrato dal QR code di un evento: l’abbiamo incontrato di persona, ma non è passato dal banco. Il nome dell’evento è nella campagna.',
 }
 
 const PHONE_IN: Provenienza = {
@@ -126,6 +139,7 @@ export function provenienzaTrattativa({
   const origine = haRichiesta ? origineRichiesta : origineTrattativa
 
   if (origine === ORIGINE_BANCO) return GUEST_REGISTER
+  if (origine === ORIGINE_EVENTO) return EVENTO
   if (!haRichiesta) return origine === ORIGINE_PHONE_IN ? PHONE_IN : AGENDA
   // Il form generico e i form di pagina sono entrambi il sito: da quale
   // pagina è partito è un dettaglio del percorso, non un canale diverso da
@@ -149,6 +163,7 @@ export function provenienzaTrattativa({
  */
 export function provenienzaDiOrigine(origine: string | null | undefined): Provenienza {
   if (origine === ORIGINE_BANCO) return GUEST_REGISTER
+  if (origine === ORIGINE_EVENTO) return EVENTO
   if (origine === ORIGINE_PHONE_IN) return PHONE_IN
   if (origine === 'agenda') return AGENDA
   if (ORIGINI_SITO.includes(origine ?? null) || origine?.endsWith('-inline')) return SITO
