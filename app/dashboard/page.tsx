@@ -518,6 +518,22 @@ export default async function RiepilogoPage({ searchParams }: { searchParams: Pa
     if (suaSezione) redirect(suaSezione.href)
   }
 
+  // La Dashboard New è dei commerciali: le loro trattative e gli impegni del
+  // giorno. Chi non lo è entra dalla prima delle sue sezioni, nell'ordine del
+  // menu — come il partner esterno qui sopra, e per la stessa ragione il
+  // controllo sta qui e non solo nel menu.
+  if (!sonoCommerciale) {
+    const primaSezione = SEZIONI.find((s) => !s.inArrivo && sezioniConsentite.includes(s.chiave))
+    if (primaSezione) redirect(primaSezione.href)
+    return (
+      <div className="card">
+        <p className="vuoto">
+          Non hai ancora sezioni assegnate: chiedi a un amministratore di abilitarti da Gestione utenti.
+        </p>
+      </div>
+    )
+  }
+
   const vedeTrattative = sezioniConsentite.includes('richieste-club')
   const vedeAgenda = sezioniConsentite.includes('agenda')
 

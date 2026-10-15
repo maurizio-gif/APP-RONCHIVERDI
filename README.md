@@ -4,8 +4,9 @@ Pannello di gestione del Ronchiverdi Sport Club: le richieste che arrivano dal
 sito, l'agenda degli appuntamenti, la timbratura del cartellino.
 
 Il nome con cui l'app si salva sulla Home — **CRM Ronchiverdi** — vive in tre
-punti che vanno cambiati insieme: `name` e `short_name` in `app/manifest.ts`
-(Android) e `appleWebApp.title` in `app/layout.tsx` (iOS).
+punti che vanno cambiati insieme: `name` e `short_name` in
+`app/manifest.webmanifest/route.ts` (Android) e `apple-mobile-web-app-title` in
+`lib/installazione.ts` (iOS).
 
 Next.js 14 (App Router) + Supabase, in deploy su Vercel. Stessa impostazione
 del CRM del Tennis Club Ambrosiano, di cui questo pannello riprende i pattern —
@@ -141,6 +142,10 @@ cui modulo non è ancora costruito: appare nel menu disattivata, così nessuno
 finisce su una pagina che non esiste.
 
 ## Dashboard
+
+La Dashboard New è **solo dei commerciali** (`staff_users.commerciale`): agli
+altri la voce non compare nel menu, e `/dashboard` — dove arrivano login e
+icona dell'app — li manda sulla prima delle loro sezioni, nell'ordine del menu.
 
 Il Riepilogo risponde a due domande, non fa da cruscotto:
 
@@ -805,6 +810,31 @@ cache offline. Una copia in cache mostrerebbe richieste e appuntamenti vecchi.
 
 Tabelle, indici e bucket: `scripts/sql/2026-09-08-notifiche.sql`.
 
+## Installazione come app (solo telefono e tablet)
+
+Il pannello si installa come app **solo su telefono e tablet**. Su computer si
+usa dal browser e l'installazione non è possibile.
+
+L'installabilità la decide il manifest: Chrome ed Edge da computer propongono
+«Installa app» appena una pagina ne dichiara uno. Per questo il manifest non è
+più `app/manifest.ts`, che Next.js collega a ogni pagina: è servito da
+`app/manifest.webmanifest/route.ts` e lo dichiara `lib/installazione.ts` dal
+browser, insieme ai meta di iOS, solo se il dispositivo è mobile. Il
+riconoscimento sta nel browser perché l'iPad si presenta come un Mac e lo si
+distingue solo dal touch. Su computer il prompt di installazione, se mai
+arrivasse, viene bloccato.
+
+Sul telefono, finché l'app non è installata, compaiono un banner in cima al
+pannello (si chiude con «Non ora» per due settimane) e la voce **Installa
+l'app** nel menu. Tutti e due aprono le istruzioni per il telefono e il browser
+in uso: Safari o Chrome su iPhone e iPad; Chrome, Samsung Internet o Firefox su
+Android, dove Chrome offre anche il pulsante «Installa ora». Dal browser interno
+di Instagram o Facebook si chiede prima di aprire il pannello in Safari o
+Chrome.
+
+Un'app installata da computer prima di questo cambio resta installata: la si
+disinstalla dal browser di quel computer.
+
 ## Icona sulla Home
 
 Il pannello si usa dal telefono come app installata ("Aggiungi a Home"), quindi
@@ -819,7 +849,7 @@ python3 scripts/genera-icone.py
 
 Lo script ritaglia il riquadro (lo sfondo della tavola, dentro la maschera
 arrotondata di iOS, diventerebbe un secondo bordo) e scrive i quattro file
-dichiarati in `app/manifest.ts`: `apple-touch-icon.png` 180, `icon-192.png`,
+dichiarati nel manifest (`app/manifest.webmanifest/route.ts`): `apple-touch-icon.png` 180, `icon-192.png`,
 `favicon.png` 512 e `icon-maskable-512.png`, quest'ultima col contenuto al 78%
 perché Android ritaglia le maskable dentro un cerchio e a piena pagina taglierebbe
 la scritta "CRM".

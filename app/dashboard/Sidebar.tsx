@@ -12,6 +12,7 @@ import { useNotifiche } from './NotificheProvider'
 import { PushToggleNavItem } from './PushToggleNavItem'
 import { CampanelloToggle } from './CampanelloToggle'
 import { TemaToggle } from './TemaToggle'
+import { VoceInstallaApp } from './InstallaApp'
 
 type VoceMenu = {
   href: string
@@ -52,11 +53,14 @@ export function Sidebar({
   nomeUtente,
   sezioniConsentite,
   riceveAvvisoSonoro,
+  commerciale,
 }: {
   email: string
   nomeUtente: string | null
   sezioniConsentite: string[]
   riceveAvvisoSonoro: boolean
+  /** Solo i commerciali vedono la Dashboard New. */
+  commerciale: boolean
 }) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
@@ -72,9 +76,13 @@ export function Sidebar({
   // rimanderebbe alla sua unica pagina (vedi app/dashboard/page.tsx), e una
   // voce di menu che gira a vuoto e' solo un invito a chiedersi cosa ci sia
   // dietro.
+  //
+  // E la Dashboard New è dei soli commerciali (vedi app/dashboard/page.tsx):
+  // agli altri la voce non si mostra, e /dashboard li manda sulla loro prima
+  // sezione.
   const soloEsterno = soloAccessoEsterno(sezioniConsentite)
   const navItems: VoceMenu[] = [
-    ...(soloEsterno
+    ...(soloEsterno || !commerciale
       ? []
       : [{ href: '/dashboard', label: 'Dashboard New', chiave: 'dashboard', gruppo: 'Core New' }]),
     ...SEZIONI.filter((s) => sezioniConsentite.includes(s.chiave)),
@@ -126,6 +134,8 @@ export function Sidebar({
           {riceveAvvisoSonoro && <CampanelloToggle />}
           <TemaToggle />
         </div>
+        {/* Solo su telefono e tablet, finché l'app non è installata. */}
+        <VoceInstallaApp />
         {gruppiMenu.map((gruppo) => (
           <div className="nav-gruppo" key={gruppo.chiave || 'principale'}>
             {gruppo.chiave && <p className="nav-gruppo-label">{gruppo.chiave}</p>}

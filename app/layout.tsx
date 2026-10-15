@@ -1,6 +1,7 @@
 import { Jost, Cormorant_Garamond } from 'next/font/google'
 import './globals.css'
 import { SCRIPT_TEMA } from '@/lib/tema'
+import { AttivaInstallazione } from './AttivaInstallazione'
 
 // Gli stessi due caratteri del sito: Jost per l'interfaccia, Cormorant
 // Garamond per i titoli. Sul sito arrivano da @fontsource, qui da next/font,
@@ -34,17 +35,10 @@ export const metadata = {
     icon: '/favicon.png',
     apple: '/apple-touch-icon.png',
   },
-  // Permette "Aggiungi a Home" su iOS: si apre a schermo intero, come
-  // un'app installata, che è come la segreteria lo usa dal telefono per
-  // timbrare il cartellino.
-  appleWebApp: {
-    capable: true,
-    // Etichetta sotto l'icona quando iOS salva l'app sulla Home: deve restare
-    // allineata a name/short_name del manifest (app/manifest.ts), che è quello
-    // che usa Android.
-    title: 'CRM Ronchiverdi',
-    statusBarStyle: 'default',
-  },
+  // Niente appleWebApp qui: «Aggiungi a Home» a schermo intero vale solo su
+  // telefono e tablet, e i meta di iOS li aggiunge lib/installazione.ts dal
+  // browser insieme al manifest (vedi AttivaInstallazione). Dichiarati qui
+  // varrebbero anche per «Aggiungi al Dock» di Safari sul Mac.
 }
 
 export const viewport = {
@@ -65,7 +59,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             istante si vedrebbe la pagina chiara prima che diventi scura. */}
         <script dangerouslySetInnerHTML={{ __html: SCRIPT_TEMA }} />
       </head>
-      <body>{children}</body>
+      <body>
+        <AttivaInstallazione />
+        {children}
+      </body>
     </html>
   )
 }
