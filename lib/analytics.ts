@@ -10,7 +10,7 @@
 //
 // Nessun import server-only: usato sia dai Server Component sia dai client.
 
-import { ORIGINE_BANCO } from './provenienza'
+import { ORIGINE_BANCO, ORIGINE_EVENTO } from './provenienza'
 
 export const OPZIONI_PERIODO = [
   { valore: '7', etichetta: '7 giorni', giorni: 7 },
@@ -210,7 +210,9 @@ export function perCanaleTraffico(coppie: CoppiaUtm[]): Voce[] {
     let canale =
       c.origine === ORIGINE_BANCO
         ? 'Walk-in'
-        : classificaCanaleTraffico(c.utm_source, c.utm_medium)
+        : c.origine === ORIGINE_EVENTO
+          ? 'Evento'
+          : classificaCanaleTraffico(c.utm_source, c.utm_medium)
 
     if (canale === 'Traffico diretto') {
       if (c.gclid) canale = 'Ricerca a pagamento'

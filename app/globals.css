@@ -3892,6 +3892,10 @@ button.th-ordina {
 	background: var(--accent);
 }
 
+.split-canali-segmento.da-evento {
+	background: var(--ok);
+}
+
 .split-canali-segmento.da-telefono {
 	background: var(--telefono);
 }
@@ -5960,6 +5964,13 @@ button.th-ordina {
 	border-color: var(--agenda);
 	color: var(--agenda-testo);
 	font-weight: 600;
+}
+
+/* Evento: verde, il QR di un evento — incontrato di persona ma non dal banco. */
+.tag-provenienza.da-evento {
+	background: var(--ok-tint);
+	border-color: var(--ok-border);
+	color: var(--ok);
 }
 
 /* Phone In / Email In: verde petrolio, come chi è passato dalla segreteria
