@@ -57,7 +57,7 @@ export default async function RinnoviPage({ searchParams }: { searchParams: { me
       const { data, error } = await supabase
         .from('abbonamenti_scadenze')
         .select(
-          'id, persona_id, abbonamento, gruppo_id, data_inizio, data_fine, totale, nome, cognome, email, cellulare, rinnovato, rinnovo_id, rinnovo_abbonamento, rinnovo_data_inizio, rinnovo_data_fine, rinnovo_totale, venditore_nome, stato_manuale, motivo_non_rinnovo, note_non_rinnovo, nota, assegnato_a, escluso_da_report, escluso_automatico, durata, periodo, rinnovo_durata, rinnovo_periodo',
+          'id, persona_id, abbonamento, gruppo_id, data_inizio, data_fine, totale, nome, cognome, email, cellulare, rinnovato, rinnovo_id, rinnovo_abbonamento, rinnovo_data_inizio, rinnovo_data_fine, rinnovo_totale, venditore_nome, stato_manuale, motivo_non_rinnovo, note_non_rinnovo, nota, assegnato_a, escluso_da_report, escluso_automatico, competenza_new, lead_stato, durata, periodo, rinnovo_durata, rinnovo_periodo',
         )
         .eq('gruppo_id', gruppoCore.id)
         .gte('data_fine', meseRichiesto)

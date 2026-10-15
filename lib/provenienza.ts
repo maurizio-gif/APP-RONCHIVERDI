@@ -18,6 +18,10 @@
 //   agenda         — nata da un evento scritto in agenda, senza nessuna
 //                    richiesta dietro (vedi trattativa_per_evento in
 //                    scripts/sql/2026-09-10-evento-apre-trattativa.sql);
+//   scadenza-mensile — un abbonamento Core mensile (non Flex) che scade fra
+//                    15 giorni: il lead lo apre il database da solo (vedi
+//                    crea_lead_scadenze_mensili in
+//                    scripts/sql/2026-10-15-mensili-lead-new.sql);
 //   altro          — un'origine che questo file non conosce. Non si
 //                    indovina: si dice «Altro» e si riporta la stringa, così
 //                    chi la vede sa che c'è un canale da instradare qui.
@@ -28,9 +32,9 @@
 // Nessun import server-only: lo usano sia i Server Component sia i
 // componenti client.
 
-import { eFasciaValida, testoFascia } from '@/lib/agenda'
+import { dataBreve, eFasciaValida, testoFascia } from '@/lib/agenda'
 
-export type ChiaveProvenienza = 'sito' | 'guest-register' | 'phone-in' | 'agenda' | 'altro'
+export type ChiaveProvenienza = 'sito' | 'guest-register' | 'phone-in' | 'agenda' | 'scadenza-mensile' | 'altro'
 
 export type Provenienza = {
   chiave: ChiaveProvenienza
@@ -47,6 +51,9 @@ export const ORIGINE_BANCO = 'walk-in'
 
 /** L'origine delle trattative aperte da Phone In / Email In. */
 export const ORIGINE_PHONE_IN = 'phone-email-in'
+
+/** L'origine dei lead aperti dalla scadenza di un mensile Core non Flex. */
+export const ORIGINE_SCADENZA_MENSILE = 'scadenza-mensile'
 
 /**
  * Le origini che il sito scrive, per esteso.
@@ -101,6 +108,14 @@ const AGENDA: Provenienza = {
     'Non è arrivata da una richiesta: l’ha aperta qualcuno del club scrivendo un evento in agenda su questa persona.',
 }
 
+const SCADENZA_MENSILE: Provenienza = {
+  chiave: 'scadenza-mensile',
+  etichetta: 'Mensile in scadenza',
+  classe: 'da-scadenza',
+  spiegazione:
+    'È già socio, con un abbonamento mensile che non si rinnova da solo: va richiamato prima che scada per proporgli un abbonamento.',
+}
+
 /**
  * Da dove viene questa trattativa.
  *
@@ -126,7 +141,11 @@ export function provenienzaTrattativa({
   const origine = haRichiesta ? origineRichiesta : origineTrattativa
 
   if (origine === ORIGINE_BANCO) return GUEST_REGISTER
-  if (!haRichiesta) return origine === ORIGINE_PHONE_IN ? PHONE_IN : AGENDA
+  if (!haRichiesta) {
+    if (origine === ORIGINE_PHONE_IN) return PHONE_IN
+    if (origine === ORIGINE_SCADENZA_MENSILE) return SCADENZA_MENSILE
+    return AGENDA
+  }
   // Il form generico e i form di pagina sono entrambi il sito: da quale
   // pagina è partito è un dettaglio del percorso, non un canale diverso da
   // presidiare.
@@ -151,6 +170,7 @@ export function provenienzaDiOrigine(origine: string | null | undefined): Proven
   if (origine === ORIGINE_BANCO) return GUEST_REGISTER
   if (origine === ORIGINE_PHONE_IN) return PHONE_IN
   if (origine === 'agenda') return AGENDA
+  if (origine === ORIGINE_SCADENZA_MENSILE) return SCADENZA_MENSILE
   if (ORIGINI_SITO.includes(origine ?? null) || origine?.endsWith('-inline')) return SITO
 
   return {
@@ -224,4 +244,16 @@ export function richiestaDelLead(
 /** L'etichetta per i report: senza fascia, e «Nessuna (agenda)» quando manca. */
 export function etichettaRichiestaReport(richiesta: string | null | undefined): string {
   return eChiaveRichiesta(richiesta) ? ETICHETTE_RICHIESTA[richiesta] : 'Nessuna (creata in agenda)'
+}
+
+/**
+ * La riga che dice quale mensile sta scadendo: «1.5-WELCOME UNDER 35 · scade
+ * il 27 ott». Null se il lead non viene da una scadenza.
+ */
+export function testoScadenzaMensile(
+  scadenza: { abbonamento: string | null; dataFine: string | null } | null | undefined
+): string | null {
+  if (!scadenza) return null
+  const prodotto = scadenza.abbonamento?.replace(/\s+/g, ' ').trim() || 'Abbonamento mensile'
+  return scadenza.dataFine ? `${prodotto} · scade il ${dataBreve(scadenza.dataFine)}` : prodotto
 }
