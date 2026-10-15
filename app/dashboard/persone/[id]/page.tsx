@@ -33,6 +33,7 @@ import { caricaGruppi } from '@/lib/abbonamenti'
 import { caricaNoteScadenze, TAG_NOTA, type NotaScadenza } from '../../abbonamenti/scadenze/note'
 import { conTentativiRichiamo } from '@/lib/richiamo-server'
 import { SpostaLead } from '../SpostaLead'
+import { PersoneDiverse } from '../PersoneDiverse'
 import { COLONNE_SESSIONE, type SessionePersonal } from '@/lib/personal'
 
 // La scheda del contatto sul modello di Passion: in testa chi è e come lo si
@@ -66,6 +67,15 @@ function descrizioneConflitto(campo: string | null): string {
   if (campo === 'email') return "L'email"
   return 'Il nome e cognome'
 }
+
+/**
+ * Le segnalazioni che una persona può chiudere con «Sono persone diverse»:
+ * una scelta di chi conosce i soci, non un campo che la sync ha lasciato
+ * vuoto. Per 'email' e 'cellulare' invece il puntatore dice che la sync non
+ * ha potuto scrivere quel recapito: azzerarlo le farebbe riprovare a ogni
+ * giro lo stesso valore in conflitto.
+ */
+const CONFLITTI_CHIUDIBILI = ['possibile_doppione', 'nome_cognome']
 
 /** Quante pagine viste leggere al massimo. */
 const MAX_PAGINE_VISITATE = 200
@@ -368,16 +378,29 @@ export default async function PersonaPage({ params }: { params: { id: string } }
       {(conflittoVerso || personeInConflitto.length > 0) && (
         <div className="card card-avviso">
           <p className="card-nota muted">
-            {conflittoVerso && (
-              <>
-                {descrizioneConflitto(persona.conflitto_campo)} coincide con quello di{' '}
-                <Link href={`/dashboard/persone/${conflittoVerso.id}`}>{nomePersona(conflittoVerso)}</Link>: verifica se
-                è la stessa persona.{' '}
-              </>
+            {conflittoVerso &&
+              (persona.conflitto_campo === 'possibile_doppione' ? (
+                <>
+                  Stesso cognome e cellulare di{' '}
+                  <Link href={`/dashboard/persone/${conflittoVerso.id}`}>{nomePersona(conflittoVerso)}</Link>, con un
+                  nome diverso: è la stessa persona o un familiare?{' '}
+                </>
+              ) : (
+                <>
+                  {descrizioneConflitto(persona.conflitto_campo)} coincide con quello di{' '}
+                  <Link href={`/dashboard/persone/${conflittoVerso.id}`}>{nomePersona(conflittoVerso)}</Link>: verifica se
+                  è la stessa persona.{' '}
+                </>
+              ))}
+            {conflittoVerso && CONFLITTI_CHIUDIBILI.includes(persona.conflitto_campo ?? '') && (
+              <PersoneDiverse idConPuntatore={persona.id} nomeAltra={nomePersona(conflittoVerso)} />
             )}
             {personeInConflitto.map((p) => (
               <span key={p.id as string}>
                 Possibile doppione: <Link href={`/dashboard/persone/${p.id}`}>{nomePersona(p)}</Link>.{' '}
+                {CONFLITTI_CHIUDIBILI.includes((p.conflitto_campo as string | null) ?? '') && (
+                  <PersoneDiverse idConPuntatore={p.id as string} nomeAltra={nomePersona(p)} />
+                )}
               </span>
             ))}
           </p>

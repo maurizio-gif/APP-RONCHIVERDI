@@ -144,6 +144,24 @@ scripts/sql/2026-09-22-persone-conflitto-info4u.sql) a chi porta davvero
 quel nome — la scheda di entrambe lo segnala in /dashboard/persone/[id] con
 un link, ed è uno staff a decidere se sono la stessa persona.
 
+Due regole in più dal 15 ottobre 2026
+(scripts/sql/2026-10-15-nome-contenuto-e-possibili-doppioni.sql), nate da un
+lead «Caterina Lux» iscritto in Info4U come «Caterina Maria Lux», che aveva
+finito per avere due schede:
+
+- **Un nome dentro l'altro**: stesso cognome, stesso cellulare, e le parole di
+  un nome tutte nell'altro («Caterina» / «Caterina Maria») → è la stessa
+  scheda, ma solo fra una scheda Info4U e una che non lo è (il lead del sito
+  per il socio, e viceversa). Fra due schede Info4U no: «Maria Rossi» e «Anna
+  Maria Rossi» col telefono di casa sono madre e figlia.
+- **Possibile doppione**: una scheda nuova con lo stesso cognome e cellulare
+  di un'altra ma un nome diverso nasce con `conflitto_campo =
+  'possibile_doppione'` e il puntatore all'altra. È quasi sempre un familiare
+  (il genitore compila il modulo, si iscrive il figlio): dalla scheda si
+  sposta il lead se è la stessa persona, o si chiude la segnalazione con
+  «Sono persone diverse». La sync non toglie niente dal suo aggiornamento per
+  questo valore, come per 'nome_cognome'.
+
 ### Anagrafiche fuse da prima di questa modifica
 
 Prima di `2026-09-23-dedup-nome-cognome.sql` la chiave era email/cellulare:
