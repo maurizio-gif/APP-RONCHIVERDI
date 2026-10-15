@@ -42,14 +42,16 @@ import {
   type StatoVendita,
   type Totali,
 } from '@/lib/incassato'
+import { Competenza } from './Competenza'
 
 export const dynamic = 'force-dynamic'
 
-const VISTE = ['riepilogo', 'giornaliero', 'movimenti', 'vendite', 'rate'] as const
+const VISTE = ['riepilogo', 'competenza', 'giornaliero', 'movimenti', 'vendite', 'rate'] as const
 type Vista = (typeof VISTE)[number]
 
 const ETICHETTE_VISTA: Record<Vista, string> = {
   riepilogo: 'Riepilogo e riconciliazione',
+  competenza: 'Competenza e risconti',
   giornaliero: 'Chiusura giornaliera',
   movimenti: 'Elenco movimenti',
   vendite: 'Venduto e incassato',
@@ -150,6 +152,8 @@ export default async function IncassatoPage({ searchParams }: { searchParams: Se
         </div>
       ) : vista === 'riepilogo' ? (
         <Riepilogo righe={righeGiornaliere} mese={mese} primo={primo} ultimo={ultimo} supabase={supabase} />
+      ) : vista === 'competenza' ? (
+        <Competenza mese={mese} oggi={oggi} hrefMese={(m) => href(m, 'competenza')} supabase={supabase} />
       ) : vista === 'giornaliero' ? (
         <Giornaliero righe={righeGiornaliere} mese={mese} primo={primo} ultimo={ultimo} oggi={oggi} />
       ) : vista === 'movimenti' ? (
