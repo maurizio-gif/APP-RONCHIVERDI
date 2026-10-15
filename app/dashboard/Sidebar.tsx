@@ -53,14 +53,14 @@ export function Sidebar({
   nomeUtente,
   sezioniConsentite,
   riceveAvvisoSonoro,
-  commerciale,
+  dashboardNew,
 }: {
   email: string
   nomeUtente: string | null
   sezioniConsentite: string[]
   riceveAvvisoSonoro: boolean
   /** Solo i commerciali vedono la Dashboard New. */
-  commerciale: boolean
+  dashboardNew: boolean
 }) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
@@ -77,12 +77,12 @@ export function Sidebar({
   // voce di menu che gira a vuoto e' solo un invito a chiedersi cosa ci sia
   // dietro.
   //
-  // E la Dashboard New è dei soli commerciali (vedi app/dashboard/page.tsx):
-  // agli altri la voce non si mostra, e /dashboard li manda sulla loro prima
-  // sezione.
+  // E la Dashboard New è dei commerciali e di chi li coordina (vedi
+  // vedeDashboardNew): agli altri la voce non si mostra, e /dashboard li
+  // manda sulla loro prima sezione.
   const soloEsterno = soloAccessoEsterno(sezioniConsentite)
   const navItems: VoceMenu[] = [
-    ...(soloEsterno || !commerciale
+    ...(soloEsterno || !dashboardNew
       ? []
       : [{ href: '/dashboard', label: 'Dashboard New', chiave: 'dashboard', gruppo: 'Core New' }]),
     ...SEZIONI.filter((s) => sezioniConsentite.includes(s.chiave)),

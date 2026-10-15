@@ -31,7 +31,7 @@ export default async function UtentiPage({
   const supabase = createSupabaseServiceClient()
   const { data } = await supabase
     .from('staff_users')
-    .select('email, nome, cognome, sezioni_consentite, puo_invitare, puo_cancellare, commerciale, puo_riassegnare, operatore_segreteria, created_at')
+    .select('email, nome, cognome, sezioni_consentite, puo_invitare, puo_cancellare, commerciale, puo_riassegnare, vede_dashboard_new, operatore_segreteria, created_at')
 
   // In ordine alfabetico di cognome, non di iscrizione. L'ordine di
   // inserimento è la storia di come è cresciuto il pannello: dice qualcosa a

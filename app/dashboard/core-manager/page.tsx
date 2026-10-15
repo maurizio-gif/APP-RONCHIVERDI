@@ -32,6 +32,7 @@ import {
 } from '@/lib/migrazioni'
 import { IconaNuovaScheda } from '@/components/IconaNuovaScheda'
 import { conTentativiRichiamo } from '@/lib/richiamo-server'
+import { RecuperoMancatiRinnovi } from './RecuperoMancatiRinnovi'
 
 export const dynamic = 'force-dynamic'
 
@@ -1182,6 +1183,10 @@ export default async function CoreManagerPage({
           </div>
         </div>
       )}
+
+      {/* Il recupero dei mancati rinnovi, contro il ritorno spontaneo degli
+          anni passati: vedi RecuperoMancatiRinnovi.tsx. */}
+      <RecuperoMancatiRinnovi />
 
       {vinteSenzaValore > 0 && (
         <div className="card card-avviso">

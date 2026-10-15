@@ -101,6 +101,11 @@
 	--scadenza: #85561c;
 	--scadenza-tint: rgba(133, 86, 28, 0.12);
 	--scadenza-border: rgba(133, 86, 28, 0.34);
+	/* Indaco: i lead di recupero dei mancati rinnovi (vedi
+	   .tag-provenienza.da-recupero). */
+	--recupero: #3f4a8a;
+	--recupero-tint: rgba(63, 74, 138, 0.12);
+	--recupero-border: rgba(63, 74, 138, 0.34);
 
 	/* Tipografia: gli stessi due caratteri del sito.
 	   I fallback passano per i caratteri di sistema prima di Helvetica e
@@ -3904,6 +3909,10 @@ button.th-ordina {
 	background: var(--agenda);
 }
 
+.split-canali-segmento.da-recupero {
+	background: var(--recupero);
+}
+
 .split-canali-segmento.da-scadenza {
 	background: var(--scadenza);
 }
@@ -5981,6 +5990,28 @@ button.th-ordina {
 	color: var(--telefono);
 }
 
+/* La nota di un lead di recupero (crea_trattative_recupero): più righe —
+   l'abbonamento scaduto, l'anzianità, il motivo e le note del Rinnovi Core —
+   e gli a capo vanno tenuti, o diventa un blocco unico da rileggere. */
+.nota-recupero {
+	margin: 0.35rem 0 0;
+	padding: 0.5rem 0.65rem;
+	background: var(--recupero-tint);
+	border-left: 3px solid var(--recupero);
+	border-radius: var(--radius);
+	font-size: var(--text-xs);
+	line-height: 1.5;
+	white-space: pre-line;
+}
+
+/* Recupero di un mancato rinnovo: indaco. È stato socio e non ha rinnovato:
+   la telefonata parte da lì, non da un primo contatto. */
+.tag-provenienza.da-recupero {
+	background: var(--recupero-tint);
+	border-color: var(--recupero-border);
+	color: var(--recupero);
+}
+
 /* Mensile in scadenza: bronzo. È già socio, e la telefonata è una proposta
    di abbonamento, non un primo contatto. */
 .tag-provenienza.da-scadenza {
@@ -7327,6 +7358,9 @@ table.tabella tr.is-mia td {
 	--scadenza: #e2b47a;
 	--scadenza-tint: rgba(226, 180, 122, 0.14);
 	--scadenza-border: rgba(226, 180, 122, 0.36);
+	--recupero: #aab3f0;
+	--recupero-tint: rgba(170, 179, 240, 0.14);
+	--recupero-border: rgba(170, 179, 240, 0.36);
 }
 
 /* Il filtro attivo è un riempimento pieno, e sul chiaro il pieno è il nero

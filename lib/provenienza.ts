@@ -43,6 +43,7 @@ export type ChiaveProvenienza =
   | 'phone-in'
   | 'agenda'
   | 'scadenza-mensile'
+  | 'recupero'
   | 'altro'
 
 export type Provenienza = {
@@ -66,6 +67,13 @@ export const ORIGINE_PHONE_IN = 'phone-email-in'
 
 /** L'origine dei lead aperti dalla scadenza di un mensile Core non Flex. */
 export const ORIGINE_SCADENZA_MENSILE = 'scadenza-mensile'
+
+/**
+ * L'origine dei lead di recupero: un abbonamento Core (3 mesi o più) scaduto
+ * e non rinnovato entro 30 giorni (vedi crea_trattative_recupero in
+ * scripts/sql/2026-10-15-recupero-mancati-rinnovi.sql).
+ */
+export const ORIGINE_RECUPERO = 'recupero-rinnovo'
 
 /**
  * Le origini che il sito scrive, per esteso.
@@ -136,6 +144,14 @@ const SCADENZA_MENSILE: Provenienza = {
     'È già socio, con un abbonamento mensile che non si rinnova da solo: va richiamato prima che scada per proporgli un abbonamento.',
 }
 
+const RECUPERO: Provenienza = {
+  chiave: 'recupero',
+  etichetta: 'Recupero rinnovo',
+  classe: 'da-recupero',
+  spiegazione:
+    'Era socio e non ha rinnovato: l’abbonamento è scaduto da più di 30 giorni. Nella nota c’è cosa aveva, da quanti anni era socio e perché non ha rinnovato.',
+}
+
 /**
  * Da dove viene questa trattativa.
  *
@@ -165,6 +181,7 @@ export function provenienzaTrattativa({
   if (!haRichiesta) {
     if (origine === ORIGINE_PHONE_IN) return PHONE_IN
     if (origine === ORIGINE_SCADENZA_MENSILE) return SCADENZA_MENSILE
+    if (origine === ORIGINE_RECUPERO) return RECUPERO
     return AGENDA
   }
   // Il form generico e i form di pagina sono entrambi il sito: da quale
@@ -193,6 +210,7 @@ export function provenienzaDiOrigine(origine: string | null | undefined): Proven
   if (origine === ORIGINE_PHONE_IN) return PHONE_IN
   if (origine === 'agenda') return AGENDA
   if (origine === ORIGINE_SCADENZA_MENSILE) return SCADENZA_MENSILE
+  if (origine === ORIGINE_RECUPERO) return RECUPERO
   if (ORIGINI_SITO.includes(origine ?? null) || origine?.endsWith('-inline')) return SITO
 
   return {
@@ -212,7 +230,14 @@ export function provenienzaDiOrigine(origine: string | null | undefined): Proven
  * sito si ricava dalla sua `azione` con richiestaDaAzione, la stessa regola
  * della funzione SQL richiesta_da_azione.
  */
-export type ChiaveRichiesta = 'tour' | 'richiamami' | 'in_sede' | 'telefonata' | 'email' | 'messaggio'
+export type ChiaveRichiesta =
+  | 'tour'
+  | 'richiamami'
+  | 'in_sede'
+  | 'telefonata'
+  | 'email'
+  | 'messaggio'
+  | 'mancato_rinnovo'
 
 export type RichiestaLead = { chiave: ChiaveRichiesta; etichetta: string; classe: string }
 
@@ -226,6 +251,8 @@ const ETICHETTE_RICHIESTA: Record<ChiaveRichiesta, string> = {
   email: 'Email',
   // Il messaggio libero del vecchio modulo del sito, prima del Richiamami.
   messaggio: 'Messaggio',
+  // Un lead di recupero: non ha chiesto niente, è il club che lo cerca.
+  mancato_rinnovo: 'Mancato rinnovo',
 }
 
 export function eChiaveRichiesta(v: string | null | undefined): v is ChiaveRichiesta {
@@ -278,4 +305,23 @@ export function testoScadenzaMensile(
   if (!scadenza) return null
   const prodotto = scadenza.abbonamento?.replace(/\s+/g, ' ').trim() || 'Abbonamento mensile'
   return scadenza.dataFine ? `${prodotto} · scade il ${dataBreve(scadenza.dataFine)}` : prodotto
+}
+
+/**
+ * La riga di un lead di recupero, come si legge in elenco: cosa aveva, quando
+ * è scaduto e da quanti anni era socio. L'anzianità va in vista perché è la
+ * priorità: dai dati 2021-2025, fra chi non rinnova a 30 giorni i soci da 5
+ * anni o più tornano in più di metà dei casi, quelli al primo anno in meno di
+ * uno su quattro.
+ */
+export function testoRecupero(
+  recupero: { abbonamento: string | null; dataFine: string | null; anni: number | null } | null | undefined
+): string | null {
+  if (!recupero) return null
+  const prodotto = recupero.abbonamento?.replace(/\s+/g, ' ').trim() || 'Abbonamento core'
+  const anni =
+    recupero.anni == null ? null : recupero.anni <= 1 ? 'al primo anno' : `socio da ${recupero.anni} anni`
+  return [prodotto, recupero.dataFine ? `scaduto il ${dataBreve(recupero.dataFine)}` : null, anni]
+    .filter(Boolean)
+    .join(' · ')
 }

@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, getNomeUtente, getSezioniConsentite } from '@/lib/auth/sezioni-server'
-import { eCommerciale, puoAmministrare, puoCancellare, puoRiassegnare } from '@/lib/auth/permessi'
+import { eCommerciale, puoAmministrare, puoCancellare, puoRiassegnare, vedeDashboardNew } from '@/lib/auth/permessi'
 import { SEZIONI, soloAccessoEsterno } from '@/lib/auth/sezioni'
 import { ATTIVITA_IN_AGENDA, COLONNE_RICHIESTA, canaleDiRichiesta } from '@/lib/richieste'
 import {
@@ -300,7 +300,7 @@ async function trattativeDaLavorare(email: string | null, vista: VistaLead) {
   let query = supabase
     .from('opportunita')
     .select(
-      'id, stato, assegnato_a, motivo_perso, motivo_annullato, persona_id, creato_il, origine, richiesta, abbonamento_id'
+      'id, stato, assegnato_a, motivo_perso, motivo_annullato, persona_id, creato_il, origine, richiesta, abbonamento_id, recupero_abbonamento_id, recupero_anni, note'
     )
   if (vista === 'libere') query = query.in('stato', ['nuovo', 'in_gestione']).is('assegnato_a', null)
   else if (vista === 'mie') query = query.in('stato', ['nuovo', 'in_gestione']).eq('assegnato_a', email ?? '')
@@ -317,7 +317,11 @@ async function trattativeDaLavorare(email: string | null, vista: VistaLead) {
   // Il mensile in scadenza che ha aperto il lead (vedi
   // crea_lead_scadenze_mensili): prodotto e data sono la frase con cui si apre
   // la telefonata, come l'attività di una richiesta dal sito.
-  const abbonamentoIds = [...new Set(scelte.map((t) => t.abbonamento_id).filter(Boolean))] as string[]
+  // Lo stesso per i lead di recupero: l'abbonamento scaduto e non rinnovato
+  // (vedi crea_trattative_recupero).
+  const abbonamentoIds = [
+    ...new Set(scelte.flatMap((t) => [t.abbonamento_id, t.recupero_abbonamento_id]).filter(Boolean)),
+  ] as string[]
 
   const [
     { data: persone, error: errorePersone },
@@ -476,6 +480,16 @@ async function trattativeDaLavorare(email: string | null, vista: VistaLead) {
       // registrazione era senza orario scelto: la tile lo dice, anche se
       // l'evento che ha aperto la trattativa resta un «messaggio».
       tourInSede: (t.persona_id && tourInSedePerPersona.get(t.persona_id as string)) || null,
+      recupero: (() => {
+        if (!t.recupero_abbonamento_id) return null
+        const a = abbonamentoPerId.get(t.recupero_abbonamento_id as string)
+        return {
+          abbonamento: (a?.abbonamento as string) ?? null,
+          dataFine: a?.data_fine ? String(a.data_fine).slice(0, 10) : null,
+          anni: t.recupero_anni != null ? Number(t.recupero_anni) : null,
+          nota: (t.note as string) ?? null,
+        }
+      })(),
       scadenzaMensile: (() => {
         const a = t.abbonamento_id ? abbonamentoPerId.get(t.abbonamento_id as string) : undefined
         return a
@@ -516,13 +530,14 @@ async function cercaContatti(testo: string) {
 export default async function RiepilogoPage({ searchParams }: { searchParams: Parametri }) {
   const email = emailCorrente()
 
-  const [sezioniConsentite, amministra, sonoCommerciale, possoRiassegnare, possoCancellare] =
+  const [sezioniConsentite, amministra, sonoCommerciale, possoRiassegnare, possoCancellare, vedoDashboard] =
     await Promise.all([
       getSezioniConsentite(email),
       puoAmministrare(email),
       eCommerciale(email),
       puoRiassegnare(email),
       puoCancellare(email),
+      vedeDashboardNew(email),
     ])
 
   // Un account di un partner esterno non vede il Riepilogo: lo si manda sulla
@@ -533,11 +548,11 @@ export default async function RiepilogoPage({ searchParams }: { searchParams: Pa
     if (suaSezione) redirect(suaSezione.href)
   }
 
-  // La Dashboard New è dei commerciali: le loro trattative e gli impegni del
-  // giorno. Chi non lo è entra dalla prima delle sue sezioni, nell'ordine del
-  // menu — come il partner esterno qui sopra, e per la stessa ragione il
+  // La Dashboard New è dei commerciali — le loro trattative e gli impegni del
+  // giorno — e di chi li coordina (vede_dashboard_new). Gli altri entrano
+  // dalla prima delle loro sezioni, nell'ordine del menu — come il partner esterno qui sopra, e per la stessa ragione il
   // controllo sta qui e non solo nel menu.
-  if (!sonoCommerciale) {
+  if (!vedoDashboard) {
     const primaSezione = SEZIONI.find((s) => !s.inArrivo && sezioniConsentite.includes(s.chiave))
     if (primaSezione) redirect(primaSezione.href)
     return (

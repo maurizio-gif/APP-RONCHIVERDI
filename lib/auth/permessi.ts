@@ -32,3 +32,13 @@ export async function eCommerciale(email: string | null | undefined): Promise<bo
 export async function puoRiassegnare(email: string | null | undefined): Promise<boolean> {
   return !!(await rigaStaffCorrente(email))?.puo_riassegnare
 }
+
+/**
+ * Chi vede la Dashboard New: i commerciali, che ci lavorano, e chi li
+ * coordina (colonna vede_dashboard_new). Il secondo la legge senza diventare
+ * commerciale: non compare fra gli assegnatari e non prende in carico.
+ */
+export async function vedeDashboardNew(email: string | null | undefined): Promise<boolean> {
+  const riga = await rigaStaffCorrente(email)
+  return !!(riga?.commerciale || riga?.vede_dashboard_new)
+}
