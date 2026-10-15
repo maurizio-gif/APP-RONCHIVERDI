@@ -8,7 +8,8 @@ import { etichettaMese, mesePiu, primoDelMese } from '@/lib/agenda'
 //
 // Per cassa un annuale pagato a gennaio pesa tutto su gennaio; per competenza
 // lo stesso incasso si spalma sui mesi dell'abbonamento, in proporzione ai
-// giorni e secondo la durata venduta. I movimenti senza vendita (cauzioni,
+// giorni, dalla data di inizio alla data di fine (una Young School pagata a
+// settembre vale da settembre a maggio-giugno). I movimenti senza vendita (cauzioni,
 // tesseramenti, prenotazioni…) restano nel giorno in cui sono entrati.
 //
 // I due numeri arrivano da viste materializzate ricalcolate ogni ora: il
@@ -153,9 +154,9 @@ export async function Competenza({
       <div className="card">
         <p className="filtri-titolo">{anno}, mese per mese</p>
         <p className="muted">
-          Ogni incasso collegato a una vendita è spalmato dall’inizio dell’abbonamento alla fine che spetta dalla durata
-          venduta (proroghe e sospensioni non la allungano), in proporzione ai giorni; rate e saldi compresi, anche se
-          arrivano dopo. Gli altri movimenti (cauzioni, tesseramenti, prenotazioni, eliminazioni) restano nel mese in cui
+          Ogni incasso collegato a una vendita è spalmato dalla data di inizio alla data di fine dell’abbonamento, in
+          proporzione ai giorni: una Young School pagata a settembre vale da settembre a fine stagione. Rate e saldi
+          compresi, anche se arrivano dopo. Gli altri movimenti (cauzioni, tesseramenti, prenotazioni, eliminazioni) restano nel mese in cui
           sono entrati. Sommati su tutti i mesi, cassa e competenza coincidono. I mesi futuri mostrano la parte già
           incassata che diventerà ricavo: crescono con i nuovi incassi.
         </p>

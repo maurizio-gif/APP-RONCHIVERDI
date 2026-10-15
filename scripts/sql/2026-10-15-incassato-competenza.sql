@@ -5,13 +5,13 @@
 -- su gennaio. Qui lo stesso incasso si ridistribuisce sui mesi in cui
 -- l'abbonamento è goduto, in proporzione ai giorni:
 --
---  - ogni movimento collegato a una vendita presente (tipo, rate, saldi,
---    acconti, storni: tutti) si spalma dall'inizio dell'abbonamento alla fine
---    che spetta dalla DURATA venduta (inizio + durata, come la «fine
---    originaria» delle scadenze spostate): una proroga o una sospensione non
---    allunga la competenza, è servizio già pagato;
---  - se la vendita non ha una durata leggibile (periodi «P», durata nulla) si
---    usa la sua data di fine; senza nemmeno quella, il giorno dell'incasso;
+--  - ogni movimento collegato a una vendita presente (pagamento, rate, saldi,
+--    acconti, storni: tutti) si spalma dalla DATA DI INIZIO alla DATA DI FINE
+--    dell'abbonamento, come sono in Info4U. È la regola giusta anche per le
+--    Young School, pagate a settembre per tutta la stagione: la durata
+--    venduta («8 mesi») non dice fin dove arriva la stagione, la data di fine
+--    sì (maggio o giugno);
+--  - senza data di fine, il giorno dell'incasso;
 --  - tutto il resto — movimenti senza vendita (cauzioni, tesseramenti,
 --    prenotazioni, borsellino), eliminazioni, vendite cancellate in Info4U — è
 --    di competenza del giorno in cui è entrato.
@@ -41,7 +41,7 @@ select
 	t.importo,
 	g.giorno as giorno_incasso,
 	p.inizio,
-	greatest(p.inizio, coalesce(p.fine_durata, g.giorno)) as fine,
+	greatest(p.inizio, coalesce(p.fine_abbonamento, g.giorno)) as fine,
 	coalesce(gr.nome, case when a.id is null then 'Altri incassi' else 'Non categorizzato' end) as gruppo
 from public.transazioni t
 left join public.abbonamenti a
@@ -57,19 +57,13 @@ cross join lateral (select (t.data_operazione at time zone 'Europe/Rome')::date 
 cross join lateral (
 	select
 		coalesce(a.data_inizio, g.giorno) as inizio,
-		case
-			when a.id is null or a.data_inizio is null then null
-			when upper(a.periodo) = 'M' and a.durata > 0
-				then (a.data_inizio + make_interval(months => a.durata) - interval '1 day')::date
-			when upper(a.periodo) = 'G' and a.durata > 0 then a.data_inizio + a.durata - 1
-			else a.data_fine
-		end as fine_durata
+		case when a.id is null or a.data_inizio is null then null else a.data_fine end as fine_abbonamento
 ) p
 where t.cancellato_il is null
 	and t.data_operazione <= now();
 
 comment on view public.incassi_periodo_competenza is
-	'Un movimento di cassa per riga con il periodo su cui è di competenza: inizio–fine dell''abbonamento secondo la durata venduta, oppure il solo giorno dell''incasso per i movimenti senza vendita. Base delle viste incassi_competenza_mensile e risconti_passivi.';
+	'Un movimento di cassa per riga con il periodo su cui è di competenza: dalla data di inizio alla data di fine dell''abbonamento, oppure il solo giorno dell''incasso per i movimenti senza vendita. Base delle viste incassi_competenza_mensile e risconti_passivi.';
 
 revoke all on public.incassi_periodo_competenza from anon, authenticated;
 
@@ -111,7 +105,7 @@ full join cassa k on k.mese = c.mese and k.gruppo = c.gruppo;
 create unique index incassi_competenza_mensile_key on public.incassi_competenza_mensile (mese, gruppo);
 
 comment on materialized view public.incassi_competenza_mensile is
-	'Per mese e gruppo prodotto: incassato per cassa (giorno del movimento) e per competenza (ridistribuito sui giorni dell''abbonamento secondo la durata). Ricalcolata ogni ora da pg_cron.';
+	'Per mese e gruppo prodotto: incassato per cassa (giorno del movimento) e per competenza (ridistribuito sui giorni dell''abbonamento, da data inizio a data fine). Ricalcolata ogni ora da pg_cron.';
 
 revoke all on public.incassi_competenza_mensile from anon, authenticated;
 
