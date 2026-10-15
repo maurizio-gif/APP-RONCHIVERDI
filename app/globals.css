@@ -8006,6 +8006,24 @@ table.tabella-compatta .nota-in-riga {
 	flex: 1 1 18rem;
 }
 
+/* Un intervallo di date nella barra (es. «Inserita dal – al» nelle scadenze
+   spostate): un fieldset che si presenta come gli altri campi. */
+.filtri-barra .filtri-barra-date {
+	border: 0;
+	padding: 0;
+	min-width: 17rem;
+}
+
+.filtri-barra .filtri-barra-date legend {
+	display: block;
+	padding: 0;
+	margin-bottom: 0.35rem;
+	font-size: var(--text-xs);
+	font-weight: 500;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
 .filtri-barra-azioni {
 	display: flex;
 	gap: 0.5rem;
