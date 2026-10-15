@@ -8,6 +8,7 @@ import {
   impostaPuoCancellare,
   impostaPuoInvitare,
   impostaPuoRiassegnare,
+  impostaVedeDashboardNew,
 } from './actions'
 import { TogglePermesso } from './TogglePermesso'
 import { SezioniToggle } from './SezioniToggle'
@@ -24,6 +25,7 @@ export type DatiUtente = {
   puo_cancellare: boolean
   commerciale: boolean
   puo_riassegnare: boolean
+  vede_dashboard_new: boolean
   operatore_segreteria: boolean
 }
 
@@ -67,6 +69,7 @@ export function RigaUtente({
     u.puo_invitare && 'Amministra',
     u.commerciale && 'Commerciale',
     u.puo_riassegnare && 'Riassegna',
+    !u.commerciale && u.vede_dashboard_new && 'Dashboard New',
     u.puo_cancellare && 'Cancella',
     u.operatore_segreteria && 'Segreteria',
   ].filter(Boolean) as string[]
@@ -167,6 +170,14 @@ export function RigaUtente({
               valoreIniziale={u.puo_riassegnare}
               etichetta="Può riassegnare le trattative"
               azione={impostaPuoRiassegnare}
+              disabilitato={!amministra}
+              motivoDisabilitato="Serve il permesso di amministrare"
+            />
+            <TogglePermesso
+              email={u.email}
+              valoreIniziale={u.vede_dashboard_new}
+              etichetta="Vede la Dashboard New (i commerciali la vedono sempre)"
+              azione={impostaVedeDashboardNew}
               disabilitato={!amministra}
               motivoDisabilitato="Serve il permesso di amministrare"
             />

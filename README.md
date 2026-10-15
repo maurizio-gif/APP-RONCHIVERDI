@@ -143,8 +143,10 @@ finisce su una pagina che non esiste.
 
 ## Dashboard
 
-La Dashboard New è **solo dei commerciali** (`staff_users.commerciale`): agli
-altri la voce non compare nel menu, e `/dashboard` — dove arrivano login e
+La Dashboard New è **dei commerciali** (`staff_users.commerciale`) e di chi li
+coordina (`staff_users.vede_dashboard_new`, «Vede la Dashboard New» in Gestione
+utenti: la legge senza diventare commerciale, quindi senza comparire fra gli
+assegnatari né poter prendere in carico). Agli altri la voce non compare nel menu, e `/dashboard` — dove arrivano login e
 icona dell'app — li manda sulla prima delle loro sezioni, nell'ordine del menu.
 
 Il Riepilogo risponde a due domande, non fa da cruscotto:

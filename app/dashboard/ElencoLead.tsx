@@ -3,7 +3,7 @@ import { nomePersona } from '@/lib/persone'
 import { CLASSE_RIGA_STATO, eChiusa } from '@/lib/pipeline'
 import { CLASSE_URGENZA, fraseAttesa, giorniDa, urgenzaAttesa } from '@/lib/attesa'
 import { CLASSE_TIPO, ETICHETTE_TIPO_BREVI } from '@/lib/agenda'
-import { provenienzaTrattativa, richiestaDelLead, testoScadenzaMensile } from '@/lib/provenienza'
+import { provenienzaTrattativa, richiestaDelLead, testoRecupero, testoScadenzaMensile } from '@/lib/provenienza'
 import { ComandiLead } from './ComandiLead'
 import type { TrattativaConPersona } from './TrattativeDashboard'
 
@@ -35,7 +35,11 @@ export function ElencoLead({
         })
         const giorni = !eChiusa(t.stato) ? giorniDa(t.creatoIl) : null
         const tipo = t.tourInSede ? 'appuntamento_in_sede' : t.evento?.tipo
-        const interesse = t.evento?.attivita || t.evento?.messaggio || testoScadenzaMensile(t.scadenzaMensile)
+        const interesse =
+          t.evento?.attivita ||
+          t.evento?.messaggio ||
+          testoScadenzaMensile(t.scadenzaMensile) ||
+          testoRecupero(t.recupero)
         return (
           <li key={t.id} className={`lead-riga riga-stato ${CLASSE_RIGA_STATO[t.stato]}`}>
             <div className="lead-testo">

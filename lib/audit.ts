@@ -80,12 +80,16 @@ export const AZIONI_LOG: Record<string, string> = {
   doppione_escluso: 'Possibile doppione: sono persone diverse',
   // Scritta dal database (chiudi_trattative_inattive), con email
   // 'regola-14-giorni': nessuna interazione da 14 giorni e niente in agenda.
+  // Scritta dal database (crea_trattative_recupero), con email
+  // 'recupero-rinnovi': un mancato rinnovo Core diventato lead per il New.
+  trattativa_recupero_creata: 'Lead di recupero creato (mancato rinnovo)',
   trattativa_persa_inattiva: 'Trattativa persa in automatico (14 giorni senza interazioni)',
   // Scritta dal database (crea_lead_scadenze_mensili), con email
   // 'scadenze-mensili': un mensile Core non Flex scade fra 15 giorni.
   trattativa_da_scadenza_mensile: 'Lead aperto dalla scadenza di un mensile',
   permesso_commerciale_modificato: 'Permesso "Commerciale" modificato',
   permesso_riassegnare_modificato: 'Permesso "Può riassegnare" modificato',
+  permesso_dashboard_new_modificato: 'Permesso "Vede la Dashboard New" modificato',
   candidatura_stato: 'Curriculum: stato della candidatura cambiato',
   candidatura_nota: 'Curriculum: nota salvata',
   candidatura_cv_scaricato: 'Curriculum: CV scaricato',

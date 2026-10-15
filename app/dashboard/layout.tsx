@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { isStaffEmail } from '@/lib/auth/allowlist'
 import { emailCorrente, getNomeUtente, getSezioniConsentite } from '@/lib/auth/sezioni-server'
 import { SEZIONE_NOTIFICHE } from '@/lib/notifiche'
-import { eCommerciale } from '@/lib/auth/permessi'
+import { vedeDashboardNew } from '@/lib/auth/permessi'
 import { contaNonLette } from './notifiche/actions'
 import { puoRicevereAvvisi } from './opportunita-actions'
 import { AvvisoOpportunita } from './AvvisoOpportunita'
@@ -43,7 +43,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // indicizzata su una tabella piccola, e aspettare di sapere se ha il
   // permesso per poterla chiedere costerebbe più della lettura stessa. Il
   // permesso decide cosa si mostra, non cosa si chiede.
-  const [sezioniConsentite, nomeUtente, nonLette, ricevePolling, commerciale] = await Promise.all([
+  const [sezioniConsentite, nomeUtente, nonLette, ricevePolling, dashboardNew] = await Promise.all([
     getSezioniConsentite(email),
     getNomeUtente(email),
     contaNonLette(),
@@ -52,7 +52,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     // un round trip in più.
     puoRicevereAvvisi(),
     // Idem: decide se nel menu c'è la Dashboard New.
-    eCommerciale(email),
+    vedeDashboardNew(email),
   ])
 
   // Chi non ha il permesso non riceve niente: nessun badge, nessun avviso,
@@ -67,7 +67,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           nomeUtente={nomeUtente}
           sezioniConsentite={sezioniConsentite}
           riceveAvvisoSonoro={ricevePolling}
-          commerciale={commerciale}
+          dashboardNew={dashboardNew}
         />
         <main className="main-content">
           <BannerInstallazione />

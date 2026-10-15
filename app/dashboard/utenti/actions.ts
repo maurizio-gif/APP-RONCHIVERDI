@@ -93,6 +93,7 @@ export async function invitaStaff(formData: FormData) {
       puo_cancellare: false,
       commerciale: false,
       puo_riassegnare: false,
+      vede_dashboard_new: false,
       sezioni_consentite: sezioneEsterna ? [sezioneEsterna] : [...SEZIONI_DEL_CORREDO],
     })
     if (error) redirect(urlErrore(error.message))
@@ -246,6 +247,29 @@ export async function impostaPuoRiassegnare(email: string, valore: boolean): Pro
   if (error) return { ok: false, errore: error.message }
 
   await registraLog(emailCorrente(), 'permesso_riassegnare_modificato', {
+    entita: 'staff_users',
+    entitaId: email,
+    dettagli: { email_target: email, valore },
+  })
+
+  invalidaRigheStaff()
+  revalidatePath('/dashboard/utenti')
+  return { ok: true }
+}
+
+export async function impostaVedeDashboardNew(email: string, valore: boolean): Promise<Risultato> {
+  if (!(await chiamanteAmministra())) {
+    return { ok: false, errore: 'Non hai il permesso di modificare i permessi degli altri utenti.' }
+  }
+
+  const supabase = createSupabaseServiceClient()
+  const { error } = await supabase
+    .from('staff_users')
+    .update({ vede_dashboard_new: valore })
+    .eq('email', email)
+  if (error) return { ok: false, errore: error.message }
+
+  await registraLog(emailCorrente(), 'permesso_dashboard_new_modificato', {
     entita: 'staff_users',
     entitaId: email,
     dettagli: { email_target: email, valore },

@@ -147,7 +147,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
       .eq('persona_id', params.id)
       .order('created_at', { ascending: false }),
     conColonneNuove<Record<string, any>>(
-      'id, stato, assegnato_a, creato_il, chiuso_il, motivo_perso, motivo_annullato, motivo_vinto, valore_euro, triple_pack, origine, richiesta',
+      'id, stato, assegnato_a, creato_il, chiuso_il, motivo_perso, motivo_annullato, motivo_vinto, valore_euro, triple_pack, origine, richiesta, recupero_abbonamento_id, note',
       COLONNE_NOTA_VINTA,
       (colonne) =>
         supabase
@@ -465,6 +465,15 @@ export default async function PersonaPage({ params }: { params: { id: string } }
                           ? ` · ${euro(Number(lead.valore_euro))}`
                           : ''}
                       </dd>
+                    </>
+                  )}
+                  {/* Il lead di recupero di un mancato rinnovo: la nota scritta
+                      quando è nato dice cosa aveva, da quanti anni era socio e
+                      perché non ha rinnovato — è da lì che parte la telefonata. */}
+                  {lead.recupero_abbonamento_id && lead.note && (
+                    <>
+                      <dt>Mancato rinnovo</dt>
+                      <dd className="nota-recupero">{lead.note as string}</dd>
                     </>
                   )}
                   {motivo && (

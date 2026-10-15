@@ -20,6 +20,7 @@ export type RigaStaff = {
   puo_cancellare: boolean
   commerciale: boolean
   puo_riassegnare: boolean
+  vede_dashboard_new: boolean
 } | null
 
 // Il tag con cui la riga di staff_users sta nella Data Cache di Next: chi
@@ -44,7 +45,7 @@ const leggiRigaStaff = unstable_cache(
     const supabase = createSupabaseServiceClient()
     const { data, error } = await supabase
       .from('staff_users')
-      .select('email, nome, cognome, sezioni_consentite, puo_invitare, puo_cancellare, commerciale, puo_riassegnare')
+      .select('email, nome, cognome, sezioni_consentite, puo_invitare, puo_cancellare, commerciale, puo_riassegnare, vede_dashboard_new')
       .eq('email', pulita)
       .maybeSingle()
 

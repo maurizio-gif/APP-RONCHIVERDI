@@ -16,7 +16,7 @@ import {
   type Esito,
   type TipoVoce,
 } from '@/lib/agenda'
-import { provenienzaTrattativa, richiestaDelLead, testoScadenzaMensile } from '@/lib/provenienza'
+import { provenienzaTrattativa, richiestaDelLead, testoRecupero, testoScadenzaMensile } from '@/lib/provenienza'
 import { nomeDiEmail } from '@/lib/staff'
 import { GestioneEsito } from '@/components/GestioneEsito'
 import { IconaNuovaScheda } from '@/components/IconaNuovaScheda'
@@ -96,6 +96,12 @@ export type TrattativaConPersona = DatiTrattativa & {
    * trattativa è stata agganciata (vedi crea_lead_scadenze_mensili).
    */
   scadenzaMensile?: { abbonamento: string | null; dataFine: string | null } | null
+  /**
+   * Il lead di recupero di un mancato rinnovo: l'abbonamento scaduto, da quanti
+   * anni era socio e la nota che spiega il mancato rinnovo (vedi
+   * crea_trattative_recupero).
+   */
+  recupero?: { abbonamento: string | null; dataFine: string | null; anni: number | null; nota: string | null } | null
 }
 
 // Le trattative in dashboard, una riga per una.
@@ -364,6 +370,14 @@ function RigaOpportunita({
               con la cornetta già in mano. */}
           <div className="op-richiesta">
             <p className="op-provenienza muted">{provenienza.spiegazione}</p>
+            {t.recupero && (
+              <>
+                <p className="op-attivita">
+                  <span className="muted">Mancato rinnovo:</span> {testoRecupero(t.recupero)}
+                </p>
+                {t.recupero.nota && <p className="nota-recupero">{t.recupero.nota}</p>}
+              </>
+            )}
             {t.scadenzaMensile && (
               <p className="op-attivita">
                 <span className="muted">Mensile:</span> {testoScadenzaMensile(t.scadenzaMensile)}
