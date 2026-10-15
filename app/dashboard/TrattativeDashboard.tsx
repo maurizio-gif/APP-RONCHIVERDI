@@ -16,7 +16,7 @@ import {
   type Esito,
   type TipoVoce,
 } from '@/lib/agenda'
-import { provenienzaTrattativa, richiestaDelLead } from '@/lib/provenienza'
+import { provenienzaTrattativa, richiestaDelLead, testoScadenzaMensile } from '@/lib/provenienza'
 import { nomeDiEmail } from '@/lib/staff'
 import { GestioneEsito } from '@/components/GestioneEsito'
 import { IconaNuovaScheda } from '@/components/IconaNuovaScheda'
@@ -91,6 +91,11 @@ export type TrattativaConPersona = DatiTrattativa & {
    * sembrare priva di un appuntamento quando quell'appuntamento c'è già.
    */
   tourInSede: { data: string; ora: string | null } | null
+  /**
+   * Il mensile Core non Flex in scadenza che ha aperto il lead, o a cui la
+   * trattativa è stata agganciata (vedi crea_lead_scadenze_mensili).
+   */
+  scadenzaMensile?: { abbonamento: string | null; dataFine: string | null } | null
 }
 
 // Le trattative in dashboard, una riga per una.
@@ -359,6 +364,11 @@ function RigaOpportunita({
               con la cornetta già in mano. */}
           <div className="op-richiesta">
             <p className="op-provenienza muted">{provenienza.spiegazione}</p>
+            {t.scadenzaMensile && (
+              <p className="op-attivita">
+                <span className="muted">Mensile:</span> {testoScadenzaMensile(t.scadenzaMensile)}
+              </p>
+            )}
             {evento?.attivita && (
               <p className="op-attivita">
                 <span className="muted">Ha chiesto:</span> {evento.attivita}

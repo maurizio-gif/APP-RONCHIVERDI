@@ -6,6 +6,7 @@ import { rigaStaffCorrente } from '@/lib/auth/staff-server'
 import { eCommerciale } from '@/lib/auth/permessi'
 import { nomePersona } from '@/lib/persone'
 import { canaleDiRichiesta } from '@/lib/richieste'
+import { testoScadenzaMensile } from '@/lib/provenienza'
 
 // Il lavoro appena arrivato che nessuno ha ancora in mano, per l'avviso che
 // compare su qualunque pagina del pannello (vedi AvvisoOpportunita).
@@ -127,7 +128,7 @@ export async function getOpportunitaLibere(): Promise<OpportunitaLibera[]> {
   // più urgente, perché qualcuno l'aveva già toccata.
   const { data, error } = await supabase
     .from('opportunita')
-    .select('id, persona_id, creato_il')
+    .select('id, persona_id, creato_il, abbonamento_id')
     .is('assegnato_a', null)
     .in('stato', ['nuovo', 'in_gestione'])
     .order('creato_il', { ascending: false })
@@ -142,8 +143,9 @@ export async function getOpportunitaLibere(): Promise<OpportunitaLibera[]> {
   if (righe.length === 0) return []
 
   const personaIds = [...new Set(righe.map((t) => t.persona_id as string))]
+  const abbonamentoIds = [...new Set(righe.map((t) => t.abbonamento_id as string | null).filter(Boolean))] as string[]
 
-  const [{ data: persone, error: errorePersone }, { data: richieste }] = await Promise.all([
+  const [{ data: persone, error: errorePersone }, { data: richieste }, { data: mensili }] = await Promise.all([
     supabase.from('persone').select('id, nome, cognome, email, cellulare').in('id', personaIds),
     // L'ultima richiesta di ciascuno: l'attività e la frase che ha scritto
     // sono quello che serve sapere prima di chiamare. In ordine crescente,
@@ -153,7 +155,14 @@ export async function getOpportunitaLibere(): Promise<OpportunitaLibera[]> {
       .select('id, persona_id, attivita_label, messaggio, created_at')
       .in('persona_id', personaIds)
       .order('created_at', { ascending: true }),
+    // Il mensile in scadenza dei lead aperti da crea_lead_scadenze_mensili:
+    // lì non c'è una richiesta, e il prodotto con la data è quello che si dice
+    // al telefono.
+    abbonamentoIds.length
+      ? supabase.from('abbonamenti').select('id, abbonamento, data_fine').in('id', abbonamentoIds)
+      : Promise.resolve({ data: [] as Record<string, any>[] }),
   ])
+  const mensilePerId = new Map((mensili ?? []).map((a) => [a.id as string, a]))
 
   if (errorePersone) {
     console.error('Nomi delle trattative libere non letti:', errorePersone.message)
@@ -182,7 +191,17 @@ export async function getOpportunitaLibere(): Promise<OpportunitaLibera[]> {
       email: (persona?.email as string) ?? null,
       cellulare: (persona?.cellulare as string) ?? null,
       quando: t.creato_il as string,
-      attivita: richiesta?.attivita ?? null,
+      attivita:
+        richiesta?.attivita ??
+        (() => {
+          const m = t.abbonamento_id ? mensilePerId.get(t.abbonamento_id as string) : undefined
+          return m
+            ? testoScadenzaMensile({
+                abbonamento: (m.abbonamento as string) ?? null,
+                dataFine: m.data_fine ? String(m.data_fine).slice(0, 10) : null,
+              })
+            : null
+        })(),
       messaggio: richiesta?.messaggio ?? null,
       richiestaId: richiesta?.richiestaId ?? null,
     }

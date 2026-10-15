@@ -300,7 +300,7 @@ async function trattativeDaLavorare(email: string | null, vista: VistaLead) {
   let query = supabase
     .from('opportunita')
     .select(
-      'id, stato, assegnato_a, motivo_perso, motivo_annullato, persona_id, creato_il, origine, richiesta'
+      'id, stato, assegnato_a, motivo_perso, motivo_annullato, persona_id, creato_il, origine, richiesta, abbonamento_id'
     )
   if (vista === 'libere') query = query.in('stato', ['nuovo', 'in_gestione']).is('assegnato_a', null)
   else if (vista === 'mie') query = query.in('stato', ['nuovo', 'in_gestione']).eq('assegnato_a', email ?? '')
@@ -314,11 +314,16 @@ async function trattativeDaLavorare(email: string | null, vista: VistaLead) {
   const scelte = data ?? []
   const personaIds = [...new Set(scelte.map((t) => t.persona_id).filter(Boolean))] as string[]
   const trattativaIds = scelte.map((t) => t.id as string)
+  // Il mensile in scadenza che ha aperto il lead (vedi
+  // crea_lead_scadenze_mensili): prodotto e data sono la frase con cui si apre
+  // la telefonata, come l'attività di una richiesta dal sito.
+  const abbonamentoIds = [...new Set(scelte.map((t) => t.abbonamento_id).filter(Boolean))] as string[]
 
   const [
     { data: persone, error: errorePersone },
     { data: richieste, error: erroreRichieste },
     { data: tourInSede },
+    { data: abbonamentiInScadenza },
   ] = await Promise.all([
       // Solo le colonne che `persone` ha davvero: `ultima_richiesta` sta sulla
       // vista persone_con_richieste, e chiederla qui faceva fallire la lettura
@@ -364,7 +369,11 @@ async function trattativeDaLavorare(email: string | null, vista: VistaLead) {
             .in('entita_id', personaIds)
             .eq('tipo', 'appuntamento_in_sede')
         : Promise.resolve({ data: [] as Record<string, any>[], error: null }),
+      abbonamentoIds.length
+        ? supabase.from('abbonamenti').select('id, abbonamento, data_fine').in('id', abbonamentoIds)
+        : Promise.resolve({ data: [] as Record<string, any>[], error: null }),
   ])
+  const abbonamentoPerId = new Map((abbonamentiInScadenza ?? []).map((a) => [a.id as string, a]))
 
   // Un errore qui non svuota la pagina — le trattative si vedono comunque —
   // ma senza i nomi non si capisce di chi siano: va detto nei log invece di
@@ -467,6 +476,12 @@ async function trattativeDaLavorare(email: string | null, vista: VistaLead) {
       // registrazione era senza orario scelto: la tile lo dice, anche se
       // l'evento che ha aperto la trattativa resta un «messaggio».
       tourInSede: (t.persona_id && tourInSedePerPersona.get(t.persona_id as string)) || null,
+      scadenzaMensile: (() => {
+        const a = t.abbonamento_id ? abbonamentoPerId.get(t.abbonamento_id as string) : undefined
+        return a
+          ? { abbonamento: (a.abbonamento as string) ?? null, dataFine: String(a.data_fine ?? '').slice(0, 10) || null }
+          : null
+      })(),
     }
   }
 

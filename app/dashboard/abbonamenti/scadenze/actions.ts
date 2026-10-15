@@ -163,6 +163,17 @@ export async function assegnaScadenza(abbonamentoId: string, email: string | nul
   const destinatario = email?.trim().toLowerCase() || null
   const supabase = createSupabaseServiceClient()
 
+  // Un mensile non Flex lo assegna la Dashboard New, prendendo il lead: qui
+  // la cella è bloccata, e questo è il controllo vero.
+  const { data: scadenza } = await supabase
+    .from('abbonamenti_scadenze')
+    .select('competenza_new')
+    .eq('id', abbonamentoId)
+    .maybeSingle()
+  if (scadenza?.competenza_new) {
+    return { ok: false, errore: 'Questo è un mensile: lo assegna chi prende il lead nella Dashboard New.' }
+  }
+
   // Un rinnovo già assegnato lo sposta solo chi lo ha in mano o chi ha il
   // permesso "Può riassegnare" (la responsabile): il controllo vero è qui,
   // la tendina disabilitata in pagina è solo cortesia.

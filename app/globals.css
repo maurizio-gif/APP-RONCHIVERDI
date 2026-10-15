@@ -96,6 +96,11 @@
 	--telefono: #2f6662;
 	--telefono-tint: rgba(47, 102, 98, 0.12);
 	--telefono-border: rgba(47, 102, 98, 0.34);
+	/* Bronzo: i lead aperti dalla scadenza di un mensile (vedi
+	   .tag-provenienza.da-scadenza). */
+	--scadenza: #85561c;
+	--scadenza-tint: rgba(133, 86, 28, 0.12);
+	--scadenza-border: rgba(133, 86, 28, 0.34);
 
 	/* Tipografia: gli stessi due caratteri del sito.
 	   I fallback passano per i caratteri di sistema prima di Helvetica e
@@ -1067,6 +1072,16 @@ table.tabella tbody tr:hover {
 
 .cella-nowrap {
 	white-space: nowrap;
+}
+
+/* Rinnovi Core: l'assegnatario di un mensile non Flex, che si decide nella
+   Dashboard New e qui si legge soltanto (vedi CellaCompetenzaNew). */
+.cella-competenza-new {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--text-muted);
+	cursor: help;
 }
 
 /* La colonna Persona non deve prendersi lo spazio in più che il browser
@@ -3889,6 +3904,10 @@ button.th-ordina {
 	background: var(--agenda);
 }
 
+.split-canali-segmento.da-scadenza {
+	background: var(--scadenza);
+}
+
 .split-canali-segmento.da-altro {
 	background: var(--warn);
 }
@@ -5962,6 +5981,14 @@ button.th-ordina {
 	color: var(--telefono);
 }
 
+/* Mensile in scadenza: bronzo. È già socio, e la telefonata è una proposta
+   di abbonamento, non un primo contatto. */
+.tag-provenienza.da-scadenza {
+	background: var(--scadenza-tint);
+	border-color: var(--scadenza-border);
+	color: var(--scadenza);
+}
+
 /* Un'origine che il pannello non conosce: ambra, perché chiede qualcosa a
    chi la vede — c'è un canale da instradare in lib/provenienza.ts. */
 .tag-provenienza.da-altro {
@@ -7297,6 +7324,9 @@ table.tabella tr.is-mia td {
 	--telefono: #82c2bc;
 	--telefono-tint: rgba(130, 194, 188, 0.14);
 	--telefono-border: rgba(130, 194, 188, 0.36);
+	--scadenza: #e2b47a;
+	--scadenza-tint: rgba(226, 180, 122, 0.14);
+	--scadenza-border: rgba(226, 180, 122, 0.36);
 }
 
 /* Il filtro attivo è un riempimento pieno, e sul chiaro il pieno è il nero

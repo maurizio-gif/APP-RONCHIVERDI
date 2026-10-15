@@ -48,6 +48,16 @@ export type RigaScadenza = {
   nota: string | null
   assegnato_a: string | null
   escluso_da_report: boolean
+  // Un Flex rinnovato in automatico dal mese successivo: escluso dalla vista
+  // stessa (escluso_da_report è già vero), non da qualcuno. Non si toglie a
+  // mano — vedi 2026-10-15-flex-rinnovo-automatico-escluso.sql.
+  escluso_automatico: boolean
+  // Un mensile Core non Flex: alla scadenza lo richiamano i commerciali dalla
+  // Dashboard New, dove 15 giorni prima nasce il lead. L'assegnatario è
+  // quello del lead e da qui non si cambia — vedi
+  // 2026-10-15-mensili-lead-new.sql.
+  competenza_new: boolean
+  lead_stato: string | null
   // Durata venduta, da Info4U (vedi durata.ts): 12 + 'M' = annuale.
   durata: number | null
   periodo: string | null
@@ -484,6 +494,33 @@ function CellaAssegnatario({
 }
 
 /**
+ * L'assegnatario di un mensile non Flex: non si sceglie qui. Il mensile è un
+ * lead della Dashboard New, e chi lo prende in carico lì ne diventa
+ * l'assegnatario anche qui — così le statistiche dei rinnovi lo contano al
+ * commerciale che lo lavora, non a un operatore di segreteria.
+ */
+function CellaCompetenzaNew({
+  assegnatoA,
+  leadStato,
+  nomiStaff,
+}: {
+  assegnatoA: string | null
+  leadStato: string | null
+  nomiStaff: Record<string, string>
+}) {
+  const chi = assegnatoA ? nomeDiEmail(assegnatoA, nomiStaff) : null
+  const testo = chi ?? (leadStato === 'nuovo' || leadStato === 'in_gestione' ? 'Da prendere in carico' : 'Nessuno')
+  return (
+    <span
+      className="cella-competenza-new"
+      title="Mensile non Flex: lo segue il commerciale che prende il lead nella Dashboard New. Non si assegna da qui."
+    >
+      <span className="badge badge-off">New</span> {testo}
+    </span>
+  )
+}
+
+/**
  * Le note di una scadenza — di gestione o sul mancato rinnovo, secondo
  * `tipo` — sul modello delle note sulle disdette di Athlon: si scrive in un campo libero, si invia, e la nota entra nello
  * storico con nome e orario di chi l'ha scritta — il campo si svuota, pronto
@@ -858,14 +895,18 @@ function RigaTabella({
         )}
       </td>
       <td className="cella-nowrap">
-        <CellaAssegnatario
-          abbonamentoId={r.id}
-          valoreIniziale={r.assegnato_a}
-          operatori={operatoriSegreteria}
-          nomiStaff={nomiStaff}
-          io={io}
-          possoRiassegnare={possoRiassegnare}
-        />
+        {r.competenza_new ? (
+          <CellaCompetenzaNew assegnatoA={r.assegnato_a} leadStato={r.lead_stato} nomiStaff={nomiStaff} />
+        ) : (
+          <CellaAssegnatario
+            abbonamentoId={r.id}
+            valoreIniziale={r.assegnato_a}
+            operatori={operatoriSegreteria}
+            nomiStaff={nomiStaff}
+            io={io}
+            possoRiassegnare={possoRiassegnare}
+          />
+        )}
       </td>
       <td className="cella-prodotto">
         {r.abbonamento ?? '—'}
@@ -877,7 +918,11 @@ function RigaTabella({
       <td className="cella-nowrap">{euro(r.totale) ?? '—'}</td>
       <td>{r.venditore_nome ?? '—'}</td>
       <td className="cella-nowrap">
-        {esclusoAttuale ? (
+        {r.escluso_automatico ? (
+          <span className="badge badge-off" title="Flex rinnovato in automatico dal mese successivo">
+            Escluso · Flex
+          </span>
+        ) : esclusoAttuale ? (
           <span className="badge badge-off">Escluso</span>
         ) : r.rinnovato ? (
           <span className="badge badge-ok">Rinnovato</span>
@@ -939,11 +984,21 @@ function RigaTabella({
       <td className="cella-nowrap">{r.rinnovo_id ? dataBreveAnno(r.rinnovo_data_fine) : '—'}</td>
       <td className="cella-nowrap">{r.rinnovo_id ? (euro(r.rinnovo_totale) ?? '—') : '—'}</td>
       <td className="cella-centrata">
-        <CellaEscludiReport
-          abbonamentoId={r.id}
-          valoreIniziale={r.escluso_da_report}
-          onCambiato={setEsclusoAttuale}
-        />
+        {r.escluso_automatico ? (
+          // Spuntata e bloccata: il segno di spunta dice che la riga è fuori
+          // dal report come le altre escluse, il blocco che non l'ha deciso
+          // nessuno e non si toglie da qui.
+          <div className="cella-centrata" title="Flex rinnovato in automatico: escluso dal report">
+            <input type="checkbox" checked disabled aria-label="Escluso in automatico: Flex rinnovato" />
+            <span className="field-hint">Automatico</span>
+          </div>
+        ) : (
+          <CellaEscludiReport
+            abbonamentoId={r.id}
+            valoreIniziale={r.escluso_da_report}
+            onCambiato={setEsclusoAttuale}
+          />
+        )}
       </td>
     </tr>
   )
