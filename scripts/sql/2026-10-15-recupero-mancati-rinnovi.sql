@@ -159,7 +159,13 @@ begin
 			end,
 			case when v_note_gestione is not null then 'Ultime note di gestione: ' || v_note_gestione || '.' end,
 			'Passato al settore New il ' || data_italiana((now() at time zone 'Europe/Rome')::date)
-				|| ': richiamare per capire perché non ha rinnovato e se, e a che condizioni, tornerebbe.'
+				|| ': richiamare per capire perché non ha rinnovato e se, e a che condizioni, tornerebbe.',
+			-- La campagna di rientro senza quota di attivazione: compare solo
+			-- sui lead nati mentre è in corso, poi la riga sparisce da sola.
+			case when (now() at time zone 'Europe/Rome')::date <= date '2026-10-31' then
+				'Da proporre: è in corso la campagna per recuperare chi, come questa persona, ci ha lasciato. '
+				|| 'Chi rientra non paga la quota di attivazione contrattuale. La campagna termina il 31 ottobre 2026.'
+			end
 		);
 
 		insert into opportunita (persona_id, stato, stato_da, stato_il, origine, richiesta, note, recupero_abbonamento_id, recupero_anni)
@@ -244,3 +250,10 @@ select cron.schedule(
 		(now() at time zone 'Europe/Rome')::date - 31
 	)$$
 );
+
+-- Una tantum, 15/10/2026: la frase della campagna di rientro aggiunta ai 54
+-- lead creati il primo giorno, nati prima che la funzione la scrivesse.
+-- update opportunita
+-- set note = note || E'\n' || 'Da proporre: è in corso la campagna per recuperare chi, come questa persona, ci ha lasciato. Chi rientra non paga la quota di attivazione contrattuale. La campagna termina il 31 ottobre 2026.'
+-- where origine = 'recupero-rinnovo' and (creato_il at time zone 'Europe/Rome')::date = '2026-10-15'
+-- 	and note not ilike '%quota di attivazione%';
