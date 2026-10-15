@@ -87,6 +87,12 @@ export const AZIONI_LOG: Record<string, string> = {
   voucher_emesso: 'Voucher emesso',
   voucher_email_reinviata: 'Voucher: email rimandata al socio',
   voucher_annullato: 'Voucher annullato',
+  personal_sessione_registrata: 'Personal: sessione registrata',
+  personal_sessione_confermata: 'Personal: sessione confermata',
+  personal_sessione_in_attesa: 'Personal: sessione rimessa in attesa',
+  personal_sessione_modificata: 'Personal: sessione modificata',
+  personal_sessione_eliminata: 'Personal: sessione eliminata',
+  personal_compenso_impostato: 'Personal: compenso a sessione impostato',
   // Scritte dalla pagina di validazione: l'operatore e' l'account del
   // partner, quindi si vede chi ha bruciato cosa come per ogni altra azione.
   voucher_utilizzato: 'Voucher utilizzato (validazione)',

@@ -91,15 +91,34 @@ export default async function UtentiPage({
                 <input id="email" name="email" type="email" required autoComplete="off" />
               </div>
             </div>
-            <label className="check-riga" style={{ marginBottom: '0.75rem' }}>
-              <input type="checkbox" name="esterno" />
-              <span>
-                Accesso esterno: <strong>solo la validazione dei voucher</strong> — per il centro
-                medico, che non deve vedere niente del Club.
-              </span>
-            </label>
+            {/* Il tipo di accesso si sceglie all'invito: un partner o un
+                trainer ricevono la loro sola sezione, e non il corredo
+                operativo da sfoltire a mano dopo (vedi invitaStaff). */}
+            <fieldset className="scelta-accesso">
+              <legend>Accesso</legend>
+              <label className="check-riga">
+                <input type="radio" name="accesso" value="operatore" defaultChecked />
+                <span>
+                  <strong>Operatore del Club</strong> — le sezioni operative.
+                </span>
+              </label>
+              <label className="check-riga">
+                <input type="radio" name="accesso" value="validazione-voucher" />
+                <span>
+                  <strong>Centro medico</strong> — solo la validazione dei voucher, senza vedere niente
+                  del Club.
+                </span>
+              </label>
+              <label className="check-riga">
+                <input type="radio" name="accesso" value="personal" />
+                <span>
+                  <strong>Personal trainer</strong> — solo la registrazione delle proprie sessioni, dal
+                  telefono.
+                </span>
+              </label>
+            </fieldset>
             <p className="field-hint" style={{ marginBottom: '1rem' }}>
-              Parte senza permessi e con le sole sezioni operative: il diritto commerciale — quello
+              L&apos;operatore parte senza permessi e con le sole sezioni operative: il diritto commerciale — quello
               che permette di prendere in carico le trattative — si dà aprendo la persona
               nell&apos;elenco qui sotto.
             </p>

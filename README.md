@@ -674,6 +674,44 @@ La tabella (`scripts/sql/2026-09-05-voucher.sql`) non parla di medicina: la
 colonna `tipo` distingue il benefit, così lo stesso motore serve il prossimo
 — merchandising, ingressi omaggio — senza una tabella nuova.
 
+## Personal training
+
+Il registro delle lezioni dei personal trainer, che prima era un foglio di
+carta firmato a fine mese. Tre sezioni, una per passaggio
+(`scripts/sql/2026-10-15-personal-training.sql`):
+
+- **Registra sessione PT** (`/dashboard/personal`, permesso `personal`) — il
+  trainer, dal telefono, sceglie il cliente fra le persone con un abbonamento
+  attivo (si cerca per cognome, o nome e cognome; si riconosce da data di
+  nascita e abbonamento), poi giorno e ora d'inizio. La sessione nasce **in
+  attesa**. Il trainer vede le sue ultime sessioni con lo stato, ma non le
+  modifica né le cancella. La sezione è `esterna`: i trainer si invitano da
+  Gestione utenti con l'accesso «Personal trainer» e vedono solo questa.
+- **Check personal** (`/dashboard/personal/check`, permesso `personal-check`,
+  dato dalla migration a Loris Citterio) — tutte le sessioni, ordinabili per
+  data, trainer, cliente e stato, filtrabili per mese e stato. Il responsabile
+  conferma (una per una o tutte quelle mostrate), rimette in attesa,
+  corregge (cliente, giorno, ora, trainer) o elimina: è l'unico che può farlo.
+  Solo una sessione **confermata** compare nella scheda del contatto.
+- **Amministrazione personal** (`/dashboard/personal/amministrazione`,
+  permesso `personal-amministrazione`) — il compenso a sessione di ogni
+  trainer, con la data da cui vale, e il conto del mese sulle sessioni
+  confermate, con l'esportazione CSV. Ogni sessione si paga al compenso in
+  vigore nel giorno in cui si è svolta: cambiare la tariffa da novembre non
+  riscrive ottobre.
+
+**Abbonamenti corporate.** Info4U intesta il `2.2-CORPORATE` a una scheda
+segnaposto dell'azienda (cognome = azienda, nome = «Corporate 1»…, senza data
+di nascita): il dipendente che si allena non è in anagrafica. Se il trainer
+non trova il cliente, passa a «Corporate aziendale», cerca l'azienda, sceglie
+l'abbonamento e scrive a mano nome e cognome di chi si allena. La sessione si
+aggancia alla scheda dell'azienda e conserva il nome scritto.
+
+Nome, cognome e azienda si rileggono sempre dal database nella Server Action:
+il browser manda solo gli id, e l'abbonamento deve essere della persona e
+attivo. Le stesse sessioni (stesso trainer, cliente, giorno e ora) non si
+registrano due volte.
+
 ## Curriculum (candidature dal sito)
 
 La sezione **Curriculum** (`/dashboard/curriculum`, permesso `candidature`)
@@ -890,6 +928,10 @@ sono abilitati.
 
 Fatto anche: **tema scuro**, con push, campanello e tema in cima al menu e la
 scelta ricordata su quel dispositivo.
+
+Fatto anche: **Personal training** — registrazione delle sessioni dal
+telefono del trainer, conferma e correzione del responsabile, compensi del mese
+per l'amministrazione, sessioni confermate nella scheda del contatto.
 
 Da fare: Enquiries, Persone, Agenda con `/api/disponibilita` per gli slot che il
 sito offre nel form contatti, Visite al sito, pagina di Controllo operatori.

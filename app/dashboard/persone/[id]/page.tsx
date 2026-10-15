@@ -18,6 +18,7 @@ import {
   ETICHETTE_TIPO_BREVI,
   dataBreve,
   etichettaEsito,
+  normalizzaOra,
   oggiRoma,
   voceDaContatto,
   voceDaTask,
@@ -32,6 +33,7 @@ import { caricaGruppi } from '@/lib/abbonamenti'
 import { caricaNoteScadenze, TAG_NOTA, type NotaScadenza } from '../../abbonamenti/scadenze/note'
 import { conTentativiRichiamo } from '@/lib/richiamo-server'
 import { SpostaLead } from '../SpostaLead'
+import { COLONNE_SESSIONE, type SessionePersonal } from '@/lib/personal'
 
 // La scheda del contatto sul modello di Passion: in testa chi è e come lo si
 // raggiunge; a sinistra il lavoro (il lead, con assegnatario e stato, e le
@@ -67,6 +69,9 @@ function descrizioneConflitto(campo: string | null): string {
 
 /** Quante pagine viste leggere al massimo. */
 const MAX_PAGINE_VISITATE = 200
+
+/** Quante sessioni di personal training mostrare nella scheda. */
+const MAX_SESSIONI_PERSONAL = 100
 
 /**
  * Le pagine del sito viste da questa persona, attraverso tutte le sue visite:
@@ -119,6 +124,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
     sonoCommerciale,
     possoRiassegnare,
     pagine,
+    { data: sessioniPersonal },
   ] = await Promise.all([
     supabase
       .from('persone')
@@ -149,6 +155,16 @@ export default async function PersonaPage({ params }: { params: { id: string } }
     eCommerciale(email),
     puoRiassegnare(email),
     pagineVisitate(supabase, params.id),
+    // Solo le confermate dal responsabile (vedi Check personal): una
+    // sessione in attesa non è ancora un fatto del cliente.
+    supabase
+      .from('personal_sessioni')
+      .select(COLONNE_SESSIONE)
+      .eq('persona_id', params.id)
+      .eq('stato', 'confermata')
+      .order('data', { ascending: false })
+      .order('ora', { ascending: false })
+      .limit(MAX_SESSIONI_PERSONAL),
   ])
 
   if (!persona) notFound()
@@ -304,6 +320,8 @@ export default async function PersonaPage({ params }: { params: { id: string } }
   const abbonamentiOrdinati = [...(abbonamenti ?? [])].sort(
     (a, b) => Number(eAttivo(b)) - Number(eAttivo(a)) || quandoAbb(b).localeCompare(quandoAbb(a))
   )
+
+  const personal = (sessioniPersonal ?? []) as unknown as SessionePersonal[]
 
   const conflittoVerso = (conflitti ?? []).find((c) => c.id === persona.conflitto_con_persona_id)
   const personeInConflitto = (conflitti ?? []).filter((c) => c.id !== persona.conflitto_con_persona_id)
@@ -602,6 +620,37 @@ export default async function PersonaPage({ params }: { params: { id: string } }
               </ul>
             )}
           </div>
+          {personal.length > 0 && (
+            <div className="card">
+              <div className="card-head">
+                <h2>Personal training</h2>
+                <span className="muted">
+                  {personal.length === MAX_SESSIONI_PERSONAL
+                    ? `ultime ${MAX_SESSIONI_PERSONAL}`
+                    : personal.length === 1
+                      ? '1 sessione'
+                      : `${personal.length} sessioni`}
+                </span>
+              </div>
+              <ul className="storia">
+                {personal.map((s) => (
+                  <li key={s.id}>
+                    <strong>{dataBreveAnno(s.data)}</strong>{' '}
+                    <span className="muted">
+                      · {normalizzaOra(s.ora)} · {s.trainer_nome || nomeDiEmail(s.trainer_email, nomiStaff)}
+                    </span>
+                    {/* Su una scheda corporate le sessioni sono di persone
+                        diverse: il nome di chi si è allenato è il dato. */}
+                    {s.corporate && (
+                      <div className="storia-testo">
+                        {s.cliente_cognome} {s.cliente_nome}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="card">
             <div className="card-head">
               <h2>Accessi al sito</h2>

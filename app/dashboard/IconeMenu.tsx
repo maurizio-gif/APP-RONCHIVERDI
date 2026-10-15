@@ -103,6 +103,30 @@ const DISEGNI: Record<string, React.ReactNode> = {
       <path d="M12 3c-2.4 2.4-3.6 5.4-3.6 9s1.2 6.6 3.6 9c2.4-2.4 3.6-5.4 3.6-9S14.4 5.4 12 3z" />
     </>
   ),
+  // Registra sessione PT: il manubrio.
+  personal: (
+    <>
+      <path d="M6.5 6.5v11M17.5 6.5v11" />
+      <path d="M3.5 9v6M20.5 9v6" />
+      <path d="M6.5 12h11" />
+    </>
+  ),
+  // Check personal: la cartellina con la spunta.
+  'personal-check': (
+    <>
+      <path d="M9 4h6v3H9z" />
+      <path d="M15 5.5h2.5a1.5 1.5 0 0 1 1.5 1.5v12.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 19.5V7a1.5 1.5 0 0 1 1.5-1.5H9" />
+      <path d="M9 13.5l2 2 4-4.5" />
+    </>
+  ),
+  // Amministrazione personal: la moneta con l'euro.
+  'personal-amministrazione': (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M15.5 8.6a4 4 0 1 0 0 6.8" />
+      <path d="M7.5 11h5.5M7.5 13.2h5.5" />
+    </>
+  ),
   // Voucher: il tagliando con lo strappo.
   voucher: (
     <>
