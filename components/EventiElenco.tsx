@@ -7,7 +7,9 @@ import {
   dataBreve,
   eAppuntamentoVero,
   etichettaStato,
+  fasciaAdesso,
   intervalloOrario,
+  testoFascia,
   type VoceAgenda,
 } from '@/lib/agenda'
 import { nomeDiEmail } from '@/lib/staff'
@@ -291,8 +293,32 @@ export function EventiElenco({
                       {/* Un messaggio non ha uno slot, ma è arrivato in un
                           momento preciso: "in giornata" è vero ma non dice
                           niente, l'ora d'arrivo sì. */}
-                      {intervalloOrario(voce.ora, voce.durataMinuti) ?? voce.orarioArrivo ?? 'in giornata'}
+                      {/* «Richiamami»: niente ora, ma una fascia — è lei
+                          che dice quando chiamare. */}
+                      {intervalloOrario(voce.ora, voce.durataMinuti) ??
+                        (voce.fascia ? `richiamare · ${testoFascia(voce.fascia)}` : null) ??
+                        voce.orarioArrivo ??
+                        'in giornata'}
                     </span>
+
+                    {voce.daFare && !voce.ora && voce.fascia && voce.fascia === fasciaAdesso() && (
+                      <span className="badge badge-ok badge-punto badge-stato">è la sua fascia adesso</span>
+                    )}
+
+                    {voce.daFare && voce.tentativi && (
+                      <span className="tag">
+                        {voce.tentativi.numero === 1 ? '1 tentativo' : `${voce.tentativi.numero} tentativi`}
+                        {' · ultimo '}
+                        {voce.tentativi.ultimoDa ? `di ${nomeDiEmail(voce.tentativi.ultimoDa, nomiStaff)} ` : ''}
+                        {new Date(voce.tentativi.ultimoIl).toLocaleString('it-IT', {
+                          timeZone: 'Europe/Rome',
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    )}
 
                     {arretrato && (
                       <span className="badge badge-ko badge-punto badge-stato">arretrato</span>
@@ -462,6 +488,7 @@ export function EventiElenco({
                       // il seguito si aggancia alla persona: la trattativa si
                       // apre e si chiude nel tempo, la persona resta.
                       seguito={voce.personaId ? { entita: 'persona', id: voce.personaId } : null}
+                      richiamo={voce.origine === 'form_contatti' && voce.fascia !== null}
                     />
                   </>
                 )}

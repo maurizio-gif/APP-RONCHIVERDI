@@ -30,6 +30,7 @@ import { ComandiLead } from '../../ComandiLead'
 import { NuovaAzione } from './NuovaAzione'
 import { caricaGruppi } from '@/lib/abbonamenti'
 import { caricaNoteScadenze, TAG_NOTA, type NotaScadenza } from '../../abbonamenti/scadenze/note'
+import { conTentativiRichiamo } from '@/lib/richiamo-server'
 
 // La scheda del contatto sul modello di Passion: in testa chi è e come lo si
 // raggiunge; a sinistra il lavoro (il lead, con assegnatario e stato, e le
@@ -125,7 +126,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
       .maybeSingle(),
     supabase
       .from('form_contatti')
-      .select('id, created_at, origine, attivita, attivita_label, azione, data_scelta, ora_scelta, messaggio, gestito, assegnato_a, note, opportunita_id')
+      .select('id, created_at, origine, attivita, attivita_label, azione, data_scelta, ora_scelta, fascia_oraria, messaggio, gestito, assegnato_a, note, opportunita_id')
       .eq('persona_id', params.id)
       .order('created_at', { ascending: false }),
     conColonneNuove<Record<string, any>>(
@@ -187,9 +188,11 @@ export default async function PersonaPage({ params }: { params: { id: string } }
   const eventi = [...(eventiDaRichieste ?? []), ...(eventiDaPersona ?? [])].map((r) =>
     conContatto(voceDaTask(r, contatto))
   )
-  const richiesteAperte = elenco
-    .filter((r) => !r.gestito)
-    .map((r) => conContatto(voceDaContatto({ ...r, nome: persona.nome, cognome: persona.cognome })))
+  const richiesteAperte = await conTentativiRichiamo(
+    elenco
+      .filter((r) => !r.gestito)
+      .map((r) => conContatto(voceDaContatto({ ...r, nome: persona.nome, cognome: persona.cognome })))
+  )
   // Tre gruppi, sempre con la più recente in alto: da fare ora (oggi o
   // scadute), in programma (future), fatte.
   const piuRecenteSopra = (a: VoceAgenda, b: VoceAgenda) =>

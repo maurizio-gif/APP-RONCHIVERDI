@@ -7,7 +7,9 @@ import {
   dataOra,
   eAppuntamentoVero,
   eEsitoValido,
+  eFasciaValida,
   etichettaEsito,
+  testoFascia,
   tipoDaAzione,
 } from '@/lib/agenda'
 import { CLASSE_BADGE_STATO, CLASSE_RIGA_STATO, ETICHETTE_STATO } from '@/lib/pipeline'
@@ -35,6 +37,8 @@ export type Richiesta = {
   azione: string | null
   data_scelta: string | null
   ora_scelta: string | null
+  /** «Richiamami»: la fascia in cui vuole essere chiamata (vedi FASCE_RICHIAMO). */
+  fascia_oraria?: string | null
   messaggio: string | null
   dettagli: string[] | null
   minore_nome: string | null
@@ -341,6 +345,12 @@ export function RigaRichiesta({
                 <span className="tag tag-appuntamento">
                   {ETICHETTE_TIPO_BREVI[tipoAppuntamento]} · {dataBreve(r.data_scelta)}
                   {oraScelta && ` ore ${oraScelta}`}
+                </span>
+              )}
+              {/* «Richiamami»: non c'è un giorno, c'è la fascia. */}
+              {tipoAppuntamento && !r.data_scelta && eFasciaValida(r.fascia_oraria) && (
+                <span className="tag tag-appuntamento">
+                  Richiamami · {testoFascia(r.fascia_oraria)}
                 </span>
               )}
               {r.azione && !tipoAppuntamento && <span className="tag">{r.azione}</span>}

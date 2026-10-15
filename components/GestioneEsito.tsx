@@ -18,6 +18,7 @@ import {
   chiudiConEsito,
   correggiEsito,
   programmaEvento,
+  registraTentativoRichiamo,
   rimuoviVoce,
   riprogrammaVoce,
   type EventoDaProgrammare,
@@ -55,7 +56,7 @@ import {
 //    agganciare l'evento nuovo. Dove non c'è nulla a cui agganciarlo, la
 //    domanda non si fa.
 
-type Gruppo = 'eseguita' | 'fallita' | 'riprogrammata' | 'annullata'
+type Gruppo = 'eseguita' | 'fallita' | 'non_risponde' | 'riprogrammata' | 'annullata'
 
 const GRUPPI: { chiave: Gruppo; etichetta: string }[] = [
   { chiave: 'eseguita', etichetta: 'Eseguita' },
@@ -66,6 +67,19 @@ const GRUPPI: { chiave: Gruppo; etichetta: string }[] = [
   // qualcosa che è stato solo rinviato.
   { chiave: 'riprogrammata', etichetta: 'Riprogrammata' },
   { chiave: 'annullata', etichetta: 'Annullata' },
+]
+
+/**
+ * Sui «Richiamami» dal sito in più c'è «Non risponde, riprovo», subito dopo
+ * «Eseguita»: è il caso più frequente, e non è un «Fallita» — la persona ha
+ * chiesto lei di essere chiamata, e non aver risposto una volta non chiude
+ * niente. Registra il tentativo e lascia la richiesta da fare (vedi
+ * registraTentativoRichiamo).
+ */
+const GRUPPI_RICHIAMO: { chiave: Gruppo; etichetta: string }[] = [
+  GRUPPI[0],
+  { chiave: 'non_risponde', etichetta: 'Non risponde, riprovo' },
+  ...GRUPPI.slice(1),
 ]
 
 /**
@@ -89,7 +103,7 @@ const GRUPPI: { chiave: Gruppo; etichetta: string }[] = [
  */
 function etichettaGruppo(chiave: Gruppo, inSede: boolean): string {
   if (chiave === 'riprogrammata' && inSede) return 'No-show'
-  return GRUPPI.find((g) => g.chiave === chiave)!.etichetta
+  return GRUPPI_RICHIAMO.find((g) => g.chiave === chiave)!.etichetta
 }
 
 /** "3 set 14:20" — quando una nota è stata scritta, accanto a chi l'ha scritta. */
@@ -119,6 +133,7 @@ export function GestioneEsito({
   firma = null,
   firmaIl = null,
   seguito = null,
+  richiamo = false,
 }: {
   origine: OrigineVoce
   id: string
@@ -166,8 +181,14 @@ export function GestioneEsito({
    * apre e si chiude nel tempo, la persona resta.
    */
   seguito?: CollegamentoEvento | null
+  /**
+   * Vero su un «Richiamami» dal sito ancora da fare: aggiunge «Non risponde,
+   * riprovo» (vedi GRUPPI_RICHIAMO).
+   */
+  richiamo?: boolean
 }) {
   const inSede = tipo === 'appuntamento_in_sede'
+  const gruppi = richiamo && !chiusa ? GRUPPI_RICHIAMO : GRUPPI
   const [gruppo, setGruppo] = useState<Gruppo | null>(null)
   // Su una voce chiusa i pulsanti non si vedono finché non li si chiede
   // esplicitamente: vederli accanto a un esito già scritto fa credere che ci
@@ -272,8 +293,14 @@ export function GestioneEsito({
     )
   }
 
+  /** «Non risponde, riprovo»: la nota è facoltativa, la richiesta resta aperta. */
+  function registraTentativo() {
+    if (origine !== 'form_contatti') return
+    esegui(() => registraTentativoRichiamo({ id, nota }))
+  }
+
   function chiudi() {
-    if (!gruppo || gruppo === 'annullata' || gruppo === 'riprogrammata') return
+    if (!gruppo || gruppo === 'annullata' || gruppo === 'riprogrammata' || gruppo === 'non_risponde') return
     if (!nota.trim()) return setErrore('La nota è obbligatoria: scrivi com’è andata.')
     // La domanda del seguito **dopo** che la chiusura è riuscita: una sola
     // scrittura per volta, e se il seguito non si crea la voce resta chiusa —
@@ -288,7 +315,7 @@ export function GestioneEsito({
 
   /** Riscrive esito e nota su una voce già chiusa, senza riaprirla. */
   function correggi() {
-    if (!gruppo || gruppo === 'annullata' || gruppo === 'riprogrammata') return
+    if (!gruppo || gruppo === 'annullata' || gruppo === 'riprogrammata' || gruppo === 'non_risponde') return
     if (!nota.trim()) return setErrore('La nota è obbligatoria: scrivi com’è andata.')
     esegui(() => correggiEsito({ origine, id, esito: gruppo, nota }))
   }
@@ -353,7 +380,7 @@ export function GestioneEsito({
           </div>
         ) : (
           <div className="esito-gruppi" role="group" aria-label="Esito della lavorazione">
-            {GRUPPI.map((g) => (
+            {gruppi.map((g) => (
               <button
                 key={g.chiave}
                 type="button"
@@ -398,7 +425,7 @@ export function GestioneEsito({
         <>
           <div className="field">
             <label htmlFor={`nota-${origine}-${id}`}>
-              Nota <span aria-hidden="true">*</span>
+              Nota {gruppo === 'non_risponde' ? '(facoltativa)' : <span aria-hidden="true">*</span>}
             </label>
             <textarea
               id={`nota-${origine}-${id}`}
@@ -406,7 +433,9 @@ export function GestioneEsito({
               value={nota}
               onChange={(e) => setNota(e.target.value)}
               placeholder={
-                gruppo === 'fallita'
+                gruppo === 'non_risponde'
+                  ? 'Se serve: squilla a vuoto, segreteria, numero occupato…'
+                  : gruppo === 'fallita'
                   ? 'Perché non è andata: non ha risposto, non è più interessato…'
                   : gruppo === 'annullata'
                     ? 'Perché la rimuovi: creata per errore, prova, doppione…'
@@ -419,7 +448,22 @@ export function GestioneEsito({
             />
           </div>
 
-          {gruppo === 'riprogrammata' ? (
+          {gruppo === 'non_risponde' ? (
+            <div className="esito-azioni">
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={inCorso}
+                onClick={registraTentativo}
+              >
+                {inCorso ? 'Salvataggio…' : 'Registra il tentativo'}
+              </button>
+              <p className="field-hint">
+                La richiesta resta da fare, nella sua fascia: il tentativo si vede sulla riga, con chi
+                ha chiamato e quando.
+              </p>
+            </div>
+          ) : gruppo === 'riprogrammata' ? (
             <>
               <div className="form-row">
                 <div className="field">

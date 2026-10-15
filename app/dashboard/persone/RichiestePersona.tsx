@@ -7,7 +7,9 @@ import {
   ETICHETTE_TIPO_BREVI,
   dataBreve,
   eAppuntamentoVero,
+  eFasciaValida,
   intervalloOrario,
+  testoFascia,
   tipoDaAzione,
   type Esito,
 } from '@/lib/agenda'
@@ -32,6 +34,8 @@ export type RichiestaDiPersona = {
   azione: string | null
   data_scelta: string | null
   ora_scelta: string | null
+  /** «Richiamami»: la fascia in cui vuole essere chiamata (vedi FASCE_RICHIAMO). */
+  fascia_oraria?: string | null
   messaggio: string | null
   dettagli: string[] | null
   gestito: boolean
@@ -142,7 +146,9 @@ export function RichiestePersona({
                 ? ` · ${intervalloOrario(String(r.ora_scelta).slice(0, 5), 45) ?? String(r.ora_scelta).slice(0, 5)}`
                 : ''
             }`
-          : null
+          : eFasciaValida(r.fascia_oraria)
+            ? `richiamare · ${testoFascia(r.fascia_oraria)}`
+            : null
 
         const titolo =
           r.attivita_label ?? (r.origine === 'chinesis-inline' ? 'Chinesis' : 'Richiesta informazioni')

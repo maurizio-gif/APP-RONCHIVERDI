@@ -16,6 +16,7 @@ import {
   ordinaVoci,
   primoDelMese,
   tipoDaAzione,
+  AZIONE_RICHIAMO,
   voceDaContatto,
   voceDaTask,
   type TipoVoce,
@@ -30,6 +31,7 @@ import {
   conColonneNuove,
 } from '@/lib/migrazioni'
 import { IconaNuovaScheda } from '@/components/IconaNuovaScheda'
+import { conTentativiRichiamo } from '@/lib/richiamo-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -262,10 +264,10 @@ async function eventiScaduti(): Promise<VoceAgenda[]> {
   // è sapere chi è.
   const contattiDiVoce = await contattiDelleVoci((righeTask ?? []) as Record<string, any>[])
 
-  const voci: VoceAgenda[] = [
+  const voci: VoceAgenda[] = await conTentativiRichiamo([
     ...(righeTask ?? []).map((riga) => voceDaTask(riga, contattiDiVoce.get(String(riga.id)))),
     ...(richieste ?? []).map(voceDaContatto).filter((v): v is VoceAgenda => v !== null),
-  ]
+  ])
 
   const perGiorno = new Map<string, VoceAgenda[]>()
   for (const v of [...voci].sort((a, b) => a.data.localeCompare(b.data))) {
@@ -538,12 +540,16 @@ export default async function CoreManagerPage({
     // della scrivania, non quello della persona che aspetta una risposta.
     // Un messaggio invece non ha nessun altro orologio: da quando arriva a
     // quando viene gestito è **tutto** il tempo che la persona aspetta.
+    //
+    // Vale anche per un «Richiamami», che dei messaggi ha preso il posto: la
+    // persona ha chiesto di essere chiamata e non ha un appuntamento — da
+    // quando arriva a quando la si chiama è tutta attesa.
     if (
       eseguito &&
       r.gestito &&
       r.gestito_il &&
       r.created_at &&
-      tipoDaAzione(r.azione as string | null) === 'messaggio'
+      (tipoDaAzione(r.azione as string | null) === 'messaggio' || r.azione === AZIONE_RICHIAMO)
     ) {
       const giornoGestione = (r.gestito_il as string).slice(0, 10)
       if (giornoGestione >= inizio && giornoGestione <= oggi) {

@@ -13,6 +13,7 @@ import {
   oggiRoma,
   primoDelMese,
   tipoDaAzione,
+  AZIONE_RICHIAMO,
   ultimoDelMese,
 } from '@/lib/agenda'
 import { euro } from '@/lib/pipeline'
@@ -332,7 +333,12 @@ export default async function ReportGiornalieroPage({
     }
 
     for (const m of messaggi ?? []) {
-      if (!m.gestito_il || tipoDaAzione(m.azione as string | null) !== 'messaggio') continue
+      // Un «Richiamami» conta come i messaggi, di cui ha preso il posto.
+      if (
+        !m.gestito_il ||
+        (tipoDaAzione(m.azione as string | null) !== 'messaggio' && m.azione !== AZIONE_RICHIAMO)
+      )
+        continue
       const giorno = righe.get(giornoDiIstante(m.gestito_il as string))
       if (!giorno) continue
       giorno.messaggiGestiti += 1
