@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { invalidaRigheStaff } from '@/lib/auth/staff-server'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
-import { CHIAVI_SEZIONI, SEZIONI, SEZIONI_ESTERNE, type SezioneChiave } from '@/lib/auth/sezioni'
+import { CHIAVI_SEZIONI, SEZIONI_DEL_CORREDO, SEZIONI_ESTERNE, type SezioneChiave } from '@/lib/auth/sezioni'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { puoAmministrare } from '@/lib/auth/permessi'
 import { registraLog } from '@/lib/audit'
@@ -32,12 +32,17 @@ export async function invitaStaff(formData: FormData) {
     .toLowerCase()
   const nome = String(formData.get('nome') ?? '').trim()
   const cognome = String(formData.get('cognome') ?? '').trim()
-  // Accesso esterno: un partner (oggi il centro medico che valida i voucher),
-  // non una persona della segreteria. Si sceglie all'invito e non correggendo
-  // le caselle dopo, perche' il corredo normale contiene richieste dal sito e
-  // anagrafica dei soci: toglierle una per una a mano funziona finche' non ci
-  // si dimentica, e la dimenticanza qui e' un partner che legge i contatti.
-  const esterno = formData.get('esterno') === 'on'
+  // Accesso esterno: un partner (il centro medico che valida i voucher) o un
+  // personal trainer, non una persona della segreteria. Si sceglie all'invito
+  // e non correggendo le caselle dopo, perche' il corredo normale contiene
+  // richieste dal sito e anagrafica dei soci: toglierle una per una a mano
+  // funziona finche' non ci si dimentica, e la dimenticanza qui e' un partner
+  // che legge i contatti.
+  //
+  // Una sezione esterna sola, quella scelta: al centro medico non serve il
+  // registro dei trainer, e al trainer non serve bruciare voucher.
+  const accesso = String(formData.get('accesso') ?? 'operatore')
+  const sezioneEsterna = SEZIONI_ESTERNE.find((chiave) => chiave === accesso) ?? null
 
   if (!email || !nome || !cognome) {
     redirect(urlErrore('Nome, cognome ed email sono obbligatori.'))
@@ -88,9 +93,7 @@ export async function invitaStaff(formData: FormData) {
       puo_cancellare: false,
       commerciale: false,
       puo_riassegnare: false,
-      sezioni_consentite: esterno
-        ? [...SEZIONI_ESTERNE]
-        : SEZIONI.filter((s) => s.gruppo !== 'Amministrazione' && !s.esterna).map((s) => s.chiave),
+      sezioni_consentite: sezioneEsterna ? [sezioneEsterna] : [...SEZIONI_DEL_CORREDO],
     })
     if (error) redirect(urlErrore(error.message))
   }
@@ -116,7 +119,7 @@ export async function invitaStaff(formData: FormData) {
   await registraLog(emailCorrente(), 'utente_invitato', {
     entita: 'staff_users',
     entitaId: email,
-    dettagli: { email_target: email, nome, cognome },
+    dettagli: { email_target: email, nome, cognome, accesso: sezioneEsterna ?? 'operatore' },
   })
 
   revalidatePath('/dashboard/utenti')

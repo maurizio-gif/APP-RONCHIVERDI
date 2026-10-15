@@ -141,6 +141,30 @@ const DEFINIZIONI = [
     gruppo: 'Partner',
     esterna: true,
   },
+  // Personal training (vedi lib/personal.ts): tre sezioni per i tre passaggi
+  // del registro delle lezioni.
+  //
+  // Il trainer registra le sue sessioni dal telefono. È un collaboratore,
+  // non la segreteria: la sezione è "esterna", così chi ha solo questa entra
+  // direttamente sulla sua pagina e non vede niente del Club oltre ai soci
+  // che cerca per nome (vedi l'invito «Personal trainer» in Gestione utenti).
+  {
+    chiave: 'personal',
+    label: 'Registra sessione PT',
+    href: '/dashboard/personal',
+    gruppo: 'Personal Training',
+    esterna: true,
+  },
+  // Il responsabile conferma, corregge o elimina le sessioni registrate:
+  // l'unico che può farlo. Fuori dal corredo di un invito normale (vedi
+  // GRUPPI_FUORI_DAL_CORREDO): chi la riceve può riscrivere le lezioni di
+  // tutti i trainer.
+  {
+    chiave: 'personal-check',
+    label: 'Check personal',
+    href: '/dashboard/personal/check',
+    gruppo: 'Personal Training',
+  },
   // La pagina della responsabile del settore core: come è distribuito il
   // lavoro fra le persone. Sta in Amministrazione, fuori da Core New.
   {
@@ -186,6 +210,15 @@ const DEFINIZIONI = [
   // Amministrazione: un nuovo invitato non lo riceve mai di default (vedi
   // app/dashboard/utenti/actions.ts), lo si abilita a mano.
   { chiave: 'incassato', label: 'Incassato', href: '/dashboard/incassato', gruppo: 'Amministrazione' },
+  // Quanto ogni personal trainer versa a Ronchiverdi: la quota (oraria o
+  // flat mensile) e il dovuto del mese sulle sessioni confermate. Dati
+  // economici sui collaboratori, quindi in Amministrazione come l'incassato.
+  {
+    chiave: 'personal-amministrazione',
+    label: 'Amministrazione personal',
+    href: '/dashboard/personal/amministrazione',
+    gruppo: 'Amministrazione',
+  },
   // Il report sintetico per la direzione (MTD/YTD su abbonamenti venduti,
   // contatti acquisiti, campagne, primo canale delle vendite) e la sua pagina
   // di gestione campagne stanno sotto lo stesso permesso, come abbonamenti
@@ -234,8 +267,19 @@ export function soloAccessoEsterno(sezioniConsentite: readonly string[]): boolea
   )
 }
 
-// Tutte le chiavi esistenti: è quello che si assegna a un nuovo invitato.
+// Tutte le chiavi esistenti.
 export const CHIAVI_SEZIONI: readonly SezioneChiave[] = SEZIONI.map((s) => s.chiave)
+
+// I gruppi che un nuovo operatore non riceve con l'invito: si danno a mano a
+// chi ne ha bisogno. Amministrazione perché sono dati riservati; Personal
+// Training perché il controllo delle sessioni è di una persona sola.
+export const GRUPPI_FUORI_DAL_CORREDO: readonly string[] = ['Amministrazione', 'Personal Training']
+
+// Il corredo di un operatore appena invitato: le sezioni operative, senza
+// quelle dei partner esterni e senza i gruppi riservati.
+export const SEZIONI_DEL_CORREDO: readonly SezioneChiave[] = SEZIONI.filter(
+  (s) => !s.esterna && !GRUPPI_FUORI_DAL_CORREDO.includes(s.gruppo ?? '')
+).map((s) => s.chiave)
 
 // Header con cui il middleware propaga al layout l'email già validata: il
 // nome è specifico dell'app per non confondersi con quello di altri pannelli

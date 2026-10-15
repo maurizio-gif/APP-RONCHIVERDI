@@ -8091,3 +8091,428 @@ table.tabella-compatta .nota-in-riga {
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
+
+/* ───────────────────────────────────────────────────── personal training */
+/* Il modulo del trainer si usa solo dal telefono, in piedi in sala: tasti
+   alti almeno 44px, una colonna sola, niente che chieda precisione. La
+   griglia delle ore è a quattro colonne perché sta in un pollice di schermo
+   anche su un telefono stretto. */
+
+.pt-pagina {
+	max-width: 40rem;
+}
+
+.pt-modulo .pt-blocco + .pt-blocco {
+	margin-top: 1rem;
+}
+
+.pt-blocco-titolo {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	margin: 0 0 1rem;
+}
+
+.pt-passo {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.8rem;
+	height: 1.8rem;
+	background: var(--accent);
+	border-radius: 999px;
+	color: var(--text-on-accent);
+	font-family: var(--font-sans);
+	font-size: var(--text-sm);
+	font-weight: 600;
+}
+
+.pt-modi {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-bottom: 1rem;
+}
+
+.pt-modi .chip {
+	min-height: 2.5rem;
+	padding: 0.4rem 0.9rem;
+	font-size: var(--text-sm);
+}
+
+/* type="search" e un corpo a 16px: sotto quella misura Safari su iPhone
+   ingrandisce la pagina quando si tocca il campo. */
+.pt-ricerca .field input {
+	font-size: 1rem;
+}
+
+.pt-risultati {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.pt-risultato {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+	width: 100%;
+	min-height: 3.25rem;
+	padding: 0.7rem 0.9rem;
+	background: var(--surface);
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius);
+	color: var(--text);
+	font-family: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.pt-risultato:hover,
+.pt-risultato:focus-visible {
+	background: var(--accent-tint);
+	border-color: var(--accent);
+}
+
+.pt-nome {
+	font-size: var(--text-base);
+	font-weight: 600;
+}
+
+.pt-dettagli {
+	color: var(--text-muted);
+	font-size: var(--text-xs);
+}
+
+.pt-stato-ricerca {
+	margin: 0.25rem 0 0;
+	font-size: var(--text-sm);
+}
+
+.pt-nessuno {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+	padding: 0.75rem 0.9rem;
+	background: var(--fill-soft);
+	border-radius: var(--radius);
+	font-size: var(--text-sm);
+}
+
+.pt-nessuno p {
+	margin: 0;
+}
+
+.pt-nessuno .link-testo {
+	text-align: left;
+}
+
+.pt-scelto {
+	padding: 0.8rem 0.9rem;
+	background: var(--accent-tint);
+	border: 1px solid var(--accent-border);
+	border-radius: var(--radius);
+}
+
+.pt-scelto-testa {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 0.75rem;
+}
+
+.pt-corporate-nome {
+	margin-top: 1rem;
+}
+
+.pt-corporate-azienda {
+	margin: 1rem 0 0;
+}
+
+.pt-corporate-azienda input {
+	font-size: 1rem;
+}
+
+.pt-azienda-manuale {
+	display: block;
+	margin-top: 0.9rem;
+	font-size: var(--text-sm);
+	text-align: left;
+}
+
+.pt-corporate-nome .field {
+	margin-bottom: 0;
+}
+
+.pt-corporate-nome input {
+	font-size: 1rem;
+}
+
+.pt-fieldset {
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+.pt-fieldset + .pt-fieldset {
+	margin-top: 1.25rem;
+}
+
+.pt-fieldset legend {
+	margin-bottom: 0.5rem;
+	padding: 0;
+	font-size: var(--text-xs);
+	font-weight: 500;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.pt-giorni {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 0.5rem;
+}
+
+.pt-ore {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 0.45rem;
+}
+
+.pt-minuti {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 0.45rem;
+}
+
+.pt-sottotitolo {
+	margin: 0.9rem 0 0.4rem;
+	color: var(--text-muted);
+	font-size: var(--text-2xs);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.pt-tasto {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 2.9rem;
+	padding: 0.4rem;
+	background: var(--surface);
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius);
+	color: var(--text);
+	font-family: inherit;
+	font-size: var(--text-base);
+	font-variant-numeric: tabular-nums;
+	cursor: pointer;
+	touch-action: manipulation;
+}
+
+.pt-tasto:hover {
+	border-color: var(--accent);
+}
+
+.pt-tasto.is-attivo {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: var(--text-on-accent);
+	font-weight: 600;
+}
+
+.pt-tasto:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+
+/* «Altro giorno»: il campo data del sistema steso trasparente sopra il
+   tasto, così il tocco apre il calendario del telefono ma si vede un
+   pulsante come gli altri. */
+.pt-altro-giorno {
+	position: relative;
+	overflow: hidden;
+}
+
+.pt-altro-giorno input {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	opacity: 0;
+	cursor: pointer;
+}
+
+.pt-scelta-letta {
+	margin: 0.6rem 0 0;
+	color: var(--text-muted);
+	font-size: var(--text-sm);
+}
+
+.pt-scelta-letta::first-letter {
+	text-transform: uppercase;
+}
+
+.pt-invia {
+	min-height: 3.25rem;
+	margin-top: 1.25rem;
+	font-size: var(--text-sm);
+}
+
+.pt-manca {
+	text-align: center;
+}
+
+.pt-mie {
+	margin-top: 2rem;
+}
+
+.pt-elenco {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.pt-elenco-riga {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	padding: 0.7rem 0;
+	border-bottom: 1px solid var(--border);
+}
+
+.pt-elenco-riga:last-child {
+	border-bottom: 0;
+}
+
+/* Check personal e amministrazione: le pagine da scrivania. */
+
+.pt-filtri {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+.pt-conferma-tutte {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 0.5rem;
+}
+
+.pt-conferma-tutte .error-banner,
+.pt-conferma-tutte .ok-banner {
+	margin: 0;
+}
+
+.pt-ordina {
+	color: inherit;
+	text-decoration: none;
+}
+
+.pt-ordina:hover {
+	color: var(--accent);
+}
+
+.pt-tabella tr.pt-riga-attesa td:first-child {
+	box-shadow: inset 3px 0 0 var(--warn);
+}
+
+.pt-tabella tr.pt-riga-modifica,
+.pt-tabella tr.pt-riga-modifica:hover {
+	background: var(--fill-soft);
+}
+
+.pt-modifica {
+	max-width: 60rem;
+	padding: 0.5rem 0;
+}
+
+.pt-modifica .field {
+	max-width: 22rem;
+}
+
+.pt-modifica-colonne {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+	gap: 1.5rem;
+	margin-bottom: 1rem;
+}
+
+.pt-modifica-titolo {
+	margin: 0 0 0.75rem;
+	font-size: var(--text-base);
+}
+
+.pt-compenso {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.6rem;
+}
+
+.pt-compenso-form {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 0.6rem;
+	margin-top: 0.5rem;
+}
+
+.pt-compenso-form .field {
+	width: 9rem;
+	margin-bottom: 0;
+}
+
+.pt-compenso-form .error-banner {
+	flex-basis: 100%;
+	margin: 0;
+}
+
+.pt-dettaglio {
+	margin-top: 0.35rem;
+	font-size: var(--text-xs);
+}
+
+.pt-dettaglio summary {
+	color: var(--accent);
+	cursor: pointer;
+}
+
+.pt-dettaglio-elenco {
+	margin: 0.4rem 0 0;
+	padding-left: 1.2rem;
+}
+
+.pt-dettaglio-elenco li + li {
+	margin-top: 0.2rem;
+}
+
+.scelta-accesso {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	margin: 0 0 0.75rem;
+	padding: 0;
+	border: 0;
+}
+
+.scelta-accesso legend {
+	margin-bottom: 0.5rem;
+	padding: 0;
+	font-size: var(--text-xs);
+	font-weight: 500;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.pt-quota-tipo {
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+	flex-basis: 100%;
+}
