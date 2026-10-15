@@ -74,9 +74,13 @@ const GUEST_REGISTER: Provenienza = {
 
 const AGENDA: Provenienza = {
   chiave: 'agenda',
-  etichetta: 'Agenda',
+  // Per esteso e non «Agenda»: la targhetta deve dire che questa trattativa
+  // non è arrivata da fuori — l'ha aperta qualcuno del club scrivendo un
+  // evento. Con la sola parola si leggeva come un canale qualsiasi.
+  etichetta: 'Creata in agenda',
   classe: 'da-agenda',
-  spiegazione: 'Aperta da un evento in agenda, non da una richiesta.',
+  spiegazione:
+    'Non è arrivata da una richiesta: l’ha aperta qualcuno del club scrivendo un evento in agenda su questa persona.',
 }
 
 /**

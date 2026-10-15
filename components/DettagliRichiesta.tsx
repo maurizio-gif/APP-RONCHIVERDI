@@ -13,6 +13,7 @@ import {
 import { dominioDi, percorsoBreve, primoContattoDi, provenienzaRichiesta } from '@/lib/percorsoSito'
 import { nomeDiEmail } from '@/lib/staff'
 import { PercorsoSito } from '@/components/PercorsoSito'
+import { fraseStorico, quandoStorico, vociStorico } from '@/lib/storicoAppuntamento'
 import type { Richiesta } from '@/app/dashboard/richieste/RigaRichiesta'
 
 /**
@@ -71,6 +72,7 @@ export function DettagliRichiesta({
   // approfondimento, non la prima cosa da leggere aprendo una richiesta. Ci
   // sono sempre, ma solo su richiesta di chi guarda.
   const [aperti, setAperti] = useState(false)
+  const storico = vociStorico(r.storico_appuntamento)
 
   return (
     <>
@@ -94,6 +96,24 @@ export function DettagliRichiesta({
             un pannello sotto — la Gestione a interruttore (RiepilogoRichiesta
             in GestioneSemplice.tsx) o l'evento in cronologia (trattativa). */}
         {!conInterruttore && <RiepilogoRichiesta r={r} nascondiRichiestaEMessaggio={giaInCronologia} />}
+        {/* Ogni spostamento e l'annullamento, in ordine, con chi e quando:
+            senza, un appuntamento spostato tre volte si leggeva come preso
+            così fin dall'inizio. Fuori da «Altri dettagli» perché è la prima
+            cosa da sapere prima di richiamare. */}
+        {storico.length > 0 && (
+          <>
+            <dt>Storico appuntamento</dt>
+            <dd>
+              <ul className="storico-appuntamento">
+                {storico.map((voce, i) => (
+                  <li key={i}>
+                    <span className="muted">{quandoStorico(voce)}</span> · {fraseStorico(voce, nomiStaff)}
+                  </li>
+                ))}
+              </ul>
+            </dd>
+          </>
+        )}
       </dl>
 
       <button

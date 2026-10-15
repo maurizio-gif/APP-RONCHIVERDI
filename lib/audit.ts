@@ -72,6 +72,10 @@ export const AZIONI_LOG: Record<string, string> = {
   // trattativa dalla pipeline dicendo che non andava creata, ed è la riga che
   // si va a cercare quando i conti di un mese non tornano.
   trattativa_annullata: 'Trattativa annullata (non andava creata)',
+  // «La richiesta è per un'altra persona»: la trattativa passa su un'altra
+  // scheda (vedi sposta_trattativa_su_persona), e se quella persona aveva già
+  // comprato si chiude come vinta.
+  trattativa_spostata: 'Trattativa spostata su un’altra persona',
   // Scritta dal database (chiudi_trattative_inattive), con email
   // 'regola-14-giorni': nessuna interazione da 14 giorni e niente in agenda.
   trattativa_persa_inattiva: 'Trattativa persa in automatico (14 giorni senza interazioni)',

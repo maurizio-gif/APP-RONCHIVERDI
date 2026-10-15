@@ -86,6 +86,11 @@
 	--info: #35566b;
 	--info-tint: rgba(58, 90, 107, 0.12);
 	--info-border: rgba(58, 90, 107, 0.32);
+	/* Prugna: le trattative aperte da un evento scritto in agenda (vedi
+	   .tag-provenienza.da-agenda). Un colore che nessuno stato usa, perché
+	   deve saltare all'occhio senza leggersi come un esito. */
+	--agenda: #6e3f6a;
+	--agenda-testo: #fdfaf3;
 
 	/* Tipografia: gli stessi due caratteri del sito.
 	   I fallback passano per i caratteri di sistema prima di Helvetica e
@@ -621,6 +626,34 @@ a:hover {
    (VerificaContatto.tsx). Campo e pulsante sulla stessa riga, i risultati
    come righe cliccabili: si sceglie toccando la persona, non da una tendina
    in cui il nome si legge a metà. */
+/* Lo storico di un appuntamento dentro i dettagli della richiesta
+   (DettagliRichiesta.tsx): una riga per cambio, senza pallini — è un
+   registro, non un elenco di punti. */
+/* «La richiesta è per un'altra persona», sotto i comandi del lead nella
+   scheda contatto (SpostaLead.tsx): un comando discreto, perché è
+   un'eccezione; aperto, un riquadro separato dal resto della card. */
+.sposta-lead-apri {
+	display: inline-block;
+	margin-top: 0.75rem;
+	font-size: var(--text-sm);
+}
+
+.sposta-lead {
+	margin-top: 0.85rem;
+	padding-top: 0.85rem;
+	border-top: 1px solid var(--border);
+}
+
+.storico-appuntamento {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.storico-appuntamento li + li {
+	margin-top: 0.2rem;
+}
+
 .verifica-contatto {
 	display: flex;
 	gap: 0.5rem;
@@ -3840,7 +3873,7 @@ button.th-ordina {
 }
 
 .split-canali-segmento.da-agenda {
-	background: var(--fill-strong);
+	background: var(--agenda);
 }
 
 .split-canali-segmento.da-altro {
@@ -5889,12 +5922,16 @@ button.th-ordina {
 	color: var(--bg);
 }
 
-/* Nata da un evento scritto in agenda: nessuna richiesta dietro, niente da
-   leggere. Resta smorzata — non è un canale in arrivo, è lavoro interno. */
+/* Nata da un evento scritto in agenda: nessuna richiesta dietro, l'ha aperta
+   qualcuno del club scrivendo un evento su quella persona — spesso un ex
+   socio da richiamare per il rinnovo. Era smorzata («lavoro interno»), e
+   proprio per questo una trattativa così si leggeva come un lead arrivato da
+   fuori. Ora è piena e di un colore suo: va riconosciuta prima di chiamare. */
 .tag-provenienza.da-agenda {
-	background: var(--fill-soft);
-	border-color: var(--border-strong);
-	color: var(--text-muted);
+	background: var(--agenda);
+	border-color: var(--agenda);
+	color: var(--agenda-testo);
+	font-weight: 600;
 }
 
 /* Un'origine che il pannello non conosce: ambra, perché chiede qualcosa a
@@ -7197,6 +7234,8 @@ table.tabella tr.is-mia td {
 	--info: #8ab4cc;
 	--info-tint: rgba(138, 180, 204, 0.14);
 	--info-border: rgba(138, 180, 204, 0.34);
+	--agenda: #d6a6cf;
+	--agenda-testo: #201d19;
 }
 
 /* Il filtro attivo è un riempimento pieno, e sul chiaro il pieno è il nero

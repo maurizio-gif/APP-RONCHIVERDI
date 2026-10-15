@@ -14,6 +14,7 @@ import {
 } from '@/lib/agenda'
 import { CLASSE_BADGE_STATO, CLASSE_RIGA_STATO, ETICHETTE_STATO } from '@/lib/pipeline'
 import { provenienzaTrattativa } from '@/lib/provenienza'
+import { quanteVolteSpostato, vociStorico } from '@/lib/storicoAppuntamento'
 import { inizialiPersona } from '@/lib/persone'
 import { nomeDiEmail } from '@/lib/staff'
 import { GestioneEvento } from '@/components/GestioneEvento'
@@ -39,6 +40,8 @@ export type Richiesta = {
   ora_scelta: string | null
   /** «Richiamami»: la fascia in cui vuole essere chiamata (vedi FASCE_RICHIAMO). */
   fascia_oraria?: string | null
+  /** Spostamenti e annullamento dell'appuntamento (vedi lib/storicoAppuntamento.ts). */
+  storico_appuntamento?: unknown
   messaggio: string | null
   dettagli: string[] | null
   minore_nome: string | null
@@ -347,6 +350,14 @@ export function RigaRichiesta({
                   {oraScelta && ` ore ${oraScelta}`}
                 </span>
               )}
+              {/* Quante volte è stato spostato, sulla riga: il dettaglio (da
+                  quando a quando, chi) sta nello storico dentro la riga. */}
+              {(() => {
+                const volte = quanteVolteSpostato(vociStorico(r.storico_appuntamento))
+                return volte > 0 ? (
+                  <span className="tag">{volte === 1 ? 'spostato 1 volta' : `spostato ${volte} volte`}</span>
+                ) : null
+              })()}
               {/* «Richiamami»: non c'è un giorno, c'è la fascia. */}
               {tipoAppuntamento && !r.data_scelta && eFasciaValida(r.fascia_oraria) && (
                 <span className="tag tag-appuntamento">

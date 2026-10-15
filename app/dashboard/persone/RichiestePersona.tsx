@@ -36,6 +36,8 @@ export type RichiestaDiPersona = {
   ora_scelta: string | null
   /** «Richiamami»: la fascia in cui vuole essere chiamata (vedi FASCE_RICHIAMO). */
   fascia_oraria?: string | null
+  /** Spostamenti e annullamento dell'appuntamento (vedi lib/storicoAppuntamento.ts). */
+  storico_appuntamento?: unknown
   messaggio: string | null
   dettagli: string[] | null
   gestito: boolean
