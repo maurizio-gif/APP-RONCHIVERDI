@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { isStaffEmail } from '@/lib/auth/allowlist'
 import { emailCorrente, getNomeUtente, getSezioniConsentite } from '@/lib/auth/sezioni-server'
 import { SEZIONE_NOTIFICHE } from '@/lib/notifiche'
+import { eCommerciale } from '@/lib/auth/permessi'
 import { contaNonLette } from './notifiche/actions'
 import { puoRicevereAvvisi } from './opportunita-actions'
 import { AvvisoOpportunita } from './AvvisoOpportunita'
@@ -9,6 +10,7 @@ import { NotificheProvider } from './NotificheProvider'
 import { NotificheBanner } from './NotificheBanner'
 import { Sidebar } from './Sidebar'
 import { LogoutInattivita } from './LogoutInattivita'
+import { BannerInstallazione } from './InstallaApp'
 
 // Il middleware ha già verificato la sessione con getUser() — una chiamata di
 // rete a Supabase Auth — e ci passa l'email validata via header: non la
@@ -41,7 +43,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // indicizzata su una tabella piccola, e aspettare di sapere se ha il
   // permesso per poterla chiedere costerebbe più della lettura stessa. Il
   // permesso decide cosa si mostra, non cosa si chiede.
-  const [sezioniConsentite, nomeUtente, nonLette, ricevePolling] = await Promise.all([
+  const [sezioniConsentite, nomeUtente, nonLette, ricevePolling, commerciale] = await Promise.all([
     getSezioniConsentite(email),
     getNomeUtente(email),
     contaNonLette(),
@@ -49,6 +51,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
     // rigaStaffCorrente tiene in cache per la durata della richiesta: non è
     // un round trip in più.
     puoRicevereAvvisi(),
+    // Idem: decide se nel menu c'è la Dashboard New.
+    eCommerciale(email),
   ])
 
   // Chi non ha il permesso non riceve niente: nessun badge, nessun avviso,
@@ -63,8 +67,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
           nomeUtente={nomeUtente}
           sezioniConsentite={sezioniConsentite}
           riceveAvvisoSonoro={ricevePolling}
+          commerciale={commerciale}
         />
         <main className="main-content">
+          <BannerInstallazione />
           <NotificheBanner />
           <LogoutInattivita />
           {/* A chiunque abbia almeno un canale di richieste fra le sue

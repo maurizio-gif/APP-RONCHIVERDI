@@ -1,18 +1,23 @@
-import type { MetadataRoute } from 'next'
+import { NextResponse } from 'next/server'
 
+// Il manifest dell'app installata. Non è app/manifest.ts perché Next.js lo
+// collegherebbe a ogni pagina, e un manifest dichiarato basta a Chrome ed Edge
+// da computer per proporre «Installa app». Qui lo si serve soltanto: lo
+// dichiara lib/installazione.ts dal browser, e solo su telefono e tablet.
+//
 // Il manifest è quello che decide se l'icona salvata sulla Home apre il
 // pannello a schermo intero o dentro un browser con la barra dell'indirizzo.
-// Su iOS il vecchio meta apple-mobile-web-app-capable (impostato nel layout)
-// non basta più da solo sulle versioni recenti di Safari: serve un manifest
-// con display "standalone".
+// Su iOS il vecchio meta apple-mobile-web-app-capable non basta più da solo
+// sulle versioni recenti di Safari: serve un manifest con display "standalone".
 //
 // start_url punta a /dashboard perché è la schermata da cui la segreteria
 // parte sempre; senza sessione valida il middleware rimanda a /login.
-export default function manifest(): MetadataRoute.Manifest {
+function manifest() {
   return {
     // short_name è l'etichetta sotto l'icona quando Android salva l'app sulla
     // Home; name è il nome lungo, quello del prompt di installazione. Su iOS
-    // l'etichetta arriva invece da appleWebApp.title, in app/layout.tsx: i tre
+    // l'etichetta arriva invece da apple-mobile-web-app-title, in
+    // lib/installazione.ts: i tre
     // valori vanno cambiati insieme, o l'app si chiama in due modi diversi a
     // seconda del telefono.
     name: 'CRM Ronchiverdi',
@@ -54,4 +59,13 @@ export default function manifest(): MetadataRoute.Manifest {
       },
     ],
   }
+}
+
+export function GET() {
+  return NextResponse.json(manifest(), {
+    headers: {
+      'content-type': 'application/manifest+json; charset=utf-8',
+      'cache-control': 'public, max-age=3600',
+    },
+  })
 }
