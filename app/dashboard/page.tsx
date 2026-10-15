@@ -338,7 +338,7 @@ async function trattativeDaLavorare(email: string | null, vista: VistaLead) {
       // richiesta di una chiusa l'anno prima.
       trattativaIds.length
         ? conColonneNuove<Record<string, any>>(
-            'id, created_at, opportunita_id, origine, azione, data_scelta, ora_scelta, fascia_oraria, attivita_label, messaggio, gestito, gestito_da, gestito_il, assegnato_a, note, note_da, note_il, esito_tipo, esito, esito_da, esito_il',
+            'id, created_at, opportunita_id, origine, azione, data_scelta, ora_scelta, fascia_oraria, storico_appuntamento, attivita_label, messaggio, gestito, gestito_da, gestito_il, assegnato_a, note, note_da, note_il, esito_tipo, esito, esito_da, esito_il',
             COLONNE_ASSEGNAZIONE_RICHIESTA,
             (colonne) =>
               supabase

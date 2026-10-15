@@ -16,6 +16,7 @@ import {
   puoAssegnare,
   type StatoTrattativa,
 } from '@/lib/pipeline'
+import { FONTE_MANUALE, validaNuovoContatto } from '@/lib/persone'
 
 export type Esito = { ok: true } | { ok: false; errore: string }
 
@@ -283,4 +284,108 @@ export async function cambiaStato(
   // una dalla dashboard deve farla passare da un elenco all'altro subito.
   revalidatePath('/dashboard')
   return { ok: true }
+}
+
+export type EsitoSpostamento =
+  | { ok: true; personaId: string; avviso: string }
+  | { ok: false; errore: string }
+
+/** Cosa dire per ciascun rifiuto della funzione SQL (vedi sposta_trattativa_su_persona). */
+const ERRORI_SPOSTAMENTO: Record<string, string> = {
+  trattativa_non_trovata: 'Trattativa non trovata.',
+  persona_non_trovata: 'La persona scelta non è più in anagrafica: rifai la ricerca.',
+  stessa_persona: 'È già intestata a questa persona.',
+  ha_gia_trattativa_aperta:
+    'Questa persona ha già una trattativa aperta: chiudi o annulla quella prima di spostarci questa.',
+}
+
+/**
+ * «La richiesta è per un'altra persona»: sposta la trattativa — con le sue
+ * richieste dal sito e gli eventi scritti per lei — sulla persona giusta.
+ *
+ * Il caso: il marito compila il modulo per la moglie, la moglie si iscrive, e
+ * la vendita arriva sulla scheda di lei mentre la trattativa è su quella di
+ * lui — quindi non si chiude da sola. Riscrivere i dati della scheda di lui
+ * non basterebbe (lei di solito ha già la sua, da socia) e falserebbe un
+ * socio vero. Si sposta invece la trattativa: o su una persona trovata in
+ * anagrafica, o su una nuova scritta qui con nome, cognome e cellulare.
+ *
+ * Tutto il resto lo fa sposta_trattativa_su_persona
+ * (scripts/sql/2026-10-15-sposta-trattativa-su-persona.sql), compresa la
+ * chiusura come vinta se la persona giusta ha già comprato. Qui si
+ * controllano i diritti: gli stessi di chi può assegnarla.
+ */
+export async function spostaTrattativaSuPersona(input: {
+  id: string
+  personaId?: string | null
+  nuovo?: {
+    nome: string
+    cognome: string
+    email: string
+    cellulare: string
+    prefisso: string
+  } | null
+}): Promise<EsitoSpostamento> {
+  const { email, sonoCommerciale, possoRiassegnare, haSezione } = await dirittiCorrenti()
+  if (!haSezione) return { ok: false, errore: 'Non hai accesso alle richieste Club e Family.' }
+
+  const t = await trattativa(input.id)
+  if (!t) return { ok: false, errore: 'Trattativa non trovata.' }
+  if (!puoAssegnare({ assegnatoA: t.assegnato_a, io: email, sonoCommerciale, possoRiassegnare })) {
+    return { ok: false, errore: `La segue ${t.assegnato_a}: solo chi la ha in mano può spostarla.` }
+  }
+
+  const supabase = createSupabaseServiceClient()
+
+  // La persona giusta: scelta dalla ricerca, o scritta qui. Scritta qui passa
+  // da trova_o_crea_persona, come ogni contatto nuovo: se in anagrafica c'è
+  // già (stesso nome, cognome e cellulare) si usa quella, senza doppioni.
+  let personaId = (input.personaId ?? '').trim()
+  if (!personaId) {
+    if (!input.nuovo) return { ok: false, errore: 'Scegli la persona giusta, o scrivi i suoi dati.' }
+    const validato = validaNuovoContatto(input.nuovo, { completo: true })
+    if ('errore' in validato) return { ok: false, errore: validato.errore }
+    const { data: id, error } = await supabase.rpc('trova_o_crea_persona', {
+      p_nome: validato.contatto.nome,
+      p_cognome: validato.contatto.cognome,
+      p_email: validato.contatto.email,
+      p_cellulare: validato.contatto.cellulare,
+      p_fonte: FONTE_MANUALE,
+    })
+    if (error || !id) {
+      console.error('Persona per lo spostamento non creata:', error?.message ?? 'nessun id')
+      return { ok: false, errore: 'Non siamo riusciti a creare la persona. Controlla i dati e riprova.' }
+    }
+    personaId = String(id)
+  }
+
+  const { data, error } = await supabase.rpc('sposta_trattativa_su_persona', {
+    p_opportunita: input.id,
+    p_persona: personaId,
+    p_chi: email,
+  })
+  if (error) {
+    const chiave = Object.keys(ERRORI_SPOSTAMENTO).find((k) => error.message.includes(k))
+    if (!chiave) console.error('Spostamento della trattativa non riuscito:', error.message)
+    return { ok: false, errore: chiave ? ERRORI_SPOSTAMENTO[chiave] : 'Non siamo riusciti a spostarla. Riprova.' }
+  }
+
+  const riga = (Array.isArray(data) ? data[0] : data) as
+    | { azione: string; motivo_vinto: string | null; valore_euro: number | null }
+    | undefined
+
+  revalidatePath('/dashboard/richieste', 'layout')
+  revalidatePath('/dashboard/persone', 'layout')
+  revalidatePath('/dashboard')
+
+  return {
+    ok: true,
+    personaId,
+    avviso:
+      riga?.azione === 'spostata_e_vinta'
+        ? `Spostata, e chiusa come vinta: aveva già comprato «${riga.motivo_vinto}»${
+            riga.valore_euro != null ? ` (${Number(riga.valore_euro).toFixed(2).replace('.', ',')} €)` : ''
+          }.`
+        : 'Spostata sulla persona giusta: la prossima vendita a suo nome la chiuderà da sola.',
+  }
 }

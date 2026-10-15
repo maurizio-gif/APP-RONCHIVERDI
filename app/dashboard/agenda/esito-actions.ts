@@ -409,7 +409,9 @@ export async function riprogrammaVoce(input: {
     .update(
       input.origine === 'task'
         ? { data: input.data, ora, note: riga_nota, stato: 'aperto', completato_il: null }
-        : { data_scelta: input.data, ora_scelta: ora }
+        : // Chi sposta, per lo storico dell'appuntamento: lo scrive il trigger
+          // form_contatti_storico_appuntamento (scripts/sql/2026-10-15-storico-appuntamento.sql).
+          { data_scelta: input.data, ora_scelta: ora, appuntamento_modificato_da: email }
     )
     .eq('id', input.id)
 

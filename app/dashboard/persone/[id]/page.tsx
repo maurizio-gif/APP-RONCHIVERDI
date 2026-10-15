@@ -12,7 +12,7 @@ import {
 } from '@/lib/persone'
 import { mappaNomiStaff, ordinaPerCognome, nomeDiEmail, type RigaStaff } from '@/lib/staff'
 import { COLONNE_NOTA_VINTA, conColonneNuove } from '@/lib/migrazioni'
-import { CLASSE_BADGE_STATO, ETICHETTE_STATO, euro, motivoDi, type StatoTrattativa } from '@/lib/pipeline'
+import { CLASSE_BADGE_STATO, ETICHETTE_STATO, euro, motivoDi, puoAssegnare, type StatoTrattativa } from '@/lib/pipeline'
 import {
   CLASSE_TIPO,
   ETICHETTE_TIPO_BREVI,
@@ -31,6 +31,7 @@ import { NuovaAzione } from './NuovaAzione'
 import { caricaGruppi } from '@/lib/abbonamenti'
 import { caricaNoteScadenze, TAG_NOTA, type NotaScadenza } from '../../abbonamenti/scadenze/note'
 import { conTentativiRichiamo } from '@/lib/richiamo-server'
+import { SpostaLead } from '../SpostaLead'
 
 // La scheda del contatto sul modello di Passion: in testa chi è e come lo si
 // raggiunge; a sinistra il lavoro (il lead, con assegnatario e stato, e le
@@ -126,7 +127,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
       .maybeSingle(),
     supabase
       .from('form_contatti')
-      .select('id, created_at, origine, attivita, attivita_label, azione, data_scelta, ora_scelta, fascia_oraria, messaggio, gestito, assegnato_a, note, opportunita_id')
+      .select('id, created_at, origine, attivita, attivita_label, azione, data_scelta, ora_scelta, fascia_oraria, storico_appuntamento, messaggio, gestito, assegnato_a, note, opportunita_id')
       .eq('persona_id', params.id)
       .order('created_at', { ascending: false }),
     conColonneNuove<Record<string, any>>(
@@ -432,6 +433,15 @@ export default async function PersonaPage({ params }: { params: { id: string } }
                     possoRiassegnare={possoRiassegnare}
                   />
                 </div>
+                {/* Il modulo compilato per un'altra persona (il marito per la
+                    moglie): si sposta il lead sulla persona giusta. Solo a chi
+                    può assegnarlo — lo ricontrolla la Server Action. */}
+                {puoAssegnare({
+                  assegnatoA: (lead.assegnato_a as string) ?? null,
+                  io: email,
+                  sonoCommerciale,
+                  possoRiassegnare,
+                }) && <SpostaLead id={lead.id as string} personaAttuale={params.id} />}
                 {altriLead.length > 0 && (
                   <p className="card-nota muted">
                     Lead precedenti:{' '}
