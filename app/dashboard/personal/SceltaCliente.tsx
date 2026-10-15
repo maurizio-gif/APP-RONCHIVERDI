@@ -71,7 +71,7 @@ export function SceltaCliente({
   valore: ClienteScelto | null
   onChange: (cliente: ClienteScelto | null) => void
 }) {
-  const [modo, setModo] = useState<Modo>(valore?.tipo ?? 'socio')
+  const [modo, setModo] = useState<Modo>(valore?.tipo === 'socio' || !valore ? 'socio' : 'corporate')
   const [query, setQuery] = useState('')
   const campo = useRef<HTMLInputElement>(null)
 
@@ -101,7 +101,7 @@ export function SceltaCliente({
                 Nato/a il {dataNumerica(valore.dataNascita)} · {valore.abbonamenti.join(' · ')}
               </div>
             </div>
-          ) : (
+          ) : valore.tipo === 'corporate' ? (
             <div>
               <div className="pt-nome">
                 <span className="badge badge-info">Corporate</span> {valore.azienda}
@@ -109,6 +109,13 @@ export function SceltaCliente({
               <div className="pt-dettagli">
                 {[valore.tessera, valore.abbonamento].filter(Boolean).join(' · ')}
               </div>
+            </div>
+          ) : (
+            <div>
+              <div className="pt-nome">
+                <span className="badge badge-info">Corporate</span> Azienda non in elenco
+              </div>
+              <div className="pt-dettagli">La scrivi a mano: il responsabile la verifica.</div>
             </div>
           )}
           <button
@@ -123,7 +130,22 @@ export function SceltaCliente({
           </button>
         </div>
 
-        {valore.tipo === 'corporate' && (
+        {valore.tipo === 'azienda_manuale' && (
+          <div className="field pt-corporate-azienda">
+            <label htmlFor="pt-corp-azienda">Azienda</label>
+            <input
+              id="pt-corp-azienda"
+              type="text"
+              autoComplete="off"
+              autoCapitalize="words"
+              value={valore.azienda}
+              onChange={(e) => onChange({ ...valore, azienda: e.target.value })}
+              required
+            />
+          </div>
+        )}
+
+        {valore.tipo !== 'socio' && (
           <div className="form-row pt-corporate-nome">
             <div className="field">
               <label htmlFor="pt-corp-nome">Nome di chi si allena</label>
@@ -277,6 +299,19 @@ export function SceltaCliente({
             </li>
           ))}
         </ul>
+      )}
+
+      {/* L'azienda può non esserci: tessera intestata in modo diverso, o un
+          corporate appena firmato e non ancora in Info4U. Il trainer la scrive
+          com'è detta dal cliente, insieme al suo nome. */}
+      {modo === 'corporate' && !ricerca.inCorso && (
+        <button
+          type="button"
+          className="link-testo pt-azienda-manuale"
+          onClick={() => onChange({ tipo: 'azienda_manuale', azienda: query.trim(), nome: '', cognome: '' })}
+        >
+          Non trovi l’azienda? Scrivila a mano →
+        </button>
       )}
     </div>
   )

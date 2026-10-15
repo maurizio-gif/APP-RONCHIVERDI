@@ -1,5 +1,5 @@
 -- Personal training: le sessioni che i trainer registrano, la conferma del
--- responsabile e il compenso che l'amministrazione riconosce a ciascuno.
+-- responsabile e la quota che ciascun trainer versa a Ronchiverdi.
 --
 -- Oggi il flusso è un registro cartaceo: il trainer scrive a fine mese le
 -- lezioni fatte (istruttore, cliente, orario) e il responsabile lo passa
@@ -9,8 +9,9 @@
 --      fra le persone con un abbonamento attivo (stato «in_attesa»);
 --   2. il responsabile (sezione personal-check) la conferma, la corregge o
 --      la elimina — solo da confermata compare nella scheda del contatto;
---   3. l'amministrazione (sezione personal-amministrazione) imposta il
---      compenso a sessione di ogni trainer e legge il totale del mese.
+--   3. l'amministrazione (sezione personal-amministrazione) imposta la
+--      quota che ogni trainer versa a Ronchiverdi (oraria o flat mensile) e
+--      legge il dovuto del mese.
 --
 -- Da eseguire nel SQL Editor del progetto Supabase Ronchiverdi
 -- (upoiasekisojikbzsymq).
@@ -31,6 +32,8 @@ create table if not exists public.personal_sessioni (
 	-- Il cliente in anagrafica. Per un abbonamento corporate è la scheda
 	-- «segnaposto» dell'azienda (es. nome "Corporate 1", cognome "Steeme
 	-- Srl"), e chi si è allenato davvero sta in cliente_nome/cliente_cognome.
+	-- Null per un corporate la cui azienda non era in elenco: il trainer
+	-- l'ha scritta a mano in `azienda`, e il responsabile può agganciarla.
 	-- SET NULL e non CASCADE: la sessione è un dato contabile, non deve
 	-- sparire con una scheda cancellata.
 	persona_id uuid references public.persone (id) on delete set null,
@@ -46,7 +49,7 @@ create table if not exists public.personal_sessioni (
 	cliente_cognome text not null,
 	corporate boolean not null default false,
 	-- Solo per i corporate: l'azienda, copiata dal cognome della scheda
-	-- segnaposto.
+	-- segnaposto o scritta a mano dal trainer se non era in elenco.
 	azienda text,
 
 	-- Quando si è svolta: giorno e ora di Roma, senza fuso, come in agenda.
@@ -67,7 +70,7 @@ create table if not exists public.personal_sessioni (
 );
 
 comment on table public.personal_sessioni is
-	'Sessioni di personal training registrate dal trainer (stato in_attesa) e confermate dal responsabile (confermata). Una sessione confermata compare nella scheda del contatto e nel calcolo dei compensi del mese.';
+	'Sessioni di personal training registrate dal trainer (stato in_attesa) e confermate dal responsabile (confermata). Una sessione confermata compare nella scheda del contatto e nel conto del mese del trainer.';
 comment on column public.personal_sessioni.persona_id is
 	'Il cliente in anagrafica; per un corporate è la scheda segnaposto dell''azienda, e il nome di chi si è allenato sta in cliente_nome/cliente_cognome.';
 comment on column public.personal_sessioni.stato is
@@ -81,27 +84,31 @@ create index if not exists personal_sessioni_attesa_idx on public.personal_sessi
 alter table public.personal_sessioni enable row level security;
 revoke all on public.personal_sessioni from anon, authenticated;
 
--- ───────────────────────────────────────────────────────────── compensi
+-- ──────────────────────────────────────────────────────────────── quote
 
--- Il compenso a sessione di un trainer, con la data da cui vale. Una riga
--- per ogni cambio, mai aggiornata: il calcolo di una sessione usa il
--- compenso in vigore nel giorno in cui si è svolta, così alzare la tariffa
--- da novembre non riscrive ottobre.
-create table if not exists public.personal_compensi (
+-- Quanto il trainer versa a Ronchiverdi: non un compenso, è il trainer a
+-- pagare. Due formule:
+--   oraria — un importo per ogni sessione confermata (la sessione è un'ora);
+--   flat   — un canone fisso al mese, qualunque sia il numero di sessioni.
+-- Una riga per ogni cambio, valida dal primo di un mese: il conto di un mese
+-- usa la riga con il valido_dal più recente non successivo, così cambiare
+-- formula da novembre non riscrive ottobre.
+create table if not exists public.personal_quote (
 	id bigint generated always as identity primary key,
 	created_at timestamptz not null default now(),
 	trainer_email text not null,
-	valido_dal date not null,
-	compenso_sessione numeric(10, 2) not null check (compenso_sessione >= 0),
+	valido_dal date not null check (extract(day from valido_dal) = 1),
+	tipo text not null check (tipo in ('oraria', 'flat')),
+	importo numeric(10, 2) not null check (importo >= 0),
 	impostato_da text not null,
 	unique (trainer_email, valido_dal)
 );
 
-comment on table public.personal_compensi is
-	'Compenso a sessione di ogni personal trainer, con la data da cui vale. Per una sessione si usa la riga con il valido_dal più recente non successivo alla data della sessione.';
+comment on table public.personal_quote is
+	'Quota che ogni personal trainer versa a Ronchiverdi: oraria (importo per sessione confermata) o flat (canone mensile fisso), valida dal primo del mese indicato.';
 
-alter table public.personal_compensi enable row level security;
-revoke all on public.personal_compensi from anon, authenticated;
+alter table public.personal_quote enable row level security;
+revoke all on public.personal_quote from anon, authenticated;
 
 -- ───────────────────────────────────────────────── ricerca del cliente
 

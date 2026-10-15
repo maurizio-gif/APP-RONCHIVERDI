@@ -5,7 +5,7 @@
 // Nessun import server-only: il file è usato sia dai Server Component sia dai
 // componenti client (il modulo del trainer, i comandi del responsabile).
 
-import { giornoPiu, primoDelMese, mesePiu } from './agenda'
+import { giornoPiu } from './agenda'
 
 export const STATI_SESSIONE = ['in_attesa', 'confermata'] as const
 export type StatoSessione = (typeof STATI_SESSIONE)[number]
@@ -78,6 +78,11 @@ export type CorporateTrovato = {
 /**
  * Il cliente come lo manda il modulo: la persona e l'abbonamento scelti, e —
  * solo per un corporate — il nome di chi si allena, scritto a mano.
+ *
+ * `azienda_manuale` è il corporate la cui azienda non si trova fra gli
+ * abbonamenti: il trainer scrive a mano azienda, nome e cognome, e la
+ * sessione non si aggancia a nessuna scheda finché il responsabile non la
+ * corregge scegliendo l'abbonamento giusto.
  */
 export type ClienteScelto =
   | {
@@ -99,6 +104,19 @@ export type ClienteScelto =
       nome: string
       cognome: string
     }
+  | {
+      tipo: 'azienda_manuale'
+      azienda: string
+      nome: string
+      cognome: string
+    }
+
+/** Vero quando il cliente è un corporate e mancano i dati da scrivere a mano. */
+export function mancaNomeScritto(cliente: ClienteScelto | null): boolean {
+  if (!cliente || cliente.tipo === 'socio') return false
+  if (!cliente.nome.trim() || !cliente.cognome.trim()) return true
+  return cliente.tipo === 'azienda_manuale' && !cliente.azienda.trim()
+}
 
 /** "12/03/1985": la data di nascita (o di scadenza) come la si legge su un documento. */
 export function dataNumerica(giorno: string | null | undefined): string {
@@ -130,19 +148,21 @@ export const ORE_SESSIONE = Array.from({ length: 16 }, (_, i) => String(7 + i).p
 /** I quarti d'ora: le sessioni cominciano all'ora o al quarto. */
 export const MINUTI_SESSIONE = ['00', '15', '30', '45'] as const
 
+/** Quanti giorni indietro il trainer può registrare una sessione dimenticata. */
+export const GIORNI_INDIETRO = 7
+
 /**
- * Fin dove si può registrare all'indietro: il primo del mese scorso. La
- * sessione si registra di regola il giorno stesso; il mese prima serve a
- * chi la dimentica a cavallo di fine mese, prima che l'amministrazione
- * chiuda i conti. Più indietro è un errore di data, non un ritardo.
+ * Fin dove si può registrare all'indietro: una settimana. La sessione si
+ * registra di regola il giorno stesso; la settimana serve a chi se ne
+ * dimentica, non a ricostruire un mese a memoria.
  */
 export function primaDataRegistrabile(oggi: string): string {
-  return mesePiu(primoDelMese(oggi), -1)
+  return giornoPiu(oggi, -GIORNI_INDIETRO)
 }
 
-/** Fin dove si può registrare in avanti: una sessione fissata, non un'agenda. */
+/** Fin dove si può registrare in avanti: oggi. Una sessione si registra quando c'è, non prima. */
 export function ultimaDataRegistrabile(oggi: string): string {
-  return giornoPiu(oggi, 30)
+  return oggi
 }
 
 export function oraValida(ora: string): boolean {
@@ -156,42 +176,70 @@ export function erroreDataOra(data: string, ora: string, oggi: string, limitato 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return 'Scegli il giorno della sessione.'
   if (!oraValida(ora)) return 'Scegli l’orario d’inizio.'
   if (limitato && data < primaDataRegistrabile(oggi)) {
-    return 'La data è troppo indietro: si registrano le sessioni da inizio mese scorso.'
+    return `La data è troppo indietro: si registrano le sessioni degli ultimi ${GIORNI_INDIETRO} giorni.`
   }
   if (limitato && data > ultimaDataRegistrabile(oggi)) {
-    return 'La data è troppo avanti: al massimo fra trenta giorni.'
+    return 'Non si registrano sessioni nei giorni futuri: al massimo quella di oggi.'
   }
   return null
 }
 
-// ──────────────────────────────────────────────────────────── compensi
+// ─────────────────────────────────────────── quote dovute dal trainer
+//
+// Non sono compensi: è il trainer a versare a Ronchiverdi. Per ognuno
+// l'amministrazione sceglie una di due formule, con il mese da cui vale:
+//
+//   - oraria: un importo per ogni sessione confermata (la sessione è
+//     un'ora);
+//   - flat: un canone fisso al mese, qualunque sia il numero di sessioni.
 
-export type CompensoTrainer = {
+export const TIPI_QUOTA = ['oraria', 'flat'] as const
+export type TipoQuota = (typeof TIPI_QUOTA)[number]
+
+export const ETICHETTE_TIPO_QUOTA: Record<TipoQuota, string> = {
+  oraria: 'Oraria (a sessione)',
+  flat: 'Flat (canone mensile)',
+}
+
+export function eTipoQuota(valore: string | null | undefined): valore is TipoQuota {
+  return (TIPI_QUOTA as readonly string[]).includes(valore ?? '')
+}
+
+export type QuotaTrainer = {
   trainer_email: string
+  /** Sempre il primo di un mese: la formula cambia solo a mese intero. */
   valido_dal: string
-  compenso_sessione: number
+  tipo: TipoQuota
+  importo: number
 }
 
 /**
- * Il compenso in vigore per un trainer in un giorno: la riga con il
- * valido_dal più recente non successivo. Null se per quel giorno non ce n'è
- * ancora uno — e allora la sessione si conta ma non si paga, finché
- * l'amministrazione non lo imposta.
+ * La quota in vigore per un trainer in un mese: la riga con il valido_dal
+ * più recente non successivo al primo del mese. Null se non ce n'è ancora
+ * una — e allora le sessioni si contano ma non c'è niente da incassare,
+ * finché l'amministrazione non la imposta.
  */
-export function compensoAl(
-  compensi: readonly CompensoTrainer[],
+export function quotaDelMese(
+  quote: readonly QuotaTrainer[],
   trainerEmail: string,
-  giorno: string
-): number | null {
-  let scelto: CompensoTrainer | null = null
-  for (const c of compensi) {
-    if (c.trainer_email !== trainerEmail || c.valido_dal > giorno) continue
-    if (!scelto || c.valido_dal > scelto.valido_dal) scelto = c
+  mese: string
+): QuotaTrainer | null {
+  let scelta: QuotaTrainer | null = null
+  for (const q of quote) {
+    if (q.trainer_email !== trainerEmail || q.valido_dal > mese) continue
+    if (!scelta || q.valido_dal > scelta.valido_dal) scelta = q
   }
-  return scelto ? Number(scelto.compenso_sessione) : null
+  return scelta
 }
 
-/** "€ 35,00": i compensi si leggono al centesimo, non arrotondati all'euro. */
+/** Quanto deve il trainer nel mese, con la quota data e le sessioni confermate. */
+export function dovutoDelMese(quota: QuotaTrainer | null, sessioniConfermate: number): number {
+  if (!quota) return 0
+  const importo = Number(quota.importo)
+  return quota.tipo === 'flat' ? importo : Math.round(importo * sessioniConfermate * 100) / 100
+}
+
+/** "€ 35,00": le quote si leggono al centesimo, non arrotondate all'euro. */
 export function euroCentesimi(valore: number | null | undefined): string {
   if (valore == null || !Number.isFinite(valore)) return '—'
   return valore.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })

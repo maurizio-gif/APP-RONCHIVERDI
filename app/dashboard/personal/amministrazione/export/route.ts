@@ -6,9 +6,9 @@ import { rendicontoMese } from '@/lib/personal-server'
 
 export const dynamic = 'force-dynamic'
 
-// Le sessioni confermate del mese, una per riga con il compenso, in CSV per
-// chi prepara i pagamenti su Excel: separatore «;», virgola decimale e BOM
-// iniziale come nell'export dell'incassato.
+// Il conto del mese in CSV per chi incassa dai trainer su Excel: il dovuto di
+// ciascuno e le sessioni confermate da cui viene. Separatore «;», virgola
+// decimale e BOM iniziale come nell'export dell'incassato.
 
 function cella(valore: string | number | null | undefined): string {
   const testo = valore === null || valore === undefined ? '' : String(valore)
@@ -30,24 +30,35 @@ export async function GET(request: Request) {
   const { righe, errore } = await rendicontoMese(mese)
   if (errore) return new NextResponse(`Errore: ${errore}`, { status: 500 })
 
-  const intestazione = ['Trainer', 'Data', 'Ora', 'Cliente', 'Azienda (corporate)', 'Abbonamento', 'Compenso']
-  const corpo = righe.flatMap((r) =>
-    r.confermate.map((s) =>
-      [
+  // Prima il riepilogo per trainer (quello che si incassa), poi il dettaglio
+  // delle sessioni confermate da cui viene, separati da una riga vuota.
+  const riepilogo = [
+    ['Trainer', 'Formula', 'Importo', 'Sessioni confermate', 'In attesa', 'Dovuto'],
+    ...righe.map((r) => [
+      r.trainerNome,
+      r.quota ? (r.quota.tipo === 'flat' ? 'Flat mensile' : 'Oraria') : 'Non impostata',
+      r.quota ? importo(r.quota.importo) : '',
+      r.confermate.length,
+      r.inAttesa,
+      importo(r.dovuto),
+    ]),
+  ]
+  const dettaglio = [
+    ['Trainer', 'Data', 'Ora', 'Cliente', 'Azienda (corporate)', 'Abbonamento'],
+    ...righe.flatMap((r) =>
+      r.confermate.map((s) => [
         r.trainerNome,
         dataNumerica(s.data),
         normalizzaOra(s.ora),
         `${s.cliente_cognome} ${s.cliente_nome}`,
         s.corporate ? s.azienda : '',
         s.abbonamento_nome,
-        importo(s.compenso),
-      ]
-        .map(cella)
-        .join(';')
-    )
-  )
+      ])
+    ),
+  ]
+  const linee = [...riepilogo, [], ...dettaglio].map((r) => r.map(cella).join(';'))
 
-  const csv = '﻿' + [intestazione.map(cella).join(';'), ...corpo].join('\r\n')
+  const csv = '\uFEFF' + linee.join('\r\n')
   return new NextResponse(csv, {
     headers: {
       'content-type': 'text/csv; charset=utf-8',

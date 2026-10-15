@@ -210,9 +210,9 @@ const DEFINIZIONI = [
   // Amministrazione: un nuovo invitato non lo riceve mai di default (vedi
   // app/dashboard/utenti/actions.ts), lo si abilita a mano.
   { chiave: 'incassato', label: 'Incassato', href: '/dashboard/incassato', gruppo: 'Amministrazione' },
-  // I compensi dei personal trainer: il compenso a sessione di ciascuno e il
-  // totale del mese sulle sessioni confermate. Dati economici sui
-  // collaboratori, quindi in Amministrazione come l'incassato.
+  // Quanto ogni personal trainer versa a Ronchiverdi: la quota (oraria o
+  // flat mensile) e il dovuto del mese sulle sessioni confermate. Dati
+  // economici sui collaboratori, quindi in Amministrazione come l'incassato.
   {
     chiave: 'personal-amministrazione',
     label: 'Amministrazione personal',

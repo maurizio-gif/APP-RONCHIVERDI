@@ -8228,6 +8228,21 @@ table.tabella-compatta .nota-in-riga {
 	margin-top: 1rem;
 }
 
+.pt-corporate-azienda {
+	margin: 1rem 0 0;
+}
+
+.pt-corporate-azienda input {
+	font-size: 1rem;
+}
+
+.pt-azienda-manuale {
+	display: block;
+	margin-top: 0.9rem;
+	font-size: var(--text-sm);
+	text-align: left;
+}
+
 .pt-corporate-nome .field {
 	margin-bottom: 0;
 }
@@ -8493,4 +8508,11 @@ table.tabella-compatta .nota-in-riga {
 	font-weight: 500;
 	letter-spacing: 0.08em;
 	text-transform: uppercase;
+}
+
+.pt-quota-tipo {
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+	flex-basis: 100%;
 }

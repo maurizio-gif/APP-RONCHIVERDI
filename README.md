@@ -694,18 +694,25 @@ carta firmato a fine mese. Tre sezioni, una per passaggio
   corregge (cliente, giorno, ora, trainer) o elimina: è l'unico che può farlo.
   Solo una sessione **confermata** compare nella scheda del contatto.
 - **Amministrazione personal** (`/dashboard/personal/amministrazione`,
-  permesso `personal-amministrazione`) — il compenso a sessione di ogni
-  trainer, con la data da cui vale, e il conto del mese sulle sessioni
-  confermate, con l'esportazione CSV. Ogni sessione si paga al compenso in
-  vigore nel giorno in cui si è svolta: cambiare la tariffa da novembre non
-  riscrive ottobre.
+  permesso `personal-amministrazione`) — quanto ogni trainer deve versare a
+  Ronchiverdi: non è un compenso, è il trainer a pagare. Per ognuno si sceglie
+  la formula, valida da un mese: **oraria** (un importo per ogni sessione
+  confermata) o **flat** (un canone fisso al mese, dovuto anche senza
+  sessioni). Il dovuto del mese si calcola da sé, con l'esportazione CSV.
+  Cambiare formula da novembre non riscrive ottobre.
 
 **Abbonamenti corporate.** Info4U intesta il `2.2-CORPORATE` a una scheda
 segnaposto dell'azienda (cognome = azienda, nome = «Corporate 1»…, senza data
 di nascita): il dipendente che si allena non è in anagrafica. Se il trainer
 non trova il cliente, passa a «Corporate aziendale», cerca l'azienda, sceglie
 l'abbonamento e scrive a mano nome e cognome di chi si allena. La sessione si
-aggancia alla scheda dell'azienda e conserva il nome scritto.
+aggancia alla scheda dell'azienda e conserva il nome scritto. Se l'azienda non
+c'è, il trainer la scrive a mano insieme al nome: la sessione resta senza
+scheda, segnata «azienda scritta a mano» nel Check, finché il responsabile non
+la aggancia all'abbonamento giusto con Modifica.
+
+**Date.** Il trainer registra sessioni degli ultimi 7 giorni, fino a oggi:
+niente giorni futuri. Il responsabile corregge qualunque data.
 
 Nome, cognome e azienda si rileggono sempre dal database nella Server Action:
 il browser manda solo gli id, e l'abbonamento deve essere della persona e
@@ -930,7 +937,7 @@ Fatto anche: **tema scuro**, con push, campanello e tema in cima al menu e la
 scelta ricordata su quel dispositivo.
 
 Fatto anche: **Personal training** — registrazione delle sessioni dal
-telefono del trainer, conferma e correzione del responsabile, compensi del mese
+telefono del trainer, conferma e correzione del responsabile, quote dei trainer (oraria o flat)
 per l'amministrazione, sessioni confermate nella scheda del contatto.
 
 Da fare: Enquiries, Persone, Agenda con `/api/disponibilita` per gli slot che il

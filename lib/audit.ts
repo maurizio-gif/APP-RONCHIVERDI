@@ -92,7 +92,7 @@ export const AZIONI_LOG: Record<string, string> = {
   personal_sessione_in_attesa: 'Personal: sessione rimessa in attesa',
   personal_sessione_modificata: 'Personal: sessione modificata',
   personal_sessione_eliminata: 'Personal: sessione eliminata',
-  personal_compenso_impostato: 'Personal: compenso a sessione impostato',
+  personal_quota_impostata: 'Personal: quota del trainer impostata',
   // Scritte dalla pagina di validazione: l'operatore e' l'account del
   // partner, quindi si vede chi ha bruciato cosa come per ogni altra azione.
   voucher_utilizzato: 'Voucher utilizzato (validazione)',

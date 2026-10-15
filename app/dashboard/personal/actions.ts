@@ -8,6 +8,7 @@ import { registraLog } from '@/lib/audit'
 import { oggiRoma } from '@/lib/agenda'
 import {
   COLONNE_SESSIONE,
+  eTipoQuota,
   erroreDataOra,
   nomeCliente,
   type ClienteScelto,
@@ -98,7 +99,7 @@ export async function cercaCorporate(query: string): Promise<EsitoRicerca<Corpor
  */
 async function giaRegistrata(
   trainerEmail: string,
-  dati: { persona_id: string; cliente_nome: string; cliente_cognome: string },
+  dati: { persona_id: string | null; azienda: string | null; cliente_nome: string; cliente_cognome: string },
   data: string,
   ora: string,
   escludiId?: string
@@ -108,11 +109,12 @@ async function giaRegistrata(
     .from('personal_sessioni')
     .select('id')
     .eq('trainer_email', trainerEmail)
-    .eq('persona_id', dati.persona_id)
     .eq('data', data)
     .eq('ora', `${ora}:00`)
     .ilike('cliente_nome', dati.cliente_nome)
     .ilike('cliente_cognome', dati.cliente_cognome)
+  // Un corporate scritto a mano non ha scheda: lo si riconosce dall'azienda.
+  query = dati.persona_id ? query.eq('persona_id', dati.persona_id) : query.is('persona_id', null).ilike('azienda', dati.azienda ?? '')
   if (escludiId) query = query.neq('id', escludiId)
   const { data: righe } = await query.limit(1)
   return (righe ?? []).length > 0
@@ -313,13 +315,17 @@ export async function modificaSessione(
  * obbligare a ritrovare un cliente che la ricerca non mostra più.
  */
 async function verificaClienteOAttuale(cliente: ClienteScelto, prima: SessionePersonal) {
+  const stessoNome = (c: { nome: string; cognome: string }) =>
+    c.nome.trim() === prima.cliente_nome && c.cognome.trim() === prima.cliente_cognome
   const invariato =
     !!cliente &&
+    !!prima.persona_id &&
+    !!prima.abbonamento_id &&
+    cliente.tipo !== 'azienda_manuale' &&
     cliente.personaId === prima.persona_id &&
     cliente.abbonamentoId === prima.abbonamento_id &&
-    (cliente.tipo !== 'corporate' ||
-      (cliente.nome.trim() === prima.cliente_nome && cliente.cognome.trim() === prima.cliente_cognome))
-  if (invariato && prima.persona_id && prima.abbonamento_id) {
+    (cliente.tipo !== 'corporate' || stessoNome(cliente))
+  if (invariato) {
     return {
       ok: true as const,
       dati: {
@@ -362,36 +368,42 @@ export async function eliminaSessione(id: string): Promise<EsitoAzione> {
   return { ok: true, messaggio: 'Sessione eliminata.' }
 }
 
-// ─────────────────────────────────────────────────── compensi (amministrazione)
+// ──────────────────────────────────────────── quote dei trainer (amministrazione)
 
-export async function impostaCompenso(input: {
+export async function impostaQuota(input: {
   trainerEmail: string
   validoDal: string
-  compenso: string
+  tipo: string
+  importo: string
 }): Promise<EsitoAzione> {
   const email = await operatoreCon('personal-amministrazione')
-  if (!email) return { ok: false, errore: 'Non hai il permesso di impostare i compensi.' }
+  if (!email) return { ok: false, errore: 'Non hai il permesso di impostare le quote dei trainer.' }
 
   const trainerEmail = String(input?.trainerEmail ?? '').trim().toLowerCase()
-  const validoDal = String(input?.validoDal ?? '')
+  // Il mese da cui vale, come lo manda <input type="month"> («2026-11») o
+  // già come primo del mese: la formula cambia solo a mese intero.
+  const mese = String(input?.validoDal ?? '').slice(0, 7)
+  const tipo = String(input?.tipo ?? '')
   // La virgola è il separatore che si scrive in Italia: «35,50».
-  const testo = String(input?.compenso ?? '').trim().replace(/\s|€/g, '').replace(',', '.')
-  const compenso = Number(testo)
+  const testo = String(input?.importo ?? '').trim().replace(/\s|€/g, '').replace(',', '.')
+  const importo = Number(testo)
 
   if (!trainerEmail) return { ok: false, errore: 'Trainer mancante.' }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(validoDal)) return { ok: false, errore: 'Indica da quando vale il compenso.' }
-  if (!testo || !Number.isFinite(compenso) || compenso < 0 || compenso > 10000) {
-    return { ok: false, errore: 'Scrivi il compenso a sessione in euro, per esempio 35 o 35,50.' }
+  if (!/^\d{4}-\d{2}$/.test(mese)) return { ok: false, errore: 'Indica il mese da cui vale la quota.' }
+  if (!eTipoQuota(tipo)) return { ok: false, errore: 'Scegli se la quota è oraria o flat.' }
+  if (!testo || !Number.isFinite(importo) || importo < 0 || importo > 100000) {
+    return { ok: false, errore: 'Scrivi l’importo in euro, per esempio 35 o 35,50.' }
   }
 
   const supabase = createSupabaseServiceClient()
-  // Stesso trainer e stessa data: si corregge il valore invece di avere due
-  // righe che si contendono lo stesso giorno.
-  const { error } = await supabase.from('personal_compensi').upsert(
+  // Stesso trainer e stesso mese: si corregge la riga invece di averne due
+  // che si contendono lo stesso mese.
+  const { error } = await supabase.from('personal_quote').upsert(
     {
       trainer_email: trainerEmail,
-      valido_dal: validoDal,
-      compenso_sessione: Math.round(compenso * 100) / 100,
+      valido_dal: `${mese}-01`,
+      tipo,
+      importo: Math.round(importo * 100) / 100,
       impostato_da: email,
       created_at: new Date().toISOString(),
     },
@@ -399,16 +411,16 @@ export async function impostaCompenso(input: {
   )
 
   if (error) {
-    console.error('Compenso personal non salvato:', error.message)
-    return { ok: false, errore: 'Non siamo riusciti a salvare il compenso. Riprova.' }
+    console.error('Quota personal non salvata:', error.message)
+    return { ok: false, errore: 'Non siamo riusciti a salvare la quota. Riprova.' }
   }
 
-  await registraLog(email, 'personal_compenso_impostato', {
-    entita: 'personal_compensi',
+  await registraLog(email, 'personal_quota_impostata', {
+    entita: 'personal_quote',
     entitaId: trainerEmail,
-    dettagli: { trainer: trainerEmail, valido_dal: validoDal, compenso_sessione: compenso },
+    dettagli: { trainer: trainerEmail, valido_dal: `${mese}-01`, tipo, importo },
   })
 
   revalidatePath('/dashboard/personal/amministrazione')
-  return { ok: true, messaggio: 'Compenso salvato.' }
+  return { ok: true, messaggio: 'Quota salvata.' }
 }

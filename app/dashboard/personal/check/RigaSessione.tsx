@@ -7,6 +7,7 @@ import {
   CLASSE_STATO_SESSIONE,
   ETICHETTE_STATO_SESSIONE,
   dataDiIstante,
+  mancaNomeScritto,
   nomeCliente,
   type ClienteScelto,
   type SessionePersonal,
@@ -24,6 +25,9 @@ const COLONNE = 7
  * verificaClienteOAttuale).
  */
 function clienteDellaSessione(s: SessionePersonal): ClienteScelto | null {
+  if (s.corporate && !s.persona_id) {
+    return { tipo: 'azienda_manuale', azienda: s.azienda ?? '', nome: s.cliente_nome, cognome: s.cliente_cognome }
+  }
   if (!s.persona_id || !s.abbonamento_id) return null
   if (s.corporate) {
     return {
@@ -92,8 +96,7 @@ export function RigaSessione({
     setAperta(true)
   }
 
-  const nomeCorporateMancante =
-    cliente?.tipo === 'corporate' && (!cliente.nome.trim() || !cliente.cognome.trim())
+  const nomeCorporateMancante = mancaNomeScritto(cliente)
   const pronta = !!cliente && !nomeCorporateMancante && !!quando.ora
 
   // Il trainer della sessione resta fra le scelte anche se non ha più la
@@ -123,6 +126,9 @@ export function RigaSessione({
           {s.corporate && (
             <div className="cella-chi-dettagli">
               <span className="badge badge-info">Corporate</span> {s.azienda}
+              {/* Scritta a mano dal trainer: da verificare, ed eventualmente
+                  agganciare all'abbonamento giusto con Modifica. */}
+              {!s.persona_id && <span className="badge badge-warn">azienda scritta a mano</span>}
             </div>
           )}
         </td>

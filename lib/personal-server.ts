@@ -3,9 +3,10 @@ import { mappaNomiStaff, nomeStaff, ordinaPerCognome, type RigaStaff } from '@/l
 import { oggiRoma, ultimoDelMese } from '@/lib/agenda'
 import {
   COLONNE_SESSIONE,
-  compensoAl,
+  dovutoDelMese,
+  quotaDelMese,
   type ClienteScelto,
-  type CompensoTrainer,
+  type QuotaTrainer,
   type SessionePersonal,
 } from '@/lib/personal'
 
@@ -31,8 +32,8 @@ export async function nomeTrainer(email: string): Promise<string> {
 
 /** Le colonne del cliente da scrivere sulla sessione. */
 export type DatiCliente = {
-  persona_id: string
-  abbonamento_id: string
+  persona_id: string | null
+  abbonamento_id: string | null
   abbonamento_nome: string | null
   cliente_nome: string
   cliente_cognome: string
@@ -58,7 +59,29 @@ const LUNGHEZZA_MASSIMA_NOME = 80
 export async function verificaCliente(
   cliente: ClienteScelto
 ): Promise<{ ok: true; dati: DatiCliente } | { ok: false; errore: string }> {
-  if (!cliente?.personaId || !cliente?.abbonamentoId) {
+  if (cliente?.tipo === 'azienda_manuale') {
+    const pulito = (v: unknown) => String(v ?? '').trim().slice(0, LUNGHEZZA_MASSIMA_NOME)
+    const azienda = pulito(cliente.azienda)
+    const nome = pulito(cliente.nome)
+    const cognome = pulito(cliente.cognome)
+    if (!azienda || !nome || !cognome) {
+      return { ok: false, errore: 'Scrivi l’azienda e il nome e cognome di chi si allena.' }
+    }
+    return {
+      ok: true,
+      dati: {
+        persona_id: null,
+        abbonamento_id: null,
+        abbonamento_nome: null,
+        cliente_nome: nome,
+        cliente_cognome: cognome,
+        corporate: true,
+        azienda,
+      },
+    }
+  }
+
+  if (!cliente || (cliente.tipo !== 'socio' && cliente.tipo !== 'corporate') || !cliente.personaId || !cliente.abbonamentoId) {
     return { ok: false, errore: 'Scegli il cliente.' }
   }
 
@@ -133,36 +156,31 @@ export async function verificaCliente(
 
 // ─────────────────────────────────────────────────── rendiconto del mese
 
-export type SessioneConCompenso = SessionePersonal & { compenso: number | null }
-
 export type RigaRendiconto = {
   trainerEmail: string
   trainerNome: string
-  confermate: SessioneConCompenso[]
+  confermate: SessionePersonal[]
   inAttesa: number
-  /** Il compenso in vigore l'ultimo giorno del mese: quello che la pagina mostra e propone di cambiare. */
-  compensoFineMese: number | null
-  /** Vero se nel mese il compenso è cambiato: il totale somma tariffe diverse. */
-  compensoVariato: boolean
-  /** Sessioni confermate senza un compenso in vigore nel loro giorno: contate, non pagate. */
-  senzaCompenso: number
-  totale: number
-  storicoCompensi: (CompensoTrainer & { impostato_da: string | null; created_at: string | null })[]
+  /** La quota in vigore nel mese, o null se non è ancora stata impostata. */
+  quota: QuotaTrainer | null
+  /** Quanto il trainer deve a Ronchiverdi per il mese. */
+  dovuto: number
+  storicoQuote: (QuotaTrainer & { impostato_da: string | null; created_at: string | null })[]
 }
 
 /**
- * Il rendiconto di un mese, un trainer per riga: le sessioni confermate con
- * il compenso in vigore nel loro giorno, quante ne restano in attesa (non
- * entrano nel totale finché il responsabile non le conferma) e il totale.
+ * Il rendiconto di un mese, un trainer per riga: le sessioni confermate,
+ * quante ne restano in attesa (non entrano nel conto finché il responsabile
+ * non le conferma), la quota in vigore e quanto il trainer deve versare.
  *
- * Compaiono i trainer con sessioni nel mese e quelli abilitati alla sezione,
- * anche a zero: l'amministrazione imposta il compenso prima che il trainer
- * cominci, non dopo.
+ * Compaiono i trainer con sessioni nel mese, quelli abilitati alla sezione e
+ * quelli con una quota impostata, anche a zero sessioni: chi paga un canone
+ * flat lo deve anche nel mese in cui non registra niente.
  */
 export async function rendicontoMese(mese: string): Promise<{ righe: RigaRendiconto[]; errore: string | null }> {
   const supabase = createSupabaseServiceClient()
   const fine = ultimoDelMese(mese)
-  const [{ data: sessioni, error }, { data: compensi }, trainer, { data: staff }] = await Promise.all([
+  const [{ data: sessioni, error }, { data: quote, error: erroreQuote }, trainer, { data: staff }] = await Promise.all([
     supabase
       .from('personal_sessioni')
       .select(COLONNE_SESSIONE)
@@ -172,36 +190,30 @@ export async function rendicontoMese(mese: string): Promise<{ righe: RigaRendico
       .order('ora', { ascending: true })
       .limit(10000),
     supabase
-      .from('personal_compensi')
-      .select('trainer_email, valido_dal, compenso_sessione, impostato_da, created_at')
+      .from('personal_quote')
+      .select('trainer_email, valido_dal, tipo, importo, impostato_da, created_at')
       .order('valido_dal', { ascending: false }),
     leggiTrainer(),
     supabase.from('staff_users').select('email, nome, cognome'),
   ])
 
-  if (error) return { righe: [], errore: error.message }
+  if (error || erroreQuote) return { righe: [], errore: (error ?? erroreQuote)!.message }
 
-  const tuttiCompensi = (compensi ?? []).map((c) => ({
-    ...c,
-    compenso_sessione: Number(c.compenso_sessione),
-  })) as RigaRendiconto['storicoCompensi']
+  const tutteQuote = (quote ?? []).map((q) => ({ ...q, importo: Number(q.importo) })) as RigaRendiconto['storicoQuote']
   const nomi = mappaNomiStaff((staff ?? []) as RigaStaff[])
 
   const perTrainer = new Map<string, RigaRendiconto>()
   const riga = (email: string, nomeSalvato?: string | null): RigaRendiconto => {
     let r = perTrainer.get(email)
     if (!r) {
-      const compensoFineMese = compensoAl(tuttiCompensi, email, fine)
       r = {
         trainerEmail: email,
         trainerNome: nomi[email] ?? nomeSalvato ?? email,
         confermate: [],
         inAttesa: 0,
-        compensoFineMese,
-        compensoVariato: tuttiCompensi.some((c) => c.trainer_email === email && c.valido_dal > mese && c.valido_dal <= fine),
-        senzaCompenso: 0,
-        totale: 0,
-        storicoCompensi: tuttiCompensi.filter((c) => c.trainer_email === email),
+        quota: quotaDelMese(tutteQuote, email, mese),
+        dovuto: 0,
+        storicoQuote: tutteQuote.filter((q) => q.trainer_email === email),
       }
       perTrainer.set(email, r)
     }
@@ -209,19 +221,16 @@ export async function rendicontoMese(mese: string): Promise<{ righe: RigaRendico
   }
 
   for (const t of trainer) riga(t.email, nomeStaff(t))
+  // Una quota in vigore nel mese porta il trainer in elenco anche se nel
+  // frattempo gli è stata tolta la sezione: il canone resta da incassare.
+  for (const q of tutteQuote) if (quotaDelMese(tutteQuote, q.trainer_email, mese)) riga(q.trainer_email)
   for (const s of (sessioni ?? []) as unknown as SessionePersonal[]) {
     const r = riga(s.trainer_email, s.trainer_nome)
-    if (s.stato !== 'confermata') {
-      r.inAttesa += 1
-      continue
-    }
-    const compenso = compensoAl(tuttiCompensi, s.trainer_email, s.data)
-    r.confermate.push({ ...s, compenso })
-    if (compenso == null) r.senzaCompenso += 1
-    else r.totale += compenso
+    if (s.stato === 'confermata') r.confermate.push(s)
+    else r.inAttesa += 1
   }
 
   const righe = [...perTrainer.values()].sort((a, b) => a.trainerNome.localeCompare(b.trainerNome, 'it'))
-  for (const r of righe) r.totale = Math.round(r.totale * 100) / 100
+  for (const r of righe) r.dovuto = dovutoDelMese(r.quota, r.confermate.length)
   return { righe, errore: null }
 }

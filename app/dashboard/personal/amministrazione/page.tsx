@@ -2,18 +2,31 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { dataBreve, etichettaMese, mesePiu, normalizzaOra, oggiRoma, primoDelMese } from '@/lib/agenda'
-import { dataNumerica, euroCentesimi, nomeCliente } from '@/lib/personal'
+import { ETICHETTE_TIPO_QUOTA, euroCentesimi, nomeCliente, type QuotaTrainer as Quota } from '@/lib/personal'
 import { rendicontoMese } from '@/lib/personal-server'
-import { CompensoTrainer } from './CompensoTrainer'
+import { QuotaTrainer } from './QuotaTrainer'
 
 export const dynamic = 'force-dynamic'
 
-// L'amministrazione dei personal trainer: per ognuno il compenso a sessione
-// e il conto del mese sulle sessioni confermate dal responsabile. Le sessioni
-// ancora in attesa si vedono ma non si pagano: prima vanno confermate.
+// L'amministrazione dei personal trainer: quanto ciascuno deve versare a
+// Ronchiverdi nel mese. La quota è oraria (un importo per ogni sessione
+// confermata dal responsabile) o flat (un canone fisso al mese). Le sessioni
+// ancora in attesa si vedono ma non si contano: prima vanno confermate.
 
 function href(mese: string) {
   return `/dashboard/personal/amministrazione?mese=${mese}`
+}
+
+function meseBreve(giorno: string): string {
+  return new Date(`${giorno}T12:00:00Z`).toLocaleDateString('it-IT', {
+    timeZone: 'UTC',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+function descriviQuota(q: Quota): string {
+  return q.tipo === 'flat' ? `${euroCentesimi(q.importo)} al mese` : `${euroCentesimi(q.importo)} a sessione`
 }
 
 export default async function AmministrazionePersonalPage({ searchParams }: { searchParams: { mese?: string } }) {
@@ -27,8 +40,8 @@ export default async function AmministrazionePersonalPage({ searchParams }: { se
 
   const sessioniConfermate = righe.reduce((n, r) => n + r.confermate.length, 0)
   const inAttesa = righe.reduce((n, r) => n + r.inAttesa, 0)
-  const senzaCompenso = righe.reduce((n, r) => n + r.senzaCompenso, 0)
-  const totale = Math.round(righe.reduce((n, r) => n + r.totale, 0) * 100) / 100
+  const senzaQuota = righe.filter((r) => !r.quota && r.confermate.length > 0).length
+  const totale = Math.round(righe.reduce((n, r) => n + r.dovuto, 0) * 100) / 100
 
   return (
     <>
@@ -36,8 +49,8 @@ export default async function AmministrazionePersonalPage({ searchParams }: { se
         <p className="eyebrow">Personal training</p>
         <h1>Amministrazione personal</h1>
         <p className="muted">
-          Il compenso a sessione di ogni trainer e il conto del mese. Contano solo le sessioni
-          confermate dal responsabile, ciascuna al compenso in vigore nel giorno in cui si è svolta.
+          Quanto ogni trainer deve versare a Ronchiverdi nel mese: una quota oraria per ogni sessione
+          confermata dal responsabile, oppure un canone flat mensile.
         </p>
       </div>
 
@@ -67,18 +80,18 @@ export default async function AmministrazionePersonalPage({ searchParams }: { se
         </div>
         <div className="stat">
           <span className="stat-valore">{euroCentesimi(totale)}</span>
-          <span className="stat-label">Compensi del mese</span>
+          <span className="stat-label">Da incassare dai trainer</span>
         </div>
         <div className="stat">
           <span className="stat-valore">{inAttesa}</span>
           <span className="stat-label">In attesa di conferma</span>
           {inAttesa > 0 && <span className="stat-nota">Non entrano nel conto finché non sono confermate.</span>}
         </div>
-        {senzaCompenso > 0 && (
+        {senzaQuota > 0 && (
           <div className="stat">
-            <span className="stat-valore">{senzaCompenso}</span>
-            <span className="stat-label">Senza compenso impostato</span>
-            <span className="stat-nota">Confermate ma a € 0: imposta il compenso del trainer.</span>
+            <span className="stat-valore">{senzaQuota}</span>
+            <span className="stat-label">Trainer senza quota</span>
+            <span className="stat-nota">Hanno sessioni confermate ma nessuna quota: il loro dovuto è € 0.</span>
           </div>
         )}
       </div>
@@ -101,8 +114,8 @@ export default async function AmministrazionePersonalPage({ searchParams }: { se
                   <th>Trainer</th>
                   <th>Confermate</th>
                   <th>In attesa</th>
-                  <th>Compenso a sessione</th>
-                  <th>Totale mese</th>
+                  <th>Quota</th>
+                  <th>Dovuto nel mese</th>
                 </tr>
               </thead>
               <tbody>
@@ -120,20 +133,19 @@ export default async function AmministrazionePersonalPage({ searchParams }: { se
                                   {dataBreve(s.data)} · {normalizzaOra(s.ora)}
                                 </span>{' '}
                                 {nomeCliente(s)}
-                                {s.corporate && s.azienda ? ` (${s.azienda})` : ''} ·{' '}
-                                {s.compenso == null ? <span className="badge badge-warn">senza compenso</span> : euroCentesimi(s.compenso)}
+                                {s.corporate && s.azienda ? ` (${s.azienda})` : ''}
                               </li>
                             ))}
                           </ol>
                         </details>
                       )}
-                      {r.storicoCompensi.length > 1 && (
+                      {r.storicoQuote.length > 1 && (
                         <details className="pt-dettaglio">
-                          <summary>Storico compensi</summary>
+                          <summary>Storico quote</summary>
                           <ol className="pt-dettaglio-elenco">
-                            {r.storicoCompensi.map((c) => (
-                              <li key={c.valido_dal}>
-                                dal {dataNumerica(c.valido_dal)}: {euroCentesimi(c.compenso_sessione)}
+                            {r.storicoQuote.map((q) => (
+                              <li key={q.valido_dal}>
+                                da {meseBreve(q.valido_dal)}: {ETICHETTE_TIPO_QUOTA[q.tipo]}, {descriviQuota(q)}
                               </li>
                             ))}
                           </ol>
@@ -147,20 +159,24 @@ export default async function AmministrazionePersonalPage({ searchParams }: { se
                     <td>
                       <div className="pt-compenso">
                         <span>
-                          {euroCentesimi(r.compensoFineMese)}
-                          {r.compensoVariato && <div className="cella-chi-dettagli">cambiato nel mese</div>}
+                          {r.quota ? (
+                            <>
+                              {descriviQuota(r.quota)}
+                              <div className="cella-chi-dettagli">{r.quota.tipo === 'flat' ? 'Flat' : 'Oraria'}</div>
+                            </>
+                          ) : (
+                            <span className="muted">non impostata</span>
+                          )}
                         </span>
-                        <CompensoTrainer
-                          trainerEmail={r.trainerEmail}
-                          validoDalPredefinito={mese}
-                          attuale={r.compensoFineMese}
-                        />
+                        <QuotaTrainer trainerEmail={r.trainerEmail} mesePredefinito={mese} attuale={r.quota} />
                       </div>
                     </td>
                     <td className="cella-importo">
-                      <strong>{euroCentesimi(r.totale)}</strong>
-                      {r.senzaCompenso > 0 && (
-                        <div className="cella-chi-dettagli">{r.senzaCompenso} senza compenso</div>
+                      <strong>{euroCentesimi(r.dovuto)}</strong>
+                      {r.quota?.tipo === 'oraria' && r.confermate.length > 0 && (
+                        <div className="cella-chi-dettagli">
+                          {r.confermate.length} × {euroCentesimi(r.quota.importo)}
+                        </div>
                       )}
                     </td>
                   </tr>

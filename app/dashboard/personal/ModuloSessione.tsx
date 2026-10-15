@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { primaDataRegistrabile, ultimaDataRegistrabile, type ClienteScelto } from '@/lib/personal'
+import { mancaNomeScritto, primaDataRegistrabile, ultimaDataRegistrabile, type ClienteScelto } from '@/lib/personal'
 import { registraSessione } from './actions'
 import { SceltaCliente } from './SceltaCliente'
 import { SceltaDataOra } from './SceltaDataOra'
@@ -15,8 +15,7 @@ export function ModuloSessione({ oggi }: { oggi: string }) {
   const [fatto, setFatto] = useState<string | null>(null)
   const [inCorso, startTransition] = useTransition()
 
-  const nomeCorporateMancante =
-    cliente?.tipo === 'corporate' && (!cliente.nome.trim() || !cliente.cognome.trim())
+  const nomeCorporateMancante = mancaNomeScritto(cliente)
   const pronto = !!cliente && !nomeCorporateMancante && !!quando.data && !!quando.ora
 
   function invia() {
@@ -83,7 +82,9 @@ export function ModuloSessione({ oggi }: { oggi: string }) {
           {!cliente
             ? 'Scegli il cliente.'
             : nomeCorporateMancante
-              ? 'Scrivi nome e cognome di chi si allena.'
+              ? cliente.tipo === 'azienda_manuale'
+                ? 'Scrivi azienda, nome e cognome di chi si allena.'
+                : 'Scrivi nome e cognome di chi si allena.'
               : 'Scegli l’ora d’inizio.'}
         </p>
       )}
