@@ -114,7 +114,9 @@ export type EsitoAssegnazioneLead = {
 export async function assegnaTrattativaDaEvento(
   personaId: string,
   assegnatario: string,
-  chiScrive: string | null
+  chiScrive: string | null,
+  /** Cosa è arrivato alla segreteria: diventa il secondo attributo del lead. */
+  richiesta: 'telefonata' | 'email'
 ): Promise<EsitoAssegnazioneLead | null> {
   const supabase = createSupabaseServiceClient()
   const { data, error } = await supabase.rpc('trattativa_per_evento', {
@@ -137,7 +139,17 @@ export async function assegnaTrattativaDaEvento(
     return null
   }
 
-  if (chiScrive && (azione === 'creata' || azione === 'presa_in_carico')) {
+  // Una trattativa nata adesso da Phone In: trattativa_per_evento la marca
+  // 'agenda', ma non l'ha aperta un evento scritto da un operatore — l'ha
+  // aperta una telefonata o un'email arrivata alla segreteria. Lo dicono i
+  // due attributi del lead (vedi lib/provenienza.ts). Una trattativa che
+  // c'era già resta com'era nata.
+  if (azione === 'creata') {
+    await supabase
+      .from('opportunita')
+      .update({ origine: 'phone-email-in', richiesta, ...(chiScrive ? { assegnato_da: chiScrive, stato_da: chiScrive } : {}) })
+      .eq('id', id)
+  } else if (chiScrive && azione === 'presa_in_carico') {
     await supabase.from('opportunita').update({ assegnato_da: chiScrive, stato_da: chiScrive }).eq('id', id)
   } else if (chiScrive && azione === 'avviata') {
     await supabase.from('opportunita').update({ stato_da: chiScrive }).eq('id', id)

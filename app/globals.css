@@ -91,6 +91,11 @@
 	   deve saltare all'occhio senza leggersi come un esito. */
 	--agenda: #6e3f6a;
 	--agenda-testo: #fdfaf3;
+	/* Verde petrolio: i lead arrivati per telefono o email alla segreteria
+	   (Phone In / Email In). */
+	--telefono: #2f6662;
+	--telefono-tint: rgba(47, 102, 98, 0.12);
+	--telefono-border: rgba(47, 102, 98, 0.34);
 
 	/* Tipografia: gli stessi due caratteri del sito.
 	   I fallback passano per i caratteri di sistema prima di Helvetica e
@@ -3872,6 +3877,10 @@ button.th-ordina {
 	background: var(--accent);
 }
 
+.split-canali-segmento.da-telefono {
+	background: var(--telefono);
+}
+
 .split-canali-segmento.da-agenda {
 	background: var(--agenda);
 }
@@ -5934,6 +5943,14 @@ button.th-ordina {
 	font-weight: 600;
 }
 
+/* Phone In / Email In: verde petrolio, come chi è passato dalla segreteria
+   per telefono o per email — ha già parlato con qualcuno del club. */
+.tag-provenienza.da-telefono {
+	background: var(--telefono-tint);
+	border-color: var(--telefono-border);
+	color: var(--telefono);
+}
+
 /* Un'origine che il pannello non conosce: ambra, perché chiede qualcosa a
    chi la vede — c'è un canale da instradare in lib/provenienza.ts. */
 .tag-provenienza.da-altro {
@@ -5949,6 +5966,36 @@ button.th-ordina {
 	background: transparent;
 	border-color: var(--border-strong);
 	border-style: dashed;
+	color: var(--text-muted);
+}
+
+/* Cosa ha chiesto chi ha aperto il lead (lib/provenienza.ts, richiestaDelLead):
+   il secondo attributo, accanto al canale. A contorno e non pieno, così le
+   due targhette affiancate non si confondono — il canale è il colore, la
+   richiesta è la cornice. Il tour e il richiamami, che sono un impegno da
+   rispettare, hanno il bordo dell'accento. */
+.tag-richiesta {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	padding: 0.1rem 0.5rem;
+	background: var(--surface);
+	border: 1px solid var(--border-strong);
+	border-radius: 999px;
+	color: var(--text);
+	font-size: var(--text-2xs);
+	font-weight: 500;
+	line-height: 1.5;
+	white-space: nowrap;
+}
+
+.tag-richiesta.richiesta-tour,
+.tag-richiesta.richiesta-richiamami {
+	border-color: var(--accent);
+	color: var(--accent);
+}
+
+.tag-richiesta.richiesta-messaggio {
 	color: var(--text-muted);
 }
 
@@ -7236,6 +7283,9 @@ table.tabella tr.is-mia td {
 	--info-border: rgba(138, 180, 204, 0.34);
 	--agenda: #d6a6cf;
 	--agenda-testo: #201d19;
+	--telefono: #82c2bc;
+	--telefono-tint: rgba(130, 194, 188, 0.14);
+	--telefono-border: rgba(130, 194, 188, 0.36);
 }
 
 /* Il filtro attivo è un riempimento pieno, e sul chiaro il pieno è il nero

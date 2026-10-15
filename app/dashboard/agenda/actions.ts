@@ -335,7 +335,12 @@ export async function registraPhoneEmailIn(formData: FormData): Promise<Esito> {
     return { ok: false, errore: 'Non siamo riusciti a salvare. Riprova.' }
   }
 
-  const lead = await assegnaTrattativaDaEvento(contatto.id, assegnatario, email)
+  const lead = await assegnaTrattativaDaEvento(
+    contatto.id,
+    assegnatario,
+    email,
+    tipoRegistrato === 'email' ? 'email' : 'telefonata'
+  )
 
   await registraLog(email, 'evento_registrato', {
     entita: 'persona',

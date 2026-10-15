@@ -300,7 +300,7 @@ async function trattativeDaLavorare(email: string | null, vista: VistaLead) {
   let query = supabase
     .from('opportunita')
     .select(
-      'id, stato, assegnato_a, motivo_perso, motivo_annullato, persona_id, creato_il, origine'
+      'id, stato, assegnato_a, motivo_perso, motivo_annullato, persona_id, creato_il, origine, richiesta'
     )
   if (vista === 'libere') query = query.in('stato', ['nuovo', 'in_gestione']).is('assegnato_a', null)
   else if (vista === 'mie') query = query.in('stato', ['nuovo', 'in_gestione']).eq('assegnato_a', email ?? '')
@@ -417,6 +417,7 @@ async function trattativeDaLavorare(email: string | null, vista: VistaLead) {
       esito: (r.esito as string) ?? null,
       esitoDa: (r.esito_da as string) ?? null,
       esitoIl: (r.esito_il as string) ?? null,
+      fascia: (r.fascia_oraria as string) ?? null,
     })
   }
   for (const [idTrattativa, evento] of eventoPerTrattativa) {
@@ -454,6 +455,7 @@ async function trattativeDaLavorare(email: string | null, vista: VistaLead) {
       // quella da chiamare.
       creatoIl: (t.creato_il as string) ?? null,
       origine: (t.origine as string) ?? null,
+      richiesta: (t.richiesta as string) ?? null,
       nome: (p?.nome as string) ?? null,
       cognome: (p?.cognome as string) ?? null,
       email: (p?.email as string) ?? null,
