@@ -13,7 +13,7 @@ import {
   tipoDaAzione,
 } from '@/lib/agenda'
 import { CLASSE_BADGE_STATO, CLASSE_RIGA_STATO, ETICHETTE_STATO } from '@/lib/pipeline'
-import { provenienzaTrattativa } from '@/lib/provenienza'
+import { provenienzaTrattativa, richiestaDaAzione, richiestaDelLead } from '@/lib/provenienza'
 import { quanteVolteSpostato, vociStorico } from '@/lib/storicoAppuntamento'
 import { inizialiPersona } from '@/lib/persone'
 import { nomeDiEmail } from '@/lib/staff'
@@ -364,7 +364,6 @@ export function RigaRichiesta({
                   Richiamami · {testoFascia(r.fascia_oraria)}
                 </span>
               )}
-              {r.azione && !tipoAppuntamento && <span className="tag">{r.azione}</span>}
 
               {/* Da dove arriva, nella stessa targhetta e con gli stessi
                   colori della dashboard e della scheda contatto: Sito, Guest
@@ -373,6 +372,14 @@ export function RigaRichiesta({
                   taciuto — e chi passa da una pagina all'altra del pannello
                   trovava due modi di dire lo stesso fatto. */}
               <span className={`tag-provenienza ${daDove.classe}`}>{daDove.etichetta}</span>
+              {/* Cosa ha chiesto. Tour e richiamami hanno già la loro
+                  targhetta, con giorno o fascia, poco più su. */}
+              {(() => {
+                const richiesta = richiestaDelLead(richiestaDaAzione(r.azione, r.origine))
+                return richiesta && richiesta.chiave !== 'tour' && richiesta.chiave !== 'richiamami' ? (
+                  <span className={`tag-richiesta ${richiesta.classe}`}>{richiesta.etichetta}</span>
+                ) : null
+              })()}
 
               {/* Di chi è il lavoro, e detto **sempre**. Su una richiesta già
                   lavorata il dato giusto è un altro — chi l'ha fatta — perché

@@ -4,7 +4,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { ATTIVITA_IN_AGENDA, COLONNE_RICHIESTA } from '@/lib/richieste'
 import { euro, type StatoTrattativa } from '@/lib/pipeline'
-import { provenienzaDiOrigine, type ChiaveProvenienza } from '@/lib/provenienza'
+import { provenienzaDiOrigine, type ChiaveProvenienza, etichettaRichiestaReport } from '@/lib/provenienza'
 import {
   CLASSE_TIPO,
   ETICHETTE_TIPO_BREVI,
@@ -335,7 +335,7 @@ export default async function CoreManagerPage({
     tuttiPaginato<Record<string, any>>((da, a) =>
       supabase
         .from('opportunita')
-        .select('assegnato_a, assegnato_il, creato_il, stato, origine')
+        .select('assegnato_a, assegnato_il, creato_il, stato, origine, richiesta')
         .in('stato', ['nuovo', 'in_gestione'])
         .range(da, a)
     ),
@@ -345,7 +345,7 @@ export default async function CoreManagerPage({
     // lead di marzo non comparirebbe da nessuna parte.
     tuttiPaginato<Record<string, any>>((da, a) =>
       conColonneNuove<Record<string, any>>(
-        'assegnato_a, stato, chiuso_il, valore_euro, origine, motivo_perso',
+        'assegnato_a, stato, chiuso_il, valore_euro, origine, richiesta, motivo_perso',
         COLONNE_NOTA_VINTA,
         (colonne) =>
           supabase
@@ -463,11 +463,28 @@ export default async function CoreManagerPage({
     return perProvenienza.get(chiave)!
   }
 
+  // Lo stesso spaccato per **cosa ha chiesto** chi ha aperto il lead (il
+  // secondo attributo, opportunita.richiesta): un tour prenotato e un
+  // richiamami non convertono allo stesso modo, ed è il numero che dice se il
+  // cambio dal messaggio al richiamami ha funzionato.
+  const perRichiesta = new Map<
+    string,
+    { etichetta: string; aperte: number; vinte: number; perse: number; valore: number }
+  >()
+  function rigaRichiesta(richiesta: string | null | undefined) {
+    const chiave = richiesta ?? 'nessuna'
+    if (!perRichiesta.has(chiave)) {
+      perRichiesta.set(chiave, { etichetta: etichettaRichiestaReport(richiesta), aperte: 0, vinte: 0, perse: 0, valore: 0 })
+    }
+    return perRichiesta.get(chiave)!
+  }
+
   // 1 e 2: il carico di adesso e la reattività.
   let libere = 0
   for (const o of opportunita ?? []) {
     const provenienzaAperta = provenienzaDiOrigine(o.origine as string | null)
     rigaProvenienza(provenienzaAperta.chiave, provenienzaAperta.etichetta).aperte += 1
+    rigaRichiesta(o.richiesta as string | null).aperte += 1
 
     const chi = riga(o.assegnato_a as string | null)
     if (!chi) {
@@ -579,6 +596,7 @@ export default async function CoreManagerPage({
     const stato = o.stato as StatoTrattativa
     const provenienza = provenienzaDiOrigine(o.origine as string | null)
     const daProvenienza = rigaProvenienza(provenienza.chiave, provenienza.etichetta)
+    const daRichiesta = rigaRichiesta(o.richiesta as string | null)
     if (stato === 'vinto') {
       vinteTotali += 1
       const v = o.valore_euro != null ? Number(o.valore_euro) : null
@@ -590,10 +608,13 @@ export default async function CoreManagerPage({
       }
       daProvenienza.vinte += 1
       if (v !== null) daProvenienza.valore += v
+      daRichiesta.vinte += 1
+      if (v !== null) daRichiesta.valore += v
     } else {
       perseTotali += 1
       if (chi) chi.perse += 1
       daProvenienza.perse += 1
+      daRichiesta.perse += 1
       if (typeof o.motivo_perso === 'string' && o.motivo_perso.trim()) {
         testiObiezioni.push(o.motivo_perso)
       }
@@ -610,6 +631,10 @@ export default async function CoreManagerPage({
   // deve essere il canale che pesa di più, non "Agenda" perché comincia
   // prima di "Sito" nell'alfabeto.
   const provenienze = [...perProvenienza.values()].sort(
+    (a, b) =>
+      b.aperte + b.vinte + b.perse - (a.aperte + a.vinte + a.perse)
+  )
+  const perTipoRichiesta = [...perRichiesta.values()].sort(
     (a, b) =>
       b.aperte + b.vinte + b.perse - (a.aperte + a.vinte + a.perse)
   )
@@ -1079,6 +1104,77 @@ export default async function CoreManagerPage({
                   </th>
                   <th className="cella-valore">
                     {euro(provenienze.reduce((a, p) => a + p.valore, 0)) ?? '—'}
+                  </th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Lo stesso quadro per cosa ha chiesto chi ha aperto il lead: tour,
+          richiamami, in sede, telefonata… È il numero che dice quale porta
+          d'ingresso converte, e se il richiamami al posto del messaggio ha
+          funzionato. */}
+      {perTipoRichiesta.length > 0 && (
+        <div className="card">
+          <div className="card-head">
+            <h2>Per richiesta</h2>
+            <span className="muted">
+              {PERIODI.find((p) => p.chiave === periodo)?.etichetta.toLowerCase()}, tranne le aperte
+            </span>
+          </div>
+
+          <div className="tabella-wrap">
+            <table className="tabella">
+              <thead>
+                <tr>
+                  <th>Cosa ha chiesto</th>
+                  <th>
+                    Aperte
+                    <span className="th-nota">adesso, non nel periodo</span>
+                  </th>
+                  <th>Vinte</th>
+                  <th>Perse</th>
+                  <th>
+                    Tasso di successo
+                    <span className="th-nota">vinte su vinte + perse</span>
+                  </th>
+                  <th>Valore</th>
+                </tr>
+              </thead>
+              <tbody>
+                {perTipoRichiesta.map((p) => {
+                  const chiuseRichiesta = p.vinte + p.perse
+                  const tasso =
+                    chiuseRichiesta > 0 ? Math.round((p.vinte / chiuseRichiesta) * 100) : null
+                  return (
+                    <tr key={p.etichetta}>
+                      <td>{p.etichetta}</td>
+                      <td>{p.aperte}</td>
+                      <td>{p.vinte}</td>
+                      <td>{p.perse}</td>
+                      <td>{tasso !== null ? `${tasso}%` : '—'}</td>
+                      <td className="cella-valore">{p.valore > 0 ? euro(p.valore) : '—'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th>Totale</th>
+                  <th>{perTipoRichiesta.reduce((a, p) => a + p.aperte, 0)}</th>
+                  <th>{perTipoRichiesta.reduce((a, p) => a + p.vinte, 0)}</th>
+                  <th>{perTipoRichiesta.reduce((a, p) => a + p.perse, 0)}</th>
+                  <th>
+                    {(() => {
+                      const vinte = perTipoRichiesta.reduce((a, p) => a + p.vinte, 0)
+                      const totale = vinte + perTipoRichiesta.reduce((a, p) => a + p.perse, 0)
+                      return totale > 0 ? `${Math.round((vinte / totale) * 100)}%` : '—'
+                    })()}
+                  </th>
+                  <th className="cella-valore">
+                    {euro(perTipoRichiesta.reduce((a, p) => a + p.valore, 0)) ?? '—'}
                   </th>
                 </tr>
               </tfoot>

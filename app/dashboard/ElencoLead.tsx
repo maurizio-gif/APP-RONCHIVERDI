@@ -3,7 +3,7 @@ import { nomePersona } from '@/lib/persone'
 import { CLASSE_RIGA_STATO, eChiusa } from '@/lib/pipeline'
 import { CLASSE_URGENZA, fraseAttesa, giorniDa, urgenzaAttesa } from '@/lib/attesa'
 import { CLASSE_TIPO, ETICHETTE_TIPO_BREVI } from '@/lib/agenda'
-import { provenienzaTrattativa } from '@/lib/provenienza'
+import { provenienzaTrattativa, richiestaDelLead } from '@/lib/provenienza'
 import { ComandiLead } from './ComandiLead'
 import type { TrattativaConPersona } from './TrattativeDashboard'
 
@@ -42,6 +42,11 @@ export function ElencoLead({
               <div className="azione-titolo">
                 <span className="azione-nome">{nomePersona(t) || 'Senza nome'}</span>
                 <span className={`tag-provenienza ${provenienza.classe}`}>{provenienza.etichetta}</span>
+                {(() => {
+                  // Il secondo attributo: cosa ha chiesto (vedi richiestaDelLead).
+                  const richiesta = richiestaDelLead(t.richiesta, t.evento?.fascia)
+                  return richiesta ? <span className={`tag-richiesta ${richiesta.classe}`}>{richiesta.etichetta}</span> : null
+                })()}
                 {tipo && <span className={`badge-tipo ${CLASSE_TIPO[tipo]}`}>{ETICHETTE_TIPO_BREVI[tipo]}</span>}
                 {giorni !== null && (
                   <span className={`attesa ${CLASSE_URGENZA[urgenzaAttesa(giorni)]}`}>

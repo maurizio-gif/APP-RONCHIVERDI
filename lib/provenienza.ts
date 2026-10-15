@@ -8,10 +8,13 @@
 // della segreteria, e richiamarlo come un contatto freddo è il modo di
 // sembrare disorganizzati; chi ha scritto dal sito non ha mai visto nessuno.
 //
-// Tre casi contano davvero, e il quarto serve a non mentire:
+// Quattro casi contano davvero, e il quinto serve a non mentire:
 //
 //   sito           — il form del sito, generico o inline di pagina;
 //   guest-register — il banco, cioè il registro ospiti (`walk-in`);
+//   phone-in       — una telefonata o un'email alla segreteria, registrata in
+//                    Phone In / Email In (origine 'phone-email-in', scritta da
+//                    assegnaTrattativaDaEvento in lib/trattative-server.ts);
 //   agenda         — nata da un evento scritto in agenda, senza nessuna
 //                    richiesta dietro (vedi trattativa_per_evento in
 //                    scripts/sql/2026-09-10-evento-apre-trattativa.sql);
@@ -19,10 +22,15 @@
 //                    indovina: si dice «Altro» e si riporta la stringa, così
 //                    chi la vede sa che c'è un canale da instradare qui.
 //
+// Accanto al canale c'è il secondo attributo del lead, **cosa ha chiesto**
+// (tour, richiamami, in sede…): vedi richiestaDelLead più sotto.
+//
 // Nessun import server-only: lo usano sia i Server Component sia i
 // componenti client.
 
-export type ChiaveProvenienza = 'sito' | 'guest-register' | 'agenda' | 'altro'
+import { eFasciaValida, testoFascia } from '@/lib/agenda'
+
+export type ChiaveProvenienza = 'sito' | 'guest-register' | 'phone-in' | 'agenda' | 'altro'
 
 export type Provenienza = {
   chiave: ChiaveProvenienza
@@ -36,6 +44,9 @@ export type Provenienza = {
 
 /** L'origine con cui il registro ospiti marca le proprie righe. */
 export const ORIGINE_BANCO = 'walk-in'
+
+/** L'origine delle trattative aperte da Phone In / Email In. */
+export const ORIGINE_PHONE_IN = 'phone-email-in'
 
 /**
  * Le origini che il sito scrive, per esteso.
@@ -57,7 +68,7 @@ const ORIGINI_SITO: readonly (string | null)[] = [null, 'lead-modal']
 
 const SITO: Provenienza = {
   chiave: 'sito',
-  etichetta: 'Sito',
+  etichetta: 'Sito web',
   classe: 'da-sito',
   spiegazione: 'Ha scritto dal sito: non l’ha ancora incontrato nessuno.',
 }
@@ -70,6 +81,13 @@ const GUEST_REGISTER: Provenienza = {
   etichetta: 'Walk-in',
   classe: 'da-banco',
   spiegazione: 'Registrato al banco: è già stato qui e ha parlato con la segreteria.',
+}
+
+const PHONE_IN: Provenienza = {
+  chiave: 'phone-in',
+  etichetta: 'Phone In / Email In',
+  classe: 'da-telefono',
+  spiegazione: 'Ha telefonato o scritto alla segreteria: la telefonata o l’email sono registrate in agenda.',
 }
 
 const AGENDA: Provenienza = {
@@ -108,7 +126,7 @@ export function provenienzaTrattativa({
   const origine = haRichiesta ? origineRichiesta : origineTrattativa
 
   if (origine === ORIGINE_BANCO) return GUEST_REGISTER
-  if (!haRichiesta) return AGENDA
+  if (!haRichiesta) return origine === ORIGINE_PHONE_IN ? PHONE_IN : AGENDA
   // Il form generico e i form di pagina sono entrambi il sito: da quale
   // pagina è partito è un dettaglio del percorso, non un canale diverso da
   // presidiare.
@@ -131,6 +149,7 @@ export function provenienzaTrattativa({
  */
 export function provenienzaDiOrigine(origine: string | null | undefined): Provenienza {
   if (origine === ORIGINE_BANCO) return GUEST_REGISTER
+  if (origine === ORIGINE_PHONE_IN) return PHONE_IN
   if (origine === 'agenda') return AGENDA
   if (ORIGINI_SITO.includes(origine ?? null) || origine?.endsWith('-inline')) return SITO
 
@@ -140,4 +159,69 @@ export function provenienzaDiOrigine(origine: string | null | undefined): Proven
     classe: 'da-altro',
     spiegazione: `Origine non riconosciuta: "${origine}". Va instradata in lib/provenienza.ts.`,
   }
+}
+
+// ───────────────────────────────────────── cosa ha chiesto (secondo attributo)
+
+/**
+ * Cosa ha chiesto chi ha aperto il lead. Sta sulla trattativa
+ * (`opportunita.richiesta`, scritto una volta quando nasce — vedi
+ * scripts/sql/2026-10-15-trattativa-richiesta.sql), e per una richiesta del
+ * sito si ricava dalla sua `azione` con richiestaDaAzione, la stessa regola
+ * della funzione SQL richiesta_da_azione.
+ */
+export type ChiaveRichiesta = 'tour' | 'richiamami' | 'in_sede' | 'telefonata' | 'email' | 'messaggio'
+
+export type RichiestaLead = { chiave: ChiaveRichiesta; etichetta: string; classe: string }
+
+const ETICHETTE_RICHIESTA: Record<ChiaveRichiesta, string> = {
+  tour: 'Tour in sede',
+  richiamami: 'Richiamami',
+  // Registrato al Guest Register senza prenotare: è lì adesso, e il tour si
+  // fa subito.
+  in_sede: 'In sede',
+  telefonata: 'Telefonata',
+  email: 'Email',
+  // Il messaggio libero del vecchio modulo del sito, prima del Richiamami.
+  messaggio: 'Messaggio',
+}
+
+export function eChiaveRichiesta(v: string | null | undefined): v is ChiaveRichiesta {
+  return !!v && v in ETICHETTE_RICHIESTA
+}
+
+/** La stessa regola di richiesta_da_azione (SQL), per una richiesta del sito o del banco. */
+export function richiestaDaAzione(
+  azione: string | null | undefined,
+  origine: string | null | undefined
+): ChiaveRichiesta | null {
+  if (azione === 'appuntamento') return 'tour'
+  if (azione === 'richiamami') return 'richiamami'
+  if (azione === 'telefonata') return 'telefonata'
+  if (azione === 'messaggio') return 'messaggio'
+  if (origine === ORIGINE_BANCO) return 'in_sede'
+  return null
+}
+
+/**
+ * L'etichetta di cosa ha chiesto, o null se non c'è (una trattativa creata in
+ * agenda non ha una richiesta dietro). Per il Richiamami, se la si conosce,
+ * con la fascia: «Richiamami · Sera 17–20».
+ */
+export function richiestaDelLead(
+  richiesta: string | null | undefined,
+  fascia?: string | null
+): RichiestaLead | null {
+  if (!eChiaveRichiesta(richiesta)) return null
+  const conFascia = richiesta === 'richiamami' && eFasciaValida(fascia)
+  return {
+    chiave: richiesta,
+    etichetta: conFascia ? `Richiamami · ${testoFascia(fascia)}` : ETICHETTE_RICHIESTA[richiesta],
+    classe: `richiesta-${richiesta.replace('_', '-')}`,
+  }
+}
+
+/** L'etichetta per i report: senza fascia, e «Nessuna (agenda)» quando manca. */
+export function etichettaRichiestaReport(richiesta: string | null | undefined): string {
+  return eChiaveRichiesta(richiesta) ? ETICHETTE_RICHIESTA[richiesta] : 'Nessuna (creata in agenda)'
 }

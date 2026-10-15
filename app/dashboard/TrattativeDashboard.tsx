@@ -16,7 +16,7 @@ import {
   type Esito,
   type TipoVoce,
 } from '@/lib/agenda'
-import { provenienzaTrattativa } from '@/lib/provenienza'
+import { provenienzaTrattativa, richiestaDelLead } from '@/lib/provenienza'
 import { nomeDiEmail } from '@/lib/staff'
 import { GestioneEsito } from '@/components/GestioneEsito'
 import { IconaNuovaScheda } from '@/components/IconaNuovaScheda'
@@ -66,6 +66,8 @@ export type EventoDOrigine = {
   esito: string | null
   esitoDa: string | null
   esitoIl: string | null
+  /** «Richiamami»: la fascia scelta, per l'etichetta della richiesta. */
+  fascia?: string | null
 }
 
 /** Una trattativa con la persona che rappresenta, per l'elenco in dashboard. */
@@ -75,6 +77,8 @@ export type TrattativaConPersona = DatiTrattativa & {
   creatoIl?: string | null
   /** `opportunita.origine`: serve dove non c'è nessuna richiesta agganciata. */
   origine?: string | null
+  /** `opportunita.richiesta`: cosa ha chiesto chi ha aperto il lead (vedi richiestaDelLead). */
+  richiesta?: string | null
   nome: string | null
   cognome: string | null
   email: string | null
@@ -259,6 +263,11 @@ function RigaOpportunita({
               <span className={`tag-provenienza ${provenienza.classe}`}>
                 {provenienza.etichetta}
               </span>
+              {(() => {
+                // Il secondo attributo: cosa ha chiesto chi ha aperto il lead.
+                const richiesta = richiestaDelLead(t.richiesta, evento?.fascia)
+                return richiesta ? <span className={`tag-richiesta ${richiesta.classe}`}>{richiesta.etichetta}</span> : null
+              })()}
 
               {/* Che cosa l'ha generata. Senza richiesta dietro non si
                   inventa un tipo: lo dice la targhetta della provenienza.

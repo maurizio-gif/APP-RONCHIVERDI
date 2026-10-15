@@ -14,7 +14,7 @@ import {
   type Esito,
 } from '@/lib/agenda'
 import { canaleDiRichiesta, eGestioneSemplice } from '@/lib/richieste'
-import { provenienzaTrattativa } from '@/lib/provenienza'
+import { provenienzaTrattativa, richiestaDaAzione, richiestaDelLead } from '@/lib/provenienza'
 import { nomeDiEmail } from '@/lib/staff'
 import { percorsoBreve, primoContattoDi, provenienzaRichiesta } from '@/lib/percorsoSito'
 import { GestioneEsito } from '@/components/GestioneEsito'
@@ -192,6 +192,14 @@ export function RichiestePersona({
                     <span className={`tag-provenienza ${provenienza.classe}`}>
                       {provenienza.etichetta}
                     </span>
+                    {(() => {
+                      // Cosa ha chiesto con questa richiesta. Tour e richiamami
+                      // hanno già la loro targhetta con giorno o fascia.
+                      const richiesta = richiestaDelLead(richiestaDaAzione(r.azione, r.origine))
+                      return richiesta && richiesta.chiave !== 'tour' && richiesta.chiave !== 'richiamami' ? (
+                        <span className={`tag-richiesta ${richiesta.classe}`}>{richiesta.etichetta}</span>
+                      ) : null
+                    })()}
 
                     {r.settore && <span className="tag">{r.settore}</span>}
 
