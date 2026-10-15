@@ -1,7 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import { dataOra, eEsitoValido, etichettaEsito, tipoDaAzione } from '@/lib/agenda'
+import {
+  AZIONE_RICHIAMO,
+  dataOra,
+  eEsitoValido,
+  eFasciaValida,
+  etichettaEsito,
+  testoFascia,
+  tipoDaAzione,
+} from '@/lib/agenda'
 import { dominioDi, percorsoBreve, primoContattoDi, provenienzaRichiesta } from '@/lib/percorsoSito'
 import { nomeDiEmail } from '@/lib/staff'
 import { PercorsoSito } from '@/components/PercorsoSito'
@@ -213,7 +221,7 @@ export function RiepilogoRichiesta({
    * (es. RichiestaDiPersona in RichiestePersona.tsx), senza dover portare
    * dietro anagrafica, marketing e provenienza solo per farlo compilare.
    */
-  r: Pick<Richiesta, 'azione' | 'data_scelta' | 'ora_scelta' | 'dettagli' | 'messaggio' | 'origine'>
+  r: Pick<Richiesta, 'azione' | 'data_scelta' | 'ora_scelta' | 'fascia_oraria' | 'dettagli' | 'messaggio' | 'origine'>
   nascondiRichiestaEMessaggio?: boolean
 }) {
   const eQuestionario = r.origine === 'fitness-manager-inline'
@@ -225,6 +233,7 @@ export function RiepilogoRichiesta({
           <dt>Richiesta</dt>
           <dd>
             {r.azione}
+            {r.azione === AZIONE_RICHIAMO && eFasciaValida(r.fascia_oraria) && ` · ${testoFascia(r.fascia_oraria)}`}
             {r.data_scelta && ` · ${r.data_scelta}`}
             {r.ora_scelta && ` ore ${String(r.ora_scelta).slice(0, 5)}`}
           </dd>
@@ -269,7 +278,11 @@ export function RiepilogoRichiesta({
               farebbe sembrare un commento in più, non la ragione
               dell'incontro. */}
           <dt>
-            {r.azione === 'appuntamento' || r.azione === 'telefonata' ? 'Oggetto' : 'Messaggio'}
+            {r.azione === 'appuntamento' || r.azione === 'telefonata'
+              ? 'Oggetto'
+              : r.azione === AZIONE_RICHIAMO
+                ? 'Cosa le serve'
+                : 'Messaggio'}
           </dt>
           <dd>{r.messaggio}</dd>
         </>

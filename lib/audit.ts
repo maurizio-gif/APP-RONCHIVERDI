@@ -52,6 +52,9 @@ export const AZIONI_LOG: Record<string, string> = {
   esito_corretto: 'Esito corretto dopo la chiusura',
   voce_rimossa: 'Rimossa (errore o prova)',
   voce_riprogrammata: 'Riprogrammata',
+  // «Non risponde, riprovo» su un «Richiamami» dal sito: la richiesta resta
+  // da fare (vedi registraTentativoRichiamo).
+  tentativo_richiamo: 'Richiamami: non risponde, da riprovare',
   // Su Club e Family la presa in carico a mano non esiste più — si chiude solo
   // con esito — ma le righe già registrate restano. Sugli altri canali
   // (Young School, Summer Camp, Chinesis, padel, Fitness Manager) queste due

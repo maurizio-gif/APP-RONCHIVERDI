@@ -32,6 +32,7 @@ import type { Richiesta } from './richieste/RigaRichiesta'
 import type { DatiTrattativa } from './richieste/Trattativa'
 import type { EventoDOrigine, TrattativaConPersona } from './TrattativeDashboard'
 import { ElencoLead } from './ElencoLead'
+import { conTentativiRichiamo } from '@/lib/richiamo-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -230,12 +231,13 @@ async function impegniDelGiorno(email: string | null, quando: QuandoTask, chi: C
   // contattiDelleVoci.
   const contattiDiVoce = await contattiDelleVoci([...righeTask.values()])
 
-  const voci: VoceAgenda[] = [
+  // I tentativi a vuoto sui «Richiamami» stanno in task: si aggiungono dopo.
+  const voci: VoceAgenda[] = await conTentativiRichiamo([
     ...[...righeTask.values()].map((riga) =>
       voceDaTask(riga, contattiDiVoce.get(String(riga.id)))
     ),
     ...(prenotati ?? []).map(voceDaContatto).filter((v): v is VoceAgenda => v !== null),
-  ]
+  ])
 
   // Prima per giorno (gli arretrati in cima, sono quelli che scottano), poi
   // per ora dentro la giornata.
@@ -336,7 +338,7 @@ async function trattativeDaLavorare(email: string | null, vista: VistaLead) {
       // richiesta di una chiusa l'anno prima.
       trattativaIds.length
         ? conColonneNuove<Record<string, any>>(
-            'id, created_at, opportunita_id, origine, azione, data_scelta, ora_scelta, attivita_label, messaggio, gestito, gestito_da, gestito_il, assegnato_a, note, note_da, note_il, esito_tipo, esito, esito_da, esito_il',
+            'id, created_at, opportunita_id, origine, azione, data_scelta, ora_scelta, fascia_oraria, attivita_label, messaggio, gestito, gestito_da, gestito_il, assegnato_a, note, note_da, note_il, esito_tipo, esito, esito_da, esito_il',
             COLONNE_ASSEGNAZIONE_RICHIESTA,
             (colonne) =>
               supabase

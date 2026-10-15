@@ -566,7 +566,22 @@ export type VoceAgenda = {
   esitoDa: string | null
   /** Quando la nota è stata scritta o corretta l'ultima volta, in ISO. */
   esitoIl: string | null
+  /**
+   * «Richiamami» dal sito: la fascia in cui la persona vuole essere chiamata,
+   * al posto dell'ora che non c'è. Null su tutto il resto.
+   */
+  fascia: FasciaRichiamo | null
+  /**
+   * I tentativi a vuoto su un «Richiamami» (non ha risposto), se ce ne sono:
+   * quanti, e l'ultimo — chi e quando. Li aggiunge la pagina dopo aver
+   * costruito le voci (vedi caricaTentativiRichiamo in lib/richiamo-server.ts):
+   * stanno in un'altra tabella. Null dove non ce ne sono o non sono stati letti.
+   */
+  tentativi: TentativiRichiamo | null
 }
+
+/** Vedi VoceAgenda.tentativi. */
+export type TentativiRichiamo = { numero: number; ultimoDa: string | null; ultimoIl: string }
 
 type Riga = Record<string, any>
 
@@ -615,6 +630,8 @@ export function voceDaTask(
     esito: riga.esito ?? null,
     esitoDa: riga.esito_da ?? null,
     esitoIl: riga.esito_il ?? null,
+    fascia: null,
+    tentativi: null,
   }
 }
 
@@ -625,8 +642,61 @@ export function voceDaTask(
  */
 export function tipoDaAzione(azione: string | null | undefined): TipoVoce {
   if (azione === 'appuntamento') return 'appuntamento_in_sede'
-  if (azione === 'telefonata') return 'appuntamento_telefonico'
+  // «Richiamami» (vedi FASCE_RICHIAMO) è una telefonata da fare: senza giorno
+  // né ora, ma da fare, e si chiude dicendo com'è andata come ogni telefonata.
+  if (azione === 'telefonata' || azione === AZIONE_RICHIAMO) return 'appuntamento_telefonico'
   return 'messaggio'
+}
+
+// ── «Richiamami»: la fascia oraria ────────────────────────────────────────
+//
+// Da ottobre 2026 il modulo Club e Family del sito non offre più il
+// «Messaggio»: offre il tour (giorno e ora) o «Richiamami», in cui la persona
+// sceglie solo **in che fascia** vuole essere chiamata, tutti i giorni, e
+// scrive cosa le serve. Chi richiama non è legato a un giorno; se però la
+// persona ha detto «di sera», la si chiama di sera.
+//
+// In agenda è una Telefonata senza ora: come un messaggio si colloca nel
+// giorno in cui è arrivata e resta da fare finché non la si chiude, e al posto
+// dell'ora mostra la fascia. Le chiavi sono le stesse del sito
+// (src/lib/leadForm.client.js) e del vincolo sulla colonna
+// form_contatti.fascia_oraria (scripts/sql/2026-10-15-richiamami-fascia-oraria.sql):
+// vanno cambiate nei tre posti insieme.
+
+export const AZIONE_RICHIAMO = 'richiamami'
+
+export const FASCE_RICHIAMO = [
+  { chiave: 'mattina', etichetta: 'Mattina', da: '09:00', a: '13:00' },
+  { chiave: 'pomeriggio', etichetta: 'Pomeriggio', da: '13:00', a: '17:00' },
+  { chiave: 'sera', etichetta: 'Sera', da: '17:00', a: '20:00' },
+] as const
+
+export type FasciaRichiamo = (typeof FASCE_RICHIAMO)[number]['chiave']
+
+export function eFasciaValida(v: string | null | undefined): v is FasciaRichiamo {
+  return FASCE_RICHIAMO.some((f) => f.chiave === v)
+}
+
+/** «Sera 17–20»: come la si legge in una riga d'agenda. */
+export function testoFascia(fascia: FasciaRichiamo): string {
+  const f = FASCE_RICHIAMO.find((x) => x.chiave === fascia)!
+  return `${f.etichetta} ${Number(f.da.slice(0, 2))}–${Number(f.a.slice(0, 2))}`
+}
+
+/**
+ * La fascia in cui cade un orario 'HH:MM', o null fuori dalle fasce (prima
+ * delle 9, dopo le 20). Serve a dire «è la sua fascia adesso».
+ */
+export function fasciaDiOra(ora: string): FasciaRichiamo | null {
+  const f = FASCE_RICHIAMO.find((x) => ora >= x.da && ora < x.a)
+  return f ? f.chiave : null
+}
+
+/** La fascia di adesso, a Roma. */
+export function fasciaAdesso(): FasciaRichiamo | null {
+  const d = adessoRoma()
+  const ora = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
+  return fasciaDiOra(ora)
 }
 
 /**
@@ -725,15 +795,27 @@ export function voceDaContatto(riga: Riga): VoceAgenda {
     esito: riga.esito ?? null,
     esitoDa: riga.esito_da ?? null,
     esitoIl: riga.esito_il ?? null,
+    fascia: eFasciaValida(riga.fascia_oraria) ? riga.fascia_oraria : null,
+    tentativi: null,
   }
 }
 
-/** Ordina per ora: le voci senza orario ("entro la giornata") vanno in fondo. */
+/**
+ * Ordina per ora: le voci senza orario ("entro la giornata") vanno in fondo.
+ *
+ * Un «Richiamami» senza ora si mette all'inizio della sua fascia: «Sera
+ * 17–20» compare fra gli impegni delle 17, che è quando va chiamato, invece
+ * che in fondo con le cose da fare in giornata.
+ */
 export function ordinaVoci(voci: VoceAgenda[]): VoceAgenda[] {
+  const quando = (v: VoceAgenda) =>
+    v.ora ?? (v.fascia ? FASCE_RICHIAMO.find((f) => f.chiave === v.fascia)!.da : null)
   return [...voci].sort((a, b) => {
-    if (a.ora && b.ora) return a.ora.localeCompare(b.ora)
-    if (a.ora) return -1
-    if (b.ora) return 1
+    const qa = quando(a)
+    const qb = quando(b)
+    if (qa && qb) return qa.localeCompare(qb)
+    if (qa) return -1
+    if (qb) return 1
     return a.titolo.localeCompare(b.titolo)
   })
 }

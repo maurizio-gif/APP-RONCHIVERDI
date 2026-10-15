@@ -83,7 +83,7 @@ export const COLONNE_RICHIESTA =
   'gestito_il, assegnato_a, note, note_da, note_il, pagina, cta, audience, utm_source, ' +
   'utm_medium, utm_campaign, first_utm_source, first_utm_campaign, landing_page, ' +
   'referrer, opportunita_id, esito_tipo, esito, esito_da, esito_il, persona_id, ' +
-  'appuntamento_annullato_il'
+  'appuntamento_annullato_il, fascia_oraria'
 
 export const CANALI: readonly Canale[] = [
   {

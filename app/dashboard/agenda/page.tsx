@@ -8,6 +8,7 @@ import { contattiDelleVoci } from '@/lib/eventi-server'
 import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import { AzioniVeloci } from '../AzioniVeloci'
 import { NuovaVoce, type ContattoScegliibile } from './NuovaVoce'
+import { conTentativiRichiamo } from '@/lib/richiamo-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -103,10 +104,13 @@ export default async function AgendaPage({ searchParams }: { searchParams: Param
   if (erroreRichieste) console.error('Richieste in agenda non lette:', erroreRichieste.message)
 
   const contattiDiVoce = await contattiDelleVoci((task ?? []) as Record<string, any>[])
-  const tutte: VoceAgenda[] = [
-    ...(task ?? []).map((riga) => voceDaTask(riga, contattiDiVoce.get(String(riga.id)))),
-    ...((contattiGrezzi ?? []) as unknown as Record<string, any>[]).map(voceDaContatto),
-  ].filter((v) => v.stato !== 'annullato')
+  // I tentativi a vuoto sui «Richiamami» stanno in task: si aggiungono dopo.
+  const tutte: VoceAgenda[] = (
+    await conTentativiRichiamo([
+      ...(task ?? []).map((riga) => voceDaTask(riga, contattiDiVoce.get(String(riga.id)))),
+      ...((contattiGrezzi ?? []) as unknown as Record<string, any>[]).map(voceDaContatto),
+    ])
+  ).filter((v) => v.stato !== 'annullato')
 
   // Di chi, poi la ricerca: le schede «quando» contano su quello che resta.
   const testo = q.toLowerCase()

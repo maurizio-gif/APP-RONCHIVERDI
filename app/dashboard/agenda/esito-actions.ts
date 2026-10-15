@@ -11,6 +11,7 @@ import {
   eTipoValido,
   normalizzaOra,
   tipoDaAzione,
+  AZIONE_RICHIAMO,
   type Esito as EsitoLavorazione,
   type TipoVoce,
 } from '@/lib/agenda'
@@ -184,6 +185,83 @@ export async function chiudiConEsito(input: {
 }
 
 /**
+ * «Non risponde, riprovo» su un «Richiamami» dal sito: registra il tentativo e
+ * lascia la richiesta da fare.
+ *
+ * Chiuderla «fallita», come si fa con una telefonata fissata, direbbe che con
+ * quella persona è finita — mentre ha chiesto lei di essere chiamata, e non
+ * aver risposto alle 10 non dice niente sulle 18. Quindi la richiesta resta
+ * aperta, nella sua fascia, e il tentativo diventa una telefonata già
+ * avvenuta e fallita agganciata alla richiesta: si vede in agenda e nella
+ * scheda, e sulla riga della richiesta si contano (caricaTentativiRichiamo).
+ *
+ * Non assegna la trattativa: chi non ha parlato con la persona non se la
+ * prende (la regola completa della presa in carico è in sospeso, ma su questo
+ * punto è già decisa). La nota è facoltativa: «Non risponde» dice già tutto.
+ */
+export async function registraTentativoRichiamo(input: { id: string; nota?: string | null }): Promise<Esito> {
+  if (!(await autorizzato())) return { ok: false, errore: 'Non hai accesso a questa sezione.' }
+
+  const supabase = createSupabaseServiceClient()
+  const { data: richiesta } = await supabase
+    .from('form_contatti')
+    .select('id, azione, nome, cognome, gestito, assegnato_a')
+    .eq('id', input.id)
+    .maybeSingle()
+
+  if (!richiesta) return { ok: false, errore: 'Richiesta non trovata.' }
+  if (richiesta.azione !== AZIONE_RICHIAMO) {
+    return { ok: false, errore: 'Il tentativo si registra solo sulle richieste «Richiamami».' }
+  }
+  if (richiesta.gestito) return { ok: false, errore: 'Questa richiesta è già chiusa.' }
+
+  const email = emailCorrente()
+  const adesso = new Date()
+  const oraRoma = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Rome',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(adesso)
+  const nota = (input.nota ?? '').trim() || 'Non risponde'
+  const titolo =
+    [richiesta.nome, richiesta.cognome].filter(Boolean).join(' ').trim() || 'Richiesta dal sito'
+
+  const { error } = await supabase.from('task').insert({
+    titolo,
+    tipo: 'appuntamento_telefonico',
+    data: new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome' }).format(adesso),
+    ora: oraRoma,
+    durata_minuti: 5,
+    note: nota,
+    assegnato_a: email,
+    creato_da: email,
+    stato: 'completato',
+    completato_il: adesso.toISOString(),
+    esito_tipo: 'fallita',
+    esito: nota,
+    esito_da: email,
+    esito_il: adesso.toISOString(),
+    entita: 'form_contatti',
+    entita_id: richiesta.id,
+  })
+
+  if (error) {
+    console.error('Tentativo di richiamo non registrato:', error.message)
+    return { ok: false, errore: 'Non siamo riusciti a registrare il tentativo. Riprova.' }
+  }
+
+  await registraLog(email, 'tentativo_richiamo', {
+    entita: 'form_contatti',
+    entitaId: richiesta.id,
+    dettagli: { nota },
+  })
+
+  rinfresca()
+  return { ok: true, avviso: 'Tentativo registrato: la richiesta resta da fare.' }
+}
+
+/**
  * Corregge l'esito e la nota di una voce **già chiusa**, senza riaprirla.
  *
  * Serve perché una chiusura non è l'ultima parola. Si segna «eseguita» dopo
@@ -310,7 +388,8 @@ export async function riprogrammaVoce(input: {
   const conOrario =
     input.origine === 'task'
       ? eTipoValido(dati.tipo as string) && eAppuntamentoVero(dati.tipo as TipoVoce)
-      : dati.azione === 'appuntamento' || dati.azione === 'telefonata'
+      : // Anche un «Richiamami» può fissare l'ora: «chiamami giovedì alle 18».
+        dati.azione === 'appuntamento' || dati.azione === 'telefonata' || dati.azione === AZIONE_RICHIAMO
 
   const oraGrezza = conOrario ? (input.ora ?? '') : ''
   const ora = oraGrezza ? normalizzaOra(oraGrezza) : null
