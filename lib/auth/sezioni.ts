@@ -17,6 +17,10 @@ const DEFINIZIONI = [
   // La pagina che una persona della segreteria tiene aperta durante la
   // giornata: appuntamenti e cose da fare.
   { chiave: 'agenda', label: 'Agenda', href: '/dashboard/agenda', gruppo: 'Core New' },
+  // La nuova agenda a calendario (giorno e settimana, stile Google Calendar),
+  // in prova con le commerciali accanto a quella a elenco: stessi dati, solo
+  // da guardare — ogni azione si gestisce nella scheda del contatto.
+  { chiave: 'agenda-test', label: 'Agenda Test', href: '/dashboard/agenda-test', gruppo: 'Core New' },
   // Anagrafica deduplicata: una scheda per persona con tutte le sue richieste.
   // La chiave resta 'persone' — è il permesso salvato in staff_users e la
   // rotta: rinominarla vorrebbe dire migrare i permessi di tutti per un

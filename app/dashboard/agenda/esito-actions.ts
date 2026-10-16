@@ -79,6 +79,7 @@ async function autorizzato(): Promise<boolean> {
 // richieste risulta chiusa.
 function rinfresca(): void {
   revalidatePath('/dashboard/agenda')
+  revalidatePath('/dashboard/agenda-test')
   revalidatePath('/dashboard/richieste/richieste-club')
   revalidatePath('/dashboard')
 }
