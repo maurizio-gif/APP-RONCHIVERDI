@@ -4,6 +4,7 @@
   "crons": [
     { "path": "/api/cron/report-direzionale", "schedule": "0 20 * * *" },
     { "path": "/api/cron/report-direzionale", "schedule": "0 21 * * *" },
-    { "path": "/api/cron/trattative-inattive", "schedule": "0 3 * * *" }
+    { "path": "/api/cron/trattative-inattive", "schedule": "0 3 * * *" },
+    { "path": "/api/cron/voucher-automatico", "schedule": "*/15 * * * *" }
   ]
 }

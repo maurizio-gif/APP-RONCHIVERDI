@@ -13,6 +13,7 @@ import {
   type Voucher,
 } from '@/lib/voucher'
 import { COLONNE } from '@/lib/voucher-server'
+import { leggiStatoAutomazione } from '@/lib/voucher-automatico'
 import { NuovoVoucher } from './NuovoVoucher'
 import { AzioniVoucher } from './AzioniVoucher'
 
@@ -43,6 +44,8 @@ export default async function VoucherPage() {
 
   const voucher = (data ?? []) as Voucher[]
   const possoCancellare = await puoCancellare(emailCorrente())
+  const automazione = await leggiStatoAutomazione()
+  const automaticoAttivo = automazione?.attiva === true
 
   const conteggi = voucher.reduce<Record<StatoEffettivo, number>>(
     (acc, v) => {
@@ -58,9 +61,51 @@ export default async function VoucherPage() {
         <p className="eyebrow">Partnership</p>
         <h1>Voucher visita medica</h1>
         <p className="muted">
-          Il codice monouso per la visita inclusa: si emette qui, arriva al socio per email e
-          Chiron lo brucia alla prenotazione dalla sua pagina di validazione.
+          Il codice monouso per la visita inclusa: arriva al socio per email e Chiron lo brucia
+          alla prenotazione dalla sua pagina di validazione.
         </p>
+      </div>
+
+      {/* La procedura scritta dove la segreteria la usa: chi apre la pagina
+          deve capire subito quali voucher partono da soli e quali no. */}
+      <div className="card">
+        <div className="card-head">
+          <h2>Come funziona</h2>
+          <span className={automaticoAttivo ? 'badge badge-ok' : 'badge badge-off'}>
+            {automaticoAttivo
+              ? `Invio automatico attivo dal ${dataRoma(automazione!.attivaDal!)}`
+              : 'Invio automatico non ancora attivo'}
+          </span>
+        </div>
+        <ol style={{ margin: 0, paddingLeft: '1.25rem', lineHeight: 1.7 }}>
+          <li>
+            <strong>Abbonamenti con la sigla «(cer000)»</strong> nel nome del prodotto (per esempio
+            «1.1 GOLD OVER 35 (cer000)»): il codice parte <strong>da solo</strong> per email,
+            entro circa 15 minuti da quando la vendita arriva dal gestionale. Non serve fare
+            nulla: nell’elenco li riconosci dalla dicitura «Automatico (cer000)» sotto la data di
+            emissione.
+            {!automaticoAttivo && (
+              <>
+                {' '}
+                <em>Finché l’invio automatico non è attivo, questi codici vanno emessi a mano.</em>
+              </>
+            )}
+          </li>
+          <li>
+            <strong>Tutti gli altri casi</strong> con diritto alla visita: emetti il codice a mano
+            con «Emetti un voucher».
+          </li>
+          <li>
+            <strong>Socio senza email nel gestionale</strong>: il codice automatico non può
+            partire. Aggiungi l’email nel gestionale oppure emetti il voucher a mano. Se ne esiste
+            già uno per quel socio, l’automatico non ne manda un secondo.
+          </li>
+          <li>
+            Il socio prenota <strong>online</strong>, scrivendo il codice nel campo «Note» della
+            prenotazione, oppure <strong>al telefono</strong> comunicandolo all’operatore. Quando
+            Chiron usa il codice, il socio riceve un’email di conferma.
+          </li>
+        </ol>
       </div>
 
       <NuovoVoucher />

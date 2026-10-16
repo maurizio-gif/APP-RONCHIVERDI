@@ -653,10 +653,19 @@ prenotazione online su TuoTempo — e che si consuma nel momento in cui la
 visita viene prenotata. L'appuntamento si può spostare fino alle 16.00 del
 giorno precedente.
 
-- **Emissione** — `/dashboard/voucher`, sezione `voucher`. Per ora il trigger
-  è manuale: la segreteria inserisce il socio e il codice parte subito per
-  email. Quando arriverà l'estrazione notturna dal gestionale scriverà sulla
-  stessa tabella, e il form resterà per i casi fuori flusso.
+- **Emissione** — `/dashboard/voucher`, sezione `voucher`. La segreteria
+  inserisce il socio e il codice parte subito per email; la pagina spiega la
+  procedura e mostra se l'invio automatico è attivo.
+- **Emissione automatica «(cer000)»** — il cron `/api/cron/voucher-automatico`
+  (ogni 15 minuti, `lib/voucher-automatico.ts`) emette il codice per ogni
+  nuova vendita di un prodotto con «(cer000)» nel nome, letta da
+  `abbonamenti`. Una vendita produce al massimo un voucher (unico su
+  `voucher.abbonamento_id`), e non parte se il socio ne ha già uno emesso
+  attorno alla vendita. L'interruttore è la riga `voucher_cer000` di
+  `automazioni`, spenta di default: accensione e spegnimento sono in testa a
+  [`2026-10-16-voucher-automatico-cer000.sql`](scripts/sql/2026-10-16-voucher-automatico-cer000.sql),
+  e contano solo le vendite da `attiva_dal` in poi. `?prova=1` sul cron
+  elenca chi riceverebbe il codice senza inviare nulla.
 - **Validazione** — `/dashboard/validazione`, sezione `validazione-voucher`:
   una cella e un pulsante. Al centro medico si creano account del pannello
   con **quella sola sezione** (casella «Accesso esterno» al momento
