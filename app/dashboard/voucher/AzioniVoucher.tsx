@@ -8,13 +8,14 @@ import { annullaVoucher, rimandaEmail } from './actions'
 // l'unica azione che il socio non può vedere arrivare.
 export function AzioniVoucher({
   id,
-  codice,
+  socio,
   annullabile,
   rimandabile,
   puoCancellare,
 }: {
   id: string
-  codice: string
+  // Il nome e non il codice: il codice lo vede solo il socio.
+  socio: string
   annullabile: boolean
   rimandabile: boolean
   puoCancellare: boolean
@@ -51,7 +52,7 @@ export function AzioniVoucher({
           className="btn btn-ghost btn-sm btn-danger"
           disabled={inCorso}
           onClick={() => {
-            if (!confirm(`Annullare il voucher ${codice}? Il socio non potrà più usarlo.`)) return
+            if (!confirm(`Annullare il voucher di ${socio}? Non potrà più usarlo.`)) return
             esegui(() => annullaVoucher(id))
           }}
         >
