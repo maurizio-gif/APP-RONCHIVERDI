@@ -112,7 +112,7 @@ function erroreDatiSocio(dati: { nome: string; cognome: string; email: string })
 
 // La stessa chiamata di lib/email.ts del pannello: un POST a SendGrid, con
 // lo stesso mittente verificato e la stessa casella per le risposte.
-async function inviaEmail(a: string, contenuto: { oggetto: string; html: string; testo: string }) {
+async function inviaEmail(a: string, contenuto: { oggetto: string; html: string; testo: string }, voucherId: string) {
   const chiave = Deno.env.get('SENDGRID_API_KEY')
   if (!chiave) return { ok: false as const, errore: 'Invio email non configurato (SENDGRID_API_KEY mancante).' }
   try {
@@ -127,6 +127,13 @@ async function inviaEmail(a: string, contenuto: { oggetto: string; html: string;
         },
         reply_to: { email: Deno.env.get('EMAIL_REPLY_TO') || 'info@ronchiverdi.it' },
         subject: contenuto.oggetto,
+        // Aperture e click tracciati come per le altre email del voucher
+        // (lib/voucher-email.ts); i link del solo testo non si riscrivono.
+        tracking_settings: {
+          open_tracking: { enable: true },
+          click_tracking: { enable: true, enable_text: false },
+        },
+        custom_args: { voucher_id: voucherId, email: 'assegnazione' },
         content: [
           { type: 'text/plain', value: contenuto.testo },
           { type: 'text/html', value: contenuto.html },
@@ -275,7 +282,7 @@ Deno.serve(async (req: Request) => {
     // Come nel pannello: l'esito dell'email si salva accanto al voucher. Se
     // SendGrid è giù il codice esiste comunque, e la segreteria lo vede
     // «non partita» con il pulsante per rimandarla.
-    const esitoEmail = await inviaEmail(voucher.email, emailAssegnazione(voucher))
+    const esitoEmail = await inviaEmail(voucher.email, emailAssegnazione(voucher), voucher.id)
     await supabase
       .from('voucher')
       .update(

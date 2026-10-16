@@ -12,10 +12,10 @@ export { emailAssegnazione, emailUtilizzato }
 
 export async function inviaEmailAssegnazione(voucher: Voucher): Promise<EsitoEmail> {
   const { oggetto, html, testo } = emailAssegnazione(voucher)
-  return inviaEmail({ a: voucher.email, oggetto, html, testo })
+  return inviaEmail({ a: voucher.email, oggetto, html, testo, traccia: true, riferimenti: { voucher_id: voucher.id, email: 'assegnazione' } })
 }
 
 export async function inviaEmailUtilizzato(voucher: Voucher, quando: string): Promise<EsitoEmail> {
   const { oggetto, html, testo } = emailUtilizzato(voucher, quando)
-  return inviaEmail({ a: voucher.email, oggetto, html, testo })
+  return inviaEmail({ a: voucher.email, oggetto, html, testo, traccia: true, riferimenti: { voucher_id: voucher.id, email: 'utilizzato' } })
 }

@@ -41,12 +41,19 @@ export type Messaggio = {
   // penalizzano il messaggio e i client che non caricano HTML mostrano una
   // pagina vuota.
   testo: string
+  // Tracciamento di aperture e click (pixel e link riscritti da SendGrid):
+  // solo per le comunicazioni ai soci, mai per le email d'accesso — il
+  // click tracking riscriverebbe anche i loro link.
+  traccia?: boolean
+  // Etichette che SendGrid riporta negli eventi (aperture, click, rimbalzi)
+  // per ricondurli alla riga giusta, per esempio { voucher_id }.
+  riferimenti?: Record<string, string>
 }
 
 // Non lancia mai: chi chiama decide cosa fare di un invio fallito (di solito
 // salvare l'errore accanto al voucher e lasciare che la segreteria rimandi),
 // perché il voucher esiste comunque e non va perso per colpa dell'email.
-export async function inviaEmail({ a, cc, oggetto, html, testo }: Messaggio): Promise<EsitoEmail> {
+export async function inviaEmail({ a, cc, oggetto, html, testo, traccia, riferimenti }: Messaggio): Promise<EsitoEmail> {
   const chiave = process.env.SENDGRID_API_KEY
   if (!chiave) {
     console.error('SENDGRID_API_KEY mancante: email non inviata a', a)
@@ -67,6 +74,14 @@ export async function inviaEmail({ a, cc, oggetto, html, testo }: Messaggio): Pr
         from: { email: MITTENTE_EMAIL, name: MITTENTE_NOME },
         ...(RISPOSTE_A ? { reply_to: { email: RISPOSTE_A } } : {}),
         subject: oggetto,
+        // Esplicito in entrambi i sensi: senza, varrebbe l'impostazione
+        // dell'account SendGrid, che si può cambiare da lì senza saperlo.
+        // I link del solo testo non si riscrivono: diventerebbero illeggibili.
+        tracking_settings: {
+          open_tracking: { enable: !!traccia },
+          click_tracking: { enable: !!traccia, enable_text: false },
+        },
+        ...(riferimenti ? { custom_args: riferimenti } : {}),
         content: [
           // L'ordine conta per la specifica MIME: prima il testo, poi l'HTML.
           { type: 'text/plain', value: testo },
