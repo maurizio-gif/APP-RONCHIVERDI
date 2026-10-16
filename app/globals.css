@@ -8728,3 +8728,195 @@ table.tabella-compatta .nota-in-riga,
 .inst-nota {
 	margin-top: 1rem;
 }
+
+/* ─────────────────────────────────────────── tracking email e prova di invio */
+
+/* Una email nell'elenco della scheda: data, esito e link alla prova sulla
+   stessa riga, il link spinto a destra. */
+.email-riga {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.email-riga-prova {
+	margin-left: auto;
+	font-size: var(--text-2xs);
+	white-space: nowrap;
+}
+
+/* Le email di un voucher, una sotto l'altra nella cella. */
+.email-voucher,
+.email-link-cliccati {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.email-voucher li + li {
+	margin-top: 0.4rem;
+}
+
+.email-link-cliccati li {
+	font-size: var(--text-2xs);
+	overflow-wrap: anywhere;
+}
+
+/* La prova di invio: un documento, non una pagina del pannello. Larghezza da
+   foglio, blocchi che non si spezzano in stampa. */
+.pi {
+	max-width: 860px;
+}
+
+.pi-comandi {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	gap: 0.75rem;
+	margin-bottom: 1.25rem;
+}
+
+.pi-testa {
+	margin-bottom: 1.25rem;
+}
+
+.pi-occhiello {
+	margin: 0 0 0.35rem;
+	color: var(--accent);
+	font-size: var(--text-2xs);
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+.pi-titolo {
+	margin: 0 0 0.35rem;
+	font-size: 1.4rem;
+	overflow-wrap: anywhere;
+}
+
+.pi-blocco {
+	margin-bottom: 1.25rem;
+	padding: 1.1rem 1.25rem;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	background: var(--surface);
+	break-inside: avoid;
+}
+
+.pi-email {
+	break-inside: auto;
+}
+
+.pi-h2 {
+	margin: 0 0 0.75rem;
+	font-size: 1.05rem;
+}
+
+.pi-dati {
+	display: grid;
+	grid-template-columns: minmax(9rem, max-content) 1fr;
+	gap: 0.4rem 1rem;
+	margin: 0 0 0.75rem;
+	font-size: var(--text-sm);
+}
+
+.pi-dati dt {
+	color: var(--text-muted);
+}
+
+.pi-dati dd {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.pi-mono {
+	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: 0.85em;
+	overflow-wrap: anywhere;
+}
+
+.pi-nota {
+	margin: 0.5rem 0 0;
+	font-size: var(--text-2xs);
+	line-height: 1.6;
+}
+
+.pi-eventi {
+	margin-top: 0.5rem;
+}
+
+.pi-iframe {
+	display: block;
+	width: 100%;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	background: #ffffff;
+}
+
+.pi-testo {
+	margin: 0;
+	white-space: pre-wrap;
+	font-size: var(--text-sm);
+}
+
+@media (max-width: 640px) {
+	.pi-dati {
+		grid-template-columns: 1fr;
+		gap: 0.1rem;
+	}
+
+	.pi-dati dd {
+		margin-bottom: 0.5rem;
+	}
+
+	/* Gli eventi diventano schede: ogni cella con la sua etichetta. */
+	.pi-eventi thead {
+		display: none;
+	}
+
+	.pi-eventi tr,
+	.pi-eventi td {
+		display: block;
+	}
+
+	.pi-eventi tr {
+		padding: 0.5rem 0;
+		border-bottom: 1px solid var(--border);
+	}
+
+	.pi-eventi td::before {
+		content: attr(data-label) ' · ';
+		color: var(--text-muted);
+	}
+}
+
+/* In stampa (e nel PDF) resta solo il documento: niente menu, banner,
+   pulsanti; testo scuro su bianco anche con il tema scuro. */
+@media print {
+	.sidebar,
+	.sidebar-toggle,
+	.no-print,
+	body:has(.pi) .main-content > :not(.pi) {
+		display: none !important;
+	}
+
+	body:has(.pi) .main-content {
+		padding: 0;
+	}
+
+	.pi,
+	.pi * {
+		color: #111111 !important;
+	}
+
+	.pi-blocco {
+		background: transparent;
+		border-color: #cccccc;
+	}
+
+	.pi-occhiello {
+		color: #8b6c14 !important;
+	}
+}

@@ -1009,3 +1009,38 @@ pubblicano con `verify_jwt = false` (fanno da sé l'autenticazione) e i loro
 segreti — `SENDGRID_API_KEY` in testa — si impostano in Dashboard → Edge
 Functions → Secrets. Su Vercel resta solo il resoconto direzionale serale
 (`vercel.json`), da spostare in un secondo momento.
+
+## Tracking email e prova di invio
+
+Ogni email che parte dal CRM — dal pannello (`lib/email.ts`) o dalle edge
+function — si registra in `email_inviate` con il testo integrale,
+l'X-Message-Id di SendGrid, il socio (`persona_id`, trovato anche dal
+voucher o dall'indirizzo) e il voucher a cui si riferisce
+([`2026-10-16-tracking-email.sql`](scripts/sql/2026-10-16-tracking-email.sql)).
+Un'impronta SHA-256 calcolata all'invio, e protetta da un trigger che
+rifiuta ogni modifica del contenuto, permette di dimostrare che il testo
+mostrato è quello partito.
+
+Gli esiti tornano da SendGrid con l'**Event Webhook** sulla edge function
+`email-eventi` (consegna con la risposta SMTP del server del destinatario,
+aperture, click, rimbalzi, spam) e finiscono in `email_eventi`; lo stato di
+ogni email si calcola nella vista `email_inviate_esiti`. IP e user agent
+delle aperture non si salvano.
+
+Dove si vede:
+
+- **Scheda contatto** — riquadro «Email», con l'esito di ciascuna;
+- **Voucher visita medica** — colonna «Email»: assegnazione, reinvii e
+  conferma di utilizzo di ogni voucher;
+- **Tracking email** (`/dashboard/email`, sezione `tracking-email`, in
+  Amministrazione) — tutte le email del periodo, numeri, riepilogo per tipo;
+- **Prova di invio** (`/dashboard/email/[id]`) — dati ufficiali, verifica
+  dell'impronta, eventi con l'ora dei server SendGrid e testo inviato;
+  stampabile in PDF. Nel testo il codice del voucher è coperto.
+
+Configurazione SendGrid, una volta: Settings → Mail Settings → Event Webhook,
+URL `https://upoiasekisojikbzsymq.supabase.co/functions/v1/email-eventi`,
+eventi Processed, Delivered, Deferred, Bounced, Dropped, Opened, Clicked,
+Spam Reports; attivare **Signed Event Webhook** e copiare la chiave pubblica
+nel secret `SENDGRID_EVENTI_CHIAVE_PUBBLICA` delle edge function. Con la
+chiave impostata gli eventi senza firma valida vengono respinti.

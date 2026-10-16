@@ -26,6 +26,8 @@ import {
 } from '@/lib/agenda'
 import { provenienzaTrattativa, richiestaDelLead } from '@/lib/provenienza'
 import { dataOraDi, oraDi, percorsoBreve } from '@/lib/percorsoSito'
+import { emailDellaPersona } from '@/lib/email-tracking-server'
+import { ElencoEmail } from '../../email/ElencoEmail'
 import { AzioniVeloci } from '../../AzioniVeloci'
 import { ComandiLead } from '../../ComandiLead'
 import { NuovaAzione } from './NuovaAzione'
@@ -192,7 +194,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
   const idRichieste = elenco.map((r) => r.id as string)
   const COLONNE_EVENTO =
     'id, titolo, tipo, data, ora, durata_minuti, note, assegnato_a, stato, esito_tipo, esito, esito_da, esito_il, entita, entita_id'
-  const [{ data: eventiDaRichieste }, { data: eventiDaPersona }, { data: conflitti }] = await Promise.all([
+  const [{ data: eventiDaRichieste }, { data: eventiDaPersona }, { data: conflitti }, emailInviate] = await Promise.all([
     idRichieste.length
       ? supabase.from('task').select(COLONNE_EVENTO).eq('entita', 'form_contatti').in('entita_id', idRichieste)
       : Promise.resolve({ data: [] as Record<string, any>[] }),
@@ -203,6 +205,8 @@ export default async function PersonaPage({ params }: { params: { id: string } }
       .or(
         `conflitto_con_persona_id.eq.${params.id}${persona.conflitto_con_persona_id ? `,id.eq.${persona.conflitto_con_persona_id}` : ''}`
       ),
+    // Le email che il CRM le ha mandato, con gli esiti di SendGrid.
+    emailDellaPersona(params.id, persona.email),
   ])
 
   const contatto = { id: persona.id, nome, email: persona.email, cellulare: persona.cellulare }
@@ -651,6 +655,22 @@ export default async function PersonaPage({ params }: { params: { id: string } }
                 })}
               </ul>
             )}
+          </div>
+          {/* Ogni email partita dal CRM verso questa persona: da qui si apre
+              la prova di invio con il testo e lo storico di consegna,
+              aperture e click (vedi /dashboard/email). */}
+          <div className="card">
+            <div className="card-head">
+              <h2>Email</h2>
+              <span className="muted">
+                {emailInviate.length === 0
+                  ? 'nessuna'
+                  : emailInviate.length === 1
+                    ? '1 email'
+                    : `${emailInviate.length} email`}
+              </span>
+            </div>
+            <ElencoEmail email={emailInviate} vuoto="Nessuna email inviata dal CRM a questa persona." />
           </div>
           {personal.length > 0 && (
             <div className="card">

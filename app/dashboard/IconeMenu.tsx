@@ -128,6 +128,13 @@ const DISEGNI: Record<string, React.ReactNode> = {
     </>
   ),
   // Voucher: il tagliando con lo strappo.
+  // Tracking email: la busta.
+  'tracking-email': (
+    <>
+      <rect x="3" y="5.5" width="18" height="13" rx="2" />
+      <path d="M3.5 7l8.5 6 8.5-6" />
+    </>
+  ),
   voucher: (
     <>
       <path d="M3 8.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 3v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-3z" />

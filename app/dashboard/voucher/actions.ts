@@ -74,7 +74,7 @@ export async function rimandaEmail(id: string): Promise<EsitoAzione> {
   const email = await operatoreAutorizzato()
   if (!email) return NEGATO
 
-  const esito = await reinviaVoucher(id)
+  const esito = await reinviaVoucher(id, email)
   if (!esito.ok) return esito
 
   await registraLog(email, 'voucher_email_reinviata', {

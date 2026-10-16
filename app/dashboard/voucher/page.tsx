@@ -15,6 +15,9 @@ import {
 import { COLONNE } from '@/lib/voucher-server'
 import { leggiStatoAutomazione } from '@/lib/voucher-automatico'
 import { AzioniVoucher } from './AzioniVoucher'
+import { emailDeiVoucher } from '@/lib/email-tracking-server'
+import { dataOraEmail } from '@/lib/email-tracking'
+import { BadgeEsito } from '../email/BadgeEsito'
 
 export const dynamic = 'force-dynamic'
 
@@ -78,6 +81,9 @@ export default async function VoucherPage({ searchParams }: { searchParams: { q?
 
   const tutti = (data ?? []) as Voucher[]
   const voucher = ricerca ? tutti.filter((v) => corrisponde(v, ricerca)) : tutti
+  // Le email di ogni voucher dal tracking: assegnazione, eventuali reinvii e
+  // la conferma di utilizzo, ciascuna con il suo esito.
+  const emailPerVoucher = await emailDeiVoucher(voucher.map((v) => v.id))
   const possoCancellare = await puoCancellare(emailCorrente())
   const automazione = await leggiStatoAutomazione()
   const automaticoAttivo = automazione?.attiva === true
@@ -248,8 +254,22 @@ export default async function VoucherPage({ searchParams }: { searchParams: { q?
                       <td className="cella-nowrap">
                         {/* L'email che non è partita non si nasconde: è
                             l'unico caso in cui il socio ha un voucher che non
-                            sa di avere. */}
-                        {v.email_errore ? (
+                            sa di avere. Le email registrate nel tracking si
+                            mostrano con l'esito e la prova di invio; quelle
+                            partite prima del tracking solo con la data. */}
+                        {(emailPerVoucher.get(v.id) ?? []).length > 0 ? (
+                          <ul className="email-voucher">
+                            {(emailPerVoucher.get(v.id) ?? []).map((e) => (
+                              <li key={e.id}>
+                                <BadgeEsito email={e} />{' '}
+                                <Link href={`/dashboard/email/${e.id}`} title="Prova di invio e storico">
+                                  {e.automazione.replace(/^Voucher: /, '')}
+                                </Link>
+                                <div className="cella-chi-dettagli">{dataOraEmail(e.inviata_il)}</div>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : v.email_errore ? (
                           <span className="badge badge-ko" title={v.email_errore}>
                             non partita
                           </span>

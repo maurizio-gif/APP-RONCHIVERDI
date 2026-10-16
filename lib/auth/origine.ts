@@ -170,6 +170,8 @@ async function avvisaUtente(email: string, o: Origine): Promise<void> {
     a: email,
     cc: AVVISO_CONTROLLO_A && AVVISO_CONTROLLO_A !== email ? [AVVISO_CONTROLLO_A] : undefined,
     oggetto: 'Nuovo accesso al CRM Ronchiverdi da un luogo insolito',
+    automazione: 'Avviso di accesso insolito',
+    inviataDa: 'automatico',
     testo:
       `È stato effettuato un accesso al CRM Ronchiverdi con il tuo account da un paese ` +
       `da cui non entravi di solito.\n\n${righe.join('\n')}\n\n` +

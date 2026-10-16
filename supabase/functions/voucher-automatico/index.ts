@@ -110,34 +110,55 @@ function erroreDatiSocio(dati: { nome: string; cognome: string; email: string })
   return null
 }
 
+// Il «tipo» nel tracking: lo stesso testo di AUTOMAZIONE_ASSEGNAZIONE in
+// lib/voucher-email.ts, così le email manuali e automatiche si contano insieme.
+const AUTOMAZIONE = 'Voucher: codice assegnato'
+
+const MITTENTE_EMAIL = Deno.env.get('SENDGRID_FROM_EMAIL') || 'digital@ronchiverdi.it'
+const MITTENTE_NOME = Deno.env.get('SENDGRID_FROM_NAME') || 'Ronchiverdi Sport Club'
+const RISPOSTE_A = Deno.env.get('EMAIL_REPLY_TO') || 'info@ronchiverdi.it'
+
+type EsitoInvio = { ok: true; messageId: string | null } | { ok: false; errore: string }
+
 // La stessa chiamata di lib/email.ts del pannello: un POST a SendGrid, con
 // lo stesso mittente verificato e la stessa casella per le risposte.
-async function inviaEmail(a: string, contenuto: { oggetto: string; html: string; testo: string }) {
+async function inviaEmail(
+  a: string,
+  contenuto: { oggetto: string; html: string; testo: string },
+  voucherId: string
+): Promise<EsitoInvio> {
   const chiave = Deno.env.get('SENDGRID_API_KEY')
-  if (!chiave) return { ok: false as const, errore: 'Invio email non configurato (SENDGRID_API_KEY mancante).' }
+  if (!chiave) return { ok: false, errore: 'Invio email non configurato (SENDGRID_API_KEY mancante).' }
   try {
     const risposta = await fetch('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',
       headers: { Authorization: `Bearer ${chiave}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         personalizations: [{ to: [{ email: a }] }],
-        from: {
-          email: Deno.env.get('SENDGRID_FROM_EMAIL') || 'digital@ronchiverdi.it',
-          name: Deno.env.get('SENDGRID_FROM_NAME') || 'Ronchiverdi Sport Club',
-        },
-        reply_to: { email: Deno.env.get('EMAIL_REPLY_TO') || 'info@ronchiverdi.it' },
+        from: { email: MITTENTE_EMAIL, name: MITTENTE_NOME },
+        reply_to: { email: RISPOSTE_A },
         subject: contenuto.oggetto,
+        // Aperture e click tracciati come per le altre email del voucher
+        // (lib/voucher-email.ts); i link del solo testo non si riscrivono.
+        tracking_settings: {
+          open_tracking: { enable: true },
+          click_tracking: { enable: true, enable_text: false },
+        },
+        // Come APP_EMAIL in lib/email.ts: il webhook degli eventi riconosce
+        // così le email del CRM.
+        custom_args: { app: 'crm-ronchiverdi', automazione: AUTOMAZIONE, voucher_id: voucherId },
         content: [
           { type: 'text/plain', value: contenuto.testo },
           { type: 'text/html', value: contenuto.html },
         ],
       }),
     })
-    if (risposta.status === 202) return { ok: true as const }
+    // L'X-Message-Id è la chiave con cui SendGrid riporta gli eventi.
+    if (risposta.status === 202) return { ok: true, messageId: risposta.headers.get('x-message-id') }
     const dettaglio = (await risposta.text()).slice(0, 500)
-    return { ok: false as const, errore: `SendGrid ha risposto ${risposta.status}: ${dettaglio || 'nessun dettaglio'}` }
+    return { ok: false, errore: `SendGrid ha risposto ${risposta.status}: ${dettaglio || 'nessun dettaglio'}` }
   } catch (_e) {
-    return { ok: false as const, errore: 'Servizio di invio email non raggiungibile.' }
+    return { ok: false, errore: 'Servizio di invio email non raggiungibile.' }
   }
 }
 
@@ -275,7 +296,28 @@ Deno.serve(async (req: Request) => {
     // Come nel pannello: l'esito dell'email si salva accanto al voucher. Se
     // SendGrid è giù il codice esiste comunque, e la segreteria lo vede
     // «non partita» con il pulsante per rimandarla.
-    const esitoEmail = await inviaEmail(voucher.email, emailAssegnazione(voucher))
+    const contenuto = emailAssegnazione(voucher)
+    const esitoEmail = await inviaEmail(voucher.email, contenuto, voucher.id)
+
+    // Nel tracking come ogni email del pannello (lib/email.ts): testo
+    // integrale e X-Message-Id, per la scheda del socio e la prova di invio.
+    const { error: errTracking } = await supabase.from('email_inviate').insert({
+      automazione: AUTOMAZIONE,
+      mittente: MITTENTE_EMAIL,
+      mittente_nome: MITTENTE_NOME,
+      rispondi_a: RISPOSTE_A,
+      destinatario: voucher.email,
+      oggetto: contenuto.oggetto,
+      corpo_html: contenuto.html,
+      corpo_testo: contenuto.testo,
+      provider_message_id: esitoEmail.ok ? esitoEmail.messageId : null,
+      esito: esitoEmail.ok ? 'inviata' : 'errore',
+      errore: esitoEmail.ok ? null : esitoEmail.errore,
+      tracciata: true,
+      voucher_id: voucher.id,
+      inviata_da: 'automatico',
+    })
+    if (errTracking) console.error('Email inviata ma non registrata nel tracking:', errTracking.message)
     await supabase
       .from('voucher')
       .update(
