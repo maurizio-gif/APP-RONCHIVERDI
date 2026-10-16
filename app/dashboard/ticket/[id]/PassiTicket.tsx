@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import type { StatoTicket } from '@/lib/ticket'
 import { passoTicket, type Passo } from '../actions'
 import { SceltaAllegati, useAllegati } from '../Allegati'
+import { CampoNote } from '@/components/CampoNote'
 
 // I comandi del ticket, diversi per chi lo legge.
 //
@@ -61,7 +62,7 @@ export function PassiTicket({
 
   const campoTesto = (placeholder: string) => (
     <>
-      <textarea
+      <CampoNote
         rows={5}
         value={testo}
         onChange={(e) => setTesto(e.target.value)}

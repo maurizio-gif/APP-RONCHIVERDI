@@ -24,6 +24,7 @@ import {
   type EventoDaProgrammare,
   type OrigineVoce,
 } from '@/app/dashboard/agenda/esito-actions'
+import { CampoNote } from '@/components/CampoNote'
 
 // La chiusura di una voce, uguale in agenda e nelle richieste dal sito: si
 // dice com'è andata e si scrive il perché. Il pannello è uno solo perché il
@@ -427,7 +428,7 @@ export function GestioneEsito({
             <label htmlFor={`nota-${origine}-${id}`}>
               Nota {gruppo === 'non_risponde' ? '(facoltativa)' : <span aria-hidden="true">*</span>}
             </label>
-            <textarea
+            <CampoNote
               id={`nota-${origine}-${id}`}
               rows={3}
               value={nota}

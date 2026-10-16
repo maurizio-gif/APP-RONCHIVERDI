@@ -10426,3 +10426,89 @@ table.tabella-compatta .nota-in-riga,
 .agenda-vista-calendario {
 	margin-top: 0.4rem;
 }
+
+/* ───────────────────────────── Campo note: cresce mentre si scrive, si detta
+   (vedi components/CampoNote.tsx). */
+.campo-note {
+	position: relative;
+	width: 100%;
+	min-width: 0;
+}
+
+.campo-note > textarea {
+	display: block;
+	max-width: 100%;
+}
+
+/* Lo spazio per il microfono, in alto a destra dentro il riquadro. */
+.campo-note.con-microfono > textarea {
+	padding-right: 2.6rem;
+}
+
+.campo-note-mic {
+	position: absolute;
+	top: 6px;
+	right: 6px;
+	display: grid;
+	place-items: center;
+	width: 30px;
+	height: 30px;
+	padding: 0;
+	border: 1px solid var(--border-strong);
+	border-radius: 50%;
+	background: var(--surface);
+	color: var(--text-muted);
+	cursor: pointer;
+}
+
+.campo-note-mic:hover {
+	border-color: var(--accent);
+	color: var(--accent);
+}
+
+.in-ascolto .campo-note-mic {
+	border-color: #d4382c;
+	background: #d4382c;
+	color: #fff;
+	animation: campo-note-pulsa 1.2s ease-out infinite;
+}
+
+.campo-note-stop {
+	width: 10px;
+	height: 10px;
+	border-radius: 2px;
+	background: #fff;
+}
+
+.campo-note-stato,
+.campo-note-errore {
+	display: block;
+	margin-top: 0.25rem;
+	font-size: var(--text-2xs);
+}
+
+.campo-note-stato {
+	color: #b3261e;
+}
+
+.campo-note-errore {
+	color: var(--error);
+}
+
+@keyframes campo-note-pulsa {
+	0% {
+		box-shadow: 0 0 0 0 rgba(212, 56, 44, 0.55);
+	}
+	70% {
+		box-shadow: 0 0 0 9px rgba(212, 56, 44, 0);
+	}
+	100% {
+		box-shadow: 0 0 0 0 rgba(212, 56, 44, 0);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.in-ascolto .campo-note-mic {
+		animation: none;
+	}
+}
