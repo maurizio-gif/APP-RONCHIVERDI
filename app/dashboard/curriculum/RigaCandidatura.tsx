@@ -12,6 +12,7 @@ import {
   type Candidatura,
 } from '@/lib/candidature'
 import { cambiaStato, linkCurriculum, salvaNota } from './actions'
+import { CampoNote } from '@/components/CampoNote'
 
 // Una candidatura nell'elenco. Chiusa mostra chi è, per cosa si candida e se
 // ha il curriculum; aperta mostra i due testi lunghi per intero, che sono la
@@ -135,7 +136,7 @@ export function RigaCandidatura({ candidatura }: { candidatura: Candidatura }) {
 
           <section>
             <h3>Nota interna</h3>
-            <textarea
+            <CampoNote
               className="cand-nota"
               rows={3}
               value={nota}

@@ -12,6 +12,7 @@ import { VerificaContatto } from '../VerificaContatto'
 import type { CampiIndovinati } from '../nuovo-contatto'
 import type { ContattoScegliibile } from '../NuovaVoce'
 import { registraPhoneEmailIn } from '../actions'
+import { CampoNote } from '@/components/CampoNote'
 
 /** Un commerciale a cui assegnare il lead, già col nome da mostrare. */
 export type CommercialeLead = { email: string; nome: string }
@@ -252,7 +253,7 @@ export function PhoneEmailInForm({ commerciali }: { commerciali: CommercialeLead
               <label htmlFor="note">
                 Note <span aria-hidden="true">*</span>
               </label>
-              <textarea
+              <CampoNote
                 id="note"
                 name="note"
                 rows={3}

@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import type { Passo } from '@/lib/avanzamento'
 import { aggiornaPasso } from './actions'
+import { CampoNote } from '@/components/CampoNote'
 
 // Un passo della proposta: chi lo fa, se è fatto, le note sotto. «Aggiorna»
 // apre una nota e i due gesti possibili — segnarlo fatto (la nota è
@@ -108,7 +109,7 @@ export function PassoAvanzamento({ vista }: { vista: PassoVista }) {
 
         {vista.bloccatoDaTabella ? null : aperto ? (
           <div className="av-aggiorna">
-            <textarea
+            <CampoNote
               className="cand-nota"
               rows={2}
               value={testo}

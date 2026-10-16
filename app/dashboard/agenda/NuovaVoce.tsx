@@ -15,6 +15,7 @@ import { nomePersona, testoRicerca, validaNuovoContatto } from '@/lib/persone'
 import { dividiTestoContatto } from './nuovo-contatto'
 import { useGiornoSelezionato } from '@/components/CalendarioAgenda'
 import { creaVoce } from './actions'
+import { CampoNote } from '@/components/CampoNote'
 
 /** I contatti fra cui scegliere: l'anagrafica deduplicata. */
 export type ContattoScegliibile = {
@@ -555,7 +556,7 @@ export function NuovaVoce({
                 <label htmlFor="nota_esito">
                   Nota <span aria-hidden="true">*</span>
                 </label>
-                <textarea
+                <CampoNote
                   id="nota_esito"
                   name="nota_esito"
                   rows={2}

@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { salvaGestione } from './actions'
 import { RiepilogoRichiesta } from '@/components/DettagliRichiesta'
 import type { Richiesta } from './RigaRichiesta'
+import { CampoNote } from '@/components/CampoNote'
 
 // La gestione delle Young School e degli altri corsi: una nota e un
 // interruttore.
@@ -160,7 +161,7 @@ export function GestioneSemplice({
         <label htmlFor={`nota-gestione-${id}`}>
           Nota <span aria-hidden="true">*</span>
         </label>
-        <textarea
+        <CampoNote
           id={`nota-gestione-${id}`}
           rows={3}
           value={nota}

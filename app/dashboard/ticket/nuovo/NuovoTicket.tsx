@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { apriTicket } from '../actions'
 import { SceltaAllegati, useAllegati } from '../Allegati'
+import { CampoNote } from '@/components/CampoNote'
 
 // Il modulo per aprire un ticket: dove (fra le sezioni del proprio menu),
 // cosa, e una descrizione analitica — chi, quando, un paio di esempi.
@@ -80,7 +81,7 @@ export function NuovoTicket({ sezioni }: { sezioni: { chiave: string; label: str
 
       <div className="field">
         <label htmlFor="tk-descrizione">Descrizione</label>
-        <textarea
+        <CampoNote
           id="tk-descrizione"
           rows={8}
           value={descrizione}

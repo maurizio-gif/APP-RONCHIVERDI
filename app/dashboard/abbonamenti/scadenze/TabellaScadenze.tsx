@@ -19,6 +19,7 @@ import {
 import { MOTIVI_NON_RINNOVO } from './motivi'
 import type { NotaScadenza, TipoNota } from './note'
 import { etichettaDurata, giorniDurata } from './durata'
+import { CampoNote } from '@/components/CampoNote'
 
 export type RigaScadenza = {
   id: string
@@ -652,7 +653,7 @@ function CampoNuovaNota({
 
   return (
     <div className={`note-nuova${compatto ? ' is-compatta' : ''}${scritta ? ' is-scritta' : ''}`}>
-      <textarea
+      <CampoNote
         className="textarea-inline"
         rows={compatto && !scritta ? 1 : 3}
         value={testo}

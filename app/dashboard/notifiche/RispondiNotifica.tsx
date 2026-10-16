@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { LUNGHEZZA_MASSIMA_MESSAGGIO } from '@/lib/notifiche'
 import { inviaNotifica } from './actions'
+import { CampoNote } from '@/components/CampoNote'
 
 // Risposta rapida a un messaggio: riusa la stessa Server Action dell'invio
 // normale — stessi controlli su permessi e destinatario — solo col
@@ -52,7 +53,7 @@ export function RispondiNotifica({
 
   return (
     <div className="risposta field">
-      <textarea
+      <CampoNote
         rows={2}
         value={messaggio}
         maxLength={LUNGHEZZA_MASSIMA_MESSAGGIO}

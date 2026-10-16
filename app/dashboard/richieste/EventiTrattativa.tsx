@@ -17,6 +17,7 @@ import { nomeDiEmail } from '@/lib/staff'
 import { CampiEvento, GestioneEsito } from '@/components/GestioneEsito'
 import { ETICHETTE_MODO, MODI, SPIEGAZIONI_MODO, type EventoDaProgrammare, type ModoEvento } from '@/lib/eventi'
 import { modificaEvento, programmaEvento, riapriEvento } from '@/app/dashboard/agenda/esito-actions'
+import { CampoNote } from '@/components/CampoNote'
 
 /** Un evento di agenda nato da una richiesta, con la richiesta da cui viene. */
 export type EventoCollegato = VoceAgenda & { richiestaId: string | null }
@@ -396,7 +397,7 @@ function ModuloEvento({
             <label>
               Nota <span aria-hidden="true">*</span>
             </label>
-            <textarea
+            <CampoNote
               rows={2}
               value={bozza.notaEsito ?? ''}
               onChange={(e) => setBozza((b) => ({ ...b, notaEsito: e.target.value }))}

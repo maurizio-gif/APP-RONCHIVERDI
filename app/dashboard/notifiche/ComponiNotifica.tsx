@@ -12,6 +12,7 @@ import {
 } from '@/lib/allegati'
 import { LINK_PREDEFINITO, LUNGHEZZA_MASSIMA_MESSAGGIO } from '@/lib/notifiche'
 import { inviaNotifica } from './actions'
+import { CampoNote } from '@/components/CampoNote'
 
 // Le sezioni su cui la push può atterrare: le stesse validate lato server
 // (vedi LINK_VALIDI in actions.ts).
@@ -176,7 +177,7 @@ export function ComponiNotifica({ destinatari }: { destinatari: Destinatario[] }
 
       <div className="field">
         <label htmlFor="messaggio-interno">Messaggio</label>
-        <textarea
+        <CampoNote
           id="messaggio-interno"
           rows={3}
           value={messaggio}
