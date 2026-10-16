@@ -94,10 +94,29 @@ export default async function AgendaTestPage({ searchParams }: { searchParams: P
   ).filter((v) => v.stato !== 'annullato' && v.data >= dal && v.data <= al)
 
   // Gli operatori fra cui scegliere sono i commerciali (staff_users.commerciale,
-  // da Gestione utenti): l'agenda è la loro. Le azioni assegnate ad altri non
-  // compaiono; quelle di nessuno sì, in «Senza assegnatario».
+  // da Gestione utenti) che hanno davvero del lavoro: una trattativa aperta,
+  // un task aperto o una richiesta dal sito da gestire assegnati a loro — o
+  // un'azione nella settimana che si sta guardando, anche già chiusa, perché
+  // il calendario non perda quello che hanno fatto. Un commerciale senza
+  // niente in carico sarebbe solo una colonna vuota. Le azioni assegnate a chi
+  // non è commerciale non compaiono; quelle di nessuno sì, in «Senza
+  // assegnatario».
   const commerciali = ((staff ?? []) as (RigaStaff & { commerciale: boolean | null })[]).filter((s) => s.commerciale)
-  const operatori: Operatore[] = ordinaPerCognome(commerciali).map((s) => ({
+  const emailCommerciali = commerciali.map((s) => s.email)
+  const [{ data: conTrattative }, { data: conTask }, { data: conRichieste }] = emailCommerciali.length
+    ? await Promise.all([
+        supabase.from('opportunita').select('assegnato_a').in('assegnato_a', emailCommerciali).in('stato', ['nuovo', 'in_gestione']),
+        supabase.from('task').select('assegnato_a').in('assegnato_a', emailCommerciali).eq('stato', 'aperto'),
+        supabase.from('form_contatti').select('assegnato_a').in('assegnato_a', emailCommerciali).eq('gestito', false),
+      ])
+    : [{ data: [] }, { data: [] }, { data: [] }]
+  const conLavoro = new Set<string>([
+    ...[...(conTrattative ?? []), ...(conTask ?? []), ...(conRichieste ?? [])].map(
+      (r) => (r as { assegnato_a: string }).assegnato_a
+    ),
+    ...voci.map((v) => v.assegnatoA).filter((e): e is string => !!e),
+  ])
+  const operatori: Operatore[] = ordinaPerCognome(commerciali.filter((s) => conLavoro.has(s.email))).map((s) => ({
     email: s.email,
     nome: [s.nome, s.cognome ? `${s.cognome[0]}.` : null].filter(Boolean).join(' ') || s.email.split('@')[0],
   }))
