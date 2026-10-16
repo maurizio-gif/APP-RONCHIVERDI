@@ -14,13 +14,14 @@ const DEFINIZIONI = [
   // "Core New" sono le tre voci che si usano ogni giorno, nella versione
   // snella: la Dashboard New (aggiunta dalla Sidebar, non è una sezione
   // assegnabile), l'Agenda e i Contatti.
-  // La pagina che una persona della segreteria tiene aperta durante la
-  // giornata: appuntamenti e cose da fare.
-  { chiave: 'agenda', label: 'Agenda', href: '/dashboard/agenda', gruppo: 'Core New' },
+  // L'agenda a elenco. Fuori dal menu da quando l'Agenda è il calendario
+  // (sotto): si raggiunge dal pulsante «Vista elenco», e il permesso resta
+  // quello che apre la pagina.
+  { chiave: 'agenda', label: 'Agenda · vista elenco', href: '/dashboard/agenda', gruppo: 'Core New', fuoriMenu: true },
   // La nuova agenda a calendario (giorno e settimana, stile Google Calendar),
   // in prova con le commerciali accanto a quella a elenco: stessi dati, solo
   // da guardare — ogni azione si gestisce nella scheda del contatto.
-  { chiave: 'agenda-test', label: 'Agenda Test', href: '/dashboard/agenda-test', gruppo: 'Core New' },
+  { chiave: 'agenda-test', label: 'Agenda', href: '/dashboard/agenda-test', gruppo: 'Core New' },
   // Anagrafica deduplicata: una scheda per persona con tutte le sue richieste.
   // La chiave resta 'persone' — è il permesso salvato in staff_users e la
   // rotta: rinominarla vorrebbe dire migrare i permessi di tutti per un
@@ -252,6 +253,11 @@ export type Sezione = {
   href: string
   gruppo?: string
   inArrivo?: boolean
+  /**
+   * Permesso assegnabile ma senza voce nel menu: la pagina si raggiunge da
+   * un'altra (l'agenda a elenco, dal pulsante «Vista elenco» del calendario).
+   */
+  fuoriMenu?: boolean
   /** Sezione destinata a un partner esterno, non alla segreteria: vedi SEZIONI_ESTERNE. */
   esterna?: boolean
 }

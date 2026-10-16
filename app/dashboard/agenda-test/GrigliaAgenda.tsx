@@ -20,6 +20,8 @@ import { ETICHETTE_TIPO, FASCE_RICHIAMO, etichettaStato, type TipoVoce, type Voc
 export type Operatore = { email: string; nome: string }
 
 type Props = {
+  /** Se chi guarda ha anche l'agenda a elenco: allora c'è il pulsante per passarci. */
+  puoElenco: boolean
   voci: VoceAgenda[]
   operatori: Operatore[]
   io: string | null
@@ -112,6 +114,14 @@ const nomeDi = (v: VoceAgenda) => v.persona ?? v.titolo
 const azioneDi = (v: VoceAgenda) =>
   v.fascia ? 'Richiamami' : v.persona ? v.titolo : v.origine === 'form_contatti' ? ETICHETTE_TIPO[v.tipo] : v.titolo
 
+// Il canale, scritto in grassetto su ogni azione: il colore è dello stato.
+const canaleDi = (v: VoceAgenda) => (v.fascia ? 'Richiamami' : NOMI_FAMIGLIA[FAMIGLIA[v.tipo]])
+// L'azione, se dice qualcosa in più del canale.
+const dettaglioAzione = (v: VoceAgenda) => {
+  const a = azioneDi(v)
+  return a && a !== canaleDi(v) ? a : null
+}
+
 // La durata "visiva": un'azione da 5 o 15 minuti occupa comunque l'altezza
 // minima leggibile, e per affiancarla alle altre conta quella.
 const durataVisiva = (v: VoceAgenda) => Math.max(v.durataMinuti, 26)
@@ -149,7 +159,7 @@ function disponi(voci: VoceAgenda[]): Map<string, { i: number; n: number }> {
   return pos
 }
 
-export function GrigliaAgenda({ voci, operatori, io, oggi, giorno, tempo, arretrati }: Props) {
+export function GrigliaAgenda({ puoElenco, voci, operatori, io, oggi, giorno, tempo, arretrati }: Props) {
   const router = useRouter()
   const [vista, setVista] = useState<'operatori' | 'unica'>('operatori')
   // All'apertura solo chi è collegato; se non è fra gli operatori, tutti.
@@ -288,6 +298,11 @@ export function GrigliaAgenda({ voci, operatori, io, oggi, giorno, tempo, arretr
             Settimana
           </button>
         </div>
+        {puoElenco && (
+          <a className="agt-btn agt-vista-elenco" href="/dashboard/agenda" title="Passa all'agenda a elenco">
+            ☰ Vista elenco
+          </a>
+        )}
         <div className="agt-spazio" />
         {tempo === 'giorno' && (
           <div className="agt-segmenti">
@@ -376,7 +391,6 @@ export function GrigliaAgenda({ voci, operatori, io, oggi, giorno, tempo, arretr
             {(Object.keys(NOMI_FAMIGLIA) as Famiglia[]).map((f) => (
               <label key={f} className="agt-filtro">
                 <input type="checkbox" checked={famiglieAttive.has(f)} onChange={(x) => cambia(famiglieAttive, f, x.target.checked, setFamiglieAttive)} />
-                <span className={`agt-pallino agt-p-${f}`} />
                 {NOMI_FAMIGLIA[f]}
                 <span className="agt-conta">{delPeriodoMie.filter((v) => FAMIGLIA[v.tipo] === f).length}</span>
               </label>
@@ -427,14 +441,21 @@ export function GrigliaAgenda({ voci, operatori, io, oggi, giorno, tempo, arretr
                         <button
                           type="button"
                           key={v.chiave}
-                          className={`agt-prog-voce agt-t-${FAMIGLIA[v.tipo]} agt-${st}`}
+                          className={`agt-prog-voce agt-${st}`}
                           onClick={() => setAperta(v)}
                         >
                           <span className="agt-prog-ora">{v.ora ?? (v.fascia ? FASCE_RICHIAMO.find((f) => f.chiave === v.fascia)!.etichetta : 'in giornata')}</span>
                           <span className="agt-segno">{SEGNO[st]}</span>
                           <span className="agt-prog-testo">
                             <b>{nomeDi(v)}</b>
-                            <small>{st === 'fatto' ? `✓ ${v.esitoTipo ? etichettaStato('completato', v.esitoTipo, v.tipo) : 'Fatta'}` : azioneDi(v)}</small>
+                            <small>
+                              <b>{canaleDi(v)}</b>
+                              {st === 'fatto'
+                                ? ` · ✓ ${v.esitoTipo ? etichettaStato('completato', v.esitoTipo, v.tipo) : 'Fatta'}`
+                                : dettaglioAzione(v)
+                                  ? ` · ${dettaglioAzione(v)}`
+                                  : ''}
+                            </small>
                           </span>
                           {mostraOp && <Pallino email={v.assegnatoA} />}
                         </button>
@@ -506,7 +527,8 @@ export function GrigliaAgenda({ voci, operatori, io, oggi, giorno, tempo, arretr
                               vale più della fascia, che resta nel dettaglio. */}
                           {tempo === 'giorno' && (
                             <span className="agt-fascia">
-                              {s === 'fatto' ? 'Fatta' : v.fascia ? etichettaFascia(v) : NOMI_FAMIGLIA[FAMIGLIA[v.tipo]]}
+                              <b>{canaleDi(v)}</b>
+                              {s === 'fatto' ? ' · Fatta' : v.fascia ? ` · ${etichettaFascia(v)!.split(' · ')[1]}` : ''}
                             </span>
                           )}
                         </button>
@@ -547,14 +569,14 @@ export function GrigliaAgenda({ voci, operatori, io, oggi, giorno, tempo, arretr
                         <button
                           type="button"
                           key={v.chiave}
-                          className={`agt-ev agt-t-${FAMIGLIA[v.tipo]} agt-${s}${aperta?.chiave === v.chiave ? ' agt-sel' : ''}`}
+                          className={`agt-ev agt-${s}${aperta?.chiave === v.chiave ? ' agt-sel' : ''}`}
                           style={{
                             top: ((inizio - INIZIO * 60) / 60) * ORA_PX + 1,
                             height: s === 'ritardo' && !breve ? Math.max(alto, 52) : alto,
                             left: `calc(${p.i * w}% + 3px)`,
                             width: `calc(${w}% - 6px)`,
                           }}
-                          title={ETICHETTA_STATO[s]}
+                          title={`${canaleDi(v)} · ${ETICHETTA_STATO[s]}`}
                           onClick={() => setAperta(v)}
                         >
                           <div className="agt-ev-t">
@@ -567,13 +589,14 @@ export function GrigliaAgenda({ voci, operatori, io, oggi, giorno, tempo, arretr
                           </div>
                           {!breve &&
                             (s === 'fatto' ? (
-                              <div className="agt-ev-s agt-esito">
-                                ✓ {v.esitoTipo ? etichettaStato('completato', v.esitoTipo, v.tipo) : 'Fatta'}
+                              <div className="agt-ev-s">
+                                <b>{canaleDi(v)}</b> · ✓ {v.esitoTipo ? etichettaStato('completato', v.esitoTipo, v.tipo) : 'Fatta'}
                                 {v.esito ? ` · ${v.esito}` : ''}
                               </div>
                             ) : (
                               <div className="agt-ev-s">
-                                {v.ora}–{hhmm(minuti(v.ora!) + v.durataMinuti)} · {azioneDi(v)}
+                                <b>{canaleDi(v)}</b> · {v.ora}–{hhmm(minuti(v.ora!) + v.durataMinuti)}
+                                {dettaglioAzione(v) ? ` · ${dettaglioAzione(v)}` : ''}
                               </div>
                             ))}
                           {s === 'ritardo' && !breve && <span className="agt-targa">Esito da registrare</span>}
@@ -633,7 +656,7 @@ function Dettaglio({
         <button type="button" className="agt-chiudi" onClick={chiudi} aria-label="Chiudi">
           ×
         </button>
-        <span className={`agt-badge agt-t-${f}`}>
+        <span className="agt-badge">
           {ICONE[f]} {v.fascia ? 'Richiamami' : NOMI_FAMIGLIA[f]}
         </span>
         <span className={`agt-stato-badge agt-sb-${stato}`}>
