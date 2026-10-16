@@ -1,11 +1,12 @@
 -- Voucher automatico per gli abbonamenti "(cer000)".
 --
 -- Nel gestionale i prodotti che includono la visita medica portano la sigla
--- "(cer000)" nel nome (oggi «1.1 GOLD OVER 35 (cer000)»). Ogni nuova vendita
--- di uno di questi prodotti deve far partire da sola l'email con il codice,
--- senza che la segreteria lo emetta a mano. Lo fa il cron
--- /api/cron/voucher-automatico (lib/voucher-automatico.ts), che legge
--- `abbonamenti` così come lo scrive la sincronizzazione Info4U.
+-- "(cer000)" nel nome (per esempio «1.1 GOLD OVER 35 (cer000)»). Ogni nuova
+-- vendita di uno di questi prodotti deve far partire da sola l'email con il
+-- codice, senza che la segreteria lo emetta a mano. Lo fa la edge function
+-- voucher-automatico, chiamata da pg_cron
+-- (2026-10-16-automazioni-su-supabase.sql), che legge `abbonamenti` così
+-- come lo scrive la sincronizzazione Info4U.
 --
 -- Due pezzi:
 --

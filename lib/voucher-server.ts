@@ -19,7 +19,7 @@ const TENTATIVI_CODICE = 5
 
 export type EsitoEmissione =
   | { ok: true; voucher: Voucher; emailInviata: boolean; erroreEmail?: string }
-  | { ok: false; errore: string; giaEmesso?: boolean }
+  | { ok: false; errore: string }
 
 export async function emettiVoucher(dati: {
   nome: string
@@ -30,9 +30,6 @@ export async function emettiVoucher(dati: {
   validoFino: string
   emessoDa: string | null
   tipo?: string
-  // La vendita da cui nasce il voucher automatico: l'indice unico in
-  // tabella impedisce un secondo codice per la stessa vendita.
-  abbonamentoId?: string
 }): Promise<EsitoEmissione> {
   const supabase = createSupabaseServiceClient()
 
@@ -52,7 +49,6 @@ export async function emettiVoucher(dati: {
         note: dati.note,
         valido_fino: dati.validoFino,
         emesso_da: dati.emessoDa,
-        ...(dati.abbonamentoId ? { abbonamento_id: dati.abbonamentoId } : {}),
       })
       .select(COLONNE)
       .single()
@@ -66,12 +62,6 @@ export async function emettiVoucher(dati: {
     // in cui riprovare ha senso. Qualsiasi altro errore si ferma subito.
     ultimoErrore = error.message
     if (error.code !== '23505') break
-    // Lo stesso codice d'errore arriva anche dall'unico sulla vendita: lì
-    // il voucher esiste già e riprovare con un altro codice sarebbe un
-    // doppione, non un rimedio.
-    if (error.message.includes('voucher_abbonamento_unico')) {
-      return { ok: false, errore: 'Per questa vendita il voucher è già stato emesso.', giaEmesso: true }
-    }
   }
 
   if (!voucher) {
