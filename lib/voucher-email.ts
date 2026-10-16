@@ -11,9 +11,17 @@ import { dataRoma, formattaCodice, nomeCompleto, type Voucher } from '@/lib/vouc
 // codice, perché un cambio di numero non deve richiedere un deploy — e
 // perché il partner è sostituibile, che è il principio dell'intera
 // procedura.
-const PARTNER_NOME = process.env.PARTNER_MEDICO_NOME ?? 'Chiron'
-const PARTNER_TELEFONO = process.env.PARTNER_MEDICO_TELEFONO ?? ''
+// I default sono i recapiti in vigore: `||` e non `??`, così una variabile
+// lasciata vuota su Vercel non cancella il numero dall'email.
+const PARTNER_NOME = process.env.PARTNER_MEDICO_NOME || 'Chiron'
+const PARTNER_TELEFONO = process.env.PARTNER_MEDICO_TELEFONO || '011 088 2015'
 const PARTNER_EMAIL = process.env.PARTNER_MEDICO_EMAIL ?? ''
+const PARTNER_PRENOTAZIONE_URL =
+  process.env.PARTNER_MEDICO_PRENOTAZIONE_URL ||
+  'https://app.tuotempo.com/mop/index.php?dbName=tt_giponext_1946&areaTitle=Ronchi%20Verdi'
+
+// Regola del partner sugli spostamenti, citata in entrambe le email.
+const LIMITE_SPOSTAMENTO = 'fino alle ore 16.00 del giorno precedente alla visita'
 
 // La casella dove il socio manda il certificato: unica modalità accettata,
 // per chiunque, anche per chi la visita l'ha fatta con un medico suo.
@@ -59,9 +67,16 @@ function paragrafo(testo: string): string {
   return `<p style="margin:0 0 16px 0;font-size:15px;line-height:1.7;color:${INCHIOSTRO};">${testo}</p>`
 }
 
+// Il numero cliccabile dal telefono: tel: vuole le sole cifre.
+function telHref(numero: string): string {
+  return `tel:+39${numero.replace(/\D/g, '')}`
+}
+
 function recapitiPartnerHtml(): string {
   const righe = [
-    PARTNER_TELEFONO ? `Telefono: <strong>${esc(PARTNER_TELEFONO)}</strong>` : null,
+    PARTNER_TELEFONO
+      ? `Telefono: <a href="${telHref(PARTNER_TELEFONO)}" style="color:${INCHIOSTRO};font-weight:600;text-decoration:none;">${esc(PARTNER_TELEFONO)}</a>`
+      : null,
     PARTNER_EMAIL ? `Email: <strong>${esc(PARTNER_EMAIL)}</strong>` : null,
   ].filter(Boolean)
   if (!righe.length) return ''
@@ -76,6 +91,15 @@ function recapitiPartnerTesto(): string {
   ]
     .filter(Boolean)
     .join('\n')
+}
+
+// Il pulsante della prenotazione online: tabella e non <a> stilizzato da
+// solo, perché Outlook ignora padding e sfondo sui link.
+function pulsantePrenotazione(etichetta: string): string {
+  if (!PARTNER_PRENOTAZIONE_URL) return ''
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 18px 0;"><tr><td style="background:${INCHIOSTRO};border-radius:999px;">
+<a href="${esc(PARTNER_PRENOTAZIONE_URL)}" style="display:inline-block;padding:13px 26px;font-size:14px;font-weight:600;letter-spacing:0.04em;color:#ffffff;text-decoration:none;">${esc(etichetta)}</a>
+</td></tr></table>`
 }
 
 // ─────────────────────────────────────────── 1. email di assegnazione
@@ -98,15 +122,28 @@ export function emailAssegnazione(voucher: Voucher): { oggetto: string; html: st
 <p style="margin:10px 0 0 0;font-size:13px;color:rgba(0,0,0,0.7);">Intestato a ${esc(nomeCompleto(voucher))} &middot; valido fino al ${esc(scadenza)}</p>
 </td></tr></table>`,
       `<p style="margin:0 0 10px 0;font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:${ORO};">Come prenotare</p>`,
-      paragrafo(
-        `Chiama ${esc(PARTNER_NOME)} e comunica il codice: la prenotazione si fa <strong>al telefono</strong>, non serve nessun portale.`
-      ),
+      paragrafo(`Puoi prenotare <strong>online</strong> oppure <strong>al telefono</strong>.`),
+      `<p style="margin:0 0 8px 0;font-size:15px;line-height:1.7;color:${INCHIOSTRO};"><strong>Online</strong></p>`,
+      `<ol style="margin:0 0 14px 0;padding-left:20px;font-size:15px;line-height:1.8;color:${INCHIOSTRO};">
+<li style="margin-bottom:6px;">Apri la pagina di prenotazione dal pulsante qui sotto.</li>
+<li style="margin-bottom:6px;">Registrati con i tuoi dati. Riceverai un <strong>SMS con un codice di verifica</strong>: inseriscilo dove richiesto per confermare il tuo numero di telefono. <em>Quel codice serve solo alla registrazione: non è il codice del voucher.</em></li>
+<li style="margin-bottom:6px;">Scegli la visita, il giorno e l'ora che preferisci.</li>
+<li style="margin-bottom:6px;">Nella pagina di riepilogo, prima di confermare, scorri fino a <strong>«Note per questo appuntamento»</strong>, tocca <strong>«Inserisci una nota»</strong> e scrivi il codice del voucher: <strong>${esc(codice)}</strong>.</li>
+<li>Premi <strong>«Prenota»</strong>.</li>
+</ol>`,
+      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px 0;"><tr><td style="background:rgba(232,212,106,0.16);border-left:3px solid ${ORO};border-radius:6px;padding:12px 14px;font-size:14px;line-height:1.6;color:${INCHIOSTRO};">
+<strong>Attenzione:</strong> il codice del voucher va scritto <strong>solo nel campo «Note»</strong>, alla fine.
+</td></tr></table>`,
+      pulsantePrenotazione('Prenota online'),
+      `<p style="margin:0 0 8px 0;font-size:15px;line-height:1.7;color:${INCHIOSTRO};"><strong>Al telefono</strong></p>`,
+      paragrafo(`Chiama ${esc(PARTNER_NOME)} e comunica il tuo codice all'operatore.`),
       recapitiPartnerHtml(),
       `<p style="margin:0 0 10px 0;font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:${ORO};">Condizioni</p>`,
       `<ul style="margin:0 0 16px 0;padding-left:20px;font-size:15px;line-height:1.8;color:${INCHIOSTRO};">
 <li>Il codice vale <strong>una sola volta</strong> e si consuma al momento della prenotazione.</li>
 <li>È valido fino al <strong>${esc(scadenza)}</strong>.</li>
-<li>In caso di mancata presentazione all'appuntamento il codice <strong>non viene riemesso</strong>: se non puoi esserci, disdici per tempo con ${esc(PARTNER_NOME)}.</li>
+<li>L'appuntamento si può spostare <strong>${esc(LIMITE_SPOSTAMENTO)}</strong>.</li>
+<li>In caso di mancata presentazione all'appuntamento il codice <strong>non viene riemesso</strong>: se non puoi esserci, sposta o disdici entro quel termine.</li>
 <li>Riceverai una nostra email nel momento esatto in cui il codice viene utilizzato.</li>
 </ul>`,
       `<p style="margin:0 0 10px 0;font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:${ORO};">Dopo la visita</p>`,
@@ -125,13 +162,25 @@ IL TUO CODICE: ${codice}
 Intestato a ${nomeCompleto(voucher)} - valido fino al ${scadenza}
 
 COME PRENOTARE
-Chiama ${PARTNER_NOME} e comunica il codice: la prenotazione si fa al telefono, non serve nessun portale.
+Puoi prenotare online oppure al telefono.
+
+Online: ${PARTNER_PRENOTAZIONE_URL}
+1. Apri la pagina di prenotazione.
+2. Registrati con i tuoi dati. Riceverai un SMS con un codice di verifica: inseriscilo dove richiesto per confermare il tuo numero di telefono. Quel codice serve solo alla registrazione: non e' il codice del voucher.
+3. Scegli la visita, il giorno e l'ora che preferisci.
+4. Nella pagina di riepilogo, prima di confermare, scorri fino a "Note per questo appuntamento", tocca "Inserisci una nota" e scrivi il codice del voucher: ${codice}.
+5. Premi "Prenota".
+
+ATTENZIONE: il codice del voucher va scritto solo nel campo "Note", alla fine.
+
+Al telefono: chiama ${PARTNER_NOME} e comunica il tuo codice all'operatore.
 ${recapitiPartnerTesto()}
 
 CONDIZIONI
 - Il codice vale una sola volta e si consuma al momento della prenotazione.
 - E' valido fino al ${scadenza}.
-- In caso di mancata presentazione il codice non viene riemesso: se non puoi esserci, disdici per tempo.
+- L'appuntamento si puo' spostare ${LIMITE_SPOSTAMENTO}.
+- In caso di mancata presentazione il codice non viene riemesso: se non puoi esserci, sposta o disdici entro quel termine.
 - Riceverai una nostra email nel momento esatto in cui il codice viene utilizzato.
 
 DOPO LA VISITA
@@ -159,8 +208,10 @@ export function emailUtilizzato(voucher: Voucher, quando: string): { oggetto: st
         `il codice <strong>${esc(codice)}</strong> è stato utilizzato da ${esc(PARTNER_NOME)} il <strong>${esc(quando)}</strong> per prenotare la tua visita medico&#8209;sportiva. Da questo momento il codice non è più spendibile.`
       ),
       paragrafo(
-        `Riceverai da ${esc(PARTNER_NOME)} la conferma scritta con giorno e ora dell'appuntamento. In caso di mancata presentazione il voucher non viene riemesso.`
+        `L'appuntamento si può spostare <strong>${esc(LIMITE_SPOSTAMENTO)}</strong>, online o al telefono; in caso di mancata presentazione il voucher non viene riemesso.`
       ),
+      pulsantePrenotazione('Gestisci la prenotazione'),
+      recapitiPartnerHtml(),
       paragrafo(
         `<strong>Non hai prenotato tu?</strong> Rispondi a questa email: controlliamo subito.`
       ),
@@ -175,7 +226,9 @@ export function emailUtilizzato(voucher: Voucher, quando: string): { oggetto: st
 
 il codice ${codice} e' stato utilizzato da ${PARTNER_NOME} il ${quando} per prenotare la tua visita medico-sportiva. Da questo momento il codice non e' piu' spendibile.
 
-Riceverai da ${PARTNER_NOME} la conferma scritta con giorno e ora dell'appuntamento. In caso di mancata presentazione il voucher non viene riemesso.
+L'appuntamento si puo' spostare ${LIMITE_SPOSTAMENTO}, online o al telefono; in caso di mancata presentazione il voucher non viene riemesso.
+Online: ${PARTNER_PRENOTAZIONE_URL}
+${recapitiPartnerTesto()}
 
 Non hai prenotato tu? Rispondi a questa email: controlliamo subito.
 
