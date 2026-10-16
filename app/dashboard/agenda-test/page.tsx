@@ -34,6 +34,7 @@ function lunediDi(giorno: string): string {
 
 export default async function AgendaTestPage({ searchParams }: { searchParams: Parametri }) {
   if (!(await utenteHaSezione('agenda-test'))) redirect('/dashboard')
+  const puoElenco = await utenteHaSezione('agenda')
 
   const oggi = oggiRoma()
   const giorno = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.g ?? '') ? searchParams.g! : oggi
@@ -128,7 +129,7 @@ export default async function AgendaTestPage({ searchParams }: { searchParams: P
 
   return (
     <>
-      <div className="agenda-nuova">
+      <div className="agenda-nuova agt-nuova">
         <NuovaVoce
           giornoPredefinito={giorno}
           operatori={tuttoLoStaff}
@@ -140,6 +141,7 @@ export default async function AgendaTestPage({ searchParams }: { searchParams: P
         <p className="error-banner">L’agenda non è stata letta per intero: quello che vedi è incompleto.</p>
       )}
       <GrigliaAgenda
+        puoElenco={puoElenco}
         voci={voci}
         operatori={operatori}
         io={io}

@@ -9218,12 +9218,6 @@ table.tabella-compatta .nota-in-riga,
 	border-radius: 3px;
 }
 
-.agt-p-sede { background: var(--ok); }
-.agt-p-telefono { background: var(--accent); }
-.agt-p-task { background: #7a776b; }
-.agt-p-email { background: var(--info); }
-.agt-p-whatsapp { background: var(--warn); }
-.agt-p-messaggio { border: 1.5px dashed var(--text-muted); }
 
 .agt-legenda {
 	display: flex;
@@ -9265,7 +9259,7 @@ table.tabella-compatta .nota-in-riga,
 	font-weight: 700;
 }
 
-.agt-l-dafare { border: 1.6px solid var(--text-muted); }
+.agt-l-dafare { border: 1.6px solid var(--accent); background: #f3e9c9; }
 .agt-l-ritardo { background: var(--agt-rosso); }
 .agt-l-fatto { background: var(--agt-verde); }
 
@@ -9411,11 +9405,9 @@ table.tabella-compatta .nota-in-riga,
 	margin-left: 6px;
 }
 
-.agt-chip.agt-fatto {
+.agt-chip.agt-fatto,
+.agt-chip.agt-ritardo {
 	border-style: solid;
-	border-color: rgba(63, 122, 53, 0.35);
-	background: #fbfaf6;
-	color: #6b6a60;
 }
 
 .agt-chip.agt-fatto b {
@@ -9423,10 +9415,6 @@ table.tabella-compatta .nota-in-riga,
 	text-decoration-color: rgba(63, 122, 53, 0.55);
 }
 
-.agt-chip.agt-ritardo {
-	border-style: solid;
-	border-color: var(--agt-rosso);
-}
 
 .agt-griglia {
 	position: relative;
@@ -9509,13 +9497,38 @@ table.tabella-compatta .nota-in-riga,
 	outline-offset: 1px;
 }
 
-/* il colore del tipo */
-.agt-t-sede { border-color: var(--ok); background: #e2e8d6; color: #2c4421; }
-.agt-t-telefono { border-color: var(--accent); background: #f0e6c8; color: #5a460c; }
-.agt-t-task { border-color: #7a776b; background: #e7e3d6; color: #3d3d33; }
-.agt-t-email { border-color: var(--info); background: #dbe3e6; color: #25404f; }
-.agt-t-whatsapp { border-color: var(--warn); background: #efe1c2; color: #5f450b; }
-.agt-t-messaggio { border-color: var(--text-muted); background: var(--surface); color: var(--text); }
+/* Un solo colore per riquadro, quello dello stato: oro da fare, rosso in
+   ritardo, verde fatta. Il canale (visita, telefonata…) è scritto in
+   grassetto, senza un colore suo. */
+.agt-ev.agt-dafare,
+.agt-chip.agt-dafare,
+.agt-prog-voce.agt-dafare {
+	border-color: var(--accent);
+	background: #f3e9c9;
+	color: #4f3d0a;
+}
+
+.agt-ev.agt-ritardo,
+.agt-chip.agt-ritardo,
+.agt-prog-voce.agt-ritardo {
+	border-color: var(--agt-rosso);
+	background: #f8dcd7;
+	color: #6e1a13;
+}
+
+.agt-ev.agt-fatto,
+.agt-chip.agt-fatto,
+.agt-prog-voce.agt-fatto {
+	border-color: var(--agt-verde);
+	background: #e1ecd9;
+	color: #2b4d24;
+}
+
+.agt-ev-s b,
+.agt-fascia b,
+.agt-prog-testo small b {
+	font-weight: 700;
+}
 
 .agt-segno {
 	display: inline-grid;
@@ -9541,11 +9554,7 @@ table.tabella-compatta .nota-in-riga,
 
 /* fatta: fondo neutro, barra e spunta verdi */
 .agt-ev.agt-fatto {
-	border: 1px solid rgba(63, 122, 53, 0.25);
-	border-left: 4px solid var(--agt-verde);
-	background: #fbfaf6;
 	box-shadow: none;
-	color: #6b6a60;
 }
 
 .agt-fatto .agt-segno {
@@ -9558,10 +9567,6 @@ table.tabella-compatta .nota-in-riga,
 	text-decoration-color: rgba(63, 122, 53, 0.55);
 }
 
-.agt-esito {
-	color: var(--agt-verde);
-	font-weight: 500;
-}
 
 /* in ritardo: bordo e targa rossi */
 .agt-ev.agt-ritardo {
@@ -9666,6 +9671,9 @@ table.tabella-compatta .nota-in-riga,
 }
 
 .agt-badge {
+	border-color: var(--border-strong) !important;
+	background: var(--surface);
+	color: var(--text);
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
@@ -9876,11 +9884,6 @@ table.tabella-compatta .nota-in-riga,
 	border-top: 0;
 }
 
-.agt-prog-voce.agt-fatto {
-	border-left-color: var(--agt-verde);
-	background: #fbfaf6;
-	color: #6b6a60;
-}
 
 .agt-prog-voce.agt-fatto b {
 	text-decoration: line-through;
@@ -9888,7 +9891,6 @@ table.tabella-compatta .nota-in-riga,
 }
 
 .agt-prog-voce.agt-ritardo {
-	border-left-color: var(--agt-rosso);
 	box-shadow: inset 0 0 0 1.5px var(--agt-rosso);
 }
 
@@ -10401,4 +10403,26 @@ table.tabella-compatta .nota-in-riga,
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+/* «Aggiungi in agenda» sopra il calendario, staccato dal titolo. */
+.agt-nuova {
+	margin-bottom: 1.75rem;
+}
+
+/* Il passaggio alla vista elenco: un pulsante chiaro, non un link nascosto. */
+.agt-vista-elenco {
+	border-color: var(--accent);
+	color: var(--accent);
+	font-weight: 600;
+	text-decoration: none;
+}
+
+.agt-vista-elenco:hover {
+	background: var(--accent-tint);
+	color: var(--accent);
+}
+
+.agenda-vista-calendario {
+	margin-top: 0.4rem;
 }

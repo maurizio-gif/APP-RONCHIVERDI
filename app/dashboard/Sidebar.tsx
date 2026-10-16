@@ -87,7 +87,7 @@ export function Sidebar({
     ...(soloEsterno || !dashboardNew
       ? []
       : [{ href: '/dashboard', label: 'Dashboard New', chiave: 'dashboard', gruppo: 'Core New' }]),
-    ...SEZIONI.filter((s) => sezioniConsentite.includes(s.chiave)),
+    ...SEZIONI.filter((s) => sezioniConsentite.includes(s.chiave) && !s.fuoriMenu),
   ]
   const gruppiMenu = raggruppaVoci(navItems)
 

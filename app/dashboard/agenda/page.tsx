@@ -47,6 +47,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Param
   }
   // I vecchi link «apri questa voce» portano ora alla scheda della persona.
   if (searchParams.persona) redirect(`/dashboard/persone/${searchParams.persona}`)
+  const vedeCalendario = await utenteHaSezione('agenda-test')
 
   const oggi = oggiRoma()
   const email = emailCorrente()
@@ -155,7 +156,13 @@ export default async function AgendaPage({ searchParams }: { searchParams: Param
     <>
       <div className="page-head">
         <p className="eyebrow">Segreteria</p>
-        <h1>Agenda</h1>
+        <h1>Agenda · vista elenco</h1>
+        {/* L'Agenda del menu è il calendario: da qui si torna con un clic. */}
+        {vedeCalendario && (
+          <Link href="/dashboard/agenda-test" className="btn btn-sm btn-ghost agenda-vista-calendario">
+            📅 Vista calendario
+          </Link>
+        )}
       </div>
 
       {guasto && (
