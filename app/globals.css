@@ -10001,3 +10001,404 @@ table.tabella-compatta .nota-in-riga,
 		grid-template-columns: 96px 1fr;
 	}
 }
+
+/* ───────────────────────────────────────────────── Ticket di assistenza */
+
+/* Il pulsante «Assistenza» nell'intestazione: per tutti, fuori dal menu. */
+.assistenza-btn {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin-top: 0.9rem;
+	padding: 0.5rem 0.75rem;
+	border: 1px solid var(--border-dark);
+	border-radius: 999px;
+	color: var(--text-on-dark);
+	font-size: var(--text-xs);
+	text-decoration: none;
+}
+
+.assistenza-btn > span:first-child {
+	display: grid;
+	place-items: center;
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	background: var(--accent-on-dark);
+	color: var(--bg-dark);
+	font-size: 12px;
+	font-weight: 700;
+}
+
+.assistenza-btn:hover {
+	border-color: var(--accent-on-dark);
+	color: var(--text-on-dark);
+}
+
+.assistenza-badge {
+	margin-left: auto;
+	padding: 0 0.45rem;
+	border-radius: 999px;
+	background: #d4382c;
+	color: #fff;
+	font-size: var(--text-2xs);
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	animation: tk-lampeggia 1.2s ease-in-out infinite;
+}
+
+.assistenza-btn.ha-ticket {
+	border-color: #d4382c;
+}
+
+@media (max-width: 900px) {
+	.assistenza-btn {
+		order: 1;
+		margin: 0 0.5rem 0 auto;
+		padding: 0.4rem 0.7rem;
+	}
+
+	.sidebar-toggle {
+		order: 2;
+	}
+}
+
+/* L'avviso dei ticket da leggere: una barra in basso che lampeggia. Non
+   copre il lavoro e non ha la X: si spegne solo leggendo il ticket. */
+.tk-avviso {
+	position: fixed;
+	z-index: 180;
+	bottom: 1rem;
+	left: 50%;
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	max-width: min(640px, calc(100vw - 2rem));
+	padding: 0.7rem 1rem;
+	border: 2px solid #d4382c;
+	border-radius: 999px;
+	background: var(--bg-dark);
+	color: var(--text-on-dark);
+	font-size: var(--text-xs);
+	text-decoration: none;
+	box-shadow: 0 8px 28px rgba(28, 28, 24, 0.35);
+	transform: translateX(-50%);
+	animation: tk-bordo 1.4s ease-in-out infinite;
+}
+
+@media (min-width: 901px) {
+	/* Al centro dell'area di lavoro, non dello schermo intero. */
+	.tk-avviso {
+		left: calc(50% + var(--sidebar-width) / 2);
+	}
+}
+
+.tk-avviso:hover {
+	color: var(--text-on-dark);
+}
+
+.tk-avviso-luce {
+	flex-shrink: 0;
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	background: #ff5a4a;
+	box-shadow: 0 0 0 0 rgba(255, 90, 74, 0.7);
+	animation: tk-luce 1.4s ease-out infinite;
+}
+
+.tk-avviso-testo {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.tk-avviso-apri {
+	flex-shrink: 0;
+	color: var(--accent-on-dark);
+	font-weight: 600;
+}
+
+@keyframes tk-lampeggia {
+	50% {
+		opacity: 0.35;
+	}
+}
+
+@keyframes tk-bordo {
+	50% {
+		border-color: rgba(212, 56, 44, 0.25);
+	}
+}
+
+@keyframes tk-luce {
+	70% {
+		box-shadow: 0 0 0 10px rgba(255, 90, 74, 0);
+	}
+	100% {
+		box-shadow: 0 0 0 0 rgba(255, 90, 74, 0);
+	}
+}
+
+/* Chi ha chiesto meno movimento: niente lampeggio, resta il rosso fisso. */
+@media (prefers-reduced-motion: reduce) {
+	.assistenza-badge,
+	.tk-avviso,
+	.tk-avviso-luce {
+		animation: none;
+	}
+}
+
+/* il modulo e le pagine */
+.tk-form {
+	max-width: 760px;
+}
+
+.tk-form .field + .field,
+.tk-form .tk-guida,
+.tk-form .tk-allegati,
+.tk-form .tk-invia {
+	margin-top: 1rem;
+}
+
+.tk-form textarea,
+.tk-comandi textarea {
+	width: 100%;
+	font: inherit;
+}
+
+.tk-guida {
+	padding: 0.85rem 1rem;
+	border-left: 3px solid var(--accent);
+	border-radius: 6px;
+	background: var(--accent-tint);
+	font-size: var(--text-sm);
+}
+
+.tk-guida ul {
+	margin: 0.4rem 0 0;
+	padding-left: 1.2rem;
+	line-height: 1.6;
+}
+
+.tk-conta {
+	font-size: var(--text-2xs);
+}
+
+.tk-invia,
+.tk-bottoni {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.6rem;
+}
+
+.tk-allegati {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.4rem 0.75rem;
+}
+
+.tk-allegati-nota {
+	font-size: var(--text-2xs);
+}
+
+.tk-allegati-elenco {
+	width: 100%;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.tk-allegati-elenco li {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	padding: 0.3rem 0;
+	font-size: var(--text-xs);
+}
+
+.tk-allegati-elenco li > span:first-child {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.tk-togli {
+	margin-left: auto;
+	border: 0;
+	background: none;
+	color: var(--text-muted);
+	font-size: 1.1rem;
+	cursor: pointer;
+}
+
+.tk-meta {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.4rem 1rem;
+	color: var(--text-muted);
+	font-size: var(--text-sm);
+}
+
+.tk-griglia {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 360px;
+	gap: 1.25rem;
+	align-items: start;
+}
+
+@media (max-width: 1000px) {
+	.tk-griglia {
+		grid-template-columns: 1fr;
+	}
+}
+
+.tk-testo {
+	margin: 0;
+	line-height: 1.6;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.tk-storia {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.tk-ev {
+	padding: 0.8rem 0 0.8rem 0.9rem;
+	border-left: 3px solid var(--border-strong);
+}
+
+.tk-ev + .tk-ev {
+	margin-top: 0.6rem;
+}
+
+.tk-ev-risposta {
+	border-left-color: var(--accent);
+}
+
+.tk-ev-replica {
+	border-left-color: var(--info);
+}
+
+.tk-ev-escalation,
+.tk-ev-rimando {
+	border-left-color: #d4382c;
+}
+
+.tk-ev-chiusura {
+	border-left-color: var(--ok);
+}
+
+.tk-ev-interno {
+	background: var(--fill-soft);
+}
+
+.tk-ev-testa {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.3rem 0.6rem;
+	margin-bottom: 0.3rem;
+	font-size: var(--text-sm);
+}
+
+.tk-comandi {
+	position: sticky;
+	top: 1rem;
+}
+
+.tk-comandi p {
+	margin: 0 0 0.75rem;
+}
+
+.tk-comandi textarea {
+	margin-bottom: 0.6rem;
+}
+
+.tk-bottoni {
+	margin-top: 0.75rem;
+}
+
+.tk-bottoni .btn {
+	flex: 1 1 auto;
+}
+
+.tk-nota-comandi {
+	margin-top: 0.75rem !important;
+	font-size: var(--text-2xs);
+}
+
+.tk-escalation {
+	border-color: #d4382c;
+	color: #b3261e;
+}
+
+/* Chi ha una risposta da leggere: il riquadro dei comandi lampeggia come
+   l'avviso, così si vede dove confermare. */
+.tk-comandi-evidenza {
+	border: 2px solid #d4382c;
+	animation: tk-bordo 1.4s ease-in-out infinite;
+}
+
+.tk-riga-evidenza td {
+	background: rgba(212, 56, 44, 0.06);
+}
+
+.tk-pallino {
+	display: inline-block;
+	width: 9px;
+	height: 9px;
+	margin-right: 0.45rem;
+	border-radius: 50%;
+	background: #d4382c;
+	vertical-align: middle;
+	animation: tk-lampeggia 1.2s ease-in-out infinite;
+}
+
+.tk-file {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.6rem;
+	margin: 0.75rem 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.tk-file a {
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+	width: 140px;
+	color: var(--text);
+	font-size: var(--text-2xs);
+	text-decoration: none;
+}
+
+.tk-file img,
+.tk-file-icona {
+	width: 140px;
+	height: 100px;
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	object-fit: cover;
+}
+
+.tk-file-icona {
+	display: grid;
+	place-items: center;
+	background: var(--fill-soft);
+	color: var(--text-muted);
+	font-weight: 700;
+}
+
+.tk-file-nome {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

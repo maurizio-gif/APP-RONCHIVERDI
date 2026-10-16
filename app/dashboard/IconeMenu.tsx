@@ -142,6 +142,13 @@ const DISEGNI: Record<string, React.ReactNode> = {
       <path d="M3.5 7l8.5 6 8.5-6" />
     </>
   ),
+  // Ticket: il fumetto con il punto interrogativo.
+  ticket: (
+    <>
+      <path d="M4 5h16v11H9l-5 4z" />
+      <path d="M10 9.2a2 2 0 1 1 2.6 1.9c-.4.2-.6.5-.6.9v.4M12 14.3v.1" />
+    </>
+  ),
   voucher: (
     <>
       <path d="M3 8.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 3v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-3z" />

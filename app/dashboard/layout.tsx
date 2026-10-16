@@ -9,6 +9,8 @@ import { AvvisoOpportunita } from './AvvisoOpportunita'
 import { NotificheProvider } from './NotificheProvider'
 import { NotificheBanner } from './NotificheBanner'
 import { Sidebar } from './Sidebar'
+import { TicketAvviso, TicketProvider } from './TicketAvviso'
+import { statoTicketCorrente } from '@/lib/ticket-server'
 import { LogoutInattivita } from './LogoutInattivita'
 import { BannerInstallazione } from './InstallaApp'
 
@@ -43,7 +45,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // indicizzata su una tabella piccola, e aspettare di sapere se ha il
   // permesso per poterla chiedere costerebbe più della lettura stessa. Il
   // permesso decide cosa si mostra, non cosa si chiede.
-  const [sezioniConsentite, nomeUtente, nonLette, ricevePolling, dashboardNew] = await Promise.all([
+  const [sezioniConsentite, nomeUtente, nonLette, ricevePolling, dashboardNew, ticket] = await Promise.all([
     getSezioniConsentite(email),
     getNomeUtente(email),
     contaNonLette(),
@@ -53,6 +55,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
     puoRicevereAvvisi(),
     // Idem: decide se nel menu c'è la Dashboard New.
     vedeDashboardNew(email),
+    // I ticket da leggere: li ha chiunque, non dipendono da una sezione.
+    statoTicketCorrente(),
   ])
 
   // Chi non ha il permesso non riceve niente: nessun badge, nessun avviso,
@@ -61,6 +65,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <NotificheProvider abilitato={riceveMessaggi} nonLetteIniziali={riceveMessaggi ? nonLette : 0}>
+      <TicketProvider iniziale={ticket}>
       <div className="app-shell">
         <Sidebar
           email={email}
@@ -79,9 +84,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
               ciò che decide se compare «Prendi in carico» (vedi
               getStatoAvvisi in opportunita-actions.ts). */}
           <AvvisoOpportunita abilitato={ricevePolling} />
+          {/* I ticket da leggere: per tutti, non blocca e non si chiude —
+              si spegne leggendo (vedi TicketAvviso). */}
+          <TicketAvviso />
           {children}
         </main>
       </div>
+      </TicketProvider>
     </NotificheProvider>
   )
 }

@@ -204,6 +204,10 @@ const DEFINIZIONI = [
   { chiave: 'timbratura', label: 'Timbra cartellino', href: '/dashboard/timbratura', gruppo: 'Amministrazione' },
   { chiave: 'utenti', label: 'Gestione utenti', href: '/dashboard/utenti', gruppo: 'Amministrazione' },
   { chiave: 'log-operatori', label: 'Controllo operatori', href: '/dashboard/log-operatori', gruppo: 'Amministrazione' },
+  // I ticket di assistenza, per chi li gestisce (ticket_gestori: Simone al
+  // primo livello, Maurizio al secondo). Tutti gli altri aprono e seguono i
+  // propri dal pulsante «Assistenza» nell'intestazione, senza questo permesso.
+  { chiave: 'ticket', label: 'Ticket', href: '/dashboard/ticket', gruppo: 'Amministrazione' },
   // Tutte le email partite dal CRM, con consegna, aperture e click comunicati
   // da SendGrid e la prova di invio di ciascuna. Contiene il testo delle
   // email ai soci: in Amministrazione, fuori dal corredo di un invito

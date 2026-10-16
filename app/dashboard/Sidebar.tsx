@@ -9,6 +9,7 @@ import { SEZIONI, soloAccessoEsterno } from '@/lib/auth/sezioni'
 import { SEZIONE_NOTIFICHE } from '@/lib/notifiche'
 import { IconaMenu } from './IconeMenu'
 import { useNotifiche } from './NotificheProvider'
+import { useTicketDaLeggere } from './TicketAvviso'
 import { PushToggleNavItem } from './PushToggleNavItem'
 import { CampanelloToggle } from './CampanelloToggle'
 import { TemaToggle } from './TemaToggle'
@@ -67,6 +68,7 @@ export function Sidebar({
   // Il conteggio arriva dallo stesso stato che alimenta l'avviso in evidenza,
   // così confermare la lettura da là aggiorna subito anche il badge qui.
   const { nonLette } = useNotifiche()
+  const { daLeggere: ticketDaLeggere } = useTicketDaLeggere()
 
   // La Dashboard è visibile a chiunque sia autenticato e non fa parte delle
   // sezioni assegnabili per utente. Sta nel gruppo Core New con le altre due voci
@@ -116,6 +118,14 @@ export function Sidebar({
             <span className="user-email">{email}</span>
           </span>
         </div>
+        {/* Assistenza: per tutti, fuori dal menu, sempre a portata (sul
+            telefono sta nella barra in alto). Il numero è dei ticket da
+            leggere, e lampeggia finché ce ne sono. */}
+        <Link href="/dashboard/ticket" className={`assistenza-btn${ticketDaLeggere ? ' ha-ticket' : ''}`}>
+          <span aria-hidden="true">?</span>
+          Assistenza
+          {ticketDaLeggere > 0 && <span className="assistenza-badge">{ticketDaLeggere}</span>}
+        </Link>
       </div>
 
       <nav className="nav">
