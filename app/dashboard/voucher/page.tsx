@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
@@ -6,7 +7,6 @@ import {
   ETICHETTE_STATO,
   dataOraRoma,
   dataRoma,
-  formattaCodice,
   nomeCompleto,
   statoEffettivo,
   type StatoEffettivo,
@@ -14,14 +14,17 @@ import {
 } from '@/lib/voucher'
 import { COLONNE } from '@/lib/voucher-server'
 import { leggiStatoAutomazione } from '@/lib/voucher-automatico'
-import { NuovoVoucher } from './NuovoVoucher'
 import { AzioniVoucher } from './AzioniVoucher'
 
 export const dynamic = 'force-dynamic'
 
-// Quanti voucher mostrare: l'elenco serve a controllare l'emesso di recente e
-// a ritrovare un codice al telefono, non a fare da archivio storico.
+// Quanti voucher mostrare senza ricerca: l'elenco serve a controllare
+// l'emesso di recente, non a fare da archivio storico.
 const LIMITE = 300
+
+// Con una ricerca si guarda tutta la tabella: poche centinaia di righe
+// l'anno, filtrate qui sotto con le stesse regole per nome, email e telefono.
+const LIMITE_RICERCA = 5000
 
 const CLASSE_BADGE: Record<StatoEffettivo, string> = {
   attivo: 'badge badge-ok',
@@ -30,19 +33,51 @@ const CLASSE_BADGE: Record<StatoEffettivo, string> = {
   scaduto: 'badge badge-warn',
 }
 
-export default async function VoucherPage() {
+// Minuscole e senza accenti: «Nicolò» si trova scrivendo «nicolo».
+function normalizza(testo: string): string {
+  return testo
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
+// Il telefono si confronta sulle sole cifre e senza prefisso internazionale:
+// «+39 340 123 4567», «3401234567» e «340-1234567» sono lo stesso numero.
+function cifreTelefono(testo: string): string {
+  return testo.replace(/\D/g, '').replace(/^(0039|39)(?=\d{9,10}$)/, '')
+}
+
+// Una ricerca fatta di sole cifre (con spazi, + o trattini) è un cellulare;
+// altrimenti ogni parola deve comparire in nome, cognome o email, così
+// «rossi», «mario rossi» e «mario.rossi@» trovano lo stesso socio.
+function corrisponde(v: Voucher, ricerca: string): boolean {
+  if (/^[\d\s+\-./()]+$/.test(ricerca)) {
+    const cercato = cifreTelefono(ricerca)
+    return cercato.length >= 4 && !!v.telefono && cifreTelefono(v.telefono).includes(cercato)
+  }
+  const pagliaio = normalizza(`${v.nome} ${v.cognome} ${v.email}`)
+  return normalizza(ricerca)
+    .split(/\s+/)
+    .every((parola) => pagliaio.includes(parola))
+}
+
+export default async function VoucherPage({ searchParams }: { searchParams: { q?: string } }) {
   if (!(await utenteHaSezione('voucher'))) {
     redirect('/dashboard')
   }
+
+  const ricerca = (searchParams.q ?? '').trim()
 
   const supabase = createSupabaseServiceClient()
   const { data } = await supabase
     .from('voucher')
     .select(COLONNE)
     .order('created_at', { ascending: false })
-    .limit(LIMITE)
+    .limit(ricerca ? LIMITE_RICERCA : LIMITE)
 
-  const voucher = (data ?? []) as Voucher[]
+  const tutti = (data ?? []) as Voucher[]
+  const voucher = ricerca ? tutti.filter((v) => corrisponde(v, ricerca)) : tutti
   const possoCancellare = await puoCancellare(emailCorrente())
   const automazione = await leggiStatoAutomazione()
   const automaticoAttivo = automazione?.attiva === true
@@ -66,8 +101,10 @@ export default async function VoucherPage() {
         </p>
       </div>
 
-      {/* La procedura scritta dove la segreteria la usa: chi apre la pagina
-          deve capire subito quali voucher partono da soli e quali no. */}
+      {/* La procedura scritta dove la segreteria la usa. L'emissione a mano
+          (NuovoVoucher) è sospesa: a regime i codici partono solo
+          dall'automazione, e il form tornerà per i casi fuori flusso se
+          servirà. */}
       <div className="card">
         <div className="card-head">
           <h2>Come funziona</h2>
@@ -79,36 +116,61 @@ export default async function VoucherPage() {
         </div>
         <ol style={{ margin: 0, paddingLeft: '1.25rem', lineHeight: 1.7 }}>
           <li>
-            <strong>Abbonamenti con la sigla «(cer000)»</strong> nel nome del prodotto (per esempio
-            «1.1 GOLD OVER 35 (cer000)»): il codice parte <strong>da solo</strong> per email,
-            entro circa 15 minuti da quando la vendita arriva dal gestionale. Non serve fare
-            nulla: nell’elenco li riconosci dalla dicitura «Automatico (cer000)» sotto la data di
-            emissione.
+            I contratti con la sigla <strong>«(cer000)»</strong> nel nome del prodotto (per
+            esempio «1.1 GOLD OVER 35 (cer000)») ricevono il codice <strong>in automatico</strong>{' '}
+            per email, entro circa 15 minuti da quando la vendita arriva dal gestionale. Non serve
+            fare nulla.
             {!automaticoAttivo && (
               <>
                 {' '}
-                <em>Finché l’invio automatico non è attivo, questi codici vanno emessi a mano.</em>
+                <em>L’invio automatico non è ancora attivo: per ora non parte nessun codice.</em>
               </>
             )}
           </li>
           <li>
-            <strong>Tutti gli altri casi</strong> con diritto alla visita: emetti il codice a mano
-            con «Emetti un voucher».
+            Il codice <strong>non si vede in questa pagina</strong>: lo riceve solo il socio. Se
+            non l’ha ricevuto o non lo trova più, usa <strong>«Rimanda email»</strong>, possibile
+            finché il voucher non è stato utilizzato.
           </li>
           <li>
-            <strong>Socio senza email nel gestionale</strong>: il codice automatico non può
-            partire. Aggiungi l’email nel gestionale oppure emetti il voucher a mano. Se ne esiste
-            già uno per quel socio, l’automatico non ne manda un secondo.
+            <strong>Socio senza email nel gestionale</strong>: il codice non può partire. Aggiungi
+            l’email nel gestionale entro 7 giorni dalla vendita e il codice parte da solo al giro
+            successivo.
           </li>
           <li>
             Il socio prenota <strong>online</strong>, scrivendo il codice nel campo «Note» della
             prenotazione, oppure <strong>al telefono</strong> comunicandolo all’operatore. Quando
-            Chiron usa il codice, il socio riceve un’email di conferma.
+            Chiron usa il codice, il socio riceve un’email di conferma e qui il voucher risulta
+            «utilizzato».
           </li>
         </ol>
       </div>
 
-      <NuovoVoucher />
+      <form method="get" className="card filtri-barra-card" role="search">
+        <div className="filtri-barra">
+          <div className="field filtri-barra-cerca">
+            <label htmlFor="f-q">Cerca un socio</label>
+            <input
+              id="f-q"
+              name="q"
+              type="search"
+              defaultValue={ricerca}
+              placeholder="Nome e cognome, cognome, cellulare o email"
+              autoComplete="off"
+            />
+          </div>
+          <div className="filtri-barra-azioni">
+            <button type="submit" className="btn">
+              Cerca
+            </button>
+            {ricerca && (
+              <Link href="/dashboard/voucher" className="btn btn-ghost">
+                Azzera
+              </Link>
+            )}
+          </div>
+        </div>
+      </form>
 
       <div className="griglia-stat" style={{ marginTop: '1.5rem' }}>
         <div className="stat">
@@ -131,20 +193,23 @@ export default async function VoucherPage() {
 
       <div className="card">
         <div className="card-head">
-          <h2>Voucher emessi</h2>
+          <h2>{ricerca ? `Risultati per «${ricerca}»` : 'Voucher emessi'}</h2>
           <span className="muted">
-            {voucher.length === LIMITE ? `ultimi ${LIMITE}` : `${voucher.length} in tutto`}
+            {ricerca
+              ? `${voucher.length} trovati`
+              : voucher.length === LIMITE
+                ? `ultimi ${LIMITE}`
+                : `${voucher.length} in tutto`}
           </span>
         </div>
 
         {voucher.length === 0 ? (
-          <p className="vuoto">Nessun voucher emesso.</p>
+          <p className="vuoto">{ricerca ? 'Nessun voucher per questa ricerca.' : 'Nessun voucher emesso.'}</p>
         ) : (
           <div className="tabella-wrap">
             <table className="tabella">
               <thead>
                 <tr>
-                  <th>Codice</th>
                   <th>Socio</th>
                   <th>Stato</th>
                   <th>Emesso</th>
@@ -158,9 +223,6 @@ export default async function VoucherPage() {
                   const stato = statoEffettivo(v)
                   return (
                     <tr key={v.id}>
-                      <td className="cella-nowrap" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                        {formattaCodice(v.codice)}
-                      </td>
                       <td>
                         <div className="cella-chi-nome">{nomeCompleto(v)}</div>
                         <div className="cella-chi-dettagli">
@@ -205,7 +267,7 @@ export default async function VoucherPage() {
                       <td>
                         <AzioniVoucher
                           id={v.id}
-                          codice={formattaCodice(v.codice)}
+                          socio={nomeCompleto(v)}
                           annullabile={v.stato === 'attivo'}
                           rimandabile={stato === 'attivo'}
                           puoCancellare={possoCancellare}
