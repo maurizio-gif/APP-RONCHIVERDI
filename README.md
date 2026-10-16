@@ -648,8 +648,10 @@ gestire e quante hanno una nota.
 
 Gli abbonamenti sopra i €1.000 includono la visita medico-sportiva. Il diritto
 viaggia su un **voucher monouso**: un codice numerico di otto cifre che il
-socio detta al telefono al centro medico, e che si consuma nel momento in cui
-la visita viene prenotata.
+socio comunica al centro medico — al telefono, o nel campo «Note» della
+prenotazione online su TuoTempo — e che si consuma nel momento in cui la
+visita viene prenotata. L'appuntamento si può spostare fino alle 16.00 del
+giorno precedente.
 
 - **Emissione** — `/dashboard/voucher`, sezione `voucher`. Per ora il trigger
   è manuale: la segreteria inserisce il socio e il codice parte subito per
