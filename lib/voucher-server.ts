@@ -73,7 +73,7 @@ export async function emettiVoucher(dati: {
   // SendGrid è giù, il codice esiste comunque ed è già valido, e la
   // segreteria lo vede segnato "email non partita" con il pulsante per
   // rimandarla. Perdere il voucher per colpa dell'email sarebbe peggio.
-  const aggiornato = await registraInvio(voucher, await inviaEmailAssegnazione(voucher))
+  const aggiornato = await registraInvio(voucher, await inviaEmailAssegnazione(voucher, dati.emessoDa))
 
   return {
     ok: true,
@@ -109,7 +109,7 @@ async function registraInvio(
 
 export type EsitoReinvio = { ok: true; voucher: Voucher } | { ok: false; errore: string }
 
-export async function reinviaVoucher(id: string): Promise<EsitoReinvio> {
+export async function reinviaVoucher(id: string, chi: string | null): Promise<EsitoReinvio> {
   const voucher = await leggiVoucherPerId(id)
   if (!voucher) return { ok: false, errore: 'Voucher non trovato.' }
 
@@ -121,7 +121,7 @@ export async function reinviaVoucher(id: string): Promise<EsitoReinvio> {
     return { ok: false, errore: `Il voucher è ${stato}: non ha senso rimandarlo al socio.` }
   }
 
-  const esito = await inviaEmailAssegnazione(voucher)
+  const esito = await inviaEmailAssegnazione(voucher, chi)
   const aggiornato = await registraInvio(voucher, esito)
   if (!esito.ok) return { ok: false, errore: esito.errore }
   return { ok: true, voucher: aggiornato }

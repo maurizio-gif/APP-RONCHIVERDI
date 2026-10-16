@@ -10,12 +10,37 @@ import { emailAssegnazione, emailUtilizzato } from '@/supabase/functions/_shared
 
 export { emailAssegnazione, emailUtilizzato }
 
-export async function inviaEmailAssegnazione(voucher: Voucher): Promise<EsitoEmail> {
+// Il «tipo» delle email del voucher nel tracking: la edge function
+// voucher-automatico usa lo stesso testo per l'assegnazione.
+export const AUTOMAZIONE_ASSEGNAZIONE = 'Voucher: codice assegnato'
+export const AUTOMAZIONE_UTILIZZO = 'Voucher: codice utilizzato'
+
+export async function inviaEmailAssegnazione(voucher: Voucher, inviataDa: string | null): Promise<EsitoEmail> {
   const { oggetto, html, testo } = emailAssegnazione(voucher)
-  return inviaEmail({ a: voucher.email, oggetto, html, testo, traccia: true, riferimenti: { voucher_id: voucher.id, email: 'assegnazione' } })
+  return inviaEmail({
+    a: voucher.email,
+    oggetto,
+    html,
+    testo,
+    automazione: AUTOMAZIONE_ASSEGNAZIONE,
+    traccia: true,
+    voucherId: voucher.id,
+    inviataDa,
+  })
 }
 
+// Parte quando il partner brucia il codice: chi l'ha fatta partire è il
+// partner, ma l'invio è automatico.
 export async function inviaEmailUtilizzato(voucher: Voucher, quando: string): Promise<EsitoEmail> {
   const { oggetto, html, testo } = emailUtilizzato(voucher, quando)
-  return inviaEmail({ a: voucher.email, oggetto, html, testo, traccia: true, riferimenti: { voucher_id: voucher.id, email: 'utilizzato' } })
+  return inviaEmail({
+    a: voucher.email,
+    oggetto,
+    html,
+    testo,
+    automazione: AUTOMAZIONE_UTILIZZO,
+    traccia: true,
+    voucherId: voucher.id,
+    inviataDa: 'automatico',
+  })
 }
