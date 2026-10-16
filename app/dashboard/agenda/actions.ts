@@ -155,6 +155,7 @@ export async function creaVoce(formData: FormData): Promise<Esito> {
   })
 
   revalidatePath('/dashboard/agenda')
+  revalidatePath('/dashboard/agenda-test')
   revalidatePath('/dashboard/richieste/richieste-club')
   // La trattativa appena aperta compare fra le proprie nel Riepilogo: senza
   // questa, chi torna in dashboard non la trova finché non ricarica.
@@ -360,6 +361,7 @@ export async function registraPhoneEmailIn(formData: FormData): Promise<Esito> {
   })
 
   revalidatePath('/dashboard/agenda')
+  revalidatePath('/dashboard/agenda-test')
   revalidatePath('/dashboard/richieste/richieste-club')
   revalidatePath('/dashboard')
   if (contatto.creato) revalidatePath('/dashboard/persone', 'layout')

@@ -39,6 +39,13 @@ const DISEGNI: Record<string, React.ReactNode> = {
       <path d="M3 10h18M8 3v4M16 3v4" />
     </>
   ),
+  // Agenda Test: lo stesso calendario, con la griglia delle ore.
+  'agenda-test': (
+    <>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 10h18M8 3v4M16 3v4M9 10v11M15 10v11" />
+    </>
+  ),
   // Phone In / Email In: la cornetta, per una telefonata o un'email arrivate
   // quando nessun commerciale era disponibile.
   'phone-email-in': (
