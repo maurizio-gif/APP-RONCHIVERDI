@@ -162,6 +162,17 @@ export function GrigliaAgenda({ voci, operatori, io, oggi, giorno, tempo, arretr
   const [aperta, setAperta] = useState<VoceAgenda | null>(null)
   const [adesso, setAdesso] = useState(() => adessoRomaMin())
   const [meseVisto, setMeseVisto] = useState(giorno.slice(0, 7))
+  // Sul telefono la settimana diventa un elenco e i filtri stanno dietro un
+  // pulsante: sette colonne e una barra laterale non ci stanno.
+  const [mobile, setMobile] = useState(false)
+  const [filtriAperti, setFiltriAperti] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 700px)')
+    const aggiorna = () => setMobile(mq.matches)
+    aggiorna()
+    mq.addEventListener('change', aggiorna)
+    return () => mq.removeEventListener('change', aggiorna)
+  }, [])
 
   useEffect(() => {
     const t = setInterval(() => setAdesso(adessoRomaMin()), 60_000)
@@ -230,7 +241,7 @@ export function GrigliaAgenda({ voci, operatori, io, oggi, giorno, tempo, arretr
   const tutti = [...operatori.map((o) => o.email), SENZA]
   const tuttiScelti = tutti.every((e) => opAttivi.has(e))
   const conta = (s: StatoVista) => delPeriodoMie.filter((v) => statoDi(v) === s).length
-  const griglia = `56px repeat(${Math.max(colonne.length, 1)}, minmax(${tempo === 'settimana' ? 110 : 150}px, 1fr))`
+  const griglia = `var(--agt-gutter) repeat(${Math.max(colonne.length, 1)}, minmax(${tempo === 'settimana' ? 110 : 150}px, 1fr))`
 
   const cambia = <T,>(set: Set<T>, valore: T, attivo: boolean, aggiorna: (s: Set<T>) => void) => {
     const nuovo = new Set(set)
@@ -295,10 +306,18 @@ export function GrigliaAgenda({ voci, operatori, io, oggi, giorno, tempo, arretr
           value={cerca}
           onChange={(e) => setCerca(e.target.value)}
         />
+        <button
+          type="button"
+          className={`agt-btn agt-solo-mobile agt-btn-filtri${filtriAperti ? ' on' : ''}`}
+          onClick={() => setFiltriAperti((a) => !a)}
+          aria-expanded={filtriAperti}
+        >
+          Filtri · {tuttiScelti ? 'tutti' : opAttivi.size === 1 && io && opAttivi.has(io) ? 'le mie' : `${opAttivi.size} operatori`}
+        </button>
       </div>
 
       <div className="agt-corpo">
-        <aside className="agt-sx">
+        <aside className={`agt-sx${filtriAperti ? ' aperto' : ''}`}>
           <MiniMese
             mese={meseVisto}
             setMese={setMeseVisto}
@@ -319,7 +338,9 @@ export function GrigliaAgenda({ voci, operatori, io, oggi, giorno, tempo, arretr
               <input
                 type="checkbox"
                 checked={tuttiScelti}
-                onChange={(e) => setOpAttivi(new Set(e.target.checked ? tutti : io ? [io] : []))}
+                onChange={(e) =>
+                  setOpAttivi(new Set(e.target.checked ? tutti : io && operatori.some((o) => o.email === io) ? [io] : []))
+                }
               />
               <b>Tutti</b>
             </label>
@@ -387,6 +408,43 @@ export function GrigliaAgenda({ voci, operatori, io, oggi, giorno, tempo, arretr
             </span>
           </div>
 
+          {mobile && tempo === 'settimana' ? (
+            <div className="agt-programma">
+              {settimana.map((g) => {
+                const delGiorno = visibili
+                  .filter((v) => v.data === g)
+                  .sort((a, b) => (a.ora ?? '').localeCompare(b.ora ?? ''))
+                return (
+                  <section key={g} className={`agt-prog-giorno${g === oggi ? ' e-oggi' : ''}`}>
+                    <button type="button" className="agt-prog-testa" onClick={() => vai(g, 'giorno')}>
+                      <span className="gn">{data(g).getUTCDate()}</span>
+                      <span className="gs">{maiuscola(nomeGiorno(g, { weekday: 'long' }))}</span>
+                      <span className="agt-conta">{delGiorno.length || 'nessuna'}</span>
+                    </button>
+                    {delGiorno.map((v) => {
+                      const st = statoDi(v)
+                      return (
+                        <button
+                          type="button"
+                          key={v.chiave}
+                          className={`agt-prog-voce agt-t-${FAMIGLIA[v.tipo]} agt-${st}`}
+                          onClick={() => setAperta(v)}
+                        >
+                          <span className="agt-prog-ora">{v.ora ?? (v.fascia ? FASCE_RICHIAMO.find((f) => f.chiave === v.fascia)!.etichetta : 'in giornata')}</span>
+                          <span className="agt-segno">{SEGNO[st]}</span>
+                          <span className="agt-prog-testo">
+                            <b>{nomeDi(v)}</b>
+                            <small>{st === 'fatto' ? `✓ ${v.esitoTipo ? etichettaStato('completato', v.esitoTipo, v.tipo) : 'Fatta'}` : azioneDi(v)}</small>
+                          </span>
+                          {mostraOp && <Pallino email={v.assegnatoA} />}
+                        </button>
+                      )
+                    })}
+                  </section>
+                )
+              })}
+            </div>
+          ) : (
           <div className="agt-cal">
             <div className="agt-cal-teste" style={{ gridTemplateColumns: griglia }}>
               <div />
@@ -533,6 +591,7 @@ export function GrigliaAgenda({ voci, operatori, io, oggi, giorno, tempo, arretr
               })}
             </div>
           </div>
+          )}
         </div>
       </div>
 

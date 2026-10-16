@@ -8927,6 +8927,7 @@ table.tabella-compatta .nota-in-riga,
    (colore del tipo), in ritardo (rosso), fatta (neutro con spunta verde). */
 
 .agt {
+	--agt-gutter: 56px;
 	--agt-ora: 58px;
 	--agt-rosso: #b3261e;
 	--agt-verde: #3f7a35;
@@ -9800,5 +9801,203 @@ table.tabella-compatta .nota-in-riga,
 
 	.agt-cerca {
 		width: 150px;
+	}
+}
+
+/* il pulsante dei filtri e l'elenco della settimana esistono solo sul telefono */
+.agt-solo-mobile {
+	display: none;
+}
+
+.agt-programma {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.agt-prog-giorno {
+	overflow: hidden;
+	border: 1px solid var(--border);
+	border-radius: 12px;
+	background: var(--surface);
+}
+
+.agt-prog-testa {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	padding: 10px 12px;
+	border: 0;
+	border-bottom: 1px solid var(--border);
+	background: none;
+	color: var(--text);
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.agt-prog-testa .gn {
+	display: grid;
+	place-items: center;
+	width: 34px;
+	height: 34px;
+	border-radius: 50%;
+	font-size: 18px;
+	font-weight: 500;
+}
+
+.agt-prog-giorno.e-oggi .agt-prog-testa .gn {
+	background: var(--accent);
+	color: #fdfaf3;
+}
+
+.agt-prog-giorno.e-oggi .agt-prog-testa .gs {
+	color: var(--accent);
+	font-weight: 600;
+}
+
+.agt-prog-voce {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	min-height: 52px;
+	padding: 8px 12px;
+	border: 0;
+	border-top: 1px solid var(--border);
+	border-left: 4px solid;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.agt-prog-voce:first-of-type {
+	border-top: 0;
+}
+
+.agt-prog-voce.agt-fatto {
+	border-left-color: var(--agt-verde);
+	background: #fbfaf6;
+	color: #6b6a60;
+}
+
+.agt-prog-voce.agt-fatto b {
+	text-decoration: line-through;
+	text-decoration-color: rgba(63, 122, 53, 0.55);
+}
+
+.agt-prog-voce.agt-ritardo {
+	border-left-color: var(--agt-rosso);
+	box-shadow: inset 0 0 0 1.5px var(--agt-rosso);
+}
+
+.agt-prog-ora {
+	flex-shrink: 0;
+	width: 64px;
+	font-size: 13px;
+	font-variant-numeric: tabular-nums;
+	font-weight: 600;
+}
+
+.agt-prog-testo {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.agt-prog-testo b,
+.agt-prog-testo small {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.agt-prog-testo small {
+	font-size: 12.5px;
+	opacity: 0.85;
+}
+
+@media (max-width: 700px) {
+	/* --agt-ora resta 58px: è la stessa misura con cui il componente
+	   posiziona gli eventi (ORA_PX), e devono coincidere. */
+	.agt {
+		--agt-gutter: 40px;
+	}
+
+	.agt-solo-mobile {
+		display: inline-flex;
+	}
+
+	.agt-testa {
+		gap: 8px;
+	}
+
+	.agt-testa h1 {
+		flex-basis: 100%;
+		font-size: 1.55rem;
+	}
+
+	.agt-spazio {
+		display: none;
+	}
+
+	.agt-cerca {
+		flex: 1;
+		width: auto;
+		min-width: 0;
+	}
+
+	.agt-btn-filtri.on {
+		background: var(--bg-dark);
+		color: var(--text-on-dark);
+	}
+
+	/* i filtri sopra il calendario, solo quando si aprono */
+	.agt-sx {
+		display: none;
+		order: 0;
+	}
+
+	.agt-sx.aperto {
+		display: block;
+	}
+
+	.agt-sx .agt-pannello:first-child {
+		display: none;
+	}
+
+	.agt-corpo {
+		gap: 12px;
+	}
+
+	.agt-legenda {
+		gap: 10px;
+		font-size: 12.5px;
+	}
+
+	.agt-chi {
+		flex-basis: 100%;
+		margin-left: 0;
+	}
+
+	/* la griglia scorre con la pagina, non in un riquadro interno */
+	.agt-griglia {
+		max-height: none;
+		overflow: visible;
+	}
+
+	.agt-ore div {
+		padding-right: 4px;
+		font-size: 10px;
+	}
+
+	.agt-ev {
+		padding: 4px 6px;
+	}
+
+	.agt-det-corpo dl {
+		grid-template-columns: 96px 1fr;
 	}
 }
