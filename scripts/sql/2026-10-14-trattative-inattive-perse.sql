@@ -29,7 +29,8 @@
 -- una persona. Ogni chiusura scrive una riga in audit_log, visibile in
 -- Controllo operatori. Si riapre a mano come qualunque persa.
 --
--- La chiama ogni giorno /api/cron/trattative-inattive (vedi vercel.json).
+-- La chiama ogni giorno il job pg_cron trattative-inattive
+-- (2026-10-16-automazioni-su-supabase.sql); prima era un cron di Vercel.
 
 create or replace function public.chiudi_trattative_inattive(p_giorni integer default 14)
 returns table (

@@ -656,16 +656,19 @@ giorno precedente.
 - **Emissione** — `/dashboard/voucher`, sezione `voucher`. La segreteria
   inserisce il socio e il codice parte subito per email; la pagina spiega la
   procedura e mostra se l'invio automatico è attivo.
-- **Emissione automatica «(cer000)»** — il cron `/api/cron/voucher-automatico`
-  (ogni 15 minuti, `lib/voucher-automatico.ts`) emette il codice per ogni
-  nuova vendita di un prodotto con «(cer000)» nel nome, letta da
-  `abbonamenti`. Una vendita produce al massimo un voucher (unico su
-  `voucher.abbonamento_id`), e non parte se il socio ne ha già uno emesso
-  attorno alla vendita. L'interruttore è la riga `voucher_cer000` di
-  `automazioni`, spenta di default: accensione e spegnimento sono in testa a
+- **Emissione automatica «(cer000)»** — la edge function Supabase
+  `voucher-automatico` (`supabase/functions/voucher-automatico`), chiamata
+  da pg_cron ogni 15 minuti, emette il codice per ogni nuova vendita di un
+  prodotto con «(cer000)» nel nome, letta da `abbonamenti`. Una vendita
+  produce al massimo un voucher (unico su `voucher.abbonamento_id`), e non
+  parte se il socio ne ha già uno emesso attorno alla vendita. L'interruttore
+  è la riga `voucher_cer000` di `automazioni`, spenta di default: accensione
+  e spegnimento sono in testa a
   [`2026-10-16-voucher-automatico-cer000.sql`](scripts/sql/2026-10-16-voucher-automatico-cer000.sql),
-  e contano solo le vendite da `attiva_dal` in poi. `?prova=1` sul cron
-  elenca chi riceverebbe il codice senza inviare nulla.
+  e contano solo le vendite da `attiva_dal` in poi. Con `?prova=1` la
+  function elenca chi riceverebbe il codice senza inviare nulla. I testi
+  delle email stanno in `supabase/functions/_shared/voucher-email-testi.ts`,
+  lo stesso file usato dal pannello.
 - **Validazione** — `/dashboard/validazione`, sezione `validazione-voucher`:
   una cella e un pulsante. Al centro medico si creano account del pannello
   con **quella sola sezione** (casella «Accesso esterno» al momento
@@ -985,3 +988,24 @@ per l'amministrazione, sessioni confermate nella scheda del contatto.
 
 Da fare: Enquiries, Persone, Agenda con `/api/disponibilita` per gli slot che il
 sito offre nel form contatti, Visite al sito, pagina di Controllo operatori.
+
+## Automazioni programmate
+
+Tutto ciò che lavora sul database a orario parte da **Supabase**, non da
+Vercel ([`2026-10-16-automazioni-su-supabase.sql`](scripts/sql/2026-10-16-automazioni-su-supabase.sql)):
+
+- se basta SQL, un job **pg_cron** chiama la funzione nel database
+  (`registra-abbonamenti-attivi-mensile`, `crea-lead-scadenze-mensili`,
+  `aggiorna-incassi-competenza`, `crea-trattative-recupero`,
+  `trattative-inattive`);
+- se serve altro (un'email), il job chiama una **edge function** con
+  `chiama_edge_function()` via pg_net (`voucher-automatico`). La function si
+  autentica con l'header `x-cron-token`, confrontato con il segreto
+  `cron_token` del Vault da `verifica_token_cron()`.
+
+Elenco e stato: `select jobname, schedule, active from cron.job`; esito
+delle chiamate alle function: `net._http_response`. Le edge function si
+pubblicano con `verify_jwt = false` (fanno da sé l'autenticazione) e i loro
+segreti — `SENDGRID_API_KEY` in testa — si impostano in Dashboard → Edge
+Functions → Secrets. Su Vercel resta solo il resoconto direzionale serale
+(`vercel.json`), da spostare in un secondo momento.
