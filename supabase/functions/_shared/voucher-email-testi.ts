@@ -41,7 +41,7 @@ const CASELLA_CERTIFICATI = leggiEnv('EMAIL_CERTIFICATI') || 'certificatimedici@
 // consenso perché rientrano nella deroga dei messaggi di servizio di cui
 // conta l'effettiva presa visione (§5): per questo la frase dice anche che i
 // dati non servono ad altro, ed è un impegno da rispettare.
-const INFORMATIVA_PRIVACY_URL = leggiEnv('INFORMATIVA_PRIVACY_URL') || 'https://www.ronchiverdi.it/privacy'
+const INFORMATIVA_PRIVACY_URL = leggiEnv('INFORMATIVA_PRIVACY_URL') || 'https://www.ronchiverdi.it/privacy#email'
 const NOTA_TRACCIAMENTO =
   "Per avere conferma che questa comunicazione ti sia arrivata, registriamo l'apertura dell'email (con un'immagine invisibile) e i clic sui link. Usiamo questi dati solo per questo scopo."
 
