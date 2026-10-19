@@ -33,6 +33,18 @@ const LIMITE_SPOSTAMENTO = 'fino alle ore 16.00 del giorno precedente alla visit
 // per chiunque, anche per chi la visita l'ha fatta con un medico suo.
 const CASELLA_CERTIFICATI = leggiEnv('EMAIL_CERTIFICATI') || 'certificatimedici@ronchiverdi.it'
 
+// L'informativa sul tracciamento, in fondo a ogni email del voucher: le
+// email partono con pixel di apertura e link riscritti (lib/voucher-email.ts,
+// edge function voucher-automatico), e le Linee guida del Garante sui
+// tracking pixel (provv. 284 del 17 aprile 2026, §4) li ammettono solo se il
+// destinatario lo sa prima, qualunque sia lo scopo dell'email. Senza
+// consenso perché rientrano nella deroga dei messaggi di servizio di cui
+// conta l'effettiva presa visione (§5): per questo la frase dice anche che i
+// dati non servono ad altro, ed è un impegno da rispettare.
+const INFORMATIVA_PRIVACY_URL = leggiEnv('INFORMATIVA_PRIVACY_URL') || 'https://www.ronchiverdi.it/privacy#email'
+const NOTA_TRACCIAMENTO =
+  "Per avere conferma che questa comunicazione ti sia arrivata, registriamo l'apertura dell'email (con un'immagine invisibile) e i clic sui link. Usiamo questi dati solo per questo scopo."
+
 // Quello che serve del voucher per scrivere l'email.
 export type VoucherEmail = { codice: string; nome: string; cognome: string; valido_fino: string }
 
@@ -90,9 +102,17 @@ ${corpo}
 Ronchiverdi Sport Club &middot; Corso Moncalieri 466, Torino<br>
 Messaggio automatico: per assistenza rispondi a questa email.
 </p>
+<p style="margin:10px 0 0 0;font-size:11px;line-height:1.6;color:rgba(0,0,0,0.5);">
+${esc(NOTA_TRACCIAMENTO)} <a href="${esc(INFORMATIVA_PRIVACY_URL)}" style="color:rgba(0,0,0,0.6);">Informativa privacy</a>
+</p>
 </td></tr></table>
 </td></tr></table>
 </body></html>`
+}
+
+// La stessa nota in fondo alla versione testuale.
+function piedeTesto(): string {
+  return `\n\n--\n${NOTA_TRACCIAMENTO}\nInformativa privacy: ${INFORMATIVA_PRIVACY_URL}`
 }
 
 function paragrafo(testo: string): string {
@@ -219,7 +239,7 @@ DOPO LA VISITA
 Inviaci il certificato in allegato via email a ${CASELLA_CERTIFICATI}. E' l'unica modalita' di consegna, e vale anche se la visita l'hai fatta con un medico tuo. Se hai solo il cartaceo, passa in reception.
 
 A presto,
-Ronchiverdi Sport Club`
+Ronchiverdi Sport Club${piedeTesto()}`
 
   return { oggetto: 'Il tuo voucher per la visita medica inclusa', html, testo }
 }
@@ -266,7 +286,7 @@ Non hai prenotato tu? Rispondi a questa email: controlliamo subito.
 
 Dopo la visita, inviaci il certificato in allegato a ${CASELLA_CERTIFICATI}.
 
-Ronchiverdi Sport Club`
+Ronchiverdi Sport Club${piedeTesto()}`
 
   return { oggetto: 'Il tuo voucher per la visita medica è stato utilizzato', html, testo }
 }
