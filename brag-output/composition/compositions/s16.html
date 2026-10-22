@@ -1,0 +1,217 @@
+<template>
+  <style>
+    @font-face { font-family: 'Jost'; font-weight: 400; src: url('assets/fonts/jost-latin-400-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 500; src: url('assets/fonts/jost-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 600; src: url('assets/fonts/jost-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 500; src: url('assets/fonts/cormorant-garamond-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 600; src: url('assets/fonts/cormorant-garamond-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 700; src: url('assets/fonts/cormorant-garamond-latin-700-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 500; font-style: italic; src: url('assets/fonts/cormorant-garamond-latin-500-italic.woff2') format('woff2'); }
+
+    #root { position: absolute; inset: 0; overflow: hidden; font-family: 'Jost', sans-serif; color: #17170f; }
+    #s16-all { position: absolute; inset: 0; }
+    .stage { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 62% at 50% 42%, #fbf8ee 0%, #f1ead8 58%, #e5dec8 100%); }
+    .stage-dark { position: absolute; inset: 0; background: #1c1c18; }
+    .view { position: absolute; left: 0; right: 0; top: 104px; bottom: 246px; overflow: hidden;
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 26px), transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 26px), transparent 100%); }
+    .cam { position: absolute; left: 0; top: 0; width: 2600px; height: 1600px; transform-origin: 0 0; }
+    .chap { position: absolute; left: 96px; top: 54px; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 28px;
+            letter-spacing: 0.14em; text-transform: uppercase; color: #6e5610; }
+    .chap i { font-style: normal; color: #8b6c14; margin-right: 14px; }
+    .caps { position: absolute; left: 96px; right: 96px; bottom: 100px; display: grid; justify-items: center; align-items: end; }
+    .cap { grid-area: 1 / 1; max-width: 1560px; padding: 20px 40px 22px; border-radius: 16px; border-left: 7px solid #c8991f;
+           background: rgba(28, 28, 24, 0.95); color: #f6efde; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 40px;
+           line-height: 1.22; letter-spacing: 0.002em; text-align: left; box-shadow: 0 14px 40px rgba(28, 28, 24, 0.25); opacity: 0; }
+    .cap b { font-weight: 600; color: #efbf48; }
+    .cur { position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; transform-origin: 0 0; z-index: 900; pointer-events: none; }
+    .cur-in { position: absolute; left: -2px; top: -2px; width: 22px; height: 30px; transform-origin: 2px 2px; }
+    .cur-in svg { display: block; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+    .frag { position: absolute; background: var(--bg); border-radius: 12px; box-shadow: 0 24px 60px rgba(28, 28, 24, 0.20), 0 0 0 1px rgba(28,28,24,.10); overflow: hidden; }
+    .tapa { outline: 3px solid rgba(200,153,31,.0); }
+  
+    #s16-A { left: 40px; top: 20px; width: 780px; padding: 24px 28px 22px; }
+    #s16-B { left: 40px; top: 20px; width: 780px; padding: 24px 28px 22px; opacity: 0; }
+    #s16-ddl { position: absolute; width: 190px; padding: 4px; background: #fdfaf3; border: 1px solid rgba(28,28,24,.3); border-radius: 6px;
+      box-shadow: 0 10px 24px rgba(28,28,24,.22); font-size: 15px; opacity: 0; z-index: 50; }
+    #s16-ddl div { padding: 5px 10px; border-radius: 4px; }
+    #s16-ddl div.on { background: rgba(139,108,20,.16); font-weight: 600; }
+    #s16-B .lead-chiusura input { width: 22rem; }
+  
+  </style>
+  <div id="root" data-composition-id="s16" data-width="1920" data-height="1080">
+    <div id="s16-all">
+      <div class="stage" id="s16-bg"></div>
+      <div class="chap"><i>5</i>Chiudere</div>
+      
+      <div class="view"><div class="cam" data-layout-allow-overflow id="s16-cam">
+        <div class="frag" data-hold id="s16-A"><div class="card" id="s16s-lead">
+        <div class="card-head"><h2>Lead</h2><span class="badge badge-stato badge-punto badge-info" id="s16s-badge">In gestione</span></div>
+        <dl class="dati">
+          <dt>Arrivato</dt><dd>22 ott 2026, 15:21</dd>
+          <dt>Da</dt><dd id="s16s-da"><span class="tag-provenienza da-sito">Sito web</span></dd>
+          <dt>Richiesta</dt><dd id="s16s-rich"><span class="tag-richiesta richiesta-richiamami">Richiamami · Sera 17–20</span></dd>
+          <dt>Interesse</dt><dd>Abbonamento Club e Family</dd>
+          <dt>Messaggio</dt><dd id="s16s-msg">Vorrei provare il club e capire quali abbonamenti ci sono.</dd>
+          <dt style="opacity:0" class="s16-x">Chiuso</dt><dd style="opacity:0" class="s16-x">24 ott 2026, 11:40 · 1.080,00 €</dd>
+          <dt style="opacity:0" class="s16-x">Nota</dt><dd style="opacity:0" class="s16-x">Club Full annuale</dd>
+        </dl>
+        <div class="scheda-comandi" id="s16s-cmd"><span class="muted">In carico a · stato</span>
+          <div class="lead-comandi"><select aria-label="In carico a"><option>Io</option></select><select aria-label="Stato" id="s16s-stato"><option>In gestione</option></select><div class="lead-chiusura" id="s16-chiu" style="opacity:0;flex-basis:100%">
+        <div id="s16-m" style="position:relative;display:inline-block;width:20rem;height:2.1em;overflow:hidden;white-space:nowrap;vertical-align:middle;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);font-size:var(--text-xs)">
+        <span id="s16-m-ph" style="position:absolute;left:0.55rem;top:0.34rem;color:var(--text-muted)">Quale abbonamento? Es. «Club Full annuale»</span>
+        <span id="s16-m-t" style="position:absolute;left:0.55rem;top:0.34rem"><span style="opacity:0">C</span><span style="opacity:0">l</span><span style="opacity:0">u</span><span style="opacity:0">b</span><span style="opacity:0">&nbsp;</span><span style="opacity:0">F</span><span style="opacity:0">u</span><span style="opacity:0">l</span><span style="opacity:0">l</span><span style="opacity:0">&nbsp;</span><span style="opacity:0">a</span><span style="opacity:0">n</span><span style="opacity:0">n</span><span style="opacity:0">u</span><span style="opacity:0">a</span><span style="opacity:0">l</span><span style="opacity:0">e</span></span>
+      </div>
+        <div id="s16-v" style="position:relative;display:inline-block;width:5.2rem;height:2.1em;overflow:hidden;white-space:nowrap;vertical-align:middle;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);font-size:var(--text-xs)">
+        <span id="s16-v-ph" style="position:absolute;left:0.55rem;top:0.34rem;color:var(--text-muted)">€</span>
+        <span id="s16-v-t" style="position:absolute;left:0.55rem;top:0.34rem"><span style="opacity:0">1</span><span style="opacity:0">0</span><span style="opacity:0">8</span><span style="opacity:0">0</span></span>
+      </div>
+        <button class="btn btn-sm" type="button" id="s16-salva">Salva</button><button class="btn btn-ghost btn-sm" type="button">Annulla</button>
+      </div></div>
+        </div>
+      </div></div>
+        <div id="s16-ddl"><div>Da prendere in carico</div><div>In gestione</div><div class="on">Vinta</div><div>Persa</div><div>Annullata</div></div>
+        <div class="frag" data-hold id="s16-B" style="height:150px"><div id="s16-b-persa" style="position:absolute;left:28px;right:28px;top:24px;opacity:0">
+      <div class="scheda-comandi"><span class="muted">In carico a · stato</span>
+        <div class="lead-comandi"><select><option>Io</option></select><select><option>Persa</option></select>
+          <div class="lead-chiusura" style="flex-basis:100%"><div style="display:inline-block;width:30rem;max-width:100%;height:2.1em;overflow:hidden;white-space:nowrap;vertical-align:middle;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);font-size:var(--text-xs)"><span style="display:block;margin:0.34rem 0 0 0.55rem;color:var(--text-muted)">Perché non si iscrive?</span></div>
+          <button class="btn btn-sm" type="button" style="opacity:.45">Salva</button><button class="btn btn-ghost btn-sm" type="button">Annulla</button></div>
+        </div></div></div><div id="s16-b-ann" style="position:absolute;left:28px;right:28px;top:24px;opacity:0">
+      <div class="scheda-comandi"><span class="muted">In carico a · stato</span>
+        <div class="lead-comandi"><select><option>Io</option></select><select><option>Annullata</option></select>
+          <div class="lead-chiusura" style="flex-basis:100%"><div style="display:inline-block;width:30rem;max-width:100%;height:2.1em;overflow:hidden;white-space:nowrap;vertical-align:middle;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);font-size:var(--text-xs)"><span style="display:block;margin:0.34rem 0 0 0.55rem;color:var(--text-muted)">Perché non è una trattativa? Doppione, errore al banco, prova…</span></div>
+          <button class="btn btn-sm" type="button" style="opacity:.45">Salva</button><button class="btn btn-ghost btn-sm" type="button">Annulla</button></div>
+        </div></div></div></div>
+        <div class="cur" id="s16-cur"><div class="cur-in"><svg width="22" height="30" viewBox="0 0 22 30"><path d="M2 2 L2 24 L8 18.5 L12.5 28 L16 26.5 L11.6 17.2 L19.5 17 Z" fill="#17170f" stroke="#fdfaf3" stroke-width="2" stroke-linejoin="round"/></svg></div></div>
+      </div></div>
+      <div class="caps">
+      <div class="cap" id="s16-cap0">Quando si iscrive: <b>Stato → Vinta</b>.</div>
+      <div class="cap" id="s16-cap1">Scrivi <b>quale abbonamento</b> e quanto vale.</div>
+      <div class="cap" id="s16-cap2">Vinta: <b>abbonamento e valore</b> restano sulla scheda.</div>
+      <div class="cap" id="s16-cap3"><b>Persa</b>: scrivi perché non si iscrive. La nota è obbligatoria.</div>
+      <div class="cap" id="s16-cap4"><b>Annullata</b> è per gli errori: doppione, errore al banco, prova.</div>
+      <div class="cap" id="s16-cap5">Ti sei sbagliato? <b>Puoi sempre correggere</b>: si torna In gestione.</div>
+    </div>
+  
+    </div>
+    
+  </div>
+  <script>
+    
+    const tl = gsap.timeline({ paused: true });
+    const $ = (s) => document.querySelector(s);
+    const $$ = (s) => document.querySelectorAll(s);
+    const CAM = $('#s16-cam');
+    const CUR = $('#s16-cur');
+    const CX = 960, CY = 365, CB = 1.5;
+    // Coordinate "mondo" di un elemento (centro di default), indipendenti dalla camera attuale.
+    function W(sel, fx, fy) {
+      fx = fx === undefined ? 0.5 : fx; fy = fy === undefined ? 0.5 : fy;
+      const e = $(sel), r = e.getBoundingClientRect(), c = CAM.getBoundingClientRect();
+      const k = (c.width / CAM.offsetWidth) || 1;
+      return { x: (r.left - c.left + r.width * fx) / k, y: (r.top - c.top + r.height * fy) / k };
+    }
+    let camS = 1;
+    // Mette al centro dell'area libera (sopra i sottotitoli) il centro di un elemento, a scala s.
+    function centerOn(sel, s, dx, dy) { const p = W(sel); viewSet(p.x + (dx || 0), p.y + (dy || 0), s); return p; }
+    function viewSet(wx, wy, s) {
+      camS = s;
+      gsap.set(CAM, { x: CX - wx * s, y: CY - wy * s, scale: s });
+      if (CUR) gsap.set(CUR, { scale: CB / s });
+    }
+    function view(t, d, wx, wy, s, ease) {
+      ease = ease || 'power2.inOut';
+      tl.to(CAM, { x: CX - wx * s, y: CY - wy * s, scale: s, duration: d, ease: ease }, t);
+      if (CUR) tl.to(CUR, { scale: CB / s, duration: d, ease: ease }, t);
+      camS = s;
+    }
+    // Il cursore: compare, si muove verso un punto del mondo, "clicca".
+    function curAt(x, y) { gsap.set(CUR, { x: x, y: y, scale: CB / camS }); }
+    function curShow(t, on) { tl.to(CUR, { opacity: on === false ? 0 : 1, duration: 0.2 }, t); }
+    function curTo(t, d, p, ease) { tl.to(CUR, { x: p.x, y: p.y, duration: d, ease: ease || 'power3.inOut' }, t); }
+    function tap(t) {
+      const ci = CUR.firstElementChild;
+      tl.to(ci, { scale: 0.8, duration: 0.07, ease: 'power2.out' }, t);
+      tl.to(ci, { scale: 1, duration: 0.14, ease: 'power2.out' }, t + 0.07);
+    }
+    function press(t, sel) {
+      tl.to(sel, { scale: 0.96, duration: 0.07, ease: 'power2.out', transformOrigin: '50% 50%' }, t);
+      tl.to(sel, { scale: 1, duration: 0.16, ease: 'power2.out' }, t + 0.07);
+    }
+    // Scrive un testo già diviso in span (vedi typed()): un carattere ogni 1/cps secondi.
+    function write(t, sel, cps) {
+      const sp = $$(sel + ' > span');
+      tl.to(sp, { opacity: 1, duration: 0.01, stagger: 1 / (cps || 16) }, t);
+      return t + sp.length / (cps || 16);
+    }
+    // Entrata/uscita della scena: dissolvenza morbida.
+    function sceneInOut(dur, tin, tout) {
+      tin = tin === undefined ? 0.35 : tin; tout = tout === undefined ? 0.35 : tout;
+      if (tin > 0) tl.fromTo('#s16-all', { opacity: 0 }, { opacity: 1, duration: tin, ease: 'power2.out' }, 0);
+      tl.to('#s16-all', { opacity: 0, duration: tout, ease: 'power2.in' }, dur - tout);
+    }
+  
+    const cmd = W('#s16s-cmd'), lead = W('#s16s-lead'), stato = W('#s16s-stato'), salva = W('#s16-salva'), mP = W('#s16-m'), vP = W('#s16-v'),
+          bPersa = W('#s16-B'), dl = W('#s16s-lead .dati'), badge = W('#s16s-badge');
+    sceneInOut(29, 0.35, 0.4);
+    gsap.set('.s16-x', { opacity: 0 });
+    viewSet(cmd.x, cmd.y + 70, 1.9);
+    tl.fromTo('#s16-A', { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 0.2);
+    // Stato → tendina → Vinta
+    const dd = $('#s16-ddl');
+    gsap.set(dd, { x: stato.x - 40, y: stato.y + 18 });
+    curAt(stato.x + 230, stato.y + 120);
+    curShow(2.6, true);
+    curTo(2.7, 1.0, { x: stato.x + 10, y: stato.y + 2 });
+    tap(3.9);
+    tl.fromTo(dd, { opacity: 0, y: stato.y + 8 }, { opacity: 1, y: stato.y + 18, duration: 0.18 }, 3.95);
+    curTo(4.2, 0.5, { x: stato.x - 20, y: stato.y + 99 });
+    tap(5.0);
+    tl.to(dd, { opacity: 0, duration: 0.14 }, 5.1);
+    tl.set('#s16s-stato option', { innerHTML: 'Vinta' }, 5.12);
+    tl.to('#s16-chiu', { opacity: 1, duration: 0.3 }, 5.2);
+    // scrive l'abbonamento e il valore, salva
+    view(5.3, 0.9, cmd.x, cmd.y + 20, 2.0);
+    curTo(6.4, 0.6, { x: mP.x - 60, y: mP.y + 3 });
+    tap(7.1);
+    tl.to('#s16-m-ph', { opacity: 0, duration: 0.1 }, 7.15);
+    const f1 = write(7.3, '#s16-m-t', 16);
+    curTo(f1 + 0.1, 0.5, { x: vP.x - 20, y: vP.y + 3 });
+    tap(f1 + 0.75);
+    tl.to('#s16-v-ph', { opacity: 0, duration: 0.1 }, f1 + 0.8);
+    const f2 = write(f1 + 0.9, '#s16-v-t', 8);
+    curTo(f2 + 0.15, 0.6, { x: salva.x, y: salva.y });
+    tap(f2 + 1.0); press(f2 + 1.0, '#s16-salva');
+    // esito: badge «Vinta» verde, il valore e la nota compaiono
+    const W0 = f2 + 1.15;
+    tl.to('#s16-chiu', { opacity: 0, duration: 0.2 }, W0);
+    tl.to('#s16s-badge', { opacity: 0, duration: 0.1 }, W0);
+    tl.set('#s16s-badge', { innerHTML: 'Vinta', className: 'badge badge-stato badge-punto badge-ok' }, W0 + 0.1);
+    tl.to('#s16s-badge', { opacity: 1, duration: 0.25 }, W0 + 0.11);
+    tl.to('.s16-x', { opacity: 1, duration: 0.4, stagger: 0.08 }, W0 + 0.2);
+    curShow(W0 + 0.3, false);
+    view(W0 + 0.2, 1.0, dl.x, dl.y + 20, 1.9);
+    // Persa e Annullata
+    tl.to('#s16-A', { opacity: 0, duration: 0.3 }, 15.0);
+    view(15.0, 0.01, bPersa.x, bPersa.y + 30, 2.2);
+    tl.to('#s16-B', { opacity: 1, duration: 0.3 }, 15.1);
+    tl.to('#s16-b-persa', { opacity: 1, duration: 0.3 }, 15.1);
+    tl.to('#s16-b-persa', { opacity: 0, duration: 0.25 }, 19.5);
+    tl.to('#s16-b-ann', { opacity: 1, duration: 0.3 }, 19.7);
+    
+    tl.fromTo('#s16-cap0', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 0.8);
+    tl.to('#s16-cap0', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 3.620);
+    tl.fromTo('#s16-cap1', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 5.9);
+    tl.to('#s16-cap1', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 8.920);
+    tl.fromTo('#s16-cap2', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 11.2);
+    tl.to('#s16-cap2', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 14.420);
+    tl.fromTo('#s16-cap3', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 15.4);
+    tl.to('#s16-cap3', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 19.220);
+    tl.fromTo('#s16-cap4', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 19.8);
+    tl.to('#s16-cap4', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 23.620);
+    tl.fromTo('#s16-cap5', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 24.2);
+    tl.to('#s16-cap5', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 28.220);
+  
+    window.__timelines['s16'] = tl;
+  </script>
+</template>

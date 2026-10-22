@@ -1,0 +1,443 @@
+{
+  "ok": false,
+  "strict": false,
+  "browserSkipped": true,
+  "lint": {
+    "ok": false,
+    "errorCount": 2,
+    "warningCount": 21,
+    "infoCount": 0,
+    "findings": [
+      {
+        "code": "css_transition_used",
+        "severity": "warning",
+        "message": "CSS declaration `transition: border-color 0.15s ease,\n\t\tbox-shadow 0.15s ease,\n\t\ttransform 0.15s ease` runs on the browser clock and cannot be seeked deterministically across render workers.",
+        "selector": "a.stat",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep the class or attribute swap for state; put the visual change on the paused GSAP timeline."
+      },
+      {
+        "code": "css_transition_used",
+        "severity": "warning",
+        "message": "CSS declaration `transition: color 0.15s ease,\n\t\ttransform 0.15s ease` runs on the browser clock and cannot be seeked deterministically across render workers.",
+        "selector": ".stat-freccia",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep the class or attribute swap for state; put the visual change on the paused GSAP timeline."
+      },
+      {
+        "code": "css_transition_used",
+        "severity": "warning",
+        "message": "CSS declaration `transition: opacity 0.15s` runs on the browser clock and cannot be seeked deterministically across render workers.",
+        "selector": ".tabella-scorri::after",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep the class or attribute swap for state; put the visual change on the paused GSAP timeline."
+      },
+      {
+        "code": "css_transition_used",
+        "severity": "warning",
+        "message": "CSS declaration `transition: transform 0.15s ease` runs on the browser clock and cannot be seeked deterministically across render workers.",
+        "selector": ".guida-apri",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep the class or attribute swap for state; put the visual change on the paused GSAP timeline."
+      },
+      {
+        "code": "css_transition_used",
+        "severity": "warning",
+        "message": "CSS declaration `transition: transform 0.15s ease` runs on the browser clock and cannot be seeked deterministically across render workers.",
+        "selector": ".storico-gruppo-apri",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep the class or attribute swap for state; put the visual change on the paused GSAP timeline."
+      },
+      {
+        "code": "css_transition_used",
+        "severity": "warning",
+        "message": "CSS declaration `transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease` runs on the browser clock and cannot be seeked deterministically across render workers.",
+        "selector": ".gestione-toggle",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep the class or attribute swap for state; put the visual change on the paused GSAP timeline."
+      },
+      {
+        "code": "css_transition_used",
+        "severity": "warning",
+        "message": "CSS declaration `transition: background 0.2s ease` runs on the browser clock and cannot be seeked deterministically across render workers.",
+        "selector": ".gestione-toggle-pista",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep the class or attribute swap for state; put the visual change on the paused GSAP timeline."
+      },
+      {
+        "code": "css_transition_used",
+        "severity": "warning",
+        "message": "CSS declaration `transition: transform 0.2s ease` runs on the browser clock and cannot be seeked deterministically across render workers.",
+        "selector": ".gestione-toggle-pallino",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep the class or attribute swap for state; put the visual change on the paused GSAP timeline."
+      },
+      {
+        "code": "css_transition_used",
+        "severity": "warning",
+        "message": "CSS declaration `transition: transform 0.15s ease` runs on the browser clock and cannot be seeked deterministically across render workers.",
+        "selector": ".richiesta-caret",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep the class or attribute swap for state; put the visual change on the paused GSAP timeline."
+      },
+      {
+        "code": "css_transition_used",
+        "severity": "warning",
+        "message": "CSS declaration `transition: opacity 0.15s ease` runs on the browser clock and cannot be seeked deterministically across render workers.",
+        "selector": ".grafico-attivi-colonna rect:not([fill='transparent'])",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep the class or attribute swap for state; put the visual change on the paused GSAP timeline."
+      },
+      {
+        "code": "css_transition_used",
+        "severity": "warning",
+        "message": "CSS declaration `transition: opacity 0.15s ease,\n\t\ttransform 0.15s ease` runs on the browser clock and cannot be seeked deterministically across render workers.",
+        "selector": ".grafico-attivi-tooltip",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep the class or attribute swap for state; put the visual change on the paused GSAP timeline."
+      },
+      {
+        "code": "css_transition_used",
+        "severity": "warning",
+        "message": "CSS declaration `transition: transform 0.15s ease` runs on the browser clock and cannot be seeked deterministically across render workers.",
+        "selector": ".filtri-sezione-freccia",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep the class or attribute swap for state; put the visual change on the paused GSAP timeline."
+      },
+      {
+        "code": "css_transition_used",
+        "severity": "warning",
+        "message": "CSS declaration `transition: background-color 0.12s ease,\n\t\tborder-color 0.12s ease,\n\t\tcolor 0.12s ease` runs on the browser clock and cannot be seeked deterministically across render workers.",
+        "selector": ".strumento-btn",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep the class or attribute swap for state; put the visual change on the paused GSAP timeline."
+      },
+      {
+        "code": "css_transition_used",
+        "severity": "warning",
+        "message": "CSS declaration `transition: background 0.2s ease, border-color 0.2s ease` runs on the browser clock and cannot be seeked deterministically across render workers.",
+        "selector": ".tema-switch",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep the class or attribute swap for state; put the visual change on the paused GSAP timeline."
+      },
+      {
+        "code": "css_transition_used",
+        "severity": "warning",
+        "message": "CSS declaration `transition: transform 0.2s ease` runs on the browser clock and cannot be seeked deterministically across render workers.",
+        "selector": ".tema-switch-pallino",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep the class or attribute swap for state; put the visual change on the paused GSAP timeline."
+      },
+      {
+        "code": "css_transition_used",
+        "severity": "warning",
+        "message": "CSS declaration `transition: transform 0.15s ease` runs on the browser clock and cannot be seeked deterministically across render workers.",
+        "selector": ".op-freccia",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep the class or attribute swap for state; put the visual change on the paused GSAP timeline."
+      },
+      {
+        "code": "css_transition_used",
+        "severity": "warning",
+        "message": "CSS declaration `transition: background-color 0.12s ease,\n\t\tborder-color 0.12s ease` runs on the browser clock and cannot be seeked deterministically across render workers.",
+        "selector": ".chip",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep the class or attribute swap for state; put the visual change on the paused GSAP timeline."
+      },
+      {
+        "code": "css_transition_used",
+        "severity": "warning",
+        "message": "CSS declaration `transition: box-shadow 0.15s, transform 0.15s` runs on the browser clock and cannot be seeked deterministically across render workers.",
+        "selector": ".agt-ev",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep the class or attribute swap for state; put the visual change on the paused GSAP timeline."
+      },
+      {
+        "code": "css_transition_used",
+        "severity": "warning",
+        "message": "CSS declaration `transition: opacity 0.2s` runs on the browser clock and cannot be seeked deterministically across render workers.",
+        "selector": ".agt-velo",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep the class or attribute swap for state; put the visual change on the paused GSAP timeline."
+      },
+      {
+        "code": "css_transition_used",
+        "severity": "warning",
+        "message": "CSS declaration `transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)` runs on the browser clock and cannot be seeked deterministically across render workers.",
+        "selector": ".agt-dettaglio",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep the class or attribute swap for state; put the visual change on the paused GSAP timeline."
+      },
+      {
+        "code": "css_transition_used",
+        "severity": "warning",
+        "message": "CSS declaration `transition: background 0.15s` runs on the browser clock and cannot be seeked deterministically across render workers.",
+        "selector": ".agt-gestisci",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Keep the class or attribute swap for state; put the visual change on the paused GSAP timeline."
+      },
+      {
+        "code": "font_family_without_font_face",
+        "severity": "error",
+        "message": "Font family used without @font-face declaration: sfmono-regular. These are not in the auto-resolved font list, so the renderer cannot supply them automatically. Text will fall back to a generic font, producing incorrect typography in the video.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/assets/css/app.css",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Add @font-face { font-family: '...'; src: url('capture/assets/fonts/...woff2'); } for each font family, pointing to the captured .woff2 files. For an OS-bundled system font (e.g. Hiragino Sans, Microsoft YaHei) that has no downloadable file, use src: local('Exact Font Name') instead. The declaration alone satisfies this check without needing a font file."
+      },
+      {
+        "code": "font_family_without_font_face",
+        "severity": "error",
+        "message": "Font family used without @font-face declaration: cormorant garamond. These are not in the auto-resolved font list, so the renderer cannot supply them automatically. Text will fall back to a generic font, producing incorrect typography in the video.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "/home/user/APP-RONCHIVERDI/brag-output/composition/compositions/t1.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Add @font-face { font-family: '...'; src: url('capture/assets/fonts/...woff2'); } for each font family, pointing to the captured .woff2 files. For an OS-bundled system font (e.g. Hiragino Sans, Microsoft YaHei) that has no downloadable file, use src: local('Exact Font Name') instead. The declaration alone satisfies this check without needing a font file."
+      }
+    ],
+    "filesScanned": 2
+  },
+  "runtime": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": []
+  },
+  "layout": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "duration": 0,
+    "samples": [],
+    "transitionSamples": [],
+    "transitionSamplesDropped": 0,
+    "tolerance": 2,
+    "totalIssueCount": 0,
+    "truncated": false
+  },
+  "motion": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": false,
+    "samples": 0
+  },
+  "contrast": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": true,
+    "samples": [],
+    "checked": 0,
+    "passed": 0
+  },
+  "craft": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": false,
+    "step": 0,
+    "samples": 0
+  },
+  "hdr": {
+    "autoPromotion": null,
+    "inspection": "available"
+  },
+  "snapshots": {
+    "enabled": false,
+    "files": [],
+    "times": [],
+    "findingFiles": []
+  }
+}

@@ -1,0 +1,257 @@
+<template>
+  <style>
+    @font-face { font-family: 'Jost'; font-weight: 400; src: url('assets/fonts/jost-latin-400-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 500; src: url('assets/fonts/jost-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 600; src: url('assets/fonts/jost-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 500; src: url('assets/fonts/cormorant-garamond-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 600; src: url('assets/fonts/cormorant-garamond-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 700; src: url('assets/fonts/cormorant-garamond-latin-700-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 500; font-style: italic; src: url('assets/fonts/cormorant-garamond-latin-500-italic.woff2') format('woff2'); }
+
+    #root { position: absolute; inset: 0; overflow: hidden; font-family: 'Jost', sans-serif; color: #17170f; }
+    #s06-all { position: absolute; inset: 0; }
+    .stage { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 62% at 50% 42%, #fbf8ee 0%, #f1ead8 58%, #e5dec8 100%); }
+    .stage-dark { position: absolute; inset: 0; background: #1c1c18; }
+    .view { position: absolute; left: 0; right: 0; top: 104px; bottom: 246px; overflow: hidden;
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 26px), transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 26px), transparent 100%); }
+    .cam { position: absolute; left: 0; top: 0; width: 2600px; height: 1600px; transform-origin: 0 0; }
+    .chap { position: absolute; left: 96px; top: 54px; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 28px;
+            letter-spacing: 0.14em; text-transform: uppercase; color: #6e5610; }
+    .chap i { font-style: normal; color: #8b6c14; margin-right: 14px; }
+    .caps { position: absolute; left: 96px; right: 96px; bottom: 100px; display: grid; justify-items: center; align-items: end; }
+    .cap { grid-area: 1 / 1; max-width: 1560px; padding: 20px 40px 22px; border-radius: 16px; border-left: 7px solid #c8991f;
+           background: rgba(28, 28, 24, 0.95); color: #f6efde; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 40px;
+           line-height: 1.22; letter-spacing: 0.002em; text-align: left; box-shadow: 0 14px 40px rgba(28, 28, 24, 0.25); opacity: 0; }
+    .cap b { font-weight: 600; color: #efbf48; }
+    .cur { position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; transform-origin: 0 0; z-index: 900; pointer-events: none; }
+    .cur-in { position: absolute; left: -2px; top: -2px; width: 22px; height: 30px; transform-origin: 2px 2px; }
+    .cur-in svg { display: block; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+    .frag { position: absolute; background: var(--bg); border-radius: 12px; box-shadow: 0 24px 60px rgba(28, 28, 24, 0.20), 0 0 0 1px rgba(28,28,24,.10); overflow: hidden; }
+    .tapa { outline: 3px solid rgba(200,153,31,.0); }
+  
+    #s06-A, #s06-B { left: 40px; top: 20px; width: 800px; padding: 18px; }
+    #s06-B { opacity: 0; }
+  
+  </style>
+  <div id="root" data-composition-id="s06" data-width="1920" data-height="1080">
+    <div id="s06-all">
+      <div class="stage" id="s06-bg"></div>
+      <div class="chap"><i>3</i>L’Agenda</div>
+      
+      <div class="view"><div class="cam" data-layout-allow-overflow id="s06-cam">
+        <div class="frag" data-hold id="s06-A"><div class="agt" id="s06a">
+      <div class="agt-testa" id="s06a-testa">
+        <h1><small>Agenda · giorno</small>Giovedì 22 ottobre</h1>
+        <button type="button" class="agt-btn agt-tondo" aria-label="Indietro">‹</button>
+        <button type="button" class="agt-btn" id="s06a-oggi">Oggi</button>
+        <button type="button" class="agt-btn agt-tondo" aria-label="Avanti">›</button>
+        <div class="agt-segmenti" id="s06a-gs"><button type="button" class="on">Giorno</button><button type="button" id="s06a-sett">Settimana</button></div>
+        <a class="agt-btn agt-vista-elenco" id="s06a-elenco">☰ Vista elenco</a>
+        <div class="agt-spazio"></div>
+        <div class="agt-segmenti"><button type="button" class="on">Per operatore</button><button type="button">Tutti insieme</button></div>
+        <input class="agt-cerca" type="search" placeholder="Cerca nome o telefono" />
+      </div>
+      <div class="agt-corpo">
+        <aside class="agt-sx" id="s06a-sx">
+          <div class="agt-pannello" id="s06a-mese">
+        <div class="agt-mese-testa"><button type="button">‹</button><span>Ottobre 2026</span><button type="button">›</button></div>
+        <div class="agt-mese"><div class="dow">L</div><div class="dow">M</div><div class="dow">M</div><div class="dow">G</div><div class="dow">V</div><div class="dow">S</div><div class="dow">D</div><button type="button" class="fuori">28</button><button type="button" class="fuori">29</button><button type="button" class="fuori">30</button><button type="button" class="">1</button><button type="button" class="">2</button><button type="button" class="">3</button><button type="button" class="">4</button><button type="button" class="">5</button><button type="button" class="">6</button><button type="button" class="">7</button><button type="button" class="">8</button><button type="button" class="">9</button><button type="button" class="">10</button><button type="button" class="">11</button><button type="button" class="">12</button><button type="button" class="">13</button><button type="button" class="">14</button><button type="button" class="">15</button><button type="button" class="">16</button><button type="button" class="">17</button><button type="button" class="">18</button><button type="button" class="ha">19</button><button type="button" class="ha">20</button><button type="button" class="ha">21</button><button type="button" class="ha oggi sel">22</button><button type="button" class="ha">23</button><button type="button" class="ha">24</button><button type="button" class="">25</button><button type="button" class="ha">26</button><button type="button" class="ha">27</button><button type="button" class="ha">28</button><button type="button" class="">29</button><button type="button" class="">30</button><button type="button" class="">31</button><button type="button" class="fuori">1</button><button type="button" class="fuori">2</button><button type="button" class="fuori">3</button><button type="button" class="fuori">4</button><button type="button" class="fuori">5</button><button type="button" class="fuori">6</button><button type="button" class="fuori">7</button><button type="button" class="fuori">8</button></div>
+      </div>
+          <a class="agt-arretrati" id="s06a-arretrati"><b>3</b> azioni arretrate dai giorni scorsi <span>→</span></a>
+          <div class="agt-pannello" id="s06a-op"><h3>Operatori</h3>
+            <label class="agt-filtro agt-filtro-tutti" id="s06a-tutti"><input type="checkbox"  /><b>Tutti</b></label>
+            <label class="agt-filtro"><input type="checkbox" checked /><span class="agt-iniziali agt-iniziali-sm" style="background:#8b6c14">EB</span>Elena B.<span class="agt-muted">&nbsp;(tu)</span><span class="agt-conta">2</span></label><label class="agt-filtro"><input type="checkbox"  /><span class="agt-iniziali agt-iniziali-sm" style="background:#35566b">MT</span>Marco T.<span class="agt-conta">1</span></label><label class="agt-filtro"><input type="checkbox"  /><span class="agt-iniziali agt-iniziali-sm" style="background:#7a776b">—</span>Senza assegnatario<span class="agt-conta agt-allarme">1</span></label>
+          </div>
+          <div class="agt-pannello" id="s06a-stato"><h3>Stato</h3><label class="agt-filtro"><input type="checkbox" checked /><i class="agt-l-segno agt-l-dafare"></i>Da fare<span class="agt-conta">2</span></label><label class="agt-filtro"><input type="checkbox" checked /><i class="agt-l-segno agt-l-ritardo">!</i>In ritardo<span class="agt-conta">1</span></label><label class="agt-filtro"><input type="checkbox" checked /><i class="agt-l-segno agt-l-fatto">✓</i>Fatte<span class="agt-conta">1</span></label></div>
+          <div class="agt-pannello"><h3>Tipi</h3><label class="agt-filtro"><input type="checkbox" checked />Visita in sede<span class="agt-conta">3</span></label><label class="agt-filtro"><input type="checkbox" checked />Telefonata<span class="agt-conta">0</span></label><label class="agt-filtro"><input type="checkbox" checked />Task<span class="agt-conta">0</span></label><label class="agt-filtro"><input type="checkbox" checked />Email<span class="agt-conta">0</span></label><label class="agt-filtro"><input type="checkbox" checked />WhatsApp<span class="agt-conta">0</span></label><label class="agt-filtro"><input type="checkbox" checked />Messaggio<span class="agt-conta">0</span></label></div>
+        </aside>
+        <div class="agt-destra">
+          <div class="agt-legenda" id="s06a-leg">
+            <span><i class="agt-l-segno agt-l-dafare"></i><b>2</b>&nbsp;da fare</span>
+            <span class="agt-rosso"><i class="agt-l-segno agt-l-ritardo">!</i><b>1</b>&nbsp;in ritardo, esito da registrare</span>
+            <span class="agt-verde"><i class="agt-l-segno agt-l-fatto">✓</i><b>1</b>&nbsp;fatte</span>
+            <span class="agt-chi">Elena B. (tu)</span>
+          </div>
+          <div class="agt-cal" id="s06a-cal">
+            <div class="agt-cal-teste" style="grid-template-columns:var(--agt-gutter) repeat(1, minmax(150px, 1fr))"><div></div><div><span class="agt-iniziali" style="background:#8b6c14">EB</span><span class="agt-nome-col">Elena B.<small class="agt-muted"> (tu)</small></span><span class="agt-conta">4</span></div></div>
+            <div class="agt-giornata" style="grid-template-columns:var(--agt-gutter) repeat(1, minmax(150px, 1fr))"><div>in<br>giornata</div><div><button type="button" id="s06a-chip" class="agt-chip agt-dafare"><span class="agt-segno"></span><b>Chiara Morandi</b><span class="agt-fascia"><b>Richiamami</b> · 17–20</span></button></div></div>
+            <div class="agt-griglia" style="grid-template-columns:var(--agt-gutter) repeat(1, minmax(150px, 1fr))"><div class="agt-ore"><div>13:00</div><div>14:00</div><div>15:00</div><div>16:00</div><div>17:00</div><div>18:00</div></div><div class="agt-colonna" style="height:348px"><button type="button" id="s06a-e-fatta" class="agt-ev agt-fatto" style="top:30px;height:40.5px;left:calc(0% + 3px);width:calc(100% - 6px)" title="Visita in sede · Fatta">
+              <div class="agt-ev-t"><span class="agt-segno">✓</span><span class="agt-ev-nome">Giulia Rinaldi</span></div>
+              <div class="agt-ev-s"><b>Visita in sede</b> · ✓ Eseguita</div>
+              
+            </button><button type="button" id="s06a-e-ritardo" class="agt-ev agt-ritardo" style="top:117px;height:52px;left:calc(0% + 3px);width:calc(100% - 6px)" title="Visita in sede · In ritardo · esito da registrare">
+              <div class="agt-ev-t"><span class="agt-segno">!</span><span class="agt-ev-nome">Davide Sala</span></div>
+              <div class="agt-ev-s"><b>Visita in sede</b> · 15:00–15:45 · Tour</div>
+              <span class="agt-targa">Esito da registrare</span>
+            </button><button type="button" id="s06a-e-dafare" class="agt-ev agt-dafare" style="top:262px;height:40.5px;left:calc(0% + 3px);width:calc(100% - 6px)" title="Visita in sede · Da fare">
+              <div class="agt-ev-t"><span class="agt-segno"></span><span class="agt-ev-nome">Anna Greco</span></div>
+              <div class="agt-ev-s"><b>Visita in sede</b> · 17:30–18:15 · Tour</div>
+              
+            </button><div class="agt-adesso" style="top:193.33333333333334px"></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+        <div class="frag" data-hold id="s06-B"><div class="agt" id="s06b">
+      <div class="agt-testa" id="s06b-testa">
+        <h1><small>Agenda · giorno</small>Giovedì 22 ottobre</h1>
+        <button type="button" class="agt-btn agt-tondo" aria-label="Indietro">‹</button>
+        <button type="button" class="agt-btn" id="s06b-oggi">Oggi</button>
+        <button type="button" class="agt-btn agt-tondo" aria-label="Avanti">›</button>
+        <div class="agt-segmenti" id="s06b-gs"><button type="button" class="on">Giorno</button><button type="button" id="s06b-sett">Settimana</button></div>
+        <a class="agt-btn agt-vista-elenco" id="s06b-elenco">☰ Vista elenco</a>
+        <div class="agt-spazio"></div>
+        <div class="agt-segmenti"><button type="button" class="on">Per operatore</button><button type="button">Tutti insieme</button></div>
+        <input class="agt-cerca" type="search" placeholder="Cerca nome o telefono" />
+      </div>
+      <div class="agt-corpo">
+        <aside class="agt-sx" id="s06b-sx">
+          <div class="agt-pannello" id="s06b-mese">
+        <div class="agt-mese-testa"><button type="button">‹</button><span>Ottobre 2026</span><button type="button">›</button></div>
+        <div class="agt-mese"><div class="dow">L</div><div class="dow">M</div><div class="dow">M</div><div class="dow">G</div><div class="dow">V</div><div class="dow">S</div><div class="dow">D</div><button type="button" class="fuori">28</button><button type="button" class="fuori">29</button><button type="button" class="fuori">30</button><button type="button" class="">1</button><button type="button" class="">2</button><button type="button" class="">3</button><button type="button" class="">4</button><button type="button" class="">5</button><button type="button" class="">6</button><button type="button" class="">7</button><button type="button" class="">8</button><button type="button" class="">9</button><button type="button" class="">10</button><button type="button" class="">11</button><button type="button" class="">12</button><button type="button" class="">13</button><button type="button" class="">14</button><button type="button" class="">15</button><button type="button" class="">16</button><button type="button" class="">17</button><button type="button" class="">18</button><button type="button" class="ha">19</button><button type="button" class="ha">20</button><button type="button" class="ha">21</button><button type="button" class="ha oggi sel">22</button><button type="button" class="ha">23</button><button type="button" class="ha">24</button><button type="button" class="">25</button><button type="button" class="ha">26</button><button type="button" class="ha">27</button><button type="button" class="ha">28</button><button type="button" class="">29</button><button type="button" class="">30</button><button type="button" class="">31</button><button type="button" class="fuori">1</button><button type="button" class="fuori">2</button><button type="button" class="fuori">3</button><button type="button" class="fuori">4</button><button type="button" class="fuori">5</button><button type="button" class="fuori">6</button><button type="button" class="fuori">7</button><button type="button" class="fuori">8</button></div>
+      </div>
+          <a class="agt-arretrati" id="s06b-arretrati"><b>3</b> azioni arretrate dai giorni scorsi <span>→</span></a>
+          <div class="agt-pannello" id="s06b-op"><h3>Operatori</h3>
+            <label class="agt-filtro agt-filtro-tutti" id="s06b-tutti"><input type="checkbox" checked /><b>Tutti</b></label>
+            <label class="agt-filtro"><input type="checkbox" checked /><span class="agt-iniziali agt-iniziali-sm" style="background:#8b6c14">EB</span>Elena B.<span class="agt-muted">&nbsp;(tu)</span><span class="agt-conta">2</span></label><label class="agt-filtro"><input type="checkbox" checked /><span class="agt-iniziali agt-iniziali-sm" style="background:#35566b">MT</span>Marco T.<span class="agt-conta">1</span></label><label class="agt-filtro"><input type="checkbox" checked /><span class="agt-iniziali agt-iniziali-sm" style="background:#7a776b">—</span>Senza assegnatario<span class="agt-conta agt-allarme">1</span></label>
+          </div>
+          <div class="agt-pannello" id="s06b-stato"><h3>Stato</h3><label class="agt-filtro"><input type="checkbox" checked /><i class="agt-l-segno agt-l-dafare"></i>Da fare<span class="agt-conta">4</span></label><label class="agt-filtro"><input type="checkbox" checked /><i class="agt-l-segno agt-l-ritardo">!</i>In ritardo<span class="agt-conta">1</span></label><label class="agt-filtro"><input type="checkbox" checked /><i class="agt-l-segno agt-l-fatto">✓</i>Fatte<span class="agt-conta">2</span></label></div>
+          <div class="agt-pannello"><h3>Tipi</h3><label class="agt-filtro"><input type="checkbox" checked />Visita in sede<span class="agt-conta">5</span></label><label class="agt-filtro"><input type="checkbox" checked />Telefonata<span class="agt-conta">1</span></label><label class="agt-filtro"><input type="checkbox" checked />Task<span class="agt-conta">0</span></label><label class="agt-filtro"><input type="checkbox" checked />Email<span class="agt-conta">0</span></label><label class="agt-filtro"><input type="checkbox" checked />WhatsApp<span class="agt-conta">0</span></label><label class="agt-filtro"><input type="checkbox" checked />Messaggio<span class="agt-conta">0</span></label></div>
+        </aside>
+        <div class="agt-destra">
+          <div class="agt-legenda" id="s06b-leg">
+            <span><i class="agt-l-segno agt-l-dafare"></i><b>4</b>&nbsp;da fare</span>
+            <span class="agt-rosso"><i class="agt-l-segno agt-l-ritardo">!</i><b>1</b>&nbsp;in ritardo, esito da registrare</span>
+            <span class="agt-verde"><i class="agt-l-segno agt-l-fatto">✓</i><b>2</b>&nbsp;fatte</span>
+            <span class="agt-chi">Tutti gli operatori</span>
+          </div>
+          <div class="agt-cal" id="s06b-cal">
+            <div class="agt-cal-teste" style="grid-template-columns:var(--agt-gutter) repeat(3, minmax(150px, 1fr))"><div></div><div><span class="agt-iniziali" style="background:#8b6c14">EB</span><span class="agt-nome-col">Elena B.<small class="agt-muted"> (tu)</small></span><span class="agt-conta">4</span></div><div><span class="agt-iniziali" style="background:#35566b">MT</span><span class="agt-nome-col">Marco T.</span><span class="agt-conta">2</span></div><div><span class="agt-iniziali" style="background:#7a776b">—</span><span class="agt-nome-col">Senza assegnatario</span><span class="agt-conta">1</span></div></div>
+            <div class="agt-giornata" style="grid-template-columns:var(--agt-gutter) repeat(3, minmax(150px, 1fr))"><div>in<br>giornata</div><div><button type="button" id="s06b-chip" class="agt-chip agt-dafare"><span class="agt-segno"></span><b>Chiara Morandi</b><span class="agt-fascia"><b>Richiamami</b> · 17–20</span></button></div><div></div><div><button type="button" id="s06b-chip2" class="agt-chip agt-dafare"><span class="agt-segno"></span><b>Franco Gatti</b><span class="agt-fascia"><b>Richiamami</b> · 17–20</span></button></div></div>
+            <div class="agt-griglia" style="grid-template-columns:var(--agt-gutter) repeat(3, minmax(150px, 1fr))"><div class="agt-ore"><div>13:00</div><div>14:00</div><div>15:00</div><div>16:00</div><div>17:00</div><div>18:00</div></div><div class="agt-colonna" style="height:348px"><button type="button" id="s06b-e-fatta" class="agt-ev agt-fatto" style="top:30px;height:40.5px;left:calc(0% + 3px);width:calc(100% - 6px)" title="Visita in sede · Fatta">
+              <div class="agt-ev-t"><span class="agt-segno">✓</span><span class="agt-ev-nome">Giulia Rinaldi</span></div>
+              <div class="agt-ev-s"><b>Visita in sede</b> · ✓ Eseguita</div>
+              
+            </button><button type="button" id="s06b-e-ritardo" class="agt-ev agt-ritardo" style="top:117px;height:52px;left:calc(0% + 3px);width:calc(100% - 6px)" title="Visita in sede · In ritardo · esito da registrare">
+              <div class="agt-ev-t"><span class="agt-segno">!</span><span class="agt-ev-nome">Davide Sala</span></div>
+              <div class="agt-ev-s"><b>Visita in sede</b> · 15:00–15:45 · Tour</div>
+              <span class="agt-targa">Esito da registrare</span>
+            </button><button type="button" id="s06b-e-dafare" class="agt-ev agt-dafare" style="top:262px;height:40.5px;left:calc(0% + 3px);width:calc(100% - 6px)" title="Visita in sede · Da fare">
+              <div class="agt-ev-t"><span class="agt-segno"></span><span class="agt-ev-nome">Anna Greco</span></div>
+              <div class="agt-ev-s"><b>Visita in sede</b> · 17:30–18:15 · Tour</div>
+              
+            </button><div class="agt-adesso" style="top:193.33333333333334px"></div></div><div class="agt-colonna" style="height:348px"><button type="button" id="s06b-m-fatta" class="agt-ev agt-fatto" style="top:59px;height:24px;left:calc(0% + 3px);width:calc(100% - 6px)" title="Telefonata · Fatta">
+              <div class="agt-ev-t"><span class="agt-segno">✓</span><span class="agt-ev-nome">14:00 · Paolo Neri</span></div>
+              
+              
+            </button><button type="button" id="s06b-m-dafare" class="agt-ev agt-dafare" style="top:175px;height:40.5px;left:calc(0% + 3px);width:calc(100% - 6px)" title="Visita in sede · Da fare">
+              <div class="agt-ev-t"><span class="agt-segno"></span><span class="agt-ev-nome">Laura Costa</span></div>
+              <div class="agt-ev-s"><b>Visita in sede</b> · 16:00–16:45 · Tour</div>
+              
+            </button><div class="agt-adesso senza-punto" style="top:193.33333333333334px"></div></div><div class="agt-colonna" style="height:348px"><div class="agt-adesso senza-punto" style="top:193.33333333333334px"></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+        <div class="cur" id="s06-cur"><div class="cur-in"><svg width="22" height="30" viewBox="0 0 22 30"><path d="M2 2 L2 24 L8 18.5 L12.5 28 L16 26.5 L11.6 17.2 L19.5 17 Z" fill="#17170f" stroke="#fdfaf3" stroke-width="2" stroke-linejoin="round"/></svg></div></div>
+      </div></div>
+      <div class="caps">
+      <div class="cap" id="s06-cap0">Giorno o Settimana, ‹ Oggi › e <b>Vista elenco</b>, quando serve.</div>
+      <div class="cap" id="s06-cap1">Le azioni arretrate hanno un link: <b>ci vai con un clic</b>.</div>
+      <div class="cap" id="s06-cap2">All’apertura vedi solo le <b>tue</b> azioni. Spunta «Tutti» per i colleghi.</div>
+      <div class="cap" id="s06-cap3">Senza assegnatario: se il numero è rosso, <b>c’è qualcuno da prendere</b>.</div>
+    </div>
+  
+    </div>
+    
+  </div>
+  <script>
+    
+    const tl = gsap.timeline({ paused: true });
+    const $ = (s) => document.querySelector(s);
+    const $$ = (s) => document.querySelectorAll(s);
+    const CAM = $('#s06-cam');
+    const CUR = $('#s06-cur');
+    const CX = 960, CY = 365, CB = 1.5;
+    // Coordinate "mondo" di un elemento (centro di default), indipendenti dalla camera attuale.
+    function W(sel, fx, fy) {
+      fx = fx === undefined ? 0.5 : fx; fy = fy === undefined ? 0.5 : fy;
+      const e = $(sel), r = e.getBoundingClientRect(), c = CAM.getBoundingClientRect();
+      const k = (c.width / CAM.offsetWidth) || 1;
+      return { x: (r.left - c.left + r.width * fx) / k, y: (r.top - c.top + r.height * fy) / k };
+    }
+    let camS = 1;
+    // Mette al centro dell'area libera (sopra i sottotitoli) il centro di un elemento, a scala s.
+    function centerOn(sel, s, dx, dy) { const p = W(sel); viewSet(p.x + (dx || 0), p.y + (dy || 0), s); return p; }
+    function viewSet(wx, wy, s) {
+      camS = s;
+      gsap.set(CAM, { x: CX - wx * s, y: CY - wy * s, scale: s });
+      if (CUR) gsap.set(CUR, { scale: CB / s });
+    }
+    function view(t, d, wx, wy, s, ease) {
+      ease = ease || 'power2.inOut';
+      tl.to(CAM, { x: CX - wx * s, y: CY - wy * s, scale: s, duration: d, ease: ease }, t);
+      if (CUR) tl.to(CUR, { scale: CB / s, duration: d, ease: ease }, t);
+      camS = s;
+    }
+    // Il cursore: compare, si muove verso un punto del mondo, "clicca".
+    function curAt(x, y) { gsap.set(CUR, { x: x, y: y, scale: CB / camS }); }
+    function curShow(t, on) { tl.to(CUR, { opacity: on === false ? 0 : 1, duration: 0.2 }, t); }
+    function curTo(t, d, p, ease) { tl.to(CUR, { x: p.x, y: p.y, duration: d, ease: ease || 'power3.inOut' }, t); }
+    function tap(t) {
+      const ci = CUR.firstElementChild;
+      tl.to(ci, { scale: 0.8, duration: 0.07, ease: 'power2.out' }, t);
+      tl.to(ci, { scale: 1, duration: 0.14, ease: 'power2.out' }, t + 0.07);
+    }
+    function press(t, sel) {
+      tl.to(sel, { scale: 0.96, duration: 0.07, ease: 'power2.out', transformOrigin: '50% 50%' }, t);
+      tl.to(sel, { scale: 1, duration: 0.16, ease: 'power2.out' }, t + 0.07);
+    }
+    // Scrive un testo già diviso in span (vedi typed()): un carattere ogni 1/cps secondi.
+    function write(t, sel, cps) {
+      const sp = $$(sel + ' > span');
+      tl.to(sp, { opacity: 1, duration: 0.01, stagger: 1 / (cps || 16) }, t);
+      return t + sp.length / (cps || 16);
+    }
+    // Entrata/uscita della scena: dissolvenza morbida.
+    function sceneInOut(dur, tin, tout) {
+      tin = tin === undefined ? 0.35 : tin; tout = tout === undefined ? 0.35 : tout;
+      if (tin > 0) tl.fromTo('#s06-all', { opacity: 0 }, { opacity: 1, duration: tin, ease: 'power2.out' }, 0);
+      tl.to('#s06-all', { opacity: 0, duration: tout, ease: 'power2.in' }, dur - tout);
+    }
+  
+    const fr = W('#s06-A'), head = W('#s06a-testa'), mese = W('#s06a-mese'), arr = W('#s06a-arretrati'), op = W('#s06a-op'),
+          tutti = W('#s06a-tutti', 0.18, 0.5), cal = W('#s06a-cal'), calB = W('#s06b-cal');
+    sceneInOut(24, 0.35, 0.4);
+    viewSet(fr.x, fr.y + 6, 0.8);
+    tl.fromTo('#s06-A', { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' }, 0.2);
+    // 1) i comandi in testa
+    view(1.6, 1.1, head.x, head.y, 2.0);
+    // 2) mini-mese e link agli arretrati
+    view(7.0, 1.0, mese.x, (mese.y + arr.y) / 2 + 40, 2.25);
+    // 3) gli operatori; il clic su «Tutti» fa comparire le colonne dei colleghi
+    view(12.0, 1.0, op.x, op.y - 20, 2.25);
+    curAt(tutti.x + 120, tutti.y + 80);
+    curShow(13.6, true);
+    curTo(13.7, 1.0, { x: tutti.x, y: tutti.y });
+    tap(14.9);
+    tl.to('#s06-A', { opacity: 0, duration: 0.25 }, 14.95);
+    tl.to('#s06-B', { opacity: 1, duration: 0.25 }, 14.95);
+    curShow(15.3, false);
+    view(15.5, 1.0, calB.x - 70, calB.y - 40, 1.75);
+    // 4) di nuovo sul pannello: il numero rosso accanto a «Senza assegnatario»
+    view(18.0, 1.0, op.x, op.y - 20, 2.25);
+    
+    tl.fromTo('#s06-cap0', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 2.5);
+    tl.to('#s06-cap0', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 6.520);
+    tl.fromTo('#s06-cap1', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 7.8);
+    tl.to('#s06-cap1', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 11.820);
+    tl.fromTo('#s06-cap2', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 13);
+    tl.to('#s06-cap2', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 17.320);
+    tl.fromTo('#s06-cap3', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 18.9);
+    tl.to('#s06-cap3', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 23.120);
+  
+    window.__timelines['s06'] = tl;
+  </script>
+</template>

@@ -1,0 +1,216 @@
+<template>
+  <style>
+    @font-face { font-family: 'Jost'; font-weight: 400; src: url('assets/fonts/jost-latin-400-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 500; src: url('assets/fonts/jost-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 600; src: url('assets/fonts/jost-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 500; src: url('assets/fonts/cormorant-garamond-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 600; src: url('assets/fonts/cormorant-garamond-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 700; src: url('assets/fonts/cormorant-garamond-latin-700-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 500; font-style: italic; src: url('assets/fonts/cormorant-garamond-latin-500-italic.woff2') format('woff2'); }
+
+    #root { position: absolute; inset: 0; overflow: hidden; font-family: 'Jost', sans-serif; color: #17170f; }
+    #s14-all { position: absolute; inset: 0; }
+    .stage { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 62% at 50% 42%, #fbf8ee 0%, #f1ead8 58%, #e5dec8 100%); }
+    .stage-dark { position: absolute; inset: 0; background: #1c1c18; }
+    .view { position: absolute; left: 0; right: 0; top: 104px; bottom: 246px; overflow: hidden;
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 26px), transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 26px), transparent 100%); }
+    .cam { position: absolute; left: 0; top: 0; width: 2600px; height: 1600px; transform-origin: 0 0; }
+    .chap { position: absolute; left: 96px; top: 54px; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 28px;
+            letter-spacing: 0.14em; text-transform: uppercase; color: #6e5610; }
+    .chap i { font-style: normal; color: #8b6c14; margin-right: 14px; }
+    .caps { position: absolute; left: 96px; right: 96px; bottom: 100px; display: grid; justify-items: center; align-items: end; }
+    .cap { grid-area: 1 / 1; max-width: 1560px; padding: 20px 40px 22px; border-radius: 16px; border-left: 7px solid #c8991f;
+           background: rgba(28, 28, 24, 0.95); color: #f6efde; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 40px;
+           line-height: 1.22; letter-spacing: 0.002em; text-align: left; box-shadow: 0 14px 40px rgba(28, 28, 24, 0.25); opacity: 0; }
+    .cap b { font-weight: 600; color: #efbf48; }
+    .cur { position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; transform-origin: 0 0; z-index: 900; pointer-events: none; }
+    .cur-in { position: absolute; left: -2px; top: -2px; width: 22px; height: 30px; transform-origin: 2px 2px; }
+    .cur-in svg { display: block; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+    .frag { position: absolute; background: var(--bg); border-radius: 12px; box-shadow: 0 24px 60px rgba(28, 28, 24, 0.20), 0 0 0 1px rgba(28,28,24,.10); overflow: hidden; }
+    .tapa { outline: 3px solid rgba(200,153,31,.0); }
+  
+    #s14-pg { left: 40px; top: 20px; width: 780px; padding: 24px 28px 22px; }
+    #s14-ddl { position: absolute; width: 190px; padding: 4px; background: #fdfaf3; border: 1px solid rgba(28,28,24,.3); border-radius: 6px;
+      box-shadow: 0 10px 24px rgba(28,28,24,.22); font-size: 15px; opacity: 0; z-index: 50; }
+    #s14-ddl div { padding: 5px 10px; border-radius: 4px; }
+    #s14-ddl div.on { background: rgba(139,108,20,.16); font-weight: 600; }
+  
+  </style>
+  <div id="root" data-composition-id="s14" data-width="1920" data-height="1080">
+    <div id="s14-all">
+      <div class="stage" id="s14-bg"></div>
+      <div class="chap"><i>4</i>Lavorare un lead</div>
+      
+      <div class="view"><div class="cam" data-layout-allow-overflow id="s14-cam">
+        <div class="frag" data-hold id="s14-pg"><div class="card" id="s14s-azioni">
+        <div class="card-head"><h2>Azioni</h2></div>
+        <div class="azioni-gruppo azioni-gruppo-ora" id="s14s-ora">
+        <h3>Da fare ora <span class="azioni-gruppo-conto" id="s14s-ora-conto">0</span><span class="muted azioni-gruppo-nota">oggi o scadute</span></h3>
+        <div id="s14s-ora-corpo"></div>
+        <p class="muted azioni-gruppo-vuoto" id="s14s-ora-vuoto">Niente da fare adesso.</p>
+      </div>
+        <div class="azioni-gruppo azioni-gruppo-future" id="s14s-prog">
+        <h3>In programma <span class="azioni-gruppo-conto" id="s14s-prog-conto">0</span><span class="muted azioni-gruppo-nota">nei prossimi giorni</span></h3>
+        <div id="s14s-prog-corpo"><ul class="azioni-elenco"><li style="opacity:0" class="azione-riga" id="s14x">
+          <div class="azione-testo">
+            <div class="azione-titolo">
+              <span class="badge badge-tipo tipo-sede">In sede</span>
+              <span class="azione-quando">sab 24 ott · 15:00</span>
+              <span class="muted azione-chi">· Elena B.</span>
+              
+              <span class="muted" id="s14x-tent" style="opacity:0">· 1 tentativo</span>
+            </div>
+            <div class="azione-dettaglio muted">Tour in sede e proposta abbonamento</div>
+          </div>
+          <div class="azione-comandi">
+            <div class="azione-nota" id="s14x-nota" style="position:relative;display:inline-block;width:17rem;height:2.1em;overflow:hidden;white-space:nowrap;vertical-align:middle">
+        <span class="ph" id="s14x-nota-ph" style="position:absolute;left:0.55rem;top:0.34rem;color:var(--text-muted)">Com’è andata</span>
+        
+      </div>
+            <button type="button" class="btn btn-sm" id="s14x-fatto">Fatto ✓</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="s14x-nr">Non si è presentato</button>
+          </div>
+        </li></ul></div>
+        <p class="muted azioni-gruppo-vuoto" id="s14s-prog-vuoto">Nessuna azione in programma.</p>
+      </div>
+        <div class="azioni-gruppo azioni-gruppo-fatte" id="s14s-fatte">
+        <h3>Fatte <span class="azioni-gruppo-conto" id="s14s-fatte-conto">1</span></h3>
+        <div id="s14s-fatte-corpo"><ol class="storia"><li ><span class="badge-tipo tipo-telefono">Telefonata</span> <span class="muted">gio 22 ott 2026 · Elena B.</span> <span class="badge badge-ok">Eseguita</span><div class="storia-testo">Vuole il tour sabato pomeriggio</div></li></ol></div>
+        
+      </div>
+        <div class="nuova-azione-box" id="s14s-nuova"><h3>Nuova azione</h3>
+          <div class="nuova-azione">
+            <select aria-label="Tipo" id="s14s-tipo"><option>Telefonata</option></select>
+            <span id="s14s-giorno" style="position:relative;display:inline-block;width:7.2rem;height:2.1em;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);font-size:var(--text-xs);vertical-align:middle"><span id="s14s-giorno-a" style="position:absolute;left:0.5rem;top:0.34rem">gio 22 ott</span><span id="s14s-giorno-b" style="position:absolute;left:0.5rem;top:0.34rem;opacity:0">sab 24 ott</span></span>
+            <span id="s14s-ora-in" style="position:relative;display:inline-block;width:4.6rem;height:2.1em;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);font-size:var(--text-xs);vertical-align:middle"><span id="s14s-ora-a" style="position:absolute;left:0.5rem;top:0.34rem;color:var(--text-muted)">--:--</span><span id="s14s-ora-b" style="position:absolute;left:0.5rem;top:0.34rem;opacity:0">15:00</span></span>
+            <select aria-label="A chi" id="s14s-chi"><option>Io</option></select>
+            <div class="azione-nota nuova-azione-nota" id="s14s-nnota" style="position:relative;display:inline-block;height:2.1em;overflow:hidden;white-space:nowrap;vertical-align:middle;border:1px solid var(--border);padding:0;background:var(--bg);border-radius:var(--radius)">
+              <span id="s14s-nph" style="position:absolute;left:0.5rem;top:0.34rem;color:var(--text-muted)">Cosa c'è da fare</span>
+              <span id="s14s-nt0" style="position:absolute;left:0.5rem;top:0.34rem"><span style="opacity:0">T</span><span style="opacity:0">o</span><span style="opacity:0">u</span><span style="opacity:0">r</span><span style="opacity:0">&nbsp;</span><span style="opacity:0">i</span><span style="opacity:0">n</span><span style="opacity:0">&nbsp;</span><span style="opacity:0">s</span><span style="opacity:0">e</span><span style="opacity:0">d</span><span style="opacity:0">e</span><span style="opacity:0">&nbsp;</span><span style="opacity:0">e</span><span style="opacity:0">&nbsp;</span><span style="opacity:0">p</span><span style="opacity:0">r</span><span style="opacity:0">o</span><span style="opacity:0">p</span><span style="opacity:0">o</span><span style="opacity:0">s</span><span style="opacity:0">t</span><span style="opacity:0">a</span><span style="opacity:0">&nbsp;</span><span style="opacity:0">a</span><span style="opacity:0">b</span><span style="opacity:0">b</span><span style="opacity:0">o</span><span style="opacity:0">n</span><span style="opacity:0">a</span><span style="opacity:0">m</span><span style="opacity:0">e</span><span style="opacity:0">n</span><span style="opacity:0">t</span><span style="opacity:0">o</span></span>
+            </div>
+            <button type="button" class="btn btn-sm" id="s14s-agg">Aggiungi</button>
+          </div></div>
+      </div></div>
+        <div id="s14-ddl"><div class="on">Visita in sede</div><div>Telefonata</div><div>Task</div><div>Email</div><div>WhatsApp</div></div>
+        <div class="cur" id="s14-cur"><div class="cur-in"><svg width="22" height="30" viewBox="0 0 22 30"><path d="M2 2 L2 24 L8 18.5 L12.5 28 L16 26.5 L11.6 17.2 L19.5 17 Z" fill="#17170f" stroke="#fdfaf3" stroke-width="2" stroke-linejoin="round"/></svg></div></div>
+      </div></div>
+      <div class="caps">
+      <div class="cap" id="s14-cap0">Subito il prossimo passo: se resta solo in testa a te, <b>si perde</b>.</div>
+      <div class="cap" id="s14-cap1">Tipo, giorno, ora, a chi e cosa c’è da fare.</div>
+      <div class="cap" id="s14-cap2">Compare in <b>In programma</b>, e nel calendario.</div>
+      <div class="cap" id="s14-cap3">Email e WhatsApp si <b>registrano soltanto</b>: li annoti dopo averli mandati.</div>
+    </div>
+  
+    </div>
+    
+  </div>
+  <script>
+    
+    const tl = gsap.timeline({ paused: true });
+    const $ = (s) => document.querySelector(s);
+    const $$ = (s) => document.querySelectorAll(s);
+    const CAM = $('#s14-cam');
+    const CUR = $('#s14-cur');
+    const CX = 960, CY = 365, CB = 1.5;
+    // Coordinate "mondo" di un elemento (centro di default), indipendenti dalla camera attuale.
+    function W(sel, fx, fy) {
+      fx = fx === undefined ? 0.5 : fx; fy = fy === undefined ? 0.5 : fy;
+      const e = $(sel), r = e.getBoundingClientRect(), c = CAM.getBoundingClientRect();
+      const k = (c.width / CAM.offsetWidth) || 1;
+      return { x: (r.left - c.left + r.width * fx) / k, y: (r.top - c.top + r.height * fy) / k };
+    }
+    let camS = 1;
+    // Mette al centro dell'area libera (sopra i sottotitoli) il centro di un elemento, a scala s.
+    function centerOn(sel, s, dx, dy) { const p = W(sel); viewSet(p.x + (dx || 0), p.y + (dy || 0), s); return p; }
+    function viewSet(wx, wy, s) {
+      camS = s;
+      gsap.set(CAM, { x: CX - wx * s, y: CY - wy * s, scale: s });
+      if (CUR) gsap.set(CUR, { scale: CB / s });
+    }
+    function view(t, d, wx, wy, s, ease) {
+      ease = ease || 'power2.inOut';
+      tl.to(CAM, { x: CX - wx * s, y: CY - wy * s, scale: s, duration: d, ease: ease }, t);
+      if (CUR) tl.to(CUR, { scale: CB / s, duration: d, ease: ease }, t);
+      camS = s;
+    }
+    // Il cursore: compare, si muove verso un punto del mondo, "clicca".
+    function curAt(x, y) { gsap.set(CUR, { x: x, y: y, scale: CB / camS }); }
+    function curShow(t, on) { tl.to(CUR, { opacity: on === false ? 0 : 1, duration: 0.2 }, t); }
+    function curTo(t, d, p, ease) { tl.to(CUR, { x: p.x, y: p.y, duration: d, ease: ease || 'power3.inOut' }, t); }
+    function tap(t) {
+      const ci = CUR.firstElementChild;
+      tl.to(ci, { scale: 0.8, duration: 0.07, ease: 'power2.out' }, t);
+      tl.to(ci, { scale: 1, duration: 0.14, ease: 'power2.out' }, t + 0.07);
+    }
+    function press(t, sel) {
+      tl.to(sel, { scale: 0.96, duration: 0.07, ease: 'power2.out', transformOrigin: '50% 50%' }, t);
+      tl.to(sel, { scale: 1, duration: 0.16, ease: 'power2.out' }, t + 0.07);
+    }
+    // Scrive un testo già diviso in span (vedi typed()): un carattere ogni 1/cps secondi.
+    function write(t, sel, cps) {
+      const sp = $$(sel + ' > span');
+      tl.to(sp, { opacity: 1, duration: 0.01, stagger: 1 / (cps || 16) }, t);
+      return t + sp.length / (cps || 16);
+    }
+    // Entrata/uscita della scena: dissolvenza morbida.
+    function sceneInOut(dur, tin, tout) {
+      tin = tin === undefined ? 0.35 : tin; tout = tout === undefined ? 0.35 : tout;
+      if (tin > 0) tl.fromTo('#s14-all', { opacity: 0 }, { opacity: 1, duration: tin, ease: 'power2.out' }, 0);
+      tl.to('#s14-all', { opacity: 0, duration: tout, ease: 'power2.in' }, dur - tout);
+    }
+  
+    const prog = W('#s14s-prog'), nuova = W('#s14s-nuova'), tipo = W('#s14s-tipo', 0.5, 1), tipoC = W('#s14s-tipo'),
+          giorno = W('#s14s-giorno'), oraIn = W('#s14s-ora-in'), nnota = W('#s14s-nnota'), agg = W('#s14s-agg');
+    sceneInOut(24, 0.35, 0.4);
+    gsap.set(['#s14s-giorno', '#s14s-ora-in', '#s14s-tipo', '#s14s-agg'], { outline: '0px solid #17170f', outlineOffset: '3px' });
+    viewSet(prog.x, nuova.y + 30, 1.9);
+    tl.fromTo('#s14-pg', { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 0.2);
+    // Tipo: si apre la tendina e si sceglie «Visita in sede»
+    const dd = $('#s14-ddl');
+    gsap.set(dd, { x: tipoC.x - 70, y: tipo.y + 6 });
+    curAt(tipoC.x + 200, tipoC.y + 90);
+    curShow(5.7, true);
+    curTo(5.8, 0.9, { x: tipoC.x + 10, y: tipoC.y + 2 });
+    tap(6.9);
+    tl.fromTo(dd, { opacity: 0, y: tipo.y - 2 }, { opacity: 1, y: tipo.y + 6, duration: 0.18 }, 6.95);
+    curTo(7.2, 0.5, { x: tipoC.x - 40, y: tipo.y + 22 });
+    tap(8.0);
+    tl.to(dd, { opacity: 0, duration: 0.14 }, 8.1);
+    tl.set('#s14s-tipo option', { innerHTML: 'Visita in sede' }, 8.12);
+    // giorno e ora
+    tl.to('#s14s-giorno-a', { opacity: 0, duration: 0.12 }, 8.7); tl.to('#s14s-giorno-b', { opacity: 1, duration: 0.12 }, 8.7);
+    tl.to('#s14s-ora-a', { opacity: 0, duration: 0.12 }, 9.3); tl.to('#s14s-ora-b', { opacity: 1, duration: 0.12 }, 9.3);
+    tl.to('#s14s-giorno', { outlineWidth: 3, duration: 0.2 }, 8.7); tl.to('#s14s-giorno', { outlineWidth: 0, duration: 0.3 }, 9.2);
+    tl.to('#s14s-ora-in', { outlineWidth: 3, duration: 0.2 }, 9.3); tl.to('#s14s-ora-in', { outlineWidth: 0, duration: 0.3 }, 9.8);
+    // la nota si scrive
+    curTo(9.4, 0.6, { x: nnota.x - 40, y: nnota.y + 3 });
+    tap(10.1);
+    tl.to('#s14s-nph', { opacity: 0, duration: 0.1 }, 10.15);
+    const fine = write(10.3, '#s14s-nt0', 20);
+    curTo(fine + 0.1, 0.7, { x: agg.x, y: agg.y });
+    tap(fine + 0.95); press(fine + 0.95, '#s14s-agg');
+    // la riga compare in «In programma»
+    const T = fine + 1.1;
+    tl.fromTo('#s14x', { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out' }, T);
+    tl.set('#s14s-prog-conto', { innerHTML: '1' }, T);
+    tl.set('#s14s-prog-vuoto', { display: 'none' }, T);
+    curShow(T + 0.3, false);
+    // Email e WhatsApp: il pulsante diventa «Registra»
+    tl.set('#s14s-tipo option', { innerHTML: 'Email' }, 18.3);
+    tl.set('#s14s-agg', { innerHTML: 'Registra' }, 18.3);
+    tl.to('#s14s-tipo', { outlineWidth: 3, duration: 0.2 }, 18.3); tl.to('#s14s-tipo', { outlineWidth: 0, duration: 0.3 }, 20.8);
+    tl.to('#s14s-agg', { outlineWidth: 3, duration: 0.2 }, 18.4); tl.to('#s14s-agg', { outlineWidth: 0, duration: 0.3 }, 21.0);
+    
+    tl.fromTo('#s14-cap0', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 0.8);
+    tl.to('#s14-cap0', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 5.320);
+    tl.fromTo('#s14-cap1', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 6);
+    tl.to('#s14-cap1', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 10.220);
+    tl.fromTo('#s14-cap2', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 13.7);
+    tl.to('#s14-cap2', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 17.220);
+    tl.fromTo('#s14-cap3', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 18);
+    tl.to('#s14-cap3', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 22.620);
+  
+    window.__timelines['s14'] = tl;
+  </script>
+</template>

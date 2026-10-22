@@ -1,0 +1,192 @@
+<template>
+  <style>
+    @font-face { font-family: 'Jost'; font-weight: 400; src: url('assets/fonts/jost-latin-400-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 500; src: url('assets/fonts/jost-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 600; src: url('assets/fonts/jost-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 500; src: url('assets/fonts/cormorant-garamond-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 600; src: url('assets/fonts/cormorant-garamond-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 700; src: url('assets/fonts/cormorant-garamond-latin-700-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 500; font-style: italic; src: url('assets/fonts/cormorant-garamond-latin-500-italic.woff2') format('woff2'); }
+
+    #root { position: absolute; inset: 0; overflow: hidden; font-family: 'Jost', sans-serif; color: #17170f; }
+    #s01-all { position: absolute; inset: 0; }
+    .stage { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 62% at 50% 42%, #fbf8ee 0%, #f1ead8 58%, #e5dec8 100%); }
+    .stage-dark { position: absolute; inset: 0; background: #1c1c18; }
+    .view { position: absolute; left: 0; right: 0; top: 104px; bottom: 246px; overflow: hidden;
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 26px), transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 26px), transparent 100%); }
+    .cam { position: absolute; left: 0; top: 0; width: 2600px; height: 1600px; transform-origin: 0 0; }
+    .chap { position: absolute; left: 96px; top: 54px; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 28px;
+            letter-spacing: 0.14em; text-transform: uppercase; color: #6e5610; }
+    .chap i { font-style: normal; color: #8b6c14; margin-right: 14px; }
+    .caps { position: absolute; left: 96px; right: 96px; bottom: 100px; display: grid; justify-items: center; align-items: end; }
+    .cap { grid-area: 1 / 1; max-width: 1560px; padding: 20px 40px 22px; border-radius: 16px; border-left: 7px solid #c8991f;
+           background: rgba(28, 28, 24, 0.95); color: #f6efde; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 40px;
+           line-height: 1.22; letter-spacing: 0.002em; text-align: left; box-shadow: 0 14px 40px rgba(28, 28, 24, 0.25); opacity: 0; }
+    .cap b { font-weight: 600; color: #efbf48; }
+    .cur { position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; transform-origin: 0 0; z-index: 900; pointer-events: none; }
+    .cur-in { position: absolute; left: -2px; top: -2px; width: 22px; height: 30px; transform-origin: 2px 2px; }
+    .cur-in svg { display: block; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+    .frag { position: absolute; background: var(--bg); border-radius: 12px; box-shadow: 0 24px 60px rgba(28, 28, 24, 0.20), 0 0 0 1px rgba(28,28,24,.10); overflow: hidden; }
+    .tapa { outline: 3px solid rgba(200,153,31,.0); }
+  
+    #s01-h { position: absolute; left: 96px; right: 96px; top: 128px; text-align: center; font-family: 'Cormorant Garamond', serif;
+      font-weight: 600; font-size: 92px; line-height: 1; color: #17170f; }
+    #s01-h em { font-style: italic; color: #8b6c14; font-weight: 500; }
+    #s01-line { position: absolute; left: 250px; top: 560px; width: 1420px; height: 5px; background: #c9bd9b; border-radius: 3px; transform-origin: 0 50%; }
+    #s01-fill { position: absolute; left: 250px; top: 560px; width: 1420px; height: 5px; background: #8b6c14; border-radius: 3px; transform-origin: 0 50%; }
+    .s01-node { position: absolute; top: 540px; width: 46px; height: 46px; margin-left: -23px; border-radius: 50%; background: #fdfaf3;
+      border: 4px solid #c9bd9b; box-sizing: border-box; }
+    .s01-lab { position: absolute; top: 432px; width: 330px; margin-left: -165px; text-align: center; font-weight: 600; font-size: 40px;
+      line-height: 1.1; color: #17170f; }
+    .s01-num { position: absolute; top: 366px; width: 100px; margin-left: -50px; text-align: center; font-family: 'Cormorant Garamond', serif;
+      font-weight: 600; font-size: 52px; color: #8b6c14; }
+    .s01-st { position: absolute; top: 654px; width: 520px; margin-left: -260px; text-align: center; white-space: nowrap; }
+    .s01-st .badge { font-size: 28px; padding: 8px 20px; }
+    #s01-dot { position: absolute; left: 250px; top: 551px; width: 24px; height: 24px; margin-left: -12px; border-radius: 50%; background: #8b6c14;
+      box-shadow: 0 0 0 10px rgba(139,108,20,0.18); }
+    #s01-who { position: absolute; left: 130px; top: 746px; width: 240px; padding: 10px 0; text-align: center; border-radius: 10px;
+      background: #1c1c18; color: #f6efde; font-weight: 500; font-size: 30px; }
+    #s01-brk { position: absolute; top: 600px; height: 34px; border: 3px solid #35566b; border-top: 0; border-radius: 0 0 14px 14px; opacity: 0; }
+  
+  </style>
+  <div id="root" data-composition-id="s01" data-width="1920" data-height="1080">
+    <div id="s01-all">
+      <div class="stage" id="s01-bg"></div>
+      
+      
+      <div id="s01-h" data-hold>Il percorso di un <em>lead</em></div>
+      <div id="s01-line"></div><div id="s01-fill"></div>
+      
+      <div class="s01-num" id="s01-num0" style="left:250px">1</div>
+      <div class="s01-lab" id="s01-lab0" style="left:250px">Arriva</div>
+      <div class="s01-node" id="s01-node0" style="left:250px"></div>
+      <div class="s01-st" id="s01-st0" style="left:250px"><span class="badge badge-punto badge-stato badge-warn">Da prendere in carico</span></div>
+      <div class="s01-num" id="s01-num1" style="left:605px">2</div>
+      <div class="s01-lab" id="s01-lab1" style="left:605px">Prendi in carico</div>
+      <div class="s01-node" id="s01-node1" style="left:605px"></div>
+      
+      <div class="s01-num" id="s01-num2" style="left:960px">3</div>
+      <div class="s01-lab" id="s01-lab2" style="left:960px">Pianifica in Agenda</div>
+      <div class="s01-node" id="s01-node2" style="left:960px"></div>
+      <div class="s01-st" id="s01-st2" style="left:960px"><span class="badge badge-punto badge-stato badge-info">In gestione</span></div>
+      <div class="s01-num" id="s01-num3" style="left:1315px">4</div>
+      <div class="s01-lab" id="s01-lab3" style="left:1315px">Chiama e registra</div>
+      <div class="s01-node" id="s01-node3" style="left:1315px"></div>
+      
+      <div class="s01-num" id="s01-num4" style="left:1670px">5</div>
+      <div class="s01-lab" id="s01-lab4" style="left:1670px">Vinta</div>
+      <div class="s01-node" id="s01-node4" style="left:1670px"></div>
+      <div class="s01-st" id="s01-st4" style="left:1670px"><span class="badge badge-punto badge-stato badge-ok">Vinta</span></div>
+      <div id="s01-brk" style="left:565px;width:790px"></div>
+      <div id="s01-dot"></div>
+      <div id="s01-who">Chiara Morandi</div>
+      <div class="caps">
+      <div class="cap" id="s01-cap0">Dall’Agenda gestisci tutto il <b>follow-up</b>, fino all’<b>iscrizione</b>.</div>
+    </div>
+  
+    </div>
+    
+  </div>
+  <script>
+    
+    const tl = gsap.timeline({ paused: true });
+    const $ = (s) => document.querySelector(s);
+    const $$ = (s) => document.querySelectorAll(s);
+    const CAM = $('#s01-cam');
+    const CUR = $('#s01-cur');
+    const CX = 960, CY = 365, CB = 1.5;
+    // Coordinate "mondo" di un elemento (centro di default), indipendenti dalla camera attuale.
+    function W(sel, fx, fy) {
+      fx = fx === undefined ? 0.5 : fx; fy = fy === undefined ? 0.5 : fy;
+      const e = $(sel), r = e.getBoundingClientRect(), c = CAM.getBoundingClientRect();
+      const k = (c.width / CAM.offsetWidth) || 1;
+      return { x: (r.left - c.left + r.width * fx) / k, y: (r.top - c.top + r.height * fy) / k };
+    }
+    let camS = 1;
+    // Mette al centro dell'area libera (sopra i sottotitoli) il centro di un elemento, a scala s.
+    function centerOn(sel, s, dx, dy) { const p = W(sel); viewSet(p.x + (dx || 0), p.y + (dy || 0), s); return p; }
+    function viewSet(wx, wy, s) {
+      camS = s;
+      gsap.set(CAM, { x: CX - wx * s, y: CY - wy * s, scale: s });
+      if (CUR) gsap.set(CUR, { scale: CB / s });
+    }
+    function view(t, d, wx, wy, s, ease) {
+      ease = ease || 'power2.inOut';
+      tl.to(CAM, { x: CX - wx * s, y: CY - wy * s, scale: s, duration: d, ease: ease }, t);
+      if (CUR) tl.to(CUR, { scale: CB / s, duration: d, ease: ease }, t);
+      camS = s;
+    }
+    // Il cursore: compare, si muove verso un punto del mondo, "clicca".
+    function curAt(x, y) { gsap.set(CUR, { x: x, y: y, scale: CB / camS }); }
+    function curShow(t, on) { tl.to(CUR, { opacity: on === false ? 0 : 1, duration: 0.2 }, t); }
+    function curTo(t, d, p, ease) { tl.to(CUR, { x: p.x, y: p.y, duration: d, ease: ease || 'power3.inOut' }, t); }
+    function tap(t) {
+      const ci = CUR.firstElementChild;
+      tl.to(ci, { scale: 0.8, duration: 0.07, ease: 'power2.out' }, t);
+      tl.to(ci, { scale: 1, duration: 0.14, ease: 'power2.out' }, t + 0.07);
+    }
+    function press(t, sel) {
+      tl.to(sel, { scale: 0.96, duration: 0.07, ease: 'power2.out', transformOrigin: '50% 50%' }, t);
+      tl.to(sel, { scale: 1, duration: 0.16, ease: 'power2.out' }, t + 0.07);
+    }
+    // Scrive un testo già diviso in span (vedi typed()): un carattere ogni 1/cps secondi.
+    function write(t, sel, cps) {
+      const sp = $$(sel + ' > span');
+      tl.to(sp, { opacity: 1, duration: 0.01, stagger: 1 / (cps || 16) }, t);
+      return t + sp.length / (cps || 16);
+    }
+    // Entrata/uscita della scena: dissolvenza morbida.
+    function sceneInOut(dur, tin, tout) {
+      tin = tin === undefined ? 0.35 : tin; tout = tout === undefined ? 0.35 : tout;
+      if (tin > 0) tl.fromTo('#s01-all', { opacity: 0 }, { opacity: 1, duration: tin, ease: 'power2.out' }, 0);
+      tl.to('#s01-all', { opacity: 0, duration: tout, ease: 'power2.in' }, dur - tout);
+    }
+  
+    sceneInOut(16.2, 0.4, 0.4);
+    gsap.set('#s01-fill', { scaleX: 0 });
+    gsap.set('.s01-lab, .s01-num, .s01-st, .s01-node', { opacity: 0 });
+    tl.fromTo('#s01-h', { opacity: 0, filter: 'blur(8px)' }, { opacity: 1, filter: 'blur(0px)', duration: 0.5, ease: 'power3.out' }, 0.3);
+    tl.fromTo('#s01-line', { scaleX: 0 }, { scaleX: 1, duration: 1.0, ease: 'power2.out' }, 0.9);
+    tl.fromTo('#s01-dot', { opacity: 0 }, { opacity: 1, duration: 0.3 }, 1.2);
+    tl.fromTo('#s01-who', { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out' }, 1.3);
+    
+    tl.fromTo(['#s01-num0', '#s01-lab0'], { opacity: 0, y: 14, filter: 'blur(6px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.4, ease: 'power3.out' }, 1.5);
+    tl.fromTo('#s01-node0', { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.35, ease: 'back.out(1.6)' }, 1.5);
+    tl.fromTo('#s01-st0', { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out' }, 1.75);
+    
+    tl.to('#s01-dot', { x: 355, duration: 0.8, ease: 'power3.inOut' }, 2.85);
+    tl.to('#s01-who', { x: 355, duration: 0.8, ease: 'power3.inOut' }, 2.85);
+    tl.to('#s01-fill', { scaleX: 0.25, duration: 0.8, ease: 'power3.inOut' }, 2.85);
+    tl.fromTo(['#s01-num1', '#s01-lab1'], { opacity: 0, y: 14, filter: 'blur(6px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.4, ease: 'power3.out' }, 3.55);
+    tl.fromTo('#s01-node1', { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.35, ease: 'back.out(1.6)' }, 3.55);
+    
+    tl.fromTo('#s01-brk', { opacity: 0 }, { opacity: 1, duration: 0.5, ease: 'power2.out' }, 3.85);
+    tl.to('#s01-dot', { x: 710, duration: 0.8, ease: 'power3.inOut' }, 4.90);
+    tl.to('#s01-who', { x: 710, duration: 0.8, ease: 'power3.inOut' }, 4.90);
+    tl.to('#s01-fill', { scaleX: 0.50, duration: 0.8, ease: 'power3.inOut' }, 4.90);
+    tl.fromTo(['#s01-num2', '#s01-lab2'], { opacity: 0, y: 14, filter: 'blur(6px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.4, ease: 'power3.out' }, 5.6);
+    tl.fromTo('#s01-node2', { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.35, ease: 'back.out(1.6)' }, 5.6);
+    tl.fromTo('#s01-st2', { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out' }, 5.85);
+    
+    tl.to('#s01-dot', { x: 1065, duration: 0.8, ease: 'power3.inOut' }, 6.95);
+    tl.to('#s01-who', { x: 1065, duration: 0.8, ease: 'power3.inOut' }, 6.95);
+    tl.to('#s01-fill', { scaleX: 0.75, duration: 0.8, ease: 'power3.inOut' }, 6.95);
+    tl.fromTo(['#s01-num3', '#s01-lab3'], { opacity: 0, y: 14, filter: 'blur(6px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.4, ease: 'power3.out' }, 7.65);
+    tl.fromTo('#s01-node3', { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.35, ease: 'back.out(1.6)' }, 7.65);
+    
+    
+    tl.to('#s01-dot', { x: 1420, duration: 0.8, ease: 'power3.inOut' }, 9.00);
+    tl.to('#s01-who', { x: 1420, duration: 0.8, ease: 'power3.inOut' }, 9.00);
+    tl.to('#s01-fill', { scaleX: 1.00, duration: 0.8, ease: 'power3.inOut' }, 9.00);
+    tl.fromTo(['#s01-num4', '#s01-lab4'], { opacity: 0, y: 14, filter: 'blur(6px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.4, ease: 'power3.out' }, 9.7);
+    tl.fromTo('#s01-node4', { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.35, ease: 'back.out(1.6)' }, 9.7);
+    tl.fromTo('#s01-st4', { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out' }, 9.95);
+    
+    
+    tl.fromTo('#s01-cap0', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 11);
+    tl.to('#s01-cap0', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 15.520);
+  
+    window.__timelines['s01'] = tl;
+  </script>
+</template>

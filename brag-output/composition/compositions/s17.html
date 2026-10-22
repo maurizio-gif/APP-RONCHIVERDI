@@ -1,0 +1,176 @@
+<template>
+  <style>
+    @font-face { font-family: 'Jost'; font-weight: 400; src: url('assets/fonts/jost-latin-400-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 500; src: url('assets/fonts/jost-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 600; src: url('assets/fonts/jost-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 500; src: url('assets/fonts/cormorant-garamond-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 600; src: url('assets/fonts/cormorant-garamond-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 700; src: url('assets/fonts/cormorant-garamond-latin-700-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 500; font-style: italic; src: url('assets/fonts/cormorant-garamond-latin-500-italic.woff2') format('woff2'); }
+
+    #root { position: absolute; inset: 0; overflow: hidden; font-family: 'Jost', sans-serif; color: #17170f; }
+    #s17-all { position: absolute; inset: 0; }
+    .stage { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 62% at 50% 42%, #fbf8ee 0%, #f1ead8 58%, #e5dec8 100%); }
+    .stage-dark { position: absolute; inset: 0; background: #1c1c18; }
+    .view { position: absolute; left: 0; right: 0; top: 104px; bottom: 246px; overflow: hidden;
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 26px), transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 26px), transparent 100%); }
+    .cam { position: absolute; left: 0; top: 0; width: 2600px; height: 1600px; transform-origin: 0 0; }
+    .chap { position: absolute; left: 96px; top: 54px; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 28px;
+            letter-spacing: 0.14em; text-transform: uppercase; color: #6e5610; }
+    .chap i { font-style: normal; color: #8b6c14; margin-right: 14px; }
+    .caps { position: absolute; left: 96px; right: 96px; bottom: 100px; display: grid; justify-items: center; align-items: end; }
+    .cap { grid-area: 1 / 1; max-width: 1560px; padding: 20px 40px 22px; border-radius: 16px; border-left: 7px solid #c8991f;
+           background: rgba(28, 28, 24, 0.95); color: #f6efde; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 40px;
+           line-height: 1.22; letter-spacing: 0.002em; text-align: left; box-shadow: 0 14px 40px rgba(28, 28, 24, 0.25); opacity: 0; }
+    .cap b { font-weight: 600; color: #efbf48; }
+    .cur { position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; transform-origin: 0 0; z-index: 900; pointer-events: none; }
+    .cur-in { position: absolute; left: -2px; top: -2px; width: 22px; height: 30px; transform-origin: 2px 2px; }
+    .cur-in svg { display: block; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+    .frag { position: absolute; background: var(--bg); border-radius: 12px; box-shadow: 0 24px 60px rgba(28, 28, 24, 0.20), 0 0 0 1px rgba(28,28,24,.10); overflow: hidden; }
+    .tapa { outline: 3px solid rgba(200,153,31,.0); }
+  
+    #s17-pg { left: 40px; top: 20px; width: 780px; padding: 24px 28px 22px; }
+    #s17-pg .card { margin-bottom: 0; }
+  
+  </style>
+  <div id="root" data-composition-id="s17" data-width="1920" data-height="1080">
+    <div id="s17-all">
+      <div class="stage" id="s17-bg"></div>
+      <div class="chap"><i>6</i>Il lead non arriva da solo</div>
+      
+      <div class="view"><div class="cam" data-layout-allow-overflow id="s17-cam">
+        <div class="frag" data-hold id="s17-pg">
+          <p class="info-banner" role="status" id="s17-banner" style="display:none;margin-bottom:1rem">Aperta anche la trattativa di questo contatto, in gestione a te. <button type="button" class="btn btn-ghost btn-sm">Ho capito</button></p>
+          <div id="s17-btnw" style="display:none"><button type="button" class="btn">Aggiungi in agenda</button></div>
+          <div class="card" id="s17-card">
+            <div class="card-head"><h2>Nuova voce</h2><button type="button" class="btn btn-ghost btn-sm">Chiudi</button></div>
+            <div class="modo-evento" id="s17m">
+          <div class="esito-gruppi"><button type="button" class="btn btn-sm" id="s17m-p">Programma</button><button type="button" class="btn btn-sm btn-ghost" id="s17m-r">Registra</button></div>
+          <p class="field-hint" id="s17m-hint">Un impegno da tenere: nasce da fare, e resta in agenda finché non lo chiudi.</p>
+        </div>
+            <div class="modo-evento" id="s17-cont">
+              <div class="esito-gruppi"><button type="button" class="btn btn-sm" id="s17-dall">Dall’elenco</button><button type="button" class="btn btn-sm btn-ghost" id="s17-nuovo">Nuovo contatto</button></div>
+              <p class="field-hint" id="s17-conthint">Il contatto a cui agganciare la voce. Se non è in elenco, creane uno nuovo.</p>
+            </div>
+            <div class="form-row" id="s17-fields" style="opacity:0">
+              <div class="field"><label>Nome <span aria-hidden="true">*</span></label><div class="azione-nota" style="width:100%;height:2.2em;position:relative;overflow:hidden;white-space:nowrap;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg)"><span id="s17-nome" style="position:absolute;left:0.55rem;top:0.4rem"><span style="opacity:0">M</span><span style="opacity:0">a</span><span style="opacity:0">r</span><span style="opacity:0">c</span><span style="opacity:0">o</span><span style="opacity:0">&nbsp;</span><span style="opacity:0">B</span><span style="opacity:0">i</span><span style="opacity:0">a</span><span style="opacity:0">n</span><span style="opacity:0">c</span><span style="opacity:0">h</span><span style="opacity:0">i</span></span></div></div>
+              <div class="field"><label>Cognome</label><div class="azione-nota" style="width:100%;height:2.2em;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg)"></div></div>
+              <div class="field"><label>Email</label><div class="azione-nota" style="width:100%;height:2.2em;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg)"></div></div>
+              <div class="field"><label>Cellulare</label><div class="azione-nota" style="width:100%;height:2.2em;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg)"></div>
+                <p class="field-hint">Facoltativi. Ma se ne lasci uno lo ritroviamo quando torna: senza, una sua richiesta dal sito creerà un secondo contatto da unire a mano.</p></div>
+            </div>
+          </div>
+        </div>
+        <div class="cur" id="s17-cur"><div class="cur-in"><svg width="22" height="30" viewBox="0 0 22 30"><path d="M2 2 L2 24 L8 18.5 L12.5 28 L16 26.5 L11.6 17.2 L19.5 17 Z" fill="#17170f" stroke="#fdfaf3" stroke-width="2" stroke-linejoin="round"/></svg></div></div>
+      </div></div>
+      <div class="caps">
+      <div class="cap" id="s17-cap0"><b>Programma</b>: un impegno da tenere, in agenda finché non lo chiudi.</div>
+      <div class="cap" id="s17-cap1"><b>Registra</b>: qualcosa che hai già fatto, già chiuso con la sua nota.</div>
+      <div class="cap" id="s17-cap2">Il contatto non c’è? <b>Nuovo contatto</b>: basta il nome.</div>
+      <div class="cap" id="s17-cap3">Se esiste già — stessa email o stesso numero — <b>niente doppioni</b>.</div>
+      <div class="cap" id="s17-cap4">Un evento scritto su una persona <b>apre il suo lead</b>: in gestione a te.</div>
+    </div>
+  
+    </div>
+    
+  </div>
+  <script>
+    
+    const tl = gsap.timeline({ paused: true });
+    const $ = (s) => document.querySelector(s);
+    const $$ = (s) => document.querySelectorAll(s);
+    const CAM = $('#s17-cam');
+    const CUR = $('#s17-cur');
+    const CX = 960, CY = 365, CB = 1.5;
+    // Coordinate "mondo" di un elemento (centro di default), indipendenti dalla camera attuale.
+    function W(sel, fx, fy) {
+      fx = fx === undefined ? 0.5 : fx; fy = fy === undefined ? 0.5 : fy;
+      const e = $(sel), r = e.getBoundingClientRect(), c = CAM.getBoundingClientRect();
+      const k = (c.width / CAM.offsetWidth) || 1;
+      return { x: (r.left - c.left + r.width * fx) / k, y: (r.top - c.top + r.height * fy) / k };
+    }
+    let camS = 1;
+    // Mette al centro dell'area libera (sopra i sottotitoli) il centro di un elemento, a scala s.
+    function centerOn(sel, s, dx, dy) { const p = W(sel); viewSet(p.x + (dx || 0), p.y + (dy || 0), s); return p; }
+    function viewSet(wx, wy, s) {
+      camS = s;
+      gsap.set(CAM, { x: CX - wx * s, y: CY - wy * s, scale: s });
+      if (CUR) gsap.set(CUR, { scale: CB / s });
+    }
+    function view(t, d, wx, wy, s, ease) {
+      ease = ease || 'power2.inOut';
+      tl.to(CAM, { x: CX - wx * s, y: CY - wy * s, scale: s, duration: d, ease: ease }, t);
+      if (CUR) tl.to(CUR, { scale: CB / s, duration: d, ease: ease }, t);
+      camS = s;
+    }
+    // Il cursore: compare, si muove verso un punto del mondo, "clicca".
+    function curAt(x, y) { gsap.set(CUR, { x: x, y: y, scale: CB / camS }); }
+    function curShow(t, on) { tl.to(CUR, { opacity: on === false ? 0 : 1, duration: 0.2 }, t); }
+    function curTo(t, d, p, ease) { tl.to(CUR, { x: p.x, y: p.y, duration: d, ease: ease || 'power3.inOut' }, t); }
+    function tap(t) {
+      const ci = CUR.firstElementChild;
+      tl.to(ci, { scale: 0.8, duration: 0.07, ease: 'power2.out' }, t);
+      tl.to(ci, { scale: 1, duration: 0.14, ease: 'power2.out' }, t + 0.07);
+    }
+    function press(t, sel) {
+      tl.to(sel, { scale: 0.96, duration: 0.07, ease: 'power2.out', transformOrigin: '50% 50%' }, t);
+      tl.to(sel, { scale: 1, duration: 0.16, ease: 'power2.out' }, t + 0.07);
+    }
+    // Scrive un testo già diviso in span (vedi typed()): un carattere ogni 1/cps secondi.
+    function write(t, sel, cps) {
+      const sp = $$(sel + ' > span');
+      tl.to(sp, { opacity: 1, duration: 0.01, stagger: 1 / (cps || 16) }, t);
+      return t + sp.length / (cps || 16);
+    }
+    // Entrata/uscita della scena: dissolvenza morbida.
+    function sceneInOut(dur, tin, tout) {
+      tin = tin === undefined ? 0.35 : tin; tout = tout === undefined ? 0.35 : tout;
+      if (tin > 0) tl.fromTo('#s17-all', { opacity: 0 }, { opacity: 1, duration: tin, ease: 'power2.out' }, 0);
+      tl.to('#s17-all', { opacity: 0, duration: tout, ease: 'power2.in' }, dur - tout);
+    }
+  
+    const mp = W('#s17m'), r = W('#s17m-r'), nuovo = W('#s17-nuovo'), fields = W('#s17-fields', 0.5, 0.2), cont = W('#s17-cont'),
+          card = W('#s17-card', 0.5, 0.0), nome = W('#s17-nome');
+    sceneInOut(23.6, 0.35, 0.4);
+    viewSet(mp.x + 40, mp.y + 70, 2.0);
+    tl.fromTo('#s17-pg', { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 0.2);
+    // Programma → Registra (cambia la spiegazione)
+    curAt(r.x + 150, r.y + 90);
+    curShow(4.8, true);
+    curTo(4.9, 0.7, { x: r.x, y: r.y });
+    tap(5.7); press(5.7, '#s17m-r');
+    tl.set('#s17m-p', { className: 'btn btn-sm btn-ghost' }, 5.75);
+    tl.set('#s17m-r', { className: 'btn btn-sm' }, 5.75);
+    tl.set('#s17m-hint', { innerHTML: 'Qualcosa che hai già fatto: nasce chiusa, con l’esito e la nota di com’è andata.' }, 5.75);
+    // Nuovo contatto: compaiono i campi
+    view(8.8, 0.9, cont.x + 20, cont.y + 120, 1.85);
+    curTo(9.4, 0.8, { x: nuovo.x, y: nuovo.y });
+    tap(10.3); press(10.3, '#s17-nuovo');
+    tl.set('#s17-dall', { className: 'btn btn-sm btn-ghost' }, 10.35);
+    tl.set('#s17-nuovo', { className: 'btn btn-sm' }, 10.35);
+    tl.set('#s17-conthint', { innerHTML: 'Basta il nome: entra in anagrafica adesso, segnato come inserito a mano. Se ci fosse già — stessa email o stesso numero — la voce va sulla scheda che c’è, senza doppioni.' }, 10.35);
+    tl.to('#s17-fields', { opacity: 1, duration: 0.4 }, 10.6);
+    write(11.4, '#s17-nome', 12);
+    curShow(12.8, false);
+    // il banner finale
+    view(17.0, 1.0, card.x, card.y - 70, 2.0);
+    tl.to('#s17-card', { opacity: 0, duration: 0.25 }, 17.3);
+    tl.set('#s17-card', { display: 'none' }, 17.6);
+    tl.set(['#s17-banner', '#s17-btnw'], { display: 'flex' }, 17.6);
+    tl.fromTo(['#s17-banner', '#s17-btnw'], { opacity: 0, y: -10 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out', stagger: 0.12 }, 17.65);
+    
+    tl.fromTo('#s17-cap0', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 0.8);
+    tl.to('#s17-cap0', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 4.820);
+    tl.fromTo('#s17-cap1', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 5.1);
+    tl.to('#s17-cap1', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 9.420);
+    tl.fromTo('#s17-cap2', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 9.7);
+    tl.to('#s17-cap2', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 13.120);
+    tl.fromTo('#s17-cap3', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 13.4);
+    tl.to('#s17-cap3', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 17.720);
+    tl.fromTo('#s17-cap4', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 18);
+    tl.to('#s17-cap4', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 22.820);
+  
+    window.__timelines['s17'] = tl;
+  </script>
+</template>

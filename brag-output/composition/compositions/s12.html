@@ -1,0 +1,193 @@
+<template>
+  <style>
+    @font-face { font-family: 'Jost'; font-weight: 400; src: url('assets/fonts/jost-latin-400-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 500; src: url('assets/fonts/jost-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 600; src: url('assets/fonts/jost-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 500; src: url('assets/fonts/cormorant-garamond-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 600; src: url('assets/fonts/cormorant-garamond-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 700; src: url('assets/fonts/cormorant-garamond-latin-700-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 500; font-style: italic; src: url('assets/fonts/cormorant-garamond-latin-500-italic.woff2') format('woff2'); }
+
+    #root { position: absolute; inset: 0; overflow: hidden; font-family: 'Jost', sans-serif; color: #17170f; }
+    #s12-all { position: absolute; inset: 0; }
+    .stage { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 62% at 50% 42%, #fbf8ee 0%, #f1ead8 58%, #e5dec8 100%); }
+    .stage-dark { position: absolute; inset: 0; background: #1c1c18; }
+    .view { position: absolute; left: 0; right: 0; top: 104px; bottom: 246px; overflow: hidden;
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 26px), transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 26px), transparent 100%); }
+    .cam { position: absolute; left: 0; top: 0; width: 2600px; height: 1600px; transform-origin: 0 0; }
+    .chap { position: absolute; left: 96px; top: 54px; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 28px;
+            letter-spacing: 0.14em; text-transform: uppercase; color: #6e5610; }
+    .chap i { font-style: normal; color: #8b6c14; margin-right: 14px; }
+    .caps { position: absolute; left: 96px; right: 96px; bottom: 100px; display: grid; justify-items: center; align-items: end; }
+    .cap { grid-area: 1 / 1; max-width: 1560px; padding: 20px 40px 22px; border-radius: 16px; border-left: 7px solid #c8991f;
+           background: rgba(28, 28, 24, 0.95); color: #f6efde; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 40px;
+           line-height: 1.22; letter-spacing: 0.002em; text-align: left; box-shadow: 0 14px 40px rgba(28, 28, 24, 0.25); opacity: 0; }
+    .cap b { font-weight: 600; color: #efbf48; }
+    .cur { position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; transform-origin: 0 0; z-index: 900; pointer-events: none; }
+    .cur-in { position: absolute; left: -2px; top: -2px; width: 22px; height: 30px; transform-origin: 2px 2px; }
+    .cur-in svg { display: block; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+    .frag { position: absolute; background: var(--bg); border-radius: 12px; box-shadow: 0 24px 60px rgba(28, 28, 24, 0.20), 0 0 0 1px rgba(28,28,24,.10); overflow: hidden; }
+    .tapa { outline: 3px solid rgba(200,153,31,.0); }
+  #s12-pg { left: 40px; top: 20px; width: 780px; padding: 24px 28px 22px; } #s12-pg .card { margin-bottom: 1rem; }
+  </style>
+  <div id="root" data-composition-id="s12" data-width="1920" data-height="1080">
+    <div id="s12-all">
+      <div class="stage" id="s12-bg"></div>
+      <div class="chap"><i>4</i>Lavorare un lead</div>
+      <div class="view"><div class="cam" data-layout-allow-overflow id="s12-cam"><div class="frag" data-hold id="s12-pg"><div class="page-head" style="margin-bottom:1rem">
+        <p class="eyebrow"><a>← Contatti</a></p>
+        <h1 style="margin-bottom:.5rem">Chiara Morandi</h1>
+        <div class="agenda-nav" id="s12s-contatti"><a class="btn btn-ghost btn-sm">340 123 4567</a><a class="btn btn-ghost btn-sm">WhatsApp</a><a class="btn btn-ghost btn-sm">chiara.morandi@example.it</a></div>
+      </div><div class="card" id="s12s-lead">
+        <div class="card-head"><h2>Lead</h2><span class="badge badge-stato badge-punto badge-info" id="s12s-badge">In gestione</span></div>
+        <dl class="dati">
+          <dt>Arrivato</dt><dd>22 ott 2026, 15:21</dd>
+          <dt>Da</dt><dd id="s12s-da"><span class="tag-provenienza da-sito">Sito web</span></dd>
+          <dt>Richiesta</dt><dd id="s12s-rich"><span class="tag-richiesta richiesta-richiamami">Richiamami · Sera 17–20</span></dd>
+          <dt>Interesse</dt><dd>Abbonamento Club e Family</dd>
+          <dt>Messaggio</dt><dd id="s12s-msg">Vorrei provare il club e capire quali abbonamenti ci sono.</dd>
+          
+        </dl>
+        <div class="scheda-comandi" id="s12s-cmd"><span class="muted">In carico a · stato</span>
+          <div class="lead-comandi"><select aria-label="In carico a"><option>Io</option></select><select aria-label="Stato" id="s12s-stato"><option>In gestione</option></select></div>
+        </div>
+      </div><div class="card" id="s12s-azioni">
+        <div class="card-head"><h2>Azioni</h2></div>
+        <div class="azioni-gruppo azioni-gruppo-ora" id="s12s-ora">
+        <h3>Da fare ora <span class="azioni-gruppo-conto" id="s12s-ora-conto">1</span><span class="muted azioni-gruppo-nota">oggi o scadute</span></h3>
+        <div id="s12s-ora-corpo"><ul class="azioni-elenco"><li class="azione-riga" id="s12r">
+          <div class="azione-testo">
+            <div class="azione-titolo">
+              <span class="badge badge-tipo tipo-telefono">Telefonata</span>
+              <span class="azione-quando">Sera 17–20</span>
+              <span class="muted azione-chi">· Elena B.</span>
+              
+              <span class="muted" id="s12r-tent" style="opacity:0">· 1 tentativo</span>
+            </div>
+            <div class="azione-dettaglio muted">Abbonamento Club e Family</div>
+          </div>
+          <div class="azione-comandi">
+            <div class="azione-nota" id="s12r-nota" style="position:relative;display:inline-block;width:17rem;height:2.1em;overflow:hidden;white-space:nowrap;vertical-align:middle">
+        <span class="ph" id="s12r-nota-ph" style="position:absolute;left:0.55rem;top:0.34rem;color:var(--text-muted)">Com’è andata</span>
+        
+      </div>
+            <button type="button" class="btn btn-sm" id="s12r-fatto">Fatto ✓</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="s12r-nr">Non risponde, riprovo</button>
+          </div>
+        </li></ul></div>
+        
+      </div>
+        <div class="azioni-gruppo azioni-gruppo-future" id="s12s-prog">
+        <h3>In programma <span class="azioni-gruppo-conto" id="s12s-prog-conto">0</span><span class="muted azioni-gruppo-nota">nei prossimi giorni</span></h3>
+        <div id="s12s-prog-corpo"></div>
+        <p class="muted azioni-gruppo-vuoto" id="s12s-prog-vuoto">Nessuna azione in programma.</p>
+      </div>
+        <div class="azioni-gruppo azioni-gruppo-fatte" id="s12s-fatte">
+        <h3>Fatte <span class="azioni-gruppo-conto" id="s12s-fatte-conto">0</span></h3>
+        <div id="s12s-fatte-corpo"></div>
+        <p class="muted azioni-gruppo-vuoto" id="s12s-fatte-vuoto">Nessuna azione fatta.</p>
+      </div>
+        <div class="nuova-azione-box" id="s12s-nuova"><h3>Nuova azione</h3>
+          <div class="nuova-azione">
+            <select aria-label="Tipo" id="s12s-tipo"><option>Telefonata</option></select>
+            <span id="s12s-giorno" style="position:relative;display:inline-block;width:7.2rem;height:2.1em;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);font-size:var(--text-xs);vertical-align:middle"><span id="s12s-giorno-a" style="position:absolute;left:0.5rem;top:0.34rem">gio 22 ott</span><span id="s12s-giorno-b" style="position:absolute;left:0.5rem;top:0.34rem;opacity:0">sab 24 ott</span></span>
+            <span id="s12s-ora-in" style="position:relative;display:inline-block;width:4.6rem;height:2.1em;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);font-size:var(--text-xs);vertical-align:middle"><span id="s12s-ora-a" style="position:absolute;left:0.5rem;top:0.34rem;color:var(--text-muted)">--:--</span><span id="s12s-ora-b" style="position:absolute;left:0.5rem;top:0.34rem;opacity:0">15:00</span></span>
+            <select aria-label="A chi" id="s12s-chi"><option>Io</option></select>
+            <div class="azione-nota nuova-azione-nota" id="s12s-nnota" style="position:relative;display:inline-block;height:2.1em;overflow:hidden;white-space:nowrap;vertical-align:middle;border:1px solid var(--border);padding:0;background:var(--bg);border-radius:var(--radius)">
+              <span id="s12s-nph" style="position:absolute;left:0.5rem;top:0.34rem;color:var(--text-muted)">Cosa c'è da fare</span>
+              
+            </div>
+            <button type="button" class="btn btn-sm" id="s12s-agg">Aggiungi</button>
+          </div></div>
+      </div></div></div></div><div class="caps">
+      <div class="cap" id="s12-cap0">In testa: <b>telefono, WhatsApp ed email</b>, a un clic.</div>
+      <div class="cap" id="s12-cap1">Da dove arriva, cosa ha chiesto, <b>cosa ha scritto</b>: tutto in una scheda.</div>
+      <div class="cap" id="s12-cap2">«In carico a» e «Stato» si cambiano <b>da qui</b>.</div>
+    </div>
+    </div>
+    
+  </div>
+  <script>
+    
+    const tl = gsap.timeline({ paused: true });
+    const $ = (s) => document.querySelector(s);
+    const $$ = (s) => document.querySelectorAll(s);
+    const CAM = $('#s12-cam');
+    const CUR = $('#s12-cur');
+    const CX = 960, CY = 365, CB = 1.5;
+    // Coordinate "mondo" di un elemento (centro di default), indipendenti dalla camera attuale.
+    function W(sel, fx, fy) {
+      fx = fx === undefined ? 0.5 : fx; fy = fy === undefined ? 0.5 : fy;
+      const e = $(sel), r = e.getBoundingClientRect(), c = CAM.getBoundingClientRect();
+      const k = (c.width / CAM.offsetWidth) || 1;
+      return { x: (r.left - c.left + r.width * fx) / k, y: (r.top - c.top + r.height * fy) / k };
+    }
+    let camS = 1;
+    // Mette al centro dell'area libera (sopra i sottotitoli) il centro di un elemento, a scala s.
+    function centerOn(sel, s, dx, dy) { const p = W(sel); viewSet(p.x + (dx || 0), p.y + (dy || 0), s); return p; }
+    function viewSet(wx, wy, s) {
+      camS = s;
+      gsap.set(CAM, { x: CX - wx * s, y: CY - wy * s, scale: s });
+      if (CUR) gsap.set(CUR, { scale: CB / s });
+    }
+    function view(t, d, wx, wy, s, ease) {
+      ease = ease || 'power2.inOut';
+      tl.to(CAM, { x: CX - wx * s, y: CY - wy * s, scale: s, duration: d, ease: ease }, t);
+      if (CUR) tl.to(CUR, { scale: CB / s, duration: d, ease: ease }, t);
+      camS = s;
+    }
+    // Il cursore: compare, si muove verso un punto del mondo, "clicca".
+    function curAt(x, y) { gsap.set(CUR, { x: x, y: y, scale: CB / camS }); }
+    function curShow(t, on) { tl.to(CUR, { opacity: on === false ? 0 : 1, duration: 0.2 }, t); }
+    function curTo(t, d, p, ease) { tl.to(CUR, { x: p.x, y: p.y, duration: d, ease: ease || 'power3.inOut' }, t); }
+    function tap(t) {
+      const ci = CUR.firstElementChild;
+      tl.to(ci, { scale: 0.8, duration: 0.07, ease: 'power2.out' }, t);
+      tl.to(ci, { scale: 1, duration: 0.14, ease: 'power2.out' }, t + 0.07);
+    }
+    function press(t, sel) {
+      tl.to(sel, { scale: 0.96, duration: 0.07, ease: 'power2.out', transformOrigin: '50% 50%' }, t);
+      tl.to(sel, { scale: 1, duration: 0.16, ease: 'power2.out' }, t + 0.07);
+    }
+    // Scrive un testo già diviso in span (vedi typed()): un carattere ogni 1/cps secondi.
+    function write(t, sel, cps) {
+      const sp = $$(sel + ' > span');
+      tl.to(sp, { opacity: 1, duration: 0.01, stagger: 1 / (cps || 16) }, t);
+      return t + sp.length / (cps || 16);
+    }
+    // Entrata/uscita della scena: dissolvenza morbida.
+    function sceneInOut(dur, tin, tout) {
+      tin = tin === undefined ? 0.35 : tin; tout = tout === undefined ? 0.35 : tout;
+      if (tin > 0) tl.fromTo('#s12-all', { opacity: 0 }, { opacity: 1, duration: tin, ease: 'power2.out' }, 0);
+      tl.to('#s12-all', { opacity: 0, duration: tout, ease: 'power2.in' }, dur - tout);
+    }
+  
+    const ct = W('#s12s-contatti'), lead = W('#s12s-lead', 0.5, 0.36), cmd = W('#s12s-cmd');
+    sceneInOut(15.5, 0.35, 0.4);
+    gsap.set(['#s12s-contatti', '#s12s-da', '#s12s-rich', '#s12s-msg', '#s12s-cmd'], { outline: '0px solid #17170f', outlineOffset: '4px' });
+    viewSet(ct.x - 40, ct.y + 70, 2.2);
+    tl.fromTo('#s12-pg', { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 0.2);
+    tl.to('#s12s-contatti', { outlineWidth: 4, duration: 0.25 }, 1.0);
+    tl.to('#s12s-contatti', { outlineWidth: 0, duration: 0.3 }, 4.0);
+    view(4.4, 1.0, lead.x, lead.y + 20, 2.2);
+    tl.to('#s12s-da', { outlineWidth: 4, duration: 0.25 }, 5.6);
+    tl.to('#s12s-da', { outlineWidth: 0, duration: 0.3 }, 6.9);
+    tl.to('#s12s-rich', { outlineWidth: 4, duration: 0.25 }, 7.1);
+    tl.to('#s12s-rich', { outlineWidth: 0, duration: 0.3 }, 8.4);
+    tl.to('#s12s-msg', { outlineWidth: 4, duration: 0.25 }, 8.6);
+    tl.to('#s12s-msg', { outlineWidth: 0, duration: 0.3 }, 9.9);
+    view(10.0, 1.0, cmd.x, cmd.y - 80, 2.2);
+    tl.to('#s12s-cmd', { outlineWidth: 4, duration: 0.25 }, 10.9);
+    tl.to('#s12s-cmd', { outlineWidth: 0, duration: 0.3 }, 14.4);
+    
+    tl.fromTo('#s12-cap0', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 0.9);
+    tl.to('#s12-cap0', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 4.320);
+    tl.fromTo('#s12-cap1', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 4.8);
+    tl.to('#s12-cap1', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 9.620);
+    tl.fromTo('#s12-cap2', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 10.6);
+    tl.to('#s12-cap2', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 14.620);
+  
+    window.__timelines['s12'] = tl;
+  </script>
+</template>

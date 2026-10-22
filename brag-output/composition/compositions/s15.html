@@ -1,0 +1,160 @@
+<template>
+  <style>
+    @font-face { font-family: 'Jost'; font-weight: 400; src: url('assets/fonts/jost-latin-400-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 500; src: url('assets/fonts/jost-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 600; src: url('assets/fonts/jost-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 500; src: url('assets/fonts/cormorant-garamond-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 600; src: url('assets/fonts/cormorant-garamond-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 700; src: url('assets/fonts/cormorant-garamond-latin-700-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 500; font-style: italic; src: url('assets/fonts/cormorant-garamond-latin-500-italic.woff2') format('woff2'); }
+
+    #root { position: absolute; inset: 0; overflow: hidden; font-family: 'Jost', sans-serif; color: #17170f; }
+    #s15-all { position: absolute; inset: 0; }
+    .stage { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 62% at 50% 42%, #fbf8ee 0%, #f1ead8 58%, #e5dec8 100%); }
+    .stage-dark { position: absolute; inset: 0; background: #1c1c18; }
+    .view { position: absolute; left: 0; right: 0; top: 104px; bottom: 246px; overflow: hidden;
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 26px), transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 26px), transparent 100%); }
+    .cam { position: absolute; left: 0; top: 0; width: 2600px; height: 1600px; transform-origin: 0 0; }
+    .chap { position: absolute; left: 96px; top: 54px; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 28px;
+            letter-spacing: 0.14em; text-transform: uppercase; color: #6e5610; }
+    .chap i { font-style: normal; color: #8b6c14; margin-right: 14px; }
+    .caps { position: absolute; left: 96px; right: 96px; bottom: 100px; display: grid; justify-items: center; align-items: end; }
+    .cap { grid-area: 1 / 1; max-width: 1560px; padding: 20px 40px 22px; border-radius: 16px; border-left: 7px solid #c8991f;
+           background: rgba(28, 28, 24, 0.95); color: #f6efde; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 40px;
+           line-height: 1.22; letter-spacing: 0.002em; text-align: left; box-shadow: 0 14px 40px rgba(28, 28, 24, 0.25); opacity: 0; }
+    .cap b { font-weight: 600; color: #efbf48; }
+    .cur { position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; transform-origin: 0 0; z-index: 900; pointer-events: none; }
+    .cur-in { position: absolute; left: -2px; top: -2px; width: 22px; height: 30px; transform-origin: 2px 2px; }
+    .cur-in svg { display: block; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+    .frag { position: absolute; background: var(--bg); border-radius: 12px; box-shadow: 0 24px 60px rgba(28, 28, 24, 0.20), 0 0 0 1px rgba(28,28,24,.10); overflow: hidden; }
+    .tapa { outline: 3px solid rgba(200,153,31,.0); }
+  #s15-pg { left: 40px; top: 20px; width: 780px; padding: 24px 28px 22px; }
+  </style>
+  <div id="root" data-composition-id="s15" data-width="1920" data-height="1080">
+    <div id="s15-all">
+      <div class="stage" id="s15-bg"></div>
+      <div class="chap"><i>4</i>Lavorare un lead</div>
+      <div class="view"><div class="cam" data-layout-allow-overflow id="s15-cam"><div class="frag" data-hold id="s15-pg"><div class="card" id="s15s-azioni">
+        <div class="card-head"><h2>Azioni</h2></div>
+        <div class="azioni-gruppo azioni-gruppo-ora" id="s15s-ora">
+        <h3>Da fare ora <span class="azioni-gruppo-conto" id="s15s-ora-conto">1</span><span class="muted azioni-gruppo-nota">oggi o scadute</span></h3>
+        <div id="s15s-ora-corpo"><ul class="azioni-elenco"><li class="azione-riga" id="s15x">
+          <div class="azione-testo">
+            <div class="azione-titolo">
+              <span class="badge badge-tipo tipo-sede">In sede</span>
+              <span class="azione-quando">15:00</span>
+              <span class="muted azione-chi">· Elena B.</span>
+              
+              <span class="muted" id="s15x-tent" style="opacity:0">· 1 tentativo</span>
+            </div>
+            <div class="azione-dettaglio muted">Tour in sede e proposta abbonamento</div>
+          </div>
+          <div class="azione-comandi">
+            <div class="azione-nota" id="s15x-nota" style="position:relative;display:inline-block;width:17rem;height:2.1em;overflow:hidden;white-space:nowrap;vertical-align:middle">
+        <span class="ph" id="s15x-nota-ph" style="position:absolute;left:0.55rem;top:0.34rem;color:var(--text-muted)">Com’è andata</span>
+        
+      </div>
+            <button type="button" class="btn btn-sm" id="s15x-fatto">Fatto ✓</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="s15x-nr">Non si è presentato</button>
+          </div>
+        </li></ul></div>
+        
+      </div>
+        <div class="azioni-gruppo azioni-gruppo-future" id="s15s-prog">
+        <h3>In programma <span class="azioni-gruppo-conto" id="s15s-prog-conto">0</span><span class="muted azioni-gruppo-nota">nei prossimi giorni</span></h3>
+        <div id="s15s-prog-corpo"></div>
+        <p class="muted azioni-gruppo-vuoto" id="s15s-prog-vuoto">Nessuna azione in programma.</p>
+      </div>
+        <div class="azioni-gruppo azioni-gruppo-fatte" id="s15s-fatte">
+        <h3>Fatte <span class="azioni-gruppo-conto" id="s15s-fatte-conto">1</span></h3>
+        <div id="s15s-fatte-corpo"><ol class="storia"><li style="opacity:0" id="s15n"><span class="badge-tipo tipo-sede">In sede</span> <span class="muted">sab 24 ott 2026 · Elena B.</span> <span class="badge badge-ko">No-show</span><div class="storia-testo">Non si è presentato</div></li><li ><span class="badge-tipo tipo-telefono">Telefonata</span> <span class="muted">gio 22 ott 2026 · Elena B.</span> <span class="badge badge-ok">Eseguita</span><div class="storia-testo">Vuole il tour sabato pomeriggio</div></li></ol></div>
+        
+      </div>
+        
+      </div></div><div class="cur" id="s15-cur"><div class="cur-in"><svg width="22" height="30" viewBox="0 0 22 30"><path d="M2 2 L2 24 L8 18.5 L12.5 28 L16 26.5 L11.6 17.2 L19.5 17 Z" fill="#17170f" stroke="#fdfaf3" stroke-width="2" stroke-linejoin="round"/></svg></div></div></div></div><div class="caps">
+      <div class="cap" id="s15-cap0">Non si presenta? <b>«Non si è presentato»</b>: nel calendario si legge No-show.</div>
+      <div class="cap" id="s15-cap1">Poi fissa un nuovo appuntamento: <b>il lead non è perso</b>.</div>
+    </div>
+    </div>
+    
+  </div>
+  <script>
+    
+    const tl = gsap.timeline({ paused: true });
+    const $ = (s) => document.querySelector(s);
+    const $$ = (s) => document.querySelectorAll(s);
+    const CAM = $('#s15-cam');
+    const CUR = $('#s15-cur');
+    const CX = 960, CY = 365, CB = 1.5;
+    // Coordinate "mondo" di un elemento (centro di default), indipendenti dalla camera attuale.
+    function W(sel, fx, fy) {
+      fx = fx === undefined ? 0.5 : fx; fy = fy === undefined ? 0.5 : fy;
+      const e = $(sel), r = e.getBoundingClientRect(), c = CAM.getBoundingClientRect();
+      const k = (c.width / CAM.offsetWidth) || 1;
+      return { x: (r.left - c.left + r.width * fx) / k, y: (r.top - c.top + r.height * fy) / k };
+    }
+    let camS = 1;
+    // Mette al centro dell'area libera (sopra i sottotitoli) il centro di un elemento, a scala s.
+    function centerOn(sel, s, dx, dy) { const p = W(sel); viewSet(p.x + (dx || 0), p.y + (dy || 0), s); return p; }
+    function viewSet(wx, wy, s) {
+      camS = s;
+      gsap.set(CAM, { x: CX - wx * s, y: CY - wy * s, scale: s });
+      if (CUR) gsap.set(CUR, { scale: CB / s });
+    }
+    function view(t, d, wx, wy, s, ease) {
+      ease = ease || 'power2.inOut';
+      tl.to(CAM, { x: CX - wx * s, y: CY - wy * s, scale: s, duration: d, ease: ease }, t);
+      if (CUR) tl.to(CUR, { scale: CB / s, duration: d, ease: ease }, t);
+      camS = s;
+    }
+    // Il cursore: compare, si muove verso un punto del mondo, "clicca".
+    function curAt(x, y) { gsap.set(CUR, { x: x, y: y, scale: CB / camS }); }
+    function curShow(t, on) { tl.to(CUR, { opacity: on === false ? 0 : 1, duration: 0.2 }, t); }
+    function curTo(t, d, p, ease) { tl.to(CUR, { x: p.x, y: p.y, duration: d, ease: ease || 'power3.inOut' }, t); }
+    function tap(t) {
+      const ci = CUR.firstElementChild;
+      tl.to(ci, { scale: 0.8, duration: 0.07, ease: 'power2.out' }, t);
+      tl.to(ci, { scale: 1, duration: 0.14, ease: 'power2.out' }, t + 0.07);
+    }
+    function press(t, sel) {
+      tl.to(sel, { scale: 0.96, duration: 0.07, ease: 'power2.out', transformOrigin: '50% 50%' }, t);
+      tl.to(sel, { scale: 1, duration: 0.16, ease: 'power2.out' }, t + 0.07);
+    }
+    // Scrive un testo già diviso in span (vedi typed()): un carattere ogni 1/cps secondi.
+    function write(t, sel, cps) {
+      const sp = $$(sel + ' > span');
+      tl.to(sp, { opacity: 1, duration: 0.01, stagger: 1 / (cps || 16) }, t);
+      return t + sp.length / (cps || 16);
+    }
+    // Entrata/uscita della scena: dissolvenza morbida.
+    function sceneInOut(dur, tin, tout) {
+      tin = tin === undefined ? 0.35 : tin; tout = tout === undefined ? 0.35 : tout;
+      if (tin > 0) tl.fromTo('#s15-all', { opacity: 0 }, { opacity: 1, duration: tin, ease: 'power2.out' }, 0);
+      tl.to('#s15-all', { opacity: 0, duration: tout, ease: 'power2.in' }, dur - tout);
+    }
+  
+    const ora = W('#s15s-ora'), nr = W('#s15x-nr'), fatte = W('#s15s-fatte');
+    sceneInOut(10.6, 0.35, 0.4);
+    viewSet(ora.x, ora.y + 70, 2.0);
+    tl.fromTo('#s15-pg', { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }, 0.2);
+    curAt(nr.x + 160, nr.y + 100);
+    curShow(1.6, true);
+    curTo(1.7, 1.1, { x: nr.x, y: nr.y });
+    tap(3.2); press(3.2, '#s15x-nr');
+    tl.to('#s15x', { opacity: 0, duration: 0.3 }, 3.35);
+    tl.set('#s15s-ora-conto', { innerHTML: '0' }, 3.65);
+    tl.set('#s15x', { display: 'none' }, 3.7);
+    curShow(3.6, false);
+    view(3.9, 1.0, fatte.x, fatte.y + 40, 2.0);
+    tl.set('#s15s-fatte-conto', { innerHTML: '2' }, 4.9);
+    tl.fromTo('#s15n', { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out' }, 4.9);
+    
+    tl.fromTo('#s15-cap0', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 0.8);
+    tl.to('#s15-cap0', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 5.120);
+    tl.fromTo('#s15-cap1', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 5.5);
+    tl.to('#s15-cap1', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 9.320);
+  
+    window.__timelines['s15'] = tl;
+  </script>
+</template>

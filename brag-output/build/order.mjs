@@ -1,0 +1,1 @@
+export const ORDER = ['s00-titolo', 's01-percorso', 'ca1', 's02-fonti', 'ca2', 's03-avviso', 's04-dashboard', 'ca3', 's05-menu', 's06-anatomia', 's07-stati', 's08-giornata', 's09-pannello', 's10-settimana', 's11-elenco', 'ca4', 's12-scheda', 's13-azioni', 's14-nuova', 's15-noshow', 'ca5', 's16-chiudere', 'ca6', 's17-aggiungi', 's18-phone', 's19-regole'];

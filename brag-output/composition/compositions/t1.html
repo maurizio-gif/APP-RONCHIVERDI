@@ -1,0 +1,39 @@
+<template>
+  <style>
+    @font-face { font-family: 'Jost'; font-weight: 400; src: url('assets/fonts/jost-latin-400-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 500; src: url('assets/fonts/jost-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 600; src: url('assets/fonts/jost-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 500; src: url('assets/fonts/cormorant-garamond-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 600; src: url('assets/fonts/cormorant-garamond-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 700; src: url('assets/fonts/cormorant-garamond-latin-700-normal.woff2') format('woff2'); }
+    #root { position: absolute; inset: 0; }
+    #t1-wrap { position: absolute; left: 160px; top: 140px; width: 1600px; }
+    #t1-h { font-family: 'Cormorant Garamond'; font-weight: 600; font-size: 96px; margin: 0 0 30px; }
+    #t1-ui { transform-origin: 0 0; }
+  </style>
+  <div id="root" data-composition-id="t1" data-width="1920" data-height="1080">
+    <div id="t1-wrap">
+      <h1 id="t1-h">Dal primo contatto all’iscrizione</h1>
+      <div id="t1-ui" class="card" style="padding:20px">
+        <span class="tag-provenienza da-sito">Sito web</span>
+        <span class="tag-provenienza da-banco">Walk-in</span>
+        <span class="tag-provenienza da-agenda">Creata in agenda</span>
+        <span class="tag-richiesta richiesta-richiamami">Richiamami · Sera 17–20</span>
+        <button class="btn btn-sm">Prendi in carico</button>
+        <span class="badge badge-ok badge-punto badge-stato">Vinta</span>
+        <div class="agt" style="margin-top:20px"><div class="agt-segmenti"><button class="on">Giorno</button><button>Settimana</button></div>
+        <a class="agt-btn">☰ Vista elenco</a></div>
+      </div>
+    </div>
+      <div id="t1-z" style="zoom:2.2; margin-top:20px"><span class="tag-provenienza da-evento">Zoom Evento</span></div>
+      <div id="t1-s" style="margin-top:30px; height:90px"><span id="t1-sp" class="tag-provenienza da-telefono" style="display:inline-block">Scala Phone In</span></div>
+    </div>
+  </div>
+  <script>
+    gsap.set('#t1-sp', { scale: 2.2, transformOrigin: '0 0' });
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo('#t1-h', { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.6, ease: 'power4.out' }, 0.2);
+    tl.fromTo('#t1-ui', { opacity: 0 }, { opacity: 1, duration: 0.5 }, 0.6);
+    window.__timelines['t1'] = tl;
+  </script>
+</template>

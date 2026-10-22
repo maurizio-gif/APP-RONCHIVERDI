@@ -1,0 +1,233 @@
+<template>
+  <style>
+    @font-face { font-family: 'Jost'; font-weight: 400; src: url('assets/fonts/jost-latin-400-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 500; src: url('assets/fonts/jost-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 600; src: url('assets/fonts/jost-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 500; src: url('assets/fonts/cormorant-garamond-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 600; src: url('assets/fonts/cormorant-garamond-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 700; src: url('assets/fonts/cormorant-garamond-latin-700-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 500; font-style: italic; src: url('assets/fonts/cormorant-garamond-latin-500-italic.woff2') format('woff2'); }
+
+    #root { position: absolute; inset: 0; overflow: hidden; font-family: 'Jost', sans-serif; color: #17170f; }
+    #s04-all { position: absolute; inset: 0; }
+    .stage { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 62% at 50% 42%, #fbf8ee 0%, #f1ead8 58%, #e5dec8 100%); }
+    .stage-dark { position: absolute; inset: 0; background: #1c1c18; }
+    .view { position: absolute; left: 0; right: 0; top: 104px; bottom: 246px; overflow: hidden;
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 26px), transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 26px), transparent 100%); }
+    .cam { position: absolute; left: 0; top: 0; width: 2600px; height: 1600px; transform-origin: 0 0; }
+    .chap { position: absolute; left: 96px; top: 54px; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 28px;
+            letter-spacing: 0.14em; text-transform: uppercase; color: #6e5610; }
+    .chap i { font-style: normal; color: #8b6c14; margin-right: 14px; }
+    .caps { position: absolute; left: 96px; right: 96px; bottom: 100px; display: grid; justify-items: center; align-items: end; }
+    .cap { grid-area: 1 / 1; max-width: 1560px; padding: 20px 40px 22px; border-radius: 16px; border-left: 7px solid #c8991f;
+           background: rgba(28, 28, 24, 0.95); color: #f6efde; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 40px;
+           line-height: 1.22; letter-spacing: 0.002em; text-align: left; box-shadow: 0 14px 40px rgba(28, 28, 24, 0.25); opacity: 0; }
+    .cap b { font-weight: 600; color: #efbf48; }
+    .cur { position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; transform-origin: 0 0; z-index: 900; pointer-events: none; }
+    .cur-in { position: absolute; left: -2px; top: -2px; width: 22px; height: 30px; transform-origin: 2px 2px; }
+    .cur-in svg { display: block; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+    .frag { position: absolute; background: var(--bg); border-radius: 12px; box-shadow: 0 24px 60px rgba(28, 28, 24, 0.20), 0 0 0 1px rgba(28,28,24,.10); overflow: hidden; }
+    .tapa { outline: 3px solid rgba(200,153,31,.0); }
+  
+    #s04-pg { left: 40px; top: 24px; width: 760px; padding: 22px 26px 18px; }
+    #s04-pg .page-head { margin-bottom: 1rem; }
+    #s04-pg .page-head h1 { font-size: 2rem; margin-bottom: 0; }
+    #s04-pg .agenda-cerca { margin-bottom: 14px; }
+    #s04-pg .riepilogo-sezione { margin-bottom: 18px; }
+    #s04-pg .lead-riga { padding-top: 10px; padding-bottom: 10px; }
+    #s04-ddl { position: absolute; width: 130px; padding: 4px; background: #fdfaf3; border: 1px solid rgba(28,28,24,.3); border-radius: 6px;
+      box-shadow: 0 10px 24px rgba(28,28,24,.22); font-size: 15px; opacity: 0; z-index: 50; }
+    #s04-ddl div { padding: 5px 10px; border-radius: 4px; }
+    #s04-ddl div.on { background: rgba(139,108,20,.16); font-weight: 600; }
+  
+  </style>
+  <div id="root" data-composition-id="s04" data-width="1920" data-height="1080">
+    <div id="s04-all">
+      <div class="stage" id="s04-bg"></div>
+      <div class="chap"><i>2</i>Prendere in carico</div>
+      
+      <div class="view"><div class="cam" data-layout-allow-overflow id="s04-cam">
+        <div class="frag" data-hold id="s04-pg">
+          <div class="page-head"><p class="eyebrow">CRM Ronchiverdi</p><h1>Ciao Elena</h1></div>
+          <section class="riepilogo-sezione" id="s04-lead">
+            <div class="riepilogo-testa"><h2 class="riepilogo-titolo">Lead</h2><span class="badge badge-warn badge-punto">3 da prendere in carico</span></div>
+            <div class="filtro-gruppo">
+              <span  class="chip is-attivo"><span class="chip-spunta" aria-hidden="true">✓</span>Da prendere in carico<span class="chip-conteggio">3</span></span><span  class="chip">Assegnate a te<span class="chip-conteggio">1</span></span><span  class="chip">In gestione<span class="chip-conteggio">4</span></span><span  class="chip">Vinte<span class="chip-conteggio">2</span></span><span  class="chip">Perse<span class="chip-conteggio">1</span></span>
+            </div>
+            <div class="card"><ul class="lead-elenco">
+        <li class="lead-riga riga-stato stato-nuovo">
+          <div class="lead-testo">
+        <div class="azione-titolo">
+          <span class="azione-nome">Chiara Morandi</span>
+          <span class="tag-provenienza da-sito">Sito web</span>
+          <span class="tag-richiesta richiesta-richiamami">Richiamami · Sera 17–20</span>
+          <span class="badge-tipo tipo-telefono">Telefonata</span>
+          <span class="attesa attesa-oggi">aperta oggi</span>
+        </div>
+        
+      </div>
+          <div class="lead-comandi">
+        <select aria-label="In carico a" id="s04-sel"><option>Nessuno</option></select>
+        <select aria-label="Stato" id="s04-st"><option>Da prendere in carico</option></select>
+      </div>
+          <a class="btn btn-ghost btn-sm">Apri scheda ↗</a>
+        </li>
+        <li class="lead-riga riga-stato stato-nuovo">
+          <div class="lead-testo">
+        <div class="azione-titolo">
+          <span class="azione-nome">Luca Ferri</span>
+          <span class="tag-provenienza da-banco">Walk-in</span>
+          <span class="tag-richiesta richiesta-in-sede">In sede</span>
+          
+          <span class="attesa attesa-recente">aperta da ieri</span>
+        </div>
+        
+      </div>
+          <div class="lead-comandi">
+        <select aria-label="In carico a" ><option>Nessuno</option></select>
+        <select aria-label="Stato" ><option>Da prendere in carico</option></select>
+      </div>
+          <a class="btn btn-ghost btn-sm">Apri scheda ↗</a>
+        </li></ul></div>
+          </section>
+          <section class="riepilogo-sezione" id="s04-azioni">
+            <div class="riepilogo-testa"><h2 class="riepilogo-titolo">Azioni</h2><span class="badge badge-ko badge-punto">2 arretrati</span></div>
+            <div class="filtro-gruppo">
+              <span  class="chip">Arretrati<span class="chip-conteggio">2</span></span><span  class="chip is-attivo"><span class="chip-spunta" aria-hidden="true">✓</span>Oggi<span class="chip-conteggio">5</span></span><span  class="chip">Prossimi 14 giorni<span class="chip-conteggio">8</span></span><span class="filtro-separatore" aria-hidden="true"></span><span  class="chip is-attivo"><span class="chip-spunta" aria-hidden="true">✓</span>Di tutti</span><span  class="chip">Le mie</span>
+            </div>
+            <div class="card"><ul class="azioni-elenco">
+              <li class="azione-riga" >
+        <div class="azione-testo">
+          <div class="azione-titolo">
+            <span class="badge badge-tipo tipo-sede">In sede</span>
+            <span class="azione-quando">10:30</span>
+            <span class="azione-nome">Giulia Rinaldi</span>
+            <a class="azione-tel">347 555 0102</a>
+            <span class="muted azione-chi">· Marco T.</span>
+            
+          </div>
+          <div class="azione-dettaglio muted">Abbonamento Club e Family</div>
+        </div>
+        <a class="btn btn-ghost btn-sm">Apri scheda ↗</a>
+      </li>
+              <li class="azione-riga" >
+        <div class="azione-testo">
+          <div class="azione-titolo">
+            <span class="badge badge-tipo tipo-telefono">Telefonata</span>
+            <span class="azione-quando">15:00</span>
+            <span class="azione-nome">Davide Sala</span>
+            <a class="azione-tel">338 555 0177</a>
+            <span class="muted azione-chi">· Elena B.</span>
+            
+          </div>
+          <div class="azione-dettaglio muted">Richiamare per confermare l’iscrizione</div>
+        </div>
+        <a class="btn btn-ghost btn-sm">Apri scheda ↗</a>
+      </li>
+            </ul></div>
+          </section>
+          <div id="s04-ddl"><div>Nessuno</div><div class="on">Io</div><div>Marco T.</div><div>Sofia L.</div></div>
+        </div>
+        <div class="cur" id="s04-cur"><div class="cur-in"><svg width="22" height="30" viewBox="0 0 22 30"><path d="M2 2 L2 24 L8 18.5 L12.5 28 L16 26.5 L11.6 17.2 L19.5 17 Z" fill="#17170f" stroke="#fdfaf3" stroke-width="2" stroke-linejoin="round"/></svg></div></div>
+      </div></div>
+      <div class="caps">
+      <div class="cap" id="s04-cap0">Nella Dashboard New trovi i lead <b>da prendere in carico</b>.</div>
+      <div class="cap" id="s04-cap1">Scegli <b>«Io»</b> in «In carico a»: il lead è tuo.</div>
+      <div class="cap" id="s04-cap2">Sotto, le tue azioni: <b>arretrate</b>, di oggi, dei prossimi 14 giorni.</div>
+      <div class="cap" id="s04-cap3">Prendere in carico è dei commerciali. Chi coordina <b>vede, ma non prende</b>.</div>
+    </div>
+  
+    </div>
+    
+  </div>
+  <script>
+    
+    const tl = gsap.timeline({ paused: true });
+    const $ = (s) => document.querySelector(s);
+    const $$ = (s) => document.querySelectorAll(s);
+    const CAM = $('#s04-cam');
+    const CUR = $('#s04-cur');
+    const CX = 960, CY = 365, CB = 1.5;
+    // Coordinate "mondo" di un elemento (centro di default), indipendenti dalla camera attuale.
+    function W(sel, fx, fy) {
+      fx = fx === undefined ? 0.5 : fx; fy = fy === undefined ? 0.5 : fy;
+      const e = $(sel), r = e.getBoundingClientRect(), c = CAM.getBoundingClientRect();
+      const k = (c.width / CAM.offsetWidth) || 1;
+      return { x: (r.left - c.left + r.width * fx) / k, y: (r.top - c.top + r.height * fy) / k };
+    }
+    let camS = 1;
+    // Mette al centro dell'area libera (sopra i sottotitoli) il centro di un elemento, a scala s.
+    function centerOn(sel, s, dx, dy) { const p = W(sel); viewSet(p.x + (dx || 0), p.y + (dy || 0), s); return p; }
+    function viewSet(wx, wy, s) {
+      camS = s;
+      gsap.set(CAM, { x: CX - wx * s, y: CY - wy * s, scale: s });
+      if (CUR) gsap.set(CUR, { scale: CB / s });
+    }
+    function view(t, d, wx, wy, s, ease) {
+      ease = ease || 'power2.inOut';
+      tl.to(CAM, { x: CX - wx * s, y: CY - wy * s, scale: s, duration: d, ease: ease }, t);
+      if (CUR) tl.to(CUR, { scale: CB / s, duration: d, ease: ease }, t);
+      camS = s;
+    }
+    // Il cursore: compare, si muove verso un punto del mondo, "clicca".
+    function curAt(x, y) { gsap.set(CUR, { x: x, y: y, scale: CB / camS }); }
+    function curShow(t, on) { tl.to(CUR, { opacity: on === false ? 0 : 1, duration: 0.2 }, t); }
+    function curTo(t, d, p, ease) { tl.to(CUR, { x: p.x, y: p.y, duration: d, ease: ease || 'power3.inOut' }, t); }
+    function tap(t) {
+      const ci = CUR.firstElementChild;
+      tl.to(ci, { scale: 0.8, duration: 0.07, ease: 'power2.out' }, t);
+      tl.to(ci, { scale: 1, duration: 0.14, ease: 'power2.out' }, t + 0.07);
+    }
+    function press(t, sel) {
+      tl.to(sel, { scale: 0.96, duration: 0.07, ease: 'power2.out', transformOrigin: '50% 50%' }, t);
+      tl.to(sel, { scale: 1, duration: 0.16, ease: 'power2.out' }, t + 0.07);
+    }
+    // Scrive un testo già diviso in span (vedi typed()): un carattere ogni 1/cps secondi.
+    function write(t, sel, cps) {
+      const sp = $$(sel + ' > span');
+      tl.to(sp, { opacity: 1, duration: 0.01, stagger: 1 / (cps || 16) }, t);
+      return t + sp.length / (cps || 16);
+    }
+    // Entrata/uscita della scena: dissolvenza morbida.
+    function sceneInOut(dur, tin, tout) {
+      tin = tin === undefined ? 0.35 : tin; tout = tout === undefined ? 0.35 : tout;
+      if (tin > 0) tl.fromTo('#s04-all', { opacity: 0 }, { opacity: 1, duration: tin, ease: 'power2.out' }, 0);
+      tl.to('#s04-all', { opacity: 0, duration: tout, ease: 'power2.in' }, dur - tout);
+    }
+  
+    const pg = W('#s04-pg'), lead = W('#s04-lead'), azi = W('#s04-azioni');
+    const sel = W('#s04-sel'), selTop = W('#s04-sel', 0.1, 1);
+    const dd = $('#s04-ddl');
+    sceneInOut(19, 0.35, 0.4);
+    viewSet(lead.x, lead.y - 6, 1.85);
+    tl.fromTo('#s04-pg', { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' }, 0.2);
+    // Il menu a tendina di «In carico a» (disegnato, perché una <select> aperta non si fotografa).
+    gsap.set(dd, { x: selTop.x - 4, y: selTop.y + 4, transformOrigin: '0 0' });
+    curAt(sel.x + 200, sel.y + 120);
+    curShow(4.3, true);
+    curTo(4.4, 1.0, { x: sel.x + 14, y: sel.y + 3 });
+    tap(5.5);
+    tl.fromTo(dd, { opacity: 0, y: selTop.y - 2 }, { opacity: 1, y: selTop.y + 4, duration: 0.18, ease: 'power2.out' }, 5.56);
+    curTo(6.0, 0.5, { x: sel.x + 10, y: selTop.y + 4 + 40 });
+    tap(6.8);
+    tl.to(dd, { opacity: 0, duration: 0.14 }, 6.9);
+    tl.set('#s04-sel option', { innerHTML: 'Io' }, 6.95);
+    tl.fromTo('#s04-sel', { backgroundColor: 'rgba(200,153,31,0.0)' }, { backgroundColor: 'rgba(200,153,31,0.22)', duration: 0.25 }, 6.95);
+    tl.to('#s04-sel', { backgroundColor: 'rgba(200,153,31,0.0)', duration: 0.8 }, 7.5);
+    curShow(8.0, false);
+    // Un passo giù: la sezione Azioni.
+    view(9.0, 1.0, azi.x, azi.y - 10, 1.95);
+    
+    tl.fromTo('#s04-cap0', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 0.8);
+    tl.to('#s04-cap0', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 4.520);
+    tl.fromTo('#s04-cap1', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 5);
+    tl.to('#s04-cap1', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 8.520);
+    tl.fromTo('#s04-cap2', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 9.7);
+    tl.to('#s04-cap2', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 13.720);
+    tl.fromTo('#s04-cap3', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 14.1);
+    tl.to('#s04-cap3', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 18.320);
+  
+    window.__timelines['s04'] = tl;
+  </script>
+</template>
