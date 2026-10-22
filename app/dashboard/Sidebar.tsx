@@ -7,6 +7,7 @@ import { logout } from '@/app/login/actions'
 import { LogoutButton } from '@/app/login/LogoutButton'
 import { SEZIONI, soloAccessoEsterno } from '@/lib/auth/sezioni'
 import { SEZIONE_NOTIFICHE } from '@/lib/notifiche'
+import { SEZIONE_CHECK_SOSPENSIONI } from '@/lib/sospensioni'
 import { IconaMenu } from './IconeMenu'
 import { useNotifiche } from './NotificheProvider'
 import { useTicketDaLeggere } from './TicketAvviso'
@@ -55,6 +56,7 @@ export function Sidebar({
   sezioniConsentite,
   riceveAvvisoSonoro,
   dashboardNew,
+  sospensioniDaMotivare,
 }: {
   email: string
   nomeUtente: string | null
@@ -62,6 +64,8 @@ export function Sidebar({
   riceveAvvisoSonoro: boolean
   /** Solo i commerciali vedono la Dashboard New. */
   dashboardNew: boolean
+  /** Le sospensioni dell'operatore ancora senza motivo (Check sospensioni). */
+  sospensioniDaMotivare: number
 }) {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
@@ -169,6 +173,11 @@ export function Sidebar({
                   {voce.chiave === SEZIONE_NOTIFICHE && nonLette > 0 && (
                     <span className="nav-badge" aria-label={`${nonLette} da confermare`}>
                       {nonLette}
+                    </span>
+                  )}
+                  {voce.chiave === SEZIONE_CHECK_SOSPENSIONI && sospensioniDaMotivare > 0 && (
+                    <span className="nav-badge" aria-label={`${sospensioniDaMotivare} da motivare`}>
+                      {sospensioniDaMotivare}
                     </span>
                   )}
                 </Link>
