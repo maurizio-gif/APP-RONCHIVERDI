@@ -9,6 +9,8 @@ import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import { AzioniVeloci } from '../AzioniVeloci'
 import { NuovaVoce, type ContattoScegliibile } from './NuovaVoce'
 import { conTentativiRichiamo } from '@/lib/richiamo-server'
+import { GuidaVideo } from '@/components/GuidaVideo'
+import { GUIDA_AGENDA_NEW } from '@/lib/guida-agenda-new'
 
 export const dynamic = 'force-dynamic'
 
@@ -154,6 +156,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Param
 
   return (
     <>
+      <GuidaVideo {...GUIDA_AGENDA_NEW} />
       <div className="page-head">
         <p className="eyebrow">Segreteria</p>
         <h1>Agenda · vista elenco</h1>

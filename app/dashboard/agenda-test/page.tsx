@@ -8,6 +8,8 @@ import { conTentativiRichiamo } from '@/lib/richiamo-server'
 import { ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import { GrigliaAgenda, type Operatore } from './GrigliaAgenda'
 import { NuovaVoce, type ContattoScegliibile } from '../agenda/NuovaVoce'
+import { GuidaVideo } from '@/components/GuidaVideo'
+import { GUIDA_AGENDA_NEW } from '@/lib/guida-agenda-new'
 
 export const dynamic = 'force-dynamic'
 
@@ -129,6 +131,7 @@ export default async function AgendaTestPage({ searchParams }: { searchParams: P
 
   return (
     <>
+      <GuidaVideo {...GUIDA_AGENDA_NEW} />
       <div className="agenda-nuova agt-nuova">
         <NuovaVoce
           giornoPredefinito={giorno}

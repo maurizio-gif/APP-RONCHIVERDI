@@ -5564,6 +5564,20 @@ button.th-ordina {
 	font-size: var(--text-md);
 }
 
+/* Con un file video al posto di Vidyard la modale si allarga: è una guida
+   che mostra schermate, e a 48rem il testo dell'interfaccia non si legge. */
+.guida-video-modale-larga {
+	max-width: min(64rem, 100%);
+}
+
+.guida-video-file {
+	display: block;
+	width: 100%;
+	height: auto;
+	max-height: calc(100vh - 11rem);
+	background: #000;
+}
+
 /* Il player inline di Vidyard gestisce da sé le proprie proporzioni
    (sostituisce l'<img> con il proprio markup appena lo script lo trova):
    qui serve solo contenerlo, non imporgli un'altezza. */
