@@ -1,0 +1,243 @@
+<template>
+  <style>
+    @font-face { font-family: 'Jost'; font-weight: 400; src: url('assets/fonts/jost-latin-400-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 500; src: url('assets/fonts/jost-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 600; src: url('assets/fonts/jost-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 500; src: url('assets/fonts/cormorant-garamond-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 600; src: url('assets/fonts/cormorant-garamond-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 700; src: url('assets/fonts/cormorant-garamond-latin-700-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 500; font-style: italic; src: url('assets/fonts/cormorant-garamond-latin-500-italic.woff2') format('woff2'); }
+
+    #root { position: absolute; inset: 0; overflow: hidden; font-family: 'Jost', sans-serif; color: #17170f; }
+    #s02-all { position: absolute; inset: 0; }
+    .stage { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 62% at 50% 42%, #fbf8ee 0%, #f1ead8 58%, #e5dec8 100%); }
+    .stage-dark { position: absolute; inset: 0; background: #1c1c18; }
+    .view { position: absolute; left: 0; right: 0; top: 104px; bottom: 246px; overflow: hidden;
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 26px), transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 26px), transparent 100%); }
+    .cam { position: absolute; left: 0; top: 0; width: 2600px; height: 1600px; transform-origin: 0 0; }
+    .chap { position: absolute; left: 96px; top: 54px; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 28px;
+            letter-spacing: 0.14em; text-transform: uppercase; color: #6e5610; }
+    .chap i { font-style: normal; color: #8b6c14; margin-right: 14px; }
+    .caps { position: absolute; left: 96px; right: 96px; bottom: 100px; display: grid; justify-items: center; align-items: end; }
+    .cap { grid-area: 1 / 1; max-width: 1560px; padding: 20px 40px 22px; border-radius: 16px; border-left: 7px solid #c8991f;
+           background: rgba(28, 28, 24, 0.95); color: #f6efde; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 40px;
+           line-height: 1.22; letter-spacing: 0.002em; text-align: left; box-shadow: 0 14px 40px rgba(28, 28, 24, 0.25); opacity: 0; }
+    .cap b { font-weight: 600; color: #efbf48; }
+    .cur { position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; transform-origin: 0 0; z-index: 900; pointer-events: none; }
+    .cur-in { position: absolute; left: -2px; top: -2px; width: 22px; height: 30px; transform-origin: 2px 2px; }
+    .cur-in svg { display: block; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+    .frag { position: absolute; background: var(--bg); border-radius: 12px; box-shadow: 0 24px 60px rgba(28, 28, 24, 0.20), 0 0 0 1px rgba(28,28,24,.10); overflow: hidden; }
+    .tapa { outline: 3px solid rgba(200,153,31,.0); }
+  
+    #s02-frag { left: 40px; top: 24px; width: 760px; padding: 14px 18px 4px; }
+    #s02-frag .riepilogo-testa { margin-bottom: 4px; }
+    #s02-cnt { display: inline-grid; }
+    #s02-cnt span { grid-area: 1 / 1; }
+    .s02-lab { position: absolute; padding: 4px 12px; background: #1c1c18; color: #f6efde; font-size: 16px; font-weight: 600; border-radius: 6px; white-space: nowrap; opacity: 0; }
+    .s02-lab::before { content: ''; position: absolute; left: 50%; top: calc(var(--stem) * -1); margin-left: -1.5px; width: 3px; height: var(--stem); background: #1c1c18; }
+    #s02-list { list-style: none; margin: 0; padding: 0; }
+    #s02-list .lead-riga { padding-top: 10px; padding-bottom: 10px; }
+  
+  </style>
+  <div id="root" data-composition-id="s02" data-width="1920" data-height="1080">
+    <div id="s02-all">
+      <div class="stage" id="s02-bg"></div>
+      <div class="chap"><i>1</i>Da dove arrivano</div>
+      
+      <div class="view"><div class="cam" data-layout-allow-overflow id="s02-cam">
+        <div class="frag" data-hold id="s02-frag">
+          <div class="riepilogo-testa">
+            <h2 class="riepilogo-titolo">Lead</h2>
+            <span class="badge badge-warn badge-punto"><span id="s02-cnt"><span id="s02-n0" style="opacity:0">1 da prendere in carico</span><span id="s02-n1" style="opacity:0">2 da prendere in carico</span><span id="s02-n2" style="opacity:0">3 da prendere in carico</span><span id="s02-n3" style="opacity:0">4 da prendere in carico</span><span id="s02-n4" style="opacity:0">5 da prendere in carico</span></span></span>
+          </div>
+          <ul id="s02-list" class="lead-elenco">
+        <li class="lead-riga riga-stato stato-nuovo" id="s02-r0" style="opacity:0">
+          <div class="lead-testo">
+        <div class="azione-titolo">
+          <span class="azione-nome">Chiara Morandi</span>
+          <span class="tag-provenienza da-sito">Sito web</span>
+          <span class="tag-richiesta richiesta-richiamami">Richiamami · Sera 17–20</span>
+          <span class="badge-tipo tipo-telefono">Telefonata</span>
+          <span class="attesa attesa-oggi">aperta oggi</span>
+        </div>
+        
+      </div>
+        </li>
+        <li class="lead-riga riga-stato stato-nuovo" id="s02-r1" style="opacity:0">
+          <div class="lead-testo">
+        <div class="azione-titolo">
+          <span class="azione-nome">Luca Ferri</span>
+          <span class="tag-provenienza da-banco">Walk-in</span>
+          <span class="tag-richiesta richiesta-in-sede">In sede</span>
+          
+          <span class="attesa attesa-oggi">aperta oggi</span>
+        </div>
+        
+      </div>
+        </li>
+        <li class="lead-riga riga-stato stato-nuovo" id="s02-r2" style="opacity:0">
+          <div class="lead-testo">
+        <div class="azione-titolo">
+          <span class="azione-nome">Sara Bellini</span>
+          <span class="tag-provenienza da-evento">Evento</span>
+          
+          
+          <span class="attesa attesa-oggi">aperta oggi</span>
+        </div>
+        
+      </div>
+        </li>
+        <li class="lead-riga riga-stato stato-nuovo" id="s02-r3" style="opacity:0">
+          <div class="lead-testo">
+        <div class="azione-titolo">
+          <span class="azione-nome">Marco Villa</span>
+          <span class="tag-provenienza da-telefono">Phone In / Email In</span>
+          <span class="tag-richiesta richiesta-telefonata">Telefonata</span>
+          
+          <span class="attesa attesa-oggi">aperta oggi</span>
+        </div>
+        
+      </div>
+        </li>
+        <li class="lead-riga riga-stato stato-nuovo" id="s02-r4" style="opacity:0">
+          <div class="lead-testo">
+        <div class="azione-titolo">
+          <span class="azione-nome">Paola Conti</span>
+          <span class="tag-provenienza da-agenda">Creata in agenda</span>
+          
+          
+          <span class="attesa attesa-oggi">aperta oggi</span>
+        </div>
+        
+      </div>
+        </li>
+          </ul>
+        </div>
+        <div class="s02-lab" id="s02-lab0" style="--stem:16px">Da dove arriva</div>
+        <div class="s02-lab" id="s02-lab1" style="--stem:58px">Cosa ha chiesto</div>
+      </div></div>
+      <div class="caps">
+      <div class="cap" id="s02-cap0">Ha scritto dal sito: <b>non l’ha ancora incontrato nessuno</b>.</div>
+      <div class="cap" id="s02-cap1">Registrato al banco: <b>è già stato qui</b> e ha parlato con la segreteria.</div>
+      <div class="cap" id="s02-cap2">Il <b>Guest Register</b> è il QR code in reception.</div>
+      <div class="cap" id="s02-cap3">Si è registrato dal QR code di un evento: l’abbiamo <b>incontrato di persona</b>, ma non è passato dal banco.</div>
+      <div class="cap" id="s02-cap4">Ha telefonato o scritto alla segreteria: la telefonata o l’email sono <b>registrate in agenda</b>.</div>
+      <div class="cap" id="s02-cap5">Non è arrivata da una richiesta: l’ha aperta <b>qualcuno del club</b> scrivendo un evento in agenda su questa persona.</div>
+      <div class="cap" id="s02-cap6">Ogni arrivo è un lead <b>«Da prendere in carico»</b>: nessuno lo segue finché qualcuno non lo prende.</div>
+    </div>
+  
+    </div>
+    
+  </div>
+  <script>
+    
+    const tl = gsap.timeline({ paused: true });
+    const $ = (s) => document.querySelector(s);
+    const $$ = (s) => document.querySelectorAll(s);
+    const CAM = $('#s02-cam');
+    const CUR = $('#s02-cur');
+    const CX = 960, CY = 365, CB = 1.5;
+    // Coordinate "mondo" di un elemento (centro di default), indipendenti dalla camera attuale.
+    function W(sel, fx, fy) {
+      fx = fx === undefined ? 0.5 : fx; fy = fy === undefined ? 0.5 : fy;
+      const e = $(sel), r = e.getBoundingClientRect(), c = CAM.getBoundingClientRect();
+      const k = (c.width / CAM.offsetWidth) || 1;
+      return { x: (r.left - c.left + r.width * fx) / k, y: (r.top - c.top + r.height * fy) / k };
+    }
+    let camS = 1;
+    // Mette al centro dell'area libera (sopra i sottotitoli) il centro di un elemento, a scala s.
+    function centerOn(sel, s, dx, dy) { const p = W(sel); viewSet(p.x + (dx || 0), p.y + (dy || 0), s); return p; }
+    function viewSet(wx, wy, s) {
+      camS = s;
+      gsap.set(CAM, { x: CX - wx * s, y: CY - wy * s, scale: s });
+      if (CUR) gsap.set(CUR, { scale: CB / s });
+    }
+    function view(t, d, wx, wy, s, ease) {
+      ease = ease || 'power2.inOut';
+      tl.to(CAM, { x: CX - wx * s, y: CY - wy * s, scale: s, duration: d, ease: ease }, t);
+      if (CUR) tl.to(CUR, { scale: CB / s, duration: d, ease: ease }, t);
+      camS = s;
+    }
+    // Il cursore: compare, si muove verso un punto del mondo, "clicca".
+    function curAt(x, y) { gsap.set(CUR, { x: x, y: y, scale: CB / camS }); }
+    function curShow(t, on) { tl.to(CUR, { opacity: on === false ? 0 : 1, duration: 0.2 }, t); }
+    function curTo(t, d, p, ease) { tl.to(CUR, { x: p.x, y: p.y, duration: d, ease: ease || 'power3.inOut' }, t); }
+    function tap(t) {
+      const ci = CUR.firstElementChild;
+      tl.to(ci, { scale: 0.8, duration: 0.07, ease: 'power2.out' }, t);
+      tl.to(ci, { scale: 1, duration: 0.14, ease: 'power2.out' }, t + 0.07);
+    }
+    function press(t, sel) {
+      tl.to(sel, { scale: 0.96, duration: 0.07, ease: 'power2.out', transformOrigin: '50% 50%' }, t);
+      tl.to(sel, { scale: 1, duration: 0.16, ease: 'power2.out' }, t + 0.07);
+    }
+    // Scrive un testo già diviso in span (vedi typed()): un carattere ogni 1/cps secondi.
+    function write(t, sel, cps) {
+      const sp = $$(sel + ' > span');
+      tl.to(sp, { opacity: 1, duration: 0.01, stagger: 1 / (cps || 16) }, t);
+      return t + sp.length / (cps || 16);
+    }
+    // Entrata/uscita della scena: dissolvenza morbida.
+    function sceneInOut(dur, tin, tout) {
+      tin = tin === undefined ? 0.35 : tin; tout = tout === undefined ? 0.35 : tout;
+      if (tin > 0) tl.fromTo('#s02-all', { opacity: 0 }, { opacity: 1, duration: tin, ease: 'power2.out' }, 0);
+      tl.to('#s02-all', { opacity: 0, duration: tout, ease: 'power2.in' }, dur - tout);
+    }
+  
+    const pa = W('#s02-r0 .tag-provenienza', 0.5, 1), pb = W('#s02-r0 .tag-richiesta', 0.5, 1);
+    sceneInOut(43, 0.35, 0.4);
+    centerOn('#s02-frag', 2.2);
+    tl.fromTo('#s02-frag', { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' }, 0.2);
+    
+    tl.fromTo('#s02-r0', { opacity: 0, y: 18, filter: 'blur(5px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.45, ease: 'power3.out' }, 0.9);
+    tl.fromTo('#s02-r0', { backgroundColor: 'rgba(200,153,31,0)' }, { backgroundColor: 'rgba(200,153,31,0.16)', duration: 0.3 }, 0.9);
+    tl.to('#s02-r0', { backgroundColor: 'rgba(200,153,31,0)', opacity: 0.5, duration: 0.5 }, 5.05);
+    tl.fromTo('#s02-n0', { opacity: 0 }, { opacity: 1, duration: 0.2 }, 1);
+    
+    tl.fromTo('#s02-r1', { opacity: 0, y: 18, filter: 'blur(5px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.45, ease: 'power3.out' }, 5.1);
+    tl.fromTo('#s02-r1', { backgroundColor: 'rgba(200,153,31,0)' }, { backgroundColor: 'rgba(200,153,31,0.16)', duration: 0.3 }, 5.1);
+    tl.to('#s02-r1', { backgroundColor: 'rgba(200,153,31,0)', opacity: 0.5, duration: 0.5 }, 13.55);
+    tl.fromTo('#s02-n1', { opacity: 0 }, { opacity: 1, duration: 0.2 }, 5.199999999999999);
+    tl.to('#s02-n0', { opacity: 0, duration: 0.15 }, 5.1499999999999995);
+    tl.fromTo('#s02-r2', { opacity: 0, y: 18, filter: 'blur(5px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.45, ease: 'power3.out' }, 13.6);
+    tl.fromTo('#s02-r2', { backgroundColor: 'rgba(200,153,31,0)' }, { backgroundColor: 'rgba(200,153,31,0.16)', duration: 0.3 }, 13.6);
+    tl.to('#s02-r2', { backgroundColor: 'rgba(200,153,31,0)', opacity: 0.5, duration: 0.5 }, 20.75);
+    tl.fromTo('#s02-n2', { opacity: 0 }, { opacity: 1, duration: 0.2 }, 13.7);
+    tl.to('#s02-n1', { opacity: 0, duration: 0.15 }, 13.65);
+    tl.fromTo('#s02-r3', { opacity: 0, y: 18, filter: 'blur(5px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.45, ease: 'power3.out' }, 20.8);
+    tl.fromTo('#s02-r3', { backgroundColor: 'rgba(200,153,31,0)' }, { backgroundColor: 'rgba(200,153,31,0.16)', duration: 0.3 }, 20.8);
+    tl.to('#s02-r3', { backgroundColor: 'rgba(200,153,31,0)', opacity: 0.5, duration: 0.5 }, 26.45);
+    tl.fromTo('#s02-n3', { opacity: 0 }, { opacity: 1, duration: 0.2 }, 20.900000000000002);
+    tl.to('#s02-n2', { opacity: 0, duration: 0.15 }, 20.85);
+    tl.fromTo('#s02-r4', { opacity: 0, y: 18, filter: 'blur(5px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.45, ease: 'power3.out' }, 26.5);
+    tl.fromTo('#s02-r4', { backgroundColor: 'rgba(200,153,31,0)' }, { backgroundColor: 'rgba(200,153,31,0.16)', duration: 0.3 }, 26.5);
+    tl.to('#s02-r4', { backgroundColor: 'rgba(200,153,31,0)', opacity: 1, duration: 0.5 }, 33.20);
+    tl.fromTo('#s02-n4', { opacity: 0 }, { opacity: 1, duration: 0.2 }, 26.6);
+    tl.to('#s02-n3', { opacity: 0, duration: 0.15 }, 26.55);
+    // Chiusa: restano solo la prima riga e le due etichette dei suoi attributi.
+    tl.to(['#s02-r1', '#s02-r2', '#s02-r3', '#s02-r4'], { opacity: 0, duration: 0.45, ease: 'power2.in' }, 33.30);
+    tl.to('#s02-r0', { opacity: 1, backgroundColor: 'rgba(200,153,31,0.12)', duration: 0.4 }, 33.30);
+    gsap.set('#s02-lab0', { x: pa.x - 66, y: pa.y + 16 });
+    gsap.set('#s02-lab1', { x: pb.x - 66, y: pb.y + 58 });
+    tl.fromTo('#s02-lab0', { opacity: 0, y: pa.y + 26 }, { opacity: 1, y: pa.y + 16, duration: 0.4, ease: 'power3.out' }, 33.90);
+    tl.fromTo('#s02-lab1', { opacity: 0, y: pb.y + 68 }, { opacity: 1, y: pb.y + 58, duration: 0.4, ease: 'power3.out' }, 34.80);
+    
+    tl.fromTo('#s02-cap0', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 1.2);
+    tl.to('#s02-cap0', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 4.620);
+    tl.fromTo('#s02-cap1', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 5.4);
+    tl.to('#s02-cap1', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 9.720);
+    tl.fromTo('#s02-cap2', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 10);
+    tl.to('#s02-cap2', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 13.120);
+    tl.fromTo('#s02-cap3', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 13.9);
+    tl.to('#s02-cap3', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 20.320);
+    tl.fromTo('#s02-cap4', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 21.1);
+    tl.to('#s02-cap4', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 26.020);
+    tl.fromTo('#s02-cap5', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 26.8);
+    tl.to('#s02-cap5', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 33.020);
+    tl.fromTo('#s02-cap6', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 35.9);
+    tl.to('#s02-cap6', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 41.720);
+  
+    window.__timelines['s02'] = tl;
+  </script>
+</template>
