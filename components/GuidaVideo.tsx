@@ -15,17 +15,34 @@ declare global {
 // principio di .avviso-opportunita, ma nell'angolo opposto per non
 // accavallarsi con l'avviso di una trattativa da prendere in carico.
 //
-// Il player è quello ufficiale di Vidyard (script embed/v4.js + <img
+// Il video arriva in uno di due modi. Con vidyardId il player è quello
+// ufficiale di Vidyard (script embed/v4.js + <img
 // class="vidyard-player-embed">, non un iframe verso la pagina di
 // condivisione): quella pagina porta il logo Vidyard e un invito a
-// registrarsi, questo è solo il video.
+// registrarsi, questo è solo il video. Con src è un file video servito
+// dall'app stessa (cartella public/), riprodotto da un normale <video>.
+type SorgenteVideo =
+  | {
+      /** L'id del video, dalla URL share.vidyard.com/watch/<id>. */
+      vidyardId: string
+      src?: never
+      poster?: never
+    }
+  | {
+      /** Un file video, ad es. /guide/agenda-new.mp4 (sta in public/). */
+      src: string
+      /** L'immagine che si vede prima di far partire il video. */
+      poster?: string
+      vidyardId?: never
+    }
+
 export function GuidaVideo({
   vidyardId,
+  src,
+  poster,
   titolo,
   etichetta = 'Guarda la guida',
-}: {
-  /** L'id del video, dalla URL share.vidyard.com/watch/<id>. */
-  vidyardId: string
+}: SorgenteVideo & {
   titolo: string
   etichetta?: string
 }) {
@@ -43,7 +60,7 @@ export function GuidaVideo({
 
   useEffect(() => {
     if (!aperto) return
-    renderizzaPlayer()
+    if (vidyardId) renderizzaPlayer()
     const precedente = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     function alTasto(e: KeyboardEvent) {
@@ -58,7 +75,9 @@ export function GuidaVideo({
 
   return (
     <>
-      <Script src="https://play.vidyard.com/embed/v4.js" strategy="afterInteractive" onLoad={renderizzaPlayer} />
+      {vidyardId && (
+        <Script src="https://play.vidyard.com/embed/v4.js" strategy="afterInteractive" onLoad={renderizzaPlayer} />
+      )}
 
       <div className="guida-video-bottone">
         <button type="button" className="btn btn-sm" onClick={() => setAperto(true)}>
@@ -69,7 +88,7 @@ export function GuidaVideo({
       {aperto && (
         <div className="guida-video-overlay" onClick={() => setAperto(false)}>
           <div
-            className="guida-video-modale"
+            className={`guida-video-modale${src ? ' guida-video-modale-larga' : ''}`}
             role="dialog"
             aria-modal="true"
             aria-label={titolo}
@@ -85,16 +104,22 @@ export function GuidaVideo({
             </button>
             <p className="guida-video-titolo">{titolo}</p>
             <div className="guida-video-player">
-              <img
-                key={vidyardId}
-                className="vidyard-player-embed"
-                style={{ width: '100%', margin: 'auto', display: 'block' }}
-                src={`https://play.vidyard.com/${vidyardId}.jpg`}
-                data-uuid={vidyardId}
-                data-v="4"
-                data-type="inline"
-                alt={titolo}
-              />
+              {src ? (
+                // Parte da solo: ci si arriva da un clic sul pulsante. La
+                // modale si smonta alla chiusura, quindi il video si ferma.
+                <video className="guida-video-file" src={src} poster={poster} controls autoPlay playsInline preload="metadata" />
+              ) : (
+                <img
+                  key={vidyardId}
+                  className="vidyard-player-embed"
+                  style={{ width: '100%', margin: 'auto', display: 'block' }}
+                  src={`https://play.vidyard.com/${vidyardId}.jpg`}
+                  data-uuid={vidyardId}
+                  data-v="4"
+                  data-type="inline"
+                  alt={titolo}
+                />
+              )}
             </div>
           </div>
         </div>

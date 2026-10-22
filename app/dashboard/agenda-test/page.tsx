@@ -131,7 +131,7 @@ export default async function AgendaTestPage({ searchParams }: { searchParams: P
 
   return (
     <>
-      {GUIDA_AGENDA_NEW.vidyardId && <GuidaVideo {...GUIDA_AGENDA_NEW} />}
+      <GuidaVideo {...GUIDA_AGENDA_NEW} />
       <div className="agenda-nuova agt-nuova">
         <NuovaVoce
           giornoPredefinito={giorno}

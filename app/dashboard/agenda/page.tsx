@@ -156,7 +156,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Param
 
   return (
     <>
-      {GUIDA_AGENDA_NEW.vidyardId && <GuidaVideo {...GUIDA_AGENDA_NEW} />}
+      <GuidaVideo {...GUIDA_AGENDA_NEW} />
       <div className="page-head">
         <p className="eyebrow">Segreteria</p>
         <h1>Agenda · vista elenco</h1>
