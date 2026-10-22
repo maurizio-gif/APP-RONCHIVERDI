@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
+import { caricaMotivi } from '@/lib/sospensioni-server'
+import { mappaNomiStaff, nomeDiEmail } from '@/lib/staff'
 import { EscludiAbbonamenti } from './EscludiAbbonamenti'
 
 export const dynamic = 'force-dynamic'
@@ -306,6 +308,17 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
   const operatoriOrdinati = Array.from(perOperatore.entries()).sort((x, y) => y[1].n - x[1].n)
 
   const elenco = (righe ?? []) as unknown as Riga[]
+  // Il motivo scritto dalla segreteria in Check sospensioni: per abbonamento,
+  // l'ultima nota (una rettifica vale sul motivo di prima).
+  const [motivi, { data: staff }] = await Promise.all([
+    caricaMotivi(
+      supabase,
+      'source_iscrizione_id',
+      elenco.map((r) => r.source_iscrizione_id)
+    ),
+    supabase.from('staff_users').select('email, nome, cognome'),
+  ])
+  const nomiStaff = mappaNomiStaff(staff ?? [])
   const nElenco = count ?? 0
   const pagine = Math.max(1, Math.ceil(nElenco / PAGINA))
   const mediaGiorni = elenco.length ? Math.round(elenco.reduce((s, r) => s + r.giorni_spostati, 0) / elenco.length) : 0
@@ -521,12 +534,14 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
                     <th title="Scadenza attuale in InfoRYOU">Fine nuova</th>
                     <th className="cella-importo" title="Giorni di cui è stata spostata la scadenza">Sospensione</th>
                     <th title="Operatore che ha spostato la scadenza (registro di InfoRYOU)">Operatore</th>
+                    <th title="Scritto dalla segreteria in Check sospensioni: l'ultima nota">Motivo</th>
                     <th>Stato</th>
                   </tr>
                 </thead>
                 <tbody>
                   {elenco.map((r) => {
                     const persona = [r.persona_cognome, r.persona_nome].filter(Boolean).join(' ')
+                    const motivo = motivi[r.source_iscrizione_id]?.[0]
                     return (
                       <tr key={r.source_iscrizione_id}>
                         <td className="cella-persona">
@@ -565,6 +580,19 @@ export default async function ScadenzeSpostatePage({ searchParams }: { searchPar
                           {r.giorni_spostati > SOGLIA_LUNGA && <span className="badge badge-warn">lunga</span>}
                         </td>
                         <td className="cella-nowrap">{r.proroga_operatore ?? '—'}</td>
+                        <td className="cella-troncata" title={motivo?.testo}>
+                          {motivo ? (
+                            <>
+                              {motivo.testo}
+                              <span className="nota-in-riga">
+                                {nomeDiEmail(motivo.autore, nomiStaff)}
+                                {motivi[r.source_iscrizione_id].length > 1 ? ' · rettificato' : ''}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
+                        </td>
                         <td>
                           <span className={`badge ${r.attiva ? 'badge-info' : 'badge-off'}`}>{r.attiva ? 'In corso' : 'Scaduto'}</span>
                           {r.data_disdetta && <span className="nota-in-riga">disdetto il {data(r.data_disdetta)}</span>}

@@ -164,6 +164,14 @@ const DISEGNI: Record<string, React.ReactNode> = {
       <path d="M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
     </>
   ),
+  // Check sospensioni: il calendario con il segno di spunta.
+  'check-sospensioni': (
+    <>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="1.5" />
+      <path d="M3.5 9.5h17M8 3v4M16 3v4" />
+      <path d="M9 14.5l2 2 4-4" />
+    </>
+  ),
   // Curriculum: il foglio con la persona sopra.
   candidature: (
     <>

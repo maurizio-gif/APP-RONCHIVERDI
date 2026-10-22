@@ -87,6 +87,16 @@ const DEFINIZIONI = [
     href: '/dashboard/abbonamenti/rinnovi',
     gruppo: 'Segreteria',
   },
+  // Il motivo di ogni sospensione inserita in Info4U, scritto da chi l'ha
+  // inserita (vedi scripts/sql/2026-10-22-check-sospensioni.sql). Come i
+  // rinnovi, un permesso a sé e non quello di 'abbonamenti': la segreteria
+  // scrive i motivi senza vedere i report direzionali.
+  {
+    chiave: 'check-sospensioni',
+    label: 'Check sospensioni',
+    href: '/dashboard/abbonamenti/check-sospensioni',
+    gruppo: 'Segreteria',
+  },
   {
     chiave: 'richieste-tennis-scuola',
     label: 'Young School Tennis — Scuola',

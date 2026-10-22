@@ -11,6 +11,7 @@ import { NotificheBanner } from './NotificheBanner'
 import { Sidebar } from './Sidebar'
 import { TicketAvviso, TicketProvider } from './TicketAvviso'
 import { statoTicketCorrente } from '@/lib/ticket-server'
+import { contaSospensioniDaMotivare } from '@/lib/sospensioni-server'
 import { LogoutInattivita } from './LogoutInattivita'
 import { BannerInstallazione } from './InstallaApp'
 
@@ -45,7 +46,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   // indicizzata su una tabella piccola, e aspettare di sapere se ha il
   // permesso per poterla chiedere costerebbe più della lettura stessa. Il
   // permesso decide cosa si mostra, non cosa si chiede.
-  const [sezioniConsentite, nomeUtente, nonLette, ricevePolling, dashboardNew, ticket] = await Promise.all([
+  const [sezioniConsentite, nomeUtente, nonLette, ricevePolling, dashboardNew, ticket, sospensioniDaMotivare] = await Promise.all([
     getSezioniConsentite(email),
     getNomeUtente(email),
     contaNonLette(),
@@ -57,6 +58,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
     vedeDashboardNew(email),
     // I ticket da leggere: li ha chiunque, non dipendono da una sezione.
     statoTicketCorrente(),
+    // Le sospensioni ancora senza motivo dell'operatore: il numero sulla voce
+    // Check sospensioni. 0 a chi non ha la sezione.
+    contaSospensioniDaMotivare(email),
   ])
 
   // Chi non ha il permesso non riceve niente: nessun badge, nessun avviso,
@@ -73,6 +77,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           sezioniConsentite={sezioniConsentite}
           riceveAvvisoSonoro={ricevePolling}
           dashboardNew={dashboardNew}
+          sospensioniDaMotivare={sospensioniDaMotivare}
         />
         <main className="main-content">
           <BannerInstallazione />

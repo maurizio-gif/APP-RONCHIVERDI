@@ -10526,3 +10526,52 @@ table.tabella-compatta .nota-in-riga,
 		animation: none;
 	}
 }
+
+/* ─────────────────────────────────────────── check sospensioni */
+
+/* I due gruppi di filtri (di chi, stato) sulla stessa riga, e gli operatori
+   sotto: vanno a capo su telefono. */
+.check-sosp-filtri,
+.check-sosp-operatori {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.75rem 1.25rem;
+	margin-bottom: 0.75rem;
+}
+
+.check-sosp-gruppo,
+.check-sosp-operatori {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.4rem;
+}
+
+/* La colonna dove si scrive: abbastanza larga per una frase. */
+.check-sosp-col-motivo {
+	min-width: 18rem;
+	width: 40%;
+}
+
+.check-sosp-motivo {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+}
+
+.check-sosp-ultima {
+	padding: 0.4rem 0.6rem;
+	background: var(--accent-tint);
+	border-left: 2px solid var(--accent);
+}
+
+.check-sosp-ultima .note-storico-testo {
+	margin: 0 0 0.15rem;
+	white-space: pre-wrap;
+}
+
+.check-sosp-salvato {
+	color: var(--ok);
+	font-weight: 500;
+}
