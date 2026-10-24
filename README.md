@@ -1025,7 +1025,11 @@ Gli esiti tornano da SendGrid con l'**Event Webhook** sulla edge function
 `email-eventi` (consegna con la risposta SMTP del server del destinatario,
 aperture, click, rimbalzi, spam) e finiscono in `email_eventi`; lo stato di
 ogni email si calcola nella vista `email_inviate_esiti`. IP e user agent
-delle aperture non si salvano.
+delle aperture non si salvano. Gli eventi si cancellano 24 mesi dopo
+l'invio dell'email, il termine dichiarato nell'informativa privacy del sito:
+ci pensa ogni notte il job pg_cron `cancella-eventi-email-scaduti`
+([`2026-10-19-conservazione-eventi-email.sql`](scripts/sql/2026-10-19-conservazione-eventi-email.sql)).
+Il registro degli invii resta.
 
 Dove si vede:
 
