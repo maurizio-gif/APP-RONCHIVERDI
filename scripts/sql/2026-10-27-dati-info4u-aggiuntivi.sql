@@ -188,7 +188,7 @@ create index if not exists crm_memo_utente_idx on public.crm_memo (source_utente
 
 -- Le email inviate dal gestionale (senza il corpo del messaggio e senza
 -- l'indirizzo del destinatario: la persona si ricava da source_utente_id).
-create table if not exists public.email_inviate (
+create table if not exists public.email_info4u (
 	id uuid primary key default gen_random_uuid(),
 	source_email_id integer not null unique,
 	source_utente_id integer,
@@ -203,8 +203,8 @@ create table if not exists public.email_inviate (
 	mittente_nome text,
 	sincronizzato_il timestamptz not null default now()
 );
-create index if not exists email_inviate_utente_idx on public.email_inviate (source_utente_id, data_creazione desc);
-create index if not exists email_inviate_data_idx on public.email_inviate (data_creazione desc);
+create index if not exists email_info4u_utente_idx on public.email_info4u (source_utente_id, data_creazione desc);
+create index if not exists email_info4u_data_idx on public.email_info4u (data_creazione desc);
 
 -- ──────────────────────────────────────────────────── idoneità e quote
 
@@ -379,7 +379,7 @@ declare
 	t text;
 begin
 	foreach t in array array[
-		'crm_pratiche', 'crm_memo', 'email_inviate', 'certificati', 'quote_associative',
+		'crm_pratiche', 'crm_memo', 'email_info4u', 'certificati', 'quote_associative',
 		'prenotazioni_iscrizioni', 'corsi_iscrizioni', 'omaggi_iscrizioni', 'ricevute'
 	] loop
 		execute format('drop trigger if exists %I on public.%I', t || '_imposta_persona', t);
@@ -392,7 +392,7 @@ begin
 	foreach t in array array[
 		'crm_tipi_azione', 'crm_esiti_azione', 'crm_stati_commerciali', 'operatori_categorie_info4u',
 		'operatori_info4u', 'prenotazioni_catalogo', 'prenotazioni_lezioni', 'esiti_accesso',
-		'terminali_info4u', 'crm_pratiche', 'crm_azioni', 'crm_memo', 'email_inviate', 'certificati',
+		'terminali_info4u', 'crm_pratiche', 'crm_azioni', 'crm_memo', 'email_info4u', 'certificati',
 		'quote_associative', 'prenotazioni_iscrizioni', 'corsi_iscrizioni', 'omaggi_iscrizioni',
 		'ricevute', 'ricevute_righe', 'accessi'
 	] loop
@@ -414,7 +414,7 @@ declare
 	n bigint;
 begin
 	foreach t in array array[
-		'crm_pratiche', 'crm_memo', 'email_inviate', 'certificati', 'quote_associative',
+		'crm_pratiche', 'crm_memo', 'email_info4u', 'certificati', 'quote_associative',
 		'prenotazioni_iscrizioni', 'corsi_iscrizioni', 'omaggi_iscrizioni', 'ricevute'
 	] loop
 		execute format(

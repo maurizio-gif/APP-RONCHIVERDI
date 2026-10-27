@@ -307,7 +307,7 @@ già eseguito su Supabase, **prima** di lanciare la nuova versione dello script.
 | `crm_memo` | `Memo` | `crm_memo` | riscritta intera |
 | `crm_tipi_azione`, `crm_esiti_azione`, `crm_stati_commerciali` | `AppuntamentiTipo/Esito/Stato` | stesse | riscritte intere |
 | `operatori_info4u`, `operatori_categorie_info4u` | `Operatori`, `OperatoriCategorie` | stesse | riscritte intere |
-| `email_inviate` | `Email` | `email_inviate` | nuove + refresh recenti |
+| `email_info4u` | `Email` | `email_info4u` | nuove + refresh recenti |
 | `certificati` | `Certificati` | `certificati` | nuove + refresh recenti |
 | `quote_associative` | `QuoteAssociative` | `quote_associative` | nuove |
 | `prenotazioni_iscrizioni`, `prenotazioni_catalogo`, `prenotazioni_lezioni` | `PrenotazioniIscrizione`, `Prenotazioni`, `PrenotazioniLezioni` | stesse | nuove + refresh / intere |

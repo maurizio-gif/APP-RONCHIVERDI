@@ -20,7 +20,7 @@
 
 .PARAMETER SoloExtra
     Nomi delle sole tabelle "dati aggiuntivi" da sincronizzare (vedi $defsExtra
-    piu' sotto), per esempio -SoloExtra crm_azioni,email_inviate. Con questo
+    piu' sotto), per esempio -SoloExtra crm_azioni,email_info4u. Con questo
     parametro lo script salta vendite, cassa, rate e modifiche: serve a provare
     una tabella nuova da sola, a mano, prima di lasciarla al task schedulato.
 #>
@@ -1453,7 +1453,7 @@ $defsExtra = @(
 
     # ───────────────────────────────────────────────────── comunicazioni
     # Senza il corpo del messaggio (Messaggio) e senza l'indirizzo del destinatario.
-    @{ Nome = "email_inviate"; Tabella = "email_inviate"; Modo = "Incrementale"; ChiaveCol = "source_email_id"; IdSql = "e.IDEmail"
+    @{ Nome = "email_info4u"; Tabella = "email_info4u"; Modo = "Incrementale"; ChiaveCol = "source_email_id"; IdSql = "e.IDEmail"
        Select = "e.IDEmail AS source_email_id, e.IDUtente AS source_utente_id, e.IDOperatore AS operatore_id, e.DataCreazione AS data_creazione, LEFT(e.Oggetto, 100) AS oggetto, e.Stato AS stato, e.Tipo AS tipo, e.DataInvio AS data_invio, LEFT(e.Errore, 300) AS errore, LEFT(e.MittenteNome, 100) AS mittente_nome"
        From = "dbo.Email e"
        Dal = "e.DataCreazione >= @Dal"
