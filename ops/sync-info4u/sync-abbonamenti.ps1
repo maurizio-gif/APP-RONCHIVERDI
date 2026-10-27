@@ -1399,6 +1399,14 @@ $Alias.IDAutomazione AS source_automazione_id
 }
 
 $defsExtra = @(
+    # ──────────────────────────────────── persone senza acquisti
+    # Gli utenti Info4U che non hanno mai comprato (lead, walk-in, prove): le
+    # vendite creano le persone, questi no. Si importano con la stessa logica
+    # di deduplicazione delle vendite (Send-PersoneUpsert). Cursore su IDUtente
+    # nella riga persone_senza_acquisti di sync_info4u_stato. 250 persone per
+    # blocco: ognuna costa quattro chiamate a Supabase.
+    @{ Nome = "persone_senza_acquisti"; Modo = "Persone"; BatchSize = 250; MaxBatches = 2 },
+
     # ───────────────────────────────────────────────── decodifiche (piccole)
     @{ Nome = "crm_tipi_azione"; Tabella = "crm_tipi_azione"; Modo = "Anagrafica"; ChiaveCol = "source_tipo_id"
        Select = "t.IDTipo AS source_tipo_id, t.Descrizione AS descrizione, CAST(t.Attivo AS bit) AS attivo"
@@ -1614,10 +1622,77 @@ function Copy-BlocchiExtra {
     return @{ Copiate = $copiate; AllaFine = $allaFine }
 }
 
+function Get-CursorePersoneSenzaAcquisti {
+    $url = "$($config.Supabase.Url)/rest/v1/sync_info4u_stato?chiave=eq.persone_senza_acquisti&select=cursore"
+    $risposta = Invoke-RestMethod -Uri $url -Headers $supabaseHeaders -Method Get
+    if ($risposta.Count -gt 0 -and $null -ne $risposta[0].cursore) { return [int64]$risposta[0].cursore }
+    return 0
+}
+
+function Set-CursorePersoneSenzaAcquisti {
+    param([int64]$Cursore)
+    $corpo = @{
+        chiave        = "persone_senza_acquisti"
+        valore        = (Get-Date).ToString("o")
+        cursore       = $Cursore
+        aggiornato_il = (Get-Date).ToString("o")
+    } | ConvertTo-Json
+    $headers = $supabaseHeaders.Clone()
+    $headers["Prefer"] = "resolution=merge-duplicates"
+    Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/sync_info4u_stato?on_conflict=chiave" `
+        -Headers $headers -Method Post -Corpo $corpo | Out-Null
+}
+
+# Gli utenti Info4U senza nessuna vendita e con un nome (trova_o_crea_persona
+# esclude quelli senza). Chi comprera' dopo ha gia' la sua scheda: la vendita
+# la trova per source_utente_id. persona_id sulle righe dei dati aggiuntivi lo
+# riempie il trigger persone_collega_info4u.
+function Sync-PersoneSenzaAcquisti {
+    param($Def)
+
+    $dimensioneBlocco = if ($Def.BatchSize) { [int]$Def.BatchSize } else { 250 }
+    $maxBlocchi = if ($Def.MaxBatches) { [int]$Def.MaxBatches } else { 2 }
+
+    $cursore = Get-CursorePersoneSenzaAcquisti
+    Write-Log "Persone senza acquisti, cursore di partenza: IDUtente > $cursore"
+
+    $totale = 0
+    for ($blocco = 1; $blocco -le $maxBlocchi; $blocco++) {
+        $comandoText = @"
+SELECT TOP ($dimensioneBlocco)
+    u.IDUtente, u.Nome, u.Cognome, u.Email, u.Telefono_1, u.Telefono_2, u.SMS AS Cellulare,
+    u.CodiceFiscale, u.Data_Nascita, u.Sesso,
+    u.Indirizzo_Via, u.Indirizzo_NumeroCivico, u.Indirizzo_CAP,
+    u.Indirizzo_Citta, u.Indirizzo_PV, u.Indirizzo_Stato
+FROM dbo.Utenti u
+WHERE u.IDUtente > @LastId
+  AND LTRIM(RTRIM(ISNULL(u.Nome, ''))) <> ''
+  AND NOT EXISTS (SELECT 1 FROM dbo.AbbonamentiIscrizione ai WHERE ai.IDUtente = u.IDUtente)
+ORDER BY u.IDUtente ASC
+"@
+        $righe = Invoke-QueryDbgym -CommandText $comandoText -Parametri @{ "@LastId" = $cursore }
+        if ($righe.Count -eq 0) {
+            Write-Log "Persone senza acquisti: nessun nuovo utente, al passo con la sorgente."
+            break
+        }
+
+        Send-PersoneUpsert -Righe $righe | Out-Null
+
+        $cursore = [int64]$righe[$righe.Count - 1].IDUtente
+        Set-CursorePersoneSenzaAcquisti $cursore
+        $totale += $righe.Count
+        Write-Log "Persone senza acquisti, blocco ${blocco}: $($righe.Count) persone, cursore ora a $cursore."
+
+        if ($righe.Count -lt $dimensioneBlocco) { break }
+    }
+    Write-Log "Persone senza acquisti: $totale persone importate in questa esecuzione."
+}
+
 function Sync-DefExtra {
     param($Def)
 
     $nome = $Def.Nome
+    if ($Def.Modo -eq "Persone") { Sync-PersoneSenzaAcquisti -Def $Def; return }
     $dimensioneBlocco = if ($Def.BatchSize) { [int]$Def.BatchSize } else { $extraBatchSize }
     $maxBlocchi = if ($Def.MaxBatches) { [int]$Def.MaxBatches } else { $extraMaxBatches }
     $condizioneDal = if ($Def.Dal) { $Def.Dal } else { "1=1" }
