@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Sincronizza le vendite (AbbonamentiIscrizione) da Info4U/TeamSystem
     (dbgym, locale su questo server) verso Supabase: persone + abbonamenti.
