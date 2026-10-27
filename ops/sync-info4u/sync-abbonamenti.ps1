@@ -1431,12 +1431,15 @@ $defsExtra = @(
 
     # ────────────────────────────────────────────── azioni CRM dei consulenti
     # La pratica commerciale (la «trattativa» di una persona): cambia di stato
-    # e si chiude, quindi il refresh rilegge anche tutte quelle ancora aperte.
-    @{ Nome = "crm_pratiche"; Tabella = "crm_pratiche"; Modo = "Incrementale"; ChiaveCol = "source_pratica_id"; IdSql = "c.IDAppuntamentoCategoriaUtente"
+    # e si chiude, e un'azione del 2024 puo' stare su una pratica aperta nel
+    # 2022. Quindi non si filtra solo per data di creazione: si copiano anche
+    # le pratiche toccate dal 2023 (stato, chiusura) o con almeno un'azione
+    # dal 2023. Un watermark sull'ID non basterebbe (le pratiche vecchie hanno
+    # ID bassi): si riscrivono tutte, a blocchi, come le tabelle di decodifica.
+    @{ Nome = "crm_pratiche"; Tabella = "crm_pratiche"; Modo = "Anagrafica"; ChiaveCol = "source_pratica_id"
        Select = "c.IDAppuntamentoCategoriaUtente AS source_pratica_id, c.IDAppuntamentoCategoria AS source_categoria_id, LEFT(c.Descrizione, 200) AS descrizione, c.IDUtente AS source_utente_id, c.DataCreazione AS data_creazione, c.IDStatoCommerciale AS source_stato_id, c.DataStato AS data_stato, c.DataChiusura AS data_chiusura, c.Valore AS valore"
        From = "dbo.AppuntamentiCategorieUtenti c"
-       Dal = "c.DataCreazione >= @Dal"
-       RefreshWhere = "c.DataChiusura IS NULL OR c.DataStato >= @Soglia OR c.DataChiusura >= @Soglia" },
+       Dal = "(c.DataCreazione >= @Dal OR c.DataStato >= @Dal OR c.DataChiusura >= @Dal OR EXISTS (SELECT 1 FROM dbo.AppuntamentiStorico a WHERE a.IDAppuntamentoCategoriaUtente = c.IDAppuntamentoCategoriaUtente AND a.DataAppuntamento >= @Dal))" },
     # L'azione: info4u non porta l'IDUtente, solo la pratica. Chi l'ha scritta
     # e' IDOperatoreAutore. ~90% sono azioni automatiche (vedi la vista
     # crm_azioni_dettaglio.automatica).

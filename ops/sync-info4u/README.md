@@ -302,7 +302,7 @@ già eseguito su Supabase, **prima** di lanciare la nuova versione dello script.
 
 | Nome (`-SoloExtra`) | Da dbgym | A Supabase | Modo |
 |---|---|---|---|
-| `crm_pratiche` | `AppuntamentiCategorieUtenti` | `crm_pratiche` | nuove + refresh delle aperte |
+| `crm_pratiche` | `AppuntamentiCategorieUtenti` | `crm_pratiche` | riscritta intera (anche le pratiche vecchie con azioni dal 2023) |
 | `crm_azioni` | `AppuntamentiStorico` | `crm_azioni` | nuove + refresh recenti |
 | `crm_memo` | `Memo` | `crm_memo` | riscritta intera |
 | `crm_tipi_azione`, `crm_esiti_azione`, `crm_stati_commerciali` | `AppuntamentiTipo/Esito/Stato` | stesse | riscritte intere |
