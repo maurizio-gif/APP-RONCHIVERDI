@@ -17,10 +17,17 @@
     default cerca config.json nella stessa cartella dello script — quel
     file non va mai versionato: contiene la password SQL e la service role
     key di Supabase.
+
+.PARAMETER SoloExtra
+    Nomi delle sole tabelle "dati aggiuntivi" da sincronizzare (vedi $defsExtra
+    piu' sotto), per esempio -SoloExtra crm_azioni,email_inviate. Con questo
+    parametro lo script salta vendite, cassa, rate e modifiche: serve a provare
+    una tabella nuova da sola, a mano, prima di lasciarla al task schedulato.
 #>
 
 param(
-    [string]$ConfigPath = (Join-Path $PSScriptRoot "config.json")
+    [string]$ConfigPath = (Join-Path $PSScriptRoot "config.json"),
+    [string[]]$SoloExtra = @()
 )
 
 $ErrorActionPreference = "Stop"
@@ -1344,11 +1351,347 @@ function Sync-ModificheAbbonamenti {
     Write-Log "Modifiche abbonamenti: $totale modifiche sincronizzate in questa esecuzione."
 }
 
+# ─────────────────────────────────────────────────────── dati aggiuntivi
+
+# Gli altri dati di dbgym (azioni CRM dei consulenti, email, certificati,
+# prenotazioni, corsi, quote, ricevute, accessi, omaggi): scripts/sql/
+# 2026-10-27-dati-info4u-aggiuntivi.sql. Una sola logica per tutte le tabelle,
+# guidata da $defsExtra: ogni definizione dice cosa leggere (SELECT con gli
+# alias uguali ai nomi delle colonne Supabase) e come tenerlo allineato.
+#
+# Due modi:
+#   Incrementale: watermark = MAX(chiave) letto da Supabase (come vendite e
+#     cassa), a blocchi, con un tetto di blocchi per esecuzione. Se la
+#     definizione ha RefreshWhere, ogni $extraRefreshOgniOre ore rilegge anche
+#     le righe che possono essere cambiate dopo la creazione (un esito, una
+#     rata pagata, un invio andato a buon fine).
+#   Anagrafica: tabelle piccole di decodifica (tipi, esiti, operatori...),
+#     riscritte per intero ogni $extraAnagraficheOgniOre ore.
+#
+# Una tabella che fallisce (una colonna rinominata, un errore di rete) non
+# ferma le altre: l'errore si logga e a fine giro lo script esce con errore.
+# Per provarne una sola: .\sync-abbonamenti.ps1 -SoloExtra crm_azioni
+# (salta vendite, cassa, rate e modifiche).
+
+$extraAttivo = if ($null -ne $config.ExtraAttivo) { [bool]$config.ExtraAttivo } else { $true }
+# Niente prima di questa data (config: ExtraDal, yyyy-MM-dd): di default la
+# stessa di cassa e rate.
+$extraDal = if ($config.ExtraDal) { [datetime]::ParseExact([string]$config.ExtraDal, "yyyy-MM-dd", $null) } else { $transazioniDal }
+$extraBatchSize = if ($config.ExtraBatchSize) { [int]$config.ExtraBatchSize } else { 1000 }
+$extraMaxBatches = if ($config.ExtraMaxBatches) { [int]$config.ExtraMaxBatches } else { 10 }
+$extraAnagraficheOgniOre = if ($config.ExtraAnagraficheOgniOre) { [double]$config.ExtraAnagraficheOgniOre } else { 6 }
+$extraRefreshOgniOre = if ($config.ExtraRefreshOgniOre) { [double]$config.ExtraRefreshOgniOre } else { 6 }
+$extraRefreshGiorniIndietro = if ($config.ExtraRefreshGiorniIndietro) { [int]$config.ExtraRefreshGiorniIndietro } else { 60 }
+
+# Le colonne datetime di SQL Server arrivano a Supabase come istanti (timestamptz);
+# quelle che sono solo una data si convertono qui in testo yyyy-MM-dd:
+# CONVERT(char(10), col, 23). I flag smallint diventano boolean con CAST(.. AS bit).
+function Get-SelectAccessi {
+    param([string]$Alias, [string]$Origine)
+    return @"
+$Alias.IDAccesso AS source_accesso_id, '$Origine' AS origine, $Alias.IDUtente AS source_utente_id,
+$Alias.IDFamigliaTerminale AS source_terminale_id, $Alias.Indirizzo AS indirizzo,
+$Alias.IDConcentratore AS source_concentratore_id, $Alias.IDServizio AS source_servizio_id,
+$Alias.DataAccesso AS data_accesso, $Alias.TipoServizio AS tipo_servizio, $Alias.TipoAccesso AS tipo_accesso,
+$Alias.IDIscrizione AS source_iscrizione_id, $Alias.TipoServizioIscrizione AS tipo_servizio_iscrizione,
+$Alias.IDAutomazione AS source_automazione_id
+"@
+}
+
+$defsExtra = @(
+    # ───────────────────────────────────────────────── decodifiche (piccole)
+    @{ Nome = "crm_tipi_azione"; Tabella = "crm_tipi_azione"; Modo = "Anagrafica"; ChiaveCol = "source_tipo_id"
+       Select = "t.IDTipo AS source_tipo_id, t.Descrizione AS descrizione, CAST(t.Attivo AS bit) AS attivo"
+       From = "dbo.AppuntamentiTipo t" },
+    @{ Nome = "crm_esiti_azione"; Tabella = "crm_esiti_azione"; Modo = "Anagrafica"; ChiaveCol = "source_esito_id"
+       Select = "e.IDEsito AS source_esito_id, e.Descrizione AS descrizione, CAST(e.Attivo AS bit) AS attivo"
+       From = "dbo.AppuntamentiEsito e" },
+    @{ Nome = "crm_stati_commerciali"; Tabella = "crm_stati_commerciali"; Modo = "Anagrafica"; ChiaveCol = "source_stato_id"
+       Select = "s.IDStatoCommerciale AS source_stato_id, s.NomeStato AS nome, CAST(s.Attivo AS bit) AS attivo"
+       From = "dbo.AppuntamentiStato s" },
+    # Solo nome e ruolo: mai Login, Password*, Email, impronte.
+    @{ Nome = "operatori_categorie_info4u"; Tabella = "operatori_categorie_info4u"; Modo = "Anagrafica"; ChiaveCol = "source_categoria_id"
+       Select = "oc.IDOperatoreCategoria AS source_categoria_id, oc.Descrizione AS descrizione"
+       From = "dbo.OperatoriCategorie oc" },
+    @{ Nome = "operatori_info4u"; Tabella = "operatori_info4u"; Modo = "Anagrafica"; ChiaveCol = "source_operatore_id"
+       Select = "o.IDOperatore AS source_operatore_id, o.NomeOperatore AS nome, o.IDOperatoreCategoria AS source_categoria_id, CAST(o.Attivo AS bit) AS attivo, CAST(o.Venditore AS bit) AS venditore, CAST(o.Istruttore AS bit) AS istruttore, CAST(o.Eliminato AS bit) AS eliminato"
+       From = "dbo.Operatori o" },
+    @{ Nome = "prenotazioni_catalogo"; Tabella = "prenotazioni_catalogo"; Modo = "Anagrafica"; ChiaveCol = "source_prenotazione_id"
+       Select = "p.IDPrenotazione AS source_prenotazione_id, p.IDCategoriaPrenotazione AS source_categoria_id, p.Descrizione AS descrizione, CAST(p.Attivo AS bit) AS attivo, p.Costo AS costo, p.MaxPrenotazioni AS max_prenotazioni, p.DurataMinuti AS durata_minuti, p.DataInizio AS data_inizio, p.DataFine AS data_fine"
+       From = "dbo.Prenotazioni p" },
+    @{ Nome = "prenotazioni_lezioni"; Tabella = "prenotazioni_lezioni"; Modo = "Anagrafica"; ChiaveCol = "source_lezione_id"
+       Select = "l.IDPrenotazioneLezione AS source_lezione_id, l.IDPrenotazione AS source_prenotazione_id, l.DataInizio AS data_inizio, l.DataFine AS data_fine, CONVERT(char(5), l.OraInizio, 108) AS ora_inizio, CONVERT(char(5), l.OraFine, 108) AS ora_fine, l.GGWeek AS giorni_settimana, l.IDIstruttore AS source_istruttore_id"
+       From = "dbo.PrenotazioniLezioni l" },
+    @{ Nome = "esiti_accesso"; Tabella = "esiti_accesso"; Modo = "Anagrafica"; ChiaveCol = "numero_esito"
+       Select = "ea.NumeroEsito AS numero_esito, ea.Descrizione AS descrizione"
+       From = "dbo.EsitiAccesso ea" },
+    @{ Nome = "terminali_info4u"; Tabella = "terminali_info4u"; Modo = "Anagrafica"; OnConflict = "source_terminale_id,indirizzo,source_concentratore_id"
+       Select = "t.IDFamigliaTerminale AS source_terminale_id, t.Indirizzo AS indirizzo, t.IDConcentratore AS source_concentratore_id, t.Descrizione AS descrizione, CAST(t.Attivo AS bit) AS attivo, CAST(t.Ingresso AS bit) AS ingresso, CAST(t.Uscita AS bit) AS uscita, t.Direzione AS direzione, t.ZonaNr AS zona_nr, t.ZonaVerso AS zona_verso"
+       From = "dbo.Terminali t" },
+
+    # ────────────────────────────────────────────── azioni CRM dei consulenti
+    # La pratica commerciale (la «trattativa» di una persona): cambia di stato
+    # e si chiude, quindi il refresh rilegge anche tutte quelle ancora aperte.
+    @{ Nome = "crm_pratiche"; Tabella = "crm_pratiche"; Modo = "Incrementale"; ChiaveCol = "source_pratica_id"; IdSql = "c.IDAppuntamentoCategoriaUtente"
+       Select = "c.IDAppuntamentoCategoriaUtente AS source_pratica_id, c.IDAppuntamentoCategoria AS source_categoria_id, LEFT(c.Descrizione, 200) AS descrizione, c.IDUtente AS source_utente_id, c.DataCreazione AS data_creazione, c.IDStatoCommerciale AS source_stato_id, c.DataStato AS data_stato, c.DataChiusura AS data_chiusura, c.Valore AS valore"
+       From = "dbo.AppuntamentiCategorieUtenti c"
+       Dal = "c.DataCreazione >= @Dal"
+       RefreshWhere = "c.DataChiusura IS NULL OR c.DataStato >= @Soglia OR c.DataChiusura >= @Soglia" },
+    # L'azione: info4u non porta l'IDUtente, solo la pratica. Chi l'ha scritta
+    # e' IDOperatoreAutore. ~90% sono azioni automatiche (vedi la vista
+    # crm_azioni_dettaglio.automatica).
+    @{ Nome = "crm_azioni"; Tabella = "crm_azioni"; Modo = "Incrementale"; ChiaveCol = "source_azione_id"; IdSql = "a.IDAppuntamento"
+       Select = "a.IDAppuntamento AS source_azione_id, a.IDAppuntamentoCategoriaUtente AS source_pratica_id, a.IDOperatoreAutore AS operatore_autore_id, a.IDOperatoreDest AS operatore_dest_id, a.DataAppuntamento AS data_appuntamento, a.Tipo AS source_tipo_id, a.Esito AS source_esito_id, LEFT(a.Descrizione, 500) AS descrizione, a.DataEvasione AS data_evasione, a.IDStatoCommerciale AS source_stato_id, a.DataPresaInCarico AS data_presa_in_carico"
+       From = "dbo.AppuntamentiStorico a"
+       Dal = "a.DataAppuntamento >= @Dal"
+       RefreshWhere = "a.DataAppuntamento >= @Soglia OR a.DataEvasione >= @Soglia OR a.DataPresaInCarico >= @Soglia" },
+    # Pochi memo (~300): si riscrivono tutti.
+    @{ Nome = "crm_memo"; Tabella = "crm_memo"; Modo = "Anagrafica"; ChiaveCol = "source_memo_id"
+       Select = "m.IDMemo AS source_memo_id, m.IDUtente AS source_utente_id, m.IDOperatore AS operatore_id, m.Oggetto AS oggetto, LEFT(m.Descrizione, 2000) AS descrizione, m.UltimaModifica AS ultima_modifica, m.DataOperazione AS data_operazione"
+       From = "dbo.Memo m"
+       Dal = "m.DataOperazione >= @Dal" },
+
+    # ───────────────────────────────────────────────────── comunicazioni
+    # Senza il corpo del messaggio (Messaggio) e senza l'indirizzo del destinatario.
+    @{ Nome = "email_inviate"; Tabella = "email_inviate"; Modo = "Incrementale"; ChiaveCol = "source_email_id"; IdSql = "e.IDEmail"
+       Select = "e.IDEmail AS source_email_id, e.IDUtente AS source_utente_id, e.IDOperatore AS operatore_id, e.DataCreazione AS data_creazione, LEFT(e.Oggetto, 100) AS oggetto, e.Stato AS stato, e.Tipo AS tipo, e.DataInvio AS data_invio, LEFT(e.Errore, 300) AS errore, LEFT(e.MittenteNome, 100) AS mittente_nome"
+       From = "dbo.Email e"
+       Dal = "e.DataCreazione >= @Dal"
+       RefreshWhere = "e.DataCreazione >= @Soglia OR e.DataInvio >= @Soglia" },
+
+    # ──────────────────────────────────────────────── idoneita' e quote
+    # Un certificato emesso prima del 2023 puo' essere ancora valido: conta
+    # anche la scadenza.
+    @{ Nome = "certificati"; Tabella = "certificati"; Modo = "Incrementale"; ChiaveCol = "source_certificato_id"; IdSql = "c.IDCertificato"
+       Select = "c.IDCertificato AS source_certificato_id, c.IDUtente AS source_utente_id, LEFT(c.Descrizione, 100) AS descrizione, CONVERT(char(10), c.DataEmissione, 23) AS data_emissione, CONVERT(char(10), c.DataScadenza, 23) AS data_scadenza"
+       From = "dbo.Certificati c"
+       Dal = "(c.DataEmissione >= @Dal OR c.DataScadenza >= @Dal)"
+       RefreshWhere = "c.DataEmissione >= @Soglia" },
+    @{ Nome = "quote_associative"; Tabella = "quote_associative"; Modo = "Incrementale"; ChiaveCol = "source_quota_id"; IdSql = "q.IDQuotaAssociativa"
+       Select = "q.IDQuotaAssociativa AS source_quota_id, q.IDUtente AS source_utente_id, CONVERT(char(10), q.DataInizio, 23) AS data_inizio, CONVERT(char(10), q.DataFine, 23) AS data_fine, q.Importo AS importo, q.IDAbbonamentoIscrizione AS source_iscrizione_id"
+       From = "dbo.QuoteAssociative q"
+       Dal = "q.DataInizio >= @Dal" },
+
+    # ──────────────────────────────────────── prenotazioni, corsi, omaggi
+    @{ Nome = "prenotazioni_iscrizioni"; Tabella = "prenotazioni_iscrizioni"; Modo = "Incrementale"; ChiaveCol = "source_piscrizione_id"; IdSql = "p.IDPIscrizione"
+       Select = "p.IDPIscrizione AS source_piscrizione_id, p.IDUtente AS source_utente_id, p.IDPrenotazione AS source_prenotazione_id, p.IDOperatore AS operatore_id, p.NomeOperatore AS operatore_nome, p.DataInizio AS data_inizio, p.DataFine AS data_fine, p.Totale AS totale, p.DataOperazione AS data_operazione, p.IDPrenotazioneLezione AS source_lezione_id, p.OrigineTipo AS origine_tipo, p.OrigineID AS origine_id"
+       From = "dbo.PrenotazioniIscrizione p"
+       Dal = "p.DataOperazione >= @Dal"
+       RefreshWhere = "p.DataOperazione >= @Soglia" },
+    @{ Nome = "corsi_iscrizioni"; Tabella = "corsi_iscrizioni"; Modo = "Incrementale"; ChiaveCol = "source_iscrizione_corso_id"; IdSql = "c.IDIscrizione"
+       Select = "c.IDIscrizione AS source_iscrizione_corso_id, c.IDUtente AS source_utente_id, c.IDCorso AS source_corso_id, c.IDAbbonamentoIscrizione AS source_iscrizione_id, c.IDOperatore AS operatore_id, c.DataInizio AS data_inizio, c.DataFine AS data_fine, c.Importo AS importo, c.DataOperazione AS data_operazione, CAST(c.Terminato AS bit) AS terminato, c.NrLezioni AS nr_lezioni, c.PostiOccupati AS posti_occupati, c.IDPrenotazioneIscrizione AS source_piscrizione_id"
+       From = "dbo.CorsiIscrizione c"
+       Dal = "c.DataOperazione >= @Dal"
+       RefreshWhere = "c.DataOperazione >= @Soglia OR c.DataFine >= @Soglia" },
+    # Omaggi: OmaggiUsati sale a ogni utilizzo, quindi il refresh rilegge i validi.
+    @{ Nome = "omaggi_iscrizioni"; Tabella = "omaggi_iscrizioni"; Modo = "Incrementale"; ChiaveCol = "source_omaggio_iscrizione_id"; IdSql = "o.IDIscrizioniOmaggio"
+       Select = "o.IDIscrizioniOmaggio AS source_omaggio_iscrizione_id, o.IDUtente AS source_utente_id, o.IDOmaggio AS source_omaggio_id, o.IDIscrizione AS source_iscrizione_id, CONVERT(char(10), o.DataInizio, 23) AS data_inizio, CONVERT(char(10), o.DataFine, 23) AS data_fine, o.OmaggiTotali AS omaggi_totali, o.OmaggiUsati AS omaggi_usati, o.IDClub AS source_club_id"
+       From = "dbo.IscrizioniOmaggioGenerali o"
+       Dal = "(o.DataInizio >= @Dal OR o.DataFine >= @Dal)"
+       RefreshWhere = "o.DataFine >= @Soglia OR o.DataInizio >= @Soglia" },
+
+    # ────────────────────────────────────────────────────────── ricevute
+    # Senza Cliente, indirizzi, partita IVA, codice fiscale, note e codice lotteria.
+    @{ Nome = "ricevute"; Tabella = "ricevute"; Modo = "Incrementale"; ChiaveCol = "source_ricevuta_id"; IdSql = "r.IDRicevuta"
+       Select = "r.IDRicevuta AS source_ricevuta_id, r.IDRicevuteAzienda AS azienda_id, r.NumeroRicevuta AS numero, r.TipoRicevuta AS tipo, CONVERT(char(10), r.DataRicevuta, 23) AS data_ricevuta, CAST(r.Annullata AS bit) AS annullata, r.TipoPagamento AS tipo_pagamento, r.IDUtente AS source_utente_id, CAST(r.Acconto AS bit) AS acconto, r.IDOperatore AS operatore_id, CAST(r.Bloccata AS bit) AS bloccata, r.DataSaldo AS data_saldo, r.TipoPagamentoSaldo AS tipo_pagamento_saldo, r.FEStatoElaborazione AS fe_stato, r.FEDataElaborazione AS fe_data_elaborazione, r.FEDataScartoSDI AS fe_data_scarto_sdi, r.RTNrScontrino AS rt_nr_scontrino, r.RTDataScontrino AS rt_data_scontrino, r.RTDataAnnullo AS rt_data_annullo, r.DataOraRicevuta AS data_ora_ricevuta, CAST(r.InviataEmail AS bit) AS inviata_email"
+       From = "dbo.RicevuteTestata r"
+       Dal = "r.DataRicevuta >= @Dal"
+       RefreshWhere = "r.DataRicevuta >= @Soglia OR r.FEDataElaborazione >= @Soglia OR r.RTDataAnnullo >= @Soglia" },
+    @{ Nome = "ricevute_righe"; Tabella = "ricevute_righe"; Modo = "Incrementale"; ChiaveCol = "source_riga_id"; IdSql = "rr.IDRicevuteRiga"
+       Select = "rr.IDRicevuteRiga AS source_riga_id, rr.IDRicevuta AS source_ricevuta_id, rr.Qta AS qta, LEFT(rr.Descrizione, 300) AS descrizione, rr.PrezzoUnitario AS prezzo_unitario, rr.IVA AS iva, rr.IDCassaMovimento AS source_movimento_id, rr.Tipo AS tipo, rr.IDCentroRicavo AS centro_ricavo_id, rr.IvaDescrizione AS iva_descrizione"
+       From = "dbo.RicevuteRiga rr INNER JOIN dbo.RicevuteTestata r ON r.IDRicevuta = rr.IDRicevuta"
+       Dal = "r.DataRicevuta >= @Dal"
+       RefreshWhere = "r.DataRicevuta >= @Soglia" },
+
+    # ────────────────────────────────────────────────────────── accessi
+    # ~3,4 milioni di righe: blocchi grandi, e due watermark (storico e
+    # corrente) perche' gli ID dell'archivio sono piu' bassi di quelli della
+    # tabella corrente. Gli accessi non cambiano: nessun refresh. Senza Tessera,
+    # Descrizione (fino a 6000 caratteri) e NomeUtente.
+    @{ Nome = "accessi_storico"; Tabella = "accessi"; Modo = "Incrementale"; ChiaveCol = "source_accesso_id"; IdSql = "x.IDAccesso"
+       Select = (Get-SelectAccessi -Alias "x" -Origine "S"); From = "dbo.AccessiStorico x"
+       Dal = "x.DataAccesso >= @Dal"; WatermarkFiltro = "&origine=eq.S"; BatchSize = 5000 },
+    @{ Nome = "accessi_corrente"; Tabella = "accessi"; Modo = "Incrementale"; ChiaveCol = "source_accesso_id"; IdSql = "x.IDAccesso"
+       Select = (Get-SelectAccessi -Alias "x" -Origine "A"); From = "dbo.Accessi x"
+       Dal = "x.DataAccesso >= @Dal"; WatermarkFiltro = "&origine=eq.A"; BatchSize = 5000 }
+)
+
+function Get-StatoExtra {
+    param([string]$Chiave)
+    $url = "$($config.Supabase.Url)/rest/v1/sync_info4u_stato?chiave=eq.$Chiave&select=valore"
+    $risposta = Invoke-RestMethod -Uri $url -Headers $supabaseHeaders -Method Get
+    if ($risposta.Count -gt 0) { return [datetime]$risposta[0].valore }
+    return $null
+}
+
+function Set-StatoExtra {
+    param([string]$Chiave, [datetime]$Quando)
+    $corpo = @{ chiave = $Chiave; valore = $Quando.ToString("o") } | ConvertTo-Json
+    $headers = $supabaseHeaders.Clone()
+    $headers["Prefer"] = "resolution=merge-duplicates"
+    Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/sync_info4u_stato?on_conflict=chiave" `
+        -Headers $headers -Method Post -Corpo $corpo | Out-Null
+}
+
+# True se e' passato almeno $Ore dall'ultima volta registrata sotto $Chiave
+# (o se non e' mai stata fatta).
+function Test-ScadutoExtra {
+    param([string]$Chiave, [double]$Ore)
+    $ultimo = Get-StatoExtra $Chiave
+    if (-not $ultimo) { return $true }
+    return ((New-TimeSpan -Start $ultimo -End (Get-Date)).TotalHours -ge $Ore)
+}
+
+function Get-UltimoIdExtra {
+    param($Def)
+    $filtro = if ($Def.WatermarkFiltro) { $Def.WatermarkFiltro } else { "" }
+    $url = "$($config.Supabase.Url)/rest/v1/$($Def.Tabella)?select=$($Def.ChiaveCol)&order=$($Def.ChiaveCol).desc&limit=1$filtro"
+    $risposta = Invoke-RestMethod -Uri $url -Headers $supabaseHeaders -Method Get
+    if ($risposta.Count -gt 0) { return [int64]$risposta[0].($Def.ChiaveCol) }
+    return 0
+}
+
+# Un valore letto da dbgym nel formato che PostgREST/JSON si aspetta.
+function Convert-ValoreExtra {
+    param($Valore)
+    if ($null -eq $Valore -or $Valore -is [System.DBNull]) { return $null }
+    if ($Valore -is [datetime]) { return Get-IstantePulito $Valore }
+    if ($Valore -is [string]) { return Get-TestoPulito $Valore }
+    if ($Valore -is [decimal] -or $Valore -is [double] -or $Valore -is [single]) { return [double]$Valore }
+    return $Valore
+}
+
+function Send-RigheExtra {
+    param($Def, [array]$Righe)
+
+    $onConflict = if ($Def.OnConflict) { $Def.OnConflict } else { $Def.ChiaveCol }
+    $visti = @{}
+    $corpoRighe = foreach ($r in $Righe) {
+        # Dedup per sicurezza (PostgREST rifiuta un upsert che tocca due
+        # volte la stessa chiave nello stesso comando).
+        if ($Def.ChiaveCol) {
+            $chiave = [string]$r.($Def.ChiaveCol)
+            if ($visti.ContainsKey($chiave)) { continue }
+            $visti[$chiave] = $true
+        }
+        $riga = [ordered]@{}
+        foreach ($p in $r.PSObject.Properties) { $riga[$p.Name] = Convert-ValoreExtra $p.Value }
+        $riga
+    }
+    if (-not $corpoRighe) { return }
+
+    $url = "$($config.Supabase.Url)/rest/v1/$($Def.Tabella)?on_conflict=$onConflict"
+    $corpo = $corpoRighe | ConvertTo-Json -Depth 5
+    $headers = $supabaseHeaders.Clone()
+    $headers["Prefer"] = "resolution=merge-duplicates,return=minimal"
+    Invoke-SupabaseScrittura -Uri $url -Headers $headers -Method Post -Corpo $corpo | Out-Null
+}
+
+# Legge a blocchi da dbgym le righe con chiave > cursore che soddisfano
+# $Condizione, le scrive su Supabase e restituisce quante ne ha copiate e se
+# ha raggiunto la fine (un blocco piu' corto della dimensione chiesta).
+function Copy-BlocchiExtra {
+    param($Def, [string]$Condizione, [int64]$Cursore, [datetime]$Soglia, [int]$DimensioneBlocco, [int]$MaxBlocchi, [string]$Etichetta)
+
+    $copiate = 0
+    $allaFine = $false
+    for ($blocco = 1; $blocco -le $MaxBlocchi; $blocco++) {
+        $comandoText = "SELECT TOP ($DimensioneBlocco) $($Def.Select)`nFROM $($Def.From)`nWHERE $($Def.IdSql) > @LastId AND ($Condizione)`nORDER BY $($Def.IdSql) ASC"
+        $righe = Invoke-QueryDbgym -CommandText $comandoText -Parametri @{ "@LastId" = $Cursore; "@Dal" = $extraDal; "@Soglia" = $Soglia }
+        if ($righe.Count -eq 0) { $allaFine = $true; break }
+
+        Send-RigheExtra -Def $Def -Righe $righe
+
+        $Cursore = [int64]$righe[$righe.Count - 1].($Def.ChiaveCol)
+        $copiate += $righe.Count
+        Write-Log "$Etichetta, blocco ${blocco}: $($righe.Count) righe, cursore ora a $Cursore."
+
+        if ($righe.Count -lt $DimensioneBlocco) { $allaFine = $true; break }
+    }
+    return @{ Copiate = $copiate; AllaFine = $allaFine }
+}
+
+function Sync-DefExtra {
+    param($Def)
+
+    $nome = $Def.Nome
+    $dimensioneBlocco = if ($Def.BatchSize) { [int]$Def.BatchSize } else { $extraBatchSize }
+    $maxBlocchi = if ($Def.MaxBatches) { [int]$Def.MaxBatches } else { $extraMaxBatches }
+    $condizioneDal = if ($Def.Dal) { $Def.Dal } else { "1=1" }
+    $soglia = (Get-Date).Date.AddDays(-$extraRefreshGiorniIndietro)
+    if ($soglia -lt $extraDal) { $soglia = $extraDal }
+
+    # Tabelle piccole: si riscrivono per intero, ogni $extraAnagraficheOgniOre ore.
+    if ($Def.Modo -eq "Anagrafica") {
+        if (-not (Test-ScadutoExtra "extra_anagrafica_$nome" $extraAnagraficheOgniOre)) { return }
+
+        $comandoText = "SELECT $($Def.Select)`nFROM $($Def.From)`nWHERE $condizioneDal"
+        $righe = Invoke-QueryDbgym -CommandText $comandoText -Parametri @{ "@Dal" = $extraDal }
+        for ($i = 0; $i -lt $righe.Count; $i += 500) {
+            $fine = [math]::Min($i + 499, $righe.Count - 1)
+            Send-RigheExtra -Def $Def -Righe @($righe[$i..$fine])
+        }
+        Set-StatoExtra "extra_anagrafica_$nome" (Get-Date)
+        Write-Log "${nome}: $($righe.Count) righe riscritte."
+        return
+    }
+
+    # Righe nuove: ID oltre il watermark.
+    $ultimoId = Get-UltimoIdExtra $Def
+    Write-Log "${nome}, watermark di partenza: $($Def.ChiaveCol) > $ultimoId"
+    $esito = Copy-BlocchiExtra -Def $Def -Condizione $condizioneDal -Cursore $ultimoId -Soglia $soglia `
+        -DimensioneBlocco $dimensioneBlocco -MaxBlocchi $maxBlocchi -Etichetta $nome
+    Write-Log "${nome}: $($esito.Copiate) righe nuove in questa esecuzione."
+
+    # Finche' lo storico non e' tutto dentro le righe recenti non sono nemmeno
+    # arrivate: il refresh solo a giro completo.
+    if (-not $esito.AllaFine) {
+        Write-Log "${nome}: storico ancora in corso, salto il refresh di questo giro."
+        return
+    }
+    if (-not $Def.RefreshWhere) { return }
+    if (-not (Test-ScadutoExtra "extra_refresh_$nome" $extraRefreshOgniOre)) { return }
+
+    Write-Log "${nome}: refresh delle righe che possono essere cambiate (dal $($soglia.ToString('yyyy-MM-dd')))."
+    $condizioneRefresh = "($($Def.RefreshWhere)) AND ($condizioneDal)"
+    $refresh = Copy-BlocchiExtra -Def $Def -Condizione $condizioneRefresh -Cursore 0 -Soglia $soglia `
+        -DimensioneBlocco $dimensioneBlocco -MaxBlocchi $maxBlocchi -Etichetta "$nome refresh"
+    Write-Log "${nome}: $($refresh.Copiate) righe riprocessate dal refresh."
+
+    # Segnato solo a giro completo: se si interrompe, il prossimo riparte.
+    if ($refresh.AllaFine) { Set-StatoExtra "extra_refresh_$nome" (Get-Date) }
+}
+
+function Sync-Extra {
+    if (-not $extraAttivo) { return }
+
+    $errori = @()
+    foreach ($def in $defsExtra) {
+        if ($SoloExtra.Count -gt 0 -and $SoloExtra -notcontains $def.Nome) { continue }
+        try {
+            Sync-DefExtra -Def $def
+        }
+        catch {
+            $dettaglio = Get-CorpoErrore $_
+            Write-Log "ERRORE su $($def.Nome): $($_.Exception.Message)$(if ($dettaglio) { " - dettaglio: $dettaglio" })" "ERROR"
+            $errori += $def.Nome
+        }
+    }
+    if ($errori.Count -gt 0) { throw "Dati aggiuntivi: errore su $($errori -join ', ')." }
+}
+
 # ─────────────────────────────────────────────────────────────────── run
 
 Write-Log "Avvio sincronizzazione."
 
 try {
+    if ($SoloExtra.Count -gt 0) {
+        Write-Log "Solo dati aggiuntivi: $($SoloExtra -join ', ')."
+        Sync-Extra
+        Write-Log "Fine (solo dati aggiuntivi)."
+        exit 0
+    }
+
     $catalogo = Get-CatalogoInfo4U
     Write-Log "Catalogo Info4U letto: $($catalogo.Count) prodotti."
 
@@ -1457,6 +1800,8 @@ try {
     Sync-Rate
 
     Sync-ModificheAbbonamenti
+
+    Sync-Extra
 }
 catch {
     # $_.Exception.Message da solo, per un errore HTTP, e' solo "(500)

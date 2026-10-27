@@ -293,6 +293,59 @@ data. Il registro non cambia a posteriori: solo watermark su `IdLog`. Del
 socio si copia l'ID, non il nome. Le righe il cui testo non ha le date
 restano con `interpretata = false`.
 
+## Gli altri dati di Info4U (azioni CRM, accessi, ricevute...)
+
+Oltre a vendite, cassa, rate e modifiche, lo script copia — sempre dal
+1 gennaio 2023 (`ExtraDal` in `config.json`) — le tabelle di `dbgym` che
+servono al resto del CRM. Richiede `scripts/sql/2026-10-27-dati-info4u-aggiuntivi.sql`
+già eseguito su Supabase, **prima** di lanciare la nuova versione dello script.
+
+| Nome (`-SoloExtra`) | Da dbgym | A Supabase | Modo |
+|---|---|---|---|
+| `crm_pratiche` | `AppuntamentiCategorieUtenti` | `crm_pratiche` | nuove + refresh delle aperte |
+| `crm_azioni` | `AppuntamentiStorico` | `crm_azioni` | nuove + refresh recenti |
+| `crm_memo` | `Memo` | `crm_memo` | riscritta intera |
+| `crm_tipi_azione`, `crm_esiti_azione`, `crm_stati_commerciali` | `AppuntamentiTipo/Esito/Stato` | stesse | riscritte intere |
+| `operatori_info4u`, `operatori_categorie_info4u` | `Operatori`, `OperatoriCategorie` | stesse | riscritte intere |
+| `email_inviate` | `Email` | `email_inviate` | nuove + refresh recenti |
+| `certificati` | `Certificati` | `certificati` | nuove + refresh recenti |
+| `quote_associative` | `QuoteAssociative` | `quote_associative` | nuove |
+| `prenotazioni_iscrizioni`, `prenotazioni_catalogo`, `prenotazioni_lezioni` | `PrenotazioniIscrizione`, `Prenotazioni`, `PrenotazioniLezioni` | stesse | nuove + refresh / intere |
+| `corsi_iscrizioni` | `CorsiIscrizione` | `corsi_iscrizioni` | nuove + refresh recenti |
+| `omaggi_iscrizioni` | `IscrizioniOmaggioGenerali` | `omaggi_iscrizioni` | nuove + refresh dei validi |
+| `ricevute`, `ricevute_righe` | `RicevuteTestata`, `RicevuteRiga` | stesse | nuove + refresh recenti |
+| `accessi_storico`, `accessi_corrente` | `AccessiStorico`, `Accessi` | `accessi` | nuove (nessun refresh) |
+| `esiti_accesso`, `terminali_info4u` | `EsitiAccesso`, `Terminali` | stesse | riscritte intere |
+
+**Prima volta.** Ogni tabella ha un tetto di blocchi per esecuzione
+(`ExtraMaxBatches`, default 10 da 1000 righe; gli accessi 10 da 5000), quindi
+lo storico entra in più giri. Gli accessi sono ~3,4 milioni di righe: a 50.000
+per giro sono circa 70 esecuzioni (5-6 ore a 5 minuti l'una); per accelerare si
+lancia a mano `.\sync-abbonamenti.ps1 -SoloExtra accessi_storico` più volte.
+Conviene provare **una tabella alla volta** con `-SoloExtra` (salta vendite,
+cassa e rate) e guardare `sync.log` prima di lasciare tutto al task. Una tabella
+che fallisce non ferma le altre; a fine giro lo script esce con errore e il log
+dice quale.
+
+**Spazio su Supabase.** Gli accessi da soli sono circa 3,4 milioni di righe con
+tre indici: ordine di grandezza 0,5 GB. Controlla il piano prima del primo giro
+completo.
+
+**Non copiato apposta:** password, login, email e impronte degli operatori; il
+corpo e l'indirizzo del destinatario delle email; cliente, indirizzi, partita IVA
+e note delle ricevute; il numero tessera e la descrizione libera degli accessi;
+`UtentiAnamnesi` (dati sanitari).
+
+**Persone.** `persone` nasce dalle vendite: un utente Info4U che non ha mai
+comprato (un lead, un walk-in) non c'è ancora, quindi le sue pratiche e azioni
+hanno `source_utente_id` ma `persona_id` nullo. Quando `persone` si allarga si
+lancia `select * from info4u_riallinea_persone();` per riempire i legami.
+
+**Azioni dei consulenti.** `crm_azioni_dettaglio` (vista) le legge per intero:
+persona, tipo, esito, stato, autore e destinatario. Circa il 90% delle righe è
+generato dal gestionale (campagne email, «mancanza frequenza», certificati in
+scadenza): la colonna `automatica` le separa dal lavoro dei consulenti.
+
 ## Cosa NON fa (ancora)
 
 - Non fa nessuna automazione sui rinnovi o sulle scadenze.
