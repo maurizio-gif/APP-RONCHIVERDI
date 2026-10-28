@@ -499,7 +499,7 @@ export function NuovaVoce({
                 name="assegnato_a"
                 type="text"
                 list="elenco-operatori"
-                placeholder="lascia vuoto per te"
+                placeholder="vuoto: chi segue il contatto, o te"
                 autoComplete="off"
               />
               <datalist id="elenco-operatori">
