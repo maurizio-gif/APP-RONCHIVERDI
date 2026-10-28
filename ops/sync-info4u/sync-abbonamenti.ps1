@@ -360,6 +360,16 @@ function Send-PersonaUpsert {
     $idTrovato = Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/rpc/trova_o_crea_persona" `
         -Headers $supabaseHeaders -Method Post -Corpo $corpoRpc
 
+    # Con la risposta JSON `null` Invoke-RestMethod di Windows PowerShell 5.1
+    # restituisce la STRINGA "null", non $null: senza questo controllo la
+    # ricerca qui sotto diventava persone?id=eq.null, Postgres rispondeva
+    # «invalid input syntax for type uuid: "null"» (400) e il giro si
+    # fermava sempre sulla stessa vendita, senza avanzare il watermark.
+    $idGuid = [guid]::Empty
+    if (-not $idTrovato -or -not [guid]::TryParse([string]$idTrovato, [ref]$idGuid)) {
+        $idTrovato = $null
+    }
+
     if (-not $idTrovato) {
         # Null vuol dire una cosa sola: Nome vuoto (non dovrebbe succedere per
         # un utente Info4U, ma la funzione lo esclude per sicurezza — vedi
