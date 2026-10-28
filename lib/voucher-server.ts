@@ -1,6 +1,6 @@
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
-import { inviaEmailAssegnazione, inviaEmailUtilizzato } from '@/lib/voucher-email'
-import { dataOraRoma, generaCodice, statoEffettivo, type Voucher } from '@/lib/voucher'
+import { inviaEmailAssegnazione, inviaEmailReinvio, inviaEmailUtilizzato } from '@/lib/voucher-email'
+import { dataOraRoma, emailValida, generaCodice, statoEffettivo, type Voucher } from '@/lib/voucher'
 
 // Le operazioni sul voucher che toccano il database, in un posto solo: le
 // usano sia il pannello (emissione, reinvio, annullamento) sia l'interfaccia
@@ -107,7 +107,7 @@ async function registraInvio(
   return (data as Voucher) ?? { ...voucher, ...patch }
 }
 
-export type EsitoReinvio = { ok: true; voucher: Voucher } | { ok: false; errore: string }
+export type EsitoReinvio = { ok: true; voucher: Voucher; identica: boolean } | { ok: false; errore: string }
 
 export async function reinviaVoucher(id: string, chi: string | null): Promise<EsitoReinvio> {
   const voucher = await leggiVoucherPerId(id)
@@ -121,10 +121,16 @@ export async function reinviaVoucher(id: string, chi: string | null): Promise<Es
     return { ok: false, errore: `Il voucher è ${stato}: non ha senso rimandarlo al socio.` }
   }
 
-  const esito = await inviaEmailAssegnazione(voucher, chi)
+  if (!emailValida(voucher.email)) {
+    return { ok: false, errore: 'Il voucher non ha un’email valida a cui rimandarlo.' }
+  }
+
+  // Stesso voucher, stesso codice, stessa email dell'inizio: nessuna riga
+  // nuova in `voucher`, solo un invio in più nel tracking e il contatore.
+  const esito = await inviaEmailReinvio(voucher, chi)
   const aggiornato = await registraInvio(voucher, esito)
   if (!esito.ok) return { ok: false, errore: esito.errore }
-  return { ok: true, voucher: aggiornato }
+  return { ok: true, voucher: aggiornato, identica: esito.identica }
 }
 
 export async function leggiVoucherPerId(id: string): Promise<Voucher | null> {

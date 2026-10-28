@@ -70,7 +70,7 @@ export async function creaVoucher(formData: FormData): Promise<EsitoAzione> {
   return { ok: true, messaggio: `Voucher ${codice} creato e inviato a ${esito.voucher.email}.` }
 }
 
-export async function rimandaEmail(id: string): Promise<EsitoAzione> {
+export async function reinviaEmail(id: string): Promise<EsitoAzione> {
   const email = await operatoreAutorizzato()
   if (!email) return NEGATO
 
@@ -80,11 +80,16 @@ export async function rimandaEmail(id: string): Promise<EsitoAzione> {
   await registraLog(email, 'voucher_email_reinviata', {
     entita: 'voucher',
     entitaId: id,
-    dettagli: { codice: esito.voucher.codice, destinatario: esito.voucher.email },
+    dettagli: {
+      codice: esito.voucher.codice,
+      destinatario: esito.voucher.email,
+      invii: esito.voucher.email_invii,
+      testo_originale: esito.identica,
+    },
   })
 
   revalidatePath('/dashboard/voucher')
-  return { ok: true, messaggio: `Email rimandata a ${esito.voucher.email}.` }
+  return { ok: true, messaggio: `Email reinviata a ${esito.voucher.email}.` }
 }
 
 // Annullare, non cancellare: un voucher emesso per errore resta in tabella

@@ -94,7 +94,7 @@ export const AZIONI_LOG: Record<string, string> = {
   candidatura_nota: 'Curriculum: nota salvata',
   candidatura_cv_scaricato: 'Curriculum: CV scaricato',
   voucher_emesso: 'Voucher emesso',
-  voucher_email_reinviata: 'Voucher: email rimandata al socio',
+  voucher_email_reinviata: 'Voucher: email reinviata al socio',
   voucher_annullato: 'Voucher annullato',
   personal_sessione_registrata: 'Personal: sessione registrata',
   personal_sessione_confermata: 'Personal: sessione confermata',

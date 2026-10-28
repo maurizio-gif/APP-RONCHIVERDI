@@ -7,6 +7,7 @@ import {
   ETICHETTE_STATO,
   dataOraRoma,
   dataRoma,
+  emailValida,
   nomeCompleto,
   statoEffettivo,
   type StatoEffettivo,
@@ -135,7 +136,7 @@ export default async function VoucherPage({ searchParams }: { searchParams: { q?
           </li>
           <li>
             Il codice <strong>non si vede in questa pagina</strong>: lo riceve solo il socio. Se
-            non l’ha ricevuto o non lo trova più, usa <strong>«Rimanda email»</strong>, possibile
+            non l’ha ricevuto o non lo trova più, usa <strong>«Reinvia email»</strong> (parte la stessa email dell’inizio, con lo stesso codice), possibile
             finché il voucher non è stato utilizzato.
           </li>
           <li>
@@ -288,8 +289,10 @@ export default async function VoucherPage({ searchParams }: { searchParams: { q?
                         <AzioniVoucher
                           id={v.id}
                           socio={nomeCompleto(v)}
+                          destinatario={v.email}
+                          giaInviata={v.email_inviata_il !== null}
                           annullabile={v.stato === 'attivo'}
-                          rimandabile={stato === 'attivo'}
+                          rimandabile={stato === 'attivo' && emailValida(v.email)}
                           puoCancellare={possoCancellare}
                         />
                       </td>

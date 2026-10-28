@@ -120,6 +120,10 @@ export function dataOraRoma(iso: string): string {
   return FORMATO_DATA_ORA.format(new Date(iso))
 }
 
+export function emailValida(email: string | null | undefined): boolean {
+  return !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
 // Validazione dei campi del form, condivisa fra il controllo lato server e i
 // messaggi mostrati: restituisce l'errore da far leggere, o null.
 export function erroreDatiSocio(dati: {
@@ -130,6 +134,6 @@ export function erroreDatiSocio(dati: {
   if (!dati.nome) return 'Il nome è obbligatorio.'
   if (!dati.cognome) return 'Il cognome è obbligatorio.'
   if (!dati.email) return 'L’email è obbligatoria: è lì che arriva il voucher.'
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dati.email)) return 'L’email non sembra valida.'
+  if (!emailValida(dati.email)) return 'L’email non sembra valida.'
   return null
 }
