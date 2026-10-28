@@ -123,8 +123,37 @@ export async function creaVoce(formData: FormData): Promise<Esito> {
     : await contattoDallElenco(personaScelta)
   if ('errore' in contatto) return { ok: false, errore: contatto.errore }
 
+  // «Assegnata a» vuoto vuol dire «per me», ma se il contatto ha già chi lo
+  // segue la voce va in agenda sua: altrimenti compare solo a chi l'ha
+  // scritta, e chi deve farla non la vede (ticket #11). Chi vuole tenerla per
+  // sé scrive il proprio nome nel campo.
+  let voce = preparato.riga
+  let avvisoAgenda: string | null = null
+  if (!(evento.assegnatoA ?? '').trim()) {
+    const { data: lead } = await supabase
+      .from('opportunita')
+      .select('assegnato_a')
+      .eq('persona_id', contatto.id)
+      .in('stato', ['nuovo', 'in_gestione'])
+      .not('assegnato_a', 'is', null)
+      .order('creato_il', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const titolare = (lead?.assegnato_a as string | undefined) ?? null
+    if (titolare && titolare !== email) {
+      voce = { ...voce, assegnato_a: titolare }
+      const { data: staff } = await supabase
+        .from('staff_users')
+        .select('nome, cognome')
+        .eq('email', titolare)
+        .maybeSingle()
+      const nome = `${staff?.nome ?? ''} ${staff?.cognome ?? ''}`.trim() || titolare
+      avvisoAgenda = `Il contatto lo segue ${nome}: la voce è in agenda sua, non nella tua.`
+    }
+  }
+
   const { error } = await supabase.from('task').insert({
-    ...preparato.riga,
+    ...voce,
     entita: 'persona',
     entita_id: contatto.id,
   })
@@ -169,7 +198,7 @@ export async function creaVoce(formData: FormData): Promise<Esito> {
   // la trattativa aperta dall'evento. Separate da uno spazio invece che
   // scegliendone una — sono due sorprese diverse, e tacerne una perché ce
   // n'è un'altra è il modo di non farla scoprire a nessuno.
-  const avvisi = [contatto.avviso, azioneTrattativa && AVVISO_TRATTATIVA[azioneTrattativa]]
+  const avvisi = [contatto.avviso, avvisoAgenda, azioneTrattativa && AVVISO_TRATTATIVA[azioneTrattativa]]
     .filter(Boolean)
     .join(' ')
   return avvisi ? { ok: true, avviso: avvisi } : { ok: true }
