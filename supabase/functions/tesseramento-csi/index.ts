@@ -85,6 +85,8 @@ type Persona = {
   cognome: string | null
   data_nascita: string | null
   luogo_nascita: string | null
+  provincia_nascita: string | null
+  stato_nascita: string | null
   sesso: string | null
   codice_fiscale: string | null
   email: string | null
@@ -215,6 +217,18 @@ function classifica(errore: string): { tipo: MotivoTipo; ferma: boolean } {
 
 const tronca = (v: string | null | undefined, max: number) => (v ?? '').trim().slice(0, max)
 
+// Il luogo come lo vuole CSI (§6.1): il comune per chi è nato in Italia, lo
+// stato per gli stranieri. In Info4U l'estero si riconosce da
+// Provincia_Nascita = 'EE' o da uno Stato_Nascita diverso da «Italia»; lo
+// stato è compilato a mano e a volte è sporco (una città al posto dello
+// stato), quindi lo si usa solo se c'è un segnale di estero.
+function luogoPerCsi(p: Pick<Persona, 'luogo_nascita' | 'provincia_nascita' | 'stato_nascita'>): string {
+  const comune = tronca(p.luogo_nascita, 35)
+  const stato = tronca(p.stato_nascita, 35)
+  const estero = (p.provincia_nascita ?? '').trim().toUpperCase() === 'EE' || (stato !== '' && stato.toLowerCase() !== 'italia')
+  return estero && stato ? stato : comune
+}
+
 // I campi obbligatori di N (§6.1) più il codice attività. Il codice fiscale
 // è «consigliato» e non blocca: serve al controllo dei doppi tesseramenti e
 // alla lettura preventiva, ma i nati all'estero non lo hanno.
@@ -224,7 +238,7 @@ function datiMancanti(p: Persona, codiceAttivita: string | null): string[] {
   if (tronca(p.nome, 50).length < 2) mancanti.push('nome')
   if (!p.data_nascita) mancanti.push('data di nascita')
   else if (p.data_nascita > new Date().toISOString().slice(0, 10)) mancanti.push('data di nascita (è nel futuro)')
-  if (tronca(p.luogo_nascita, 35).length < 2) mancanti.push('luogo di nascita')
+  if (luogoPerCsi(p).length < 2) mancanti.push('luogo di nascita')
   if (!['M', 'F'].includes((p.sesso ?? '').trim().toUpperCase())) mancanti.push('sesso')
   if (!codiceAttivita) mancanti.push('codice attività CSI del prodotto')
   return mancanti
@@ -242,7 +256,7 @@ function corpoNuovoTesserato(p: Persona, codiceAttivita: string, cmed: string | 
     cognome: tronca(p.cognome, 50),
     nome: tronca(p.nome, 50),
     nascita: dataCsi(p.data_nascita),
-    luogo: tronca(p.luogo_nascita, 35),
+    luogo: luogoPerCsi(p),
     sesso: (p.sesso ?? '').trim().toUpperCase(),
     // Il campo si chiama `tipotess` (lo dice l'errore del server), non
     // `tipoess` come scritto nelle tabelle della guida: si mandano entrambi.
@@ -356,7 +370,7 @@ async function lavoraRiga(ctx: Contesto, riga: Riga): Promise<Esito> {
   const { data: persona } = await supabase
     .from('persone')
     .select(
-      'id, nome, cognome, data_nascita, luogo_nascita, sesso, codice_fiscale, email, cellulare, telefono_1, indirizzo_via, indirizzo_civico, indirizzo_cap, indirizzo_citta, indirizzo_provincia'
+      'id, nome, cognome, data_nascita, luogo_nascita, provincia_nascita, stato_nascita, sesso, codice_fiscale, email, cellulare, telefono_1, indirizzo_via, indirizzo_civico, indirizzo_cap, indirizzo_citta, indirizzo_provincia'
     )
     .eq('id', riga.persona_id)
     .maybeSingle()
@@ -631,7 +645,7 @@ Deno.serve(async (req: Request) => {
     const { data: persone } = righe.length
       ? await supabase
           .from('persone')
-          .select('id, data_nascita, luogo_nascita, sesso, nome, cognome')
+          .select('id, data_nascita, luogo_nascita, provincia_nascita, stato_nascita, sesso, nome, cognome')
           .in('id', righe.map((r) => r.persona_id))
       : { data: [] }
     const perId = new Map(((persone ?? []) as Persona[]).map((p) => [p.id, p]))

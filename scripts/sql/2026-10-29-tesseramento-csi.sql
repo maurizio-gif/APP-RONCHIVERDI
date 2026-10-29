@@ -19,8 +19,10 @@
 --
 -- Cinque pezzi:
 --
--- 1. `persone.luogo_nascita`: CSI lo richiede, il sync Info4U non lo porta
---    ancora (da verificare in Info4U, vedi ops/sync-info4u).
+-- 1. `persone.luogo_nascita` (e provincia e stato di nascita): CSI lo
+--    richiede e Info4U lo ha (Utenti.Luogo_Nascita); le colonne e il loro
+--    commento sono in 2026-10-29-persone-luogo-nascita.sql, da eseguire
+--    prima del sync. Qui sotto sono ripetute con `if not exists`.
 -- 2. `tesseramenti_csi_prodotti`: quali prodotti dànno la tessera e con quale
 --    codice attività CSI. Vuota: la riempie chi decide (vedi in fondo).
 -- 3. `tesseramenti_csi`: una riga per persona e stagione, con lo stato, i
@@ -34,10 +36,10 @@
 -- simulazione (test = 1): nulla viene inserito né scalato dal credito.
 
 -- ───────────────────────────────────────────────────── luogo di nascita
-alter table public.persone add column if not exists luogo_nascita text;
-
-comment on column public.persone.luogo_nascita is
-	'Comune di nascita (o stato, per i nati all''estero): obbligatorio per il tesseramento CSI.';
+alter table public.persone
+	add column if not exists luogo_nascita text,
+	add column if not exists provincia_nascita text,
+	add column if not exists stato_nascita text;
 
 -- ──────────────────────────────────────────── prodotti che dànno la tessera
 create table if not exists public.tesseramenti_csi_prodotti (

@@ -724,8 +724,10 @@ nessuna email.
   `CSI_PASSWORD`, `CSI_X_AUTHORIZATION`, facoltativi `CSI_LIVE`,
   `CSI_API_URL`, `CSI_COMITATO`, `CSI_STAGIONE`.
 - **Dati richiesti da CSI** per ogni tesserato: cognome, nome, data e
-  **luogo di nascita** (`persone.luogo_nascita`, ancora da popolare dal sync
-  Info4U), sesso e codice attività. Senza uno di questi la riga resta «Dati
+  **luogo di nascita** (`persone.luogo_nascita`, dal sync Info4U: in
+  Info4U sta in `Utenti.Luogo_Nascita`, compilato per circa il 70% degli
+  utenti; per i nati all'estero a CSI va lo stato, vedi `luogoPerCsi`), sesso
+  e codice attività. Senza uno di questi la riga resta «Dati
   mancanti» e non si chiama CSI.
 - **Riprova ora**: il pulsante su ogni riga non tesserata rimanda a CSI quella
   persona subito, senza aspettare le due ore (dopo aver corretto un dato in
