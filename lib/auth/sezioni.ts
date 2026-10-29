@@ -97,6 +97,17 @@ const DEFINIZIONI = [
     href: '/dashboard/abbonamenti/check-sospensioni',
     gruppo: 'Segreteria',
   },
+  // Il tesseramento CSI che parte da solo a ogni nuovo abbonamento (edge
+  // function tesseramento-csi, vedi scripts/sql/2026-10-29-tesseramento-csi.sql):
+  // chi è tesserato, con numero di tessera e scadenza, e chi no, col motivo
+  // che dà il CSI. Come i rinnovi, un permesso a sé e non quello di
+  // 'abbonamenti'.
+  {
+    chiave: 'tesseramenti',
+    label: 'Tesseramenti CSI',
+    href: '/dashboard/tesseramenti',
+    gruppo: 'Segreteria',
+  },
   {
     chiave: 'richieste-tennis-scuola',
     label: 'Young School Tennis — Scuola',
