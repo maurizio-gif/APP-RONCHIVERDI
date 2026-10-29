@@ -40,7 +40,7 @@ import { COLONNE_SESSIONE, type SessionePersonal } from '@/lib/personal'
 import { datiInfo4uDellaPersona } from '@/lib/scheda-info4u-server'
 import { type VoceInfo4u } from '@/lib/schedaInfo4u'
 import { ElencoAPassi } from './ElencoAPassi'
-import { CardFrequenza, CardPagamenti, ElencoEmailInfo4u, SintesiScheda } from './SchedaInfo4u'
+import { CardFrequenza, CardPagamenti, SezioneEmailInfo4u, SintesiScheda } from './SchedaInfo4u'
 
 // La scheda del contatto sul modello di Passion: in testa chi è e come lo si
 // raggiunge; a sinistra il lavoro (il lead, con assegnatario e stato, e le
@@ -312,7 +312,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
     ...fatteAgenda.map((v): Fatta => ({ chiave: v.chiave, data: v.data, ora: v.ora, genere: 'voce', voce: v })),
     ...noteRinnovi.map((n): Fatta => ({ chiave: `nota-${n.id}`, data: n.data, ora: n.ora, genere: 'nota', nota: n })),
     // Azioni e memo dei consulenti su Info4U: sola lettura, stessa lista.
-    ...info4u.storico.map((i): Fatta => {
+    ...info4u.storico.filter((i) => !i.eEmail).map((i): Fatta => {
       const q = dataOraRomaIso(i.quando)
       return { chiave: i.chiave, data: q.data, ora: q.ora, genere: 'info4u', info: i }
     }),
@@ -649,6 +649,8 @@ export default async function PersonaPage({ params }: { params: { id: string } }
               )}
             </div>
 
+            <SezioneEmailInfo4u azioni={info4u.storico.filter((i) => i.eEmail)} email={info4u.email} />
+
             <div className="nuova-azione-box">
               <h3>Nuova azione</h3>
               <NuovaAzione
@@ -716,7 +718,6 @@ export default async function PersonaPage({ params }: { params: { id: string } }
               </span>
             </div>
             <ElencoEmail email={emailInviate} vuoto="Nessuna email inviata dal CRM a questa persona." />
-            <ElencoEmailInfo4u email={info4u.email} />
           </div>
           {personal.length > 0 && (
             <div className="card">

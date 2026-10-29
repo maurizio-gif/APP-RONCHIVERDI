@@ -10,7 +10,9 @@ import {
   statoQuota,
   type DatiInfo4u,
   type EmailInfo4u,
+  type VoceInfo4u,
 } from '@/lib/schedaInfo4u'
+import { ElencoAPassi } from './ElencoAPassi'
 
 // I blocchi della scheda contatto che vengono dai dati Info4U (vedi
 // lib/scheda-info4u-server.ts). Solo presentazione: nessuna lettura qui.
@@ -190,28 +192,62 @@ export function CardPagamenti({ dati, oggi }: { dati: DatiInfo4u; oggi: string }
   )
 }
 
-/** Le email partite da Info4U (le altre, quelle del CRM, hanno già il loro elenco). */
-export function ElencoEmailInfo4u({ email }: { email: EmailInfo4u[] }) {
-  if (email.length === 0) return null
+/**
+ * Le email di Info4U, in una sezione chiusa di default: sono la gran parte
+ * dello storico (invii automatici di contratti, credenziali, promemoria) e
+ * metterle fra le azioni seppelliva i contatti fatti da una persona. Due
+ * elenchi: il registro delle email (con l'esito dell'invio) e le azioni con
+ * cui Info4U le ha annotate; la stessa email può comparire in entrambi.
+ */
+export function SezioneEmailInfo4u({ azioni, email }: { azioni: VoceInfo4u[]; email: EmailInfo4u[] }) {
+  const totale = azioni.length + email.length
+  if (totale === 0) return null
   return (
-    <>
-      <h3 className="frequenza-titolo">Da Info4U</h3>
-      <ul className="storia">
-        {email.map((e) => (
-          <li key={e.id}>
-            <strong>{e.data ? dataBreve(e.data) : '—'}</strong>{' '}
-            {e.errore ? (
-              <span className="badge badge-ko">Errore</span>
-            ) : e.inviata ? (
-              <span className="badge badge-ok">Inviata</span>
-            ) : (
-              <span className="badge">In coda</span>
-            )}
-            {e.oggetto && <div className="storia-testo">{e.oggetto}</div>}
-            {e.errore && <div className="storia-testo muted">{e.errore}</div>}
-          </li>
-        ))}
-      </ul>
-    </>
+    <details className="email-info4u">
+      <summary>
+        <strong>Email Info4U</strong> <span className="muted">· {totale}</span>
+      </summary>
+      {email.length > 0 && (
+        <>
+          <h3 className="frequenza-titolo">Registro invii</h3>
+          <ElencoAPassi
+            voci={email.map((e) => (
+              <li key={e.id}>
+                <strong>{e.data ? dataBreve(e.data) : '—'}</strong>{' '}
+                {e.errore ? (
+                  <span className="badge badge-ko">Errore</span>
+                ) : e.inviata ? (
+                  <span className="badge badge-ok">Inviata</span>
+                ) : (
+                  <span className="badge">In coda</span>
+                )}
+                {e.oggetto && <div className="storia-testo">{e.oggetto}</div>}
+                {e.errore && <div className="storia-testo muted">{e.errore}</div>}
+              </li>
+            ))}
+            iniziali={10}
+          />
+        </>
+      )}
+      {azioni.length > 0 && (
+        <>
+          <h3 className="frequenza-titolo">Annotate dai consulenti</h3>
+          <ElencoAPassi
+            voci={azioni.map((a) => (
+              <li key={a.chiave}>
+                <strong>{dataBreve(a.quando)}</strong>
+                <span className="muted">
+                  {' '}
+                  · {oraDi(a.quando)}
+                  {a.autore ? ` · ${a.autore}` : ''}
+                </span>
+                {a.testo && <div className="storia-testo">{a.testo}</div>}
+              </li>
+            ))}
+            iniziali={10}
+          />
+        </>
+      )}
+    </details>
   )
 }

@@ -173,6 +173,9 @@ async function storicoDi(supabase: Db, personaId: string): Promise<VoceInfo4u[]>
           chiave: `info4u-azione-${a.id}`,
           quando: (a.data_appuntamento ?? a.data_evasione) as string,
           genere: 'azione',
+          eEmail:
+            /^inviata email/i.test(a.descrizione ?? '') ||
+            /email|mailing/i.test(a.source_tipo_id != null ? nomeTipo.get(a.source_tipo_id) ?? '' : ''),
           tipo: a.source_tipo_id != null ? nomeTipo.get(a.source_tipo_id) ?? null : null,
           esito: a.source_esito_id != null ? nomeEsito.get(a.source_esito_id) ?? null : null,
           titolo: null,
@@ -187,6 +190,7 @@ async function storicoDi(supabase: Db, personaId: string): Promise<VoceInfo4u[]>
           chiave: `info4u-memo-${m.id}`,
           quando: (m.data_operazione ?? m.ultima_modifica) as string,
           genere: 'memo',
+          eEmail: false,
           tipo: null,
           esito: null,
           titolo: m.oggetto,

@@ -73,6 +73,8 @@ export type VoceInfo4u = {
   /** Istante, per ordinare con il resto delle azioni fatte. */
   quando: string
   genere: 'azione' | 'memo'
+  /** L'azione è il registro di un'email inviata (non un contatto fatto da una persona). */
+  eEmail: boolean
   tipo: string | null
   esito: string | null
   titolo: string | null
