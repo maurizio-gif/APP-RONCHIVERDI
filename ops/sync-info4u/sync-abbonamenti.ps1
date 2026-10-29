@@ -317,6 +317,9 @@ function Send-PersonaUpsert {
         telefono_2          = Get-TestoPulito $Riga.Telefono_2
         codice_fiscale      = Get-TestoPulito $Riga.CodiceFiscale
         data_nascita        = Get-DataPulita $Riga.Data_Nascita
+        luogo_nascita       = Get-TestoPulito $Riga.Luogo_Nascita
+        provincia_nascita   = Get-TestoPulito $Riga.Provincia_Nascita
+        stato_nascita       = Get-TestoPulito $Riga.Stato_Nascita
         sesso               = Get-TestoPulito $Riga.Sesso
         indirizzo_via       = Get-TestoPulito $Riga.Indirizzo_Via
         indirizzo_civico    = Get-TestoPulito $Riga.Indirizzo_NumeroCivico
@@ -509,6 +512,7 @@ SELECT
     ai.DataOperazione AS DataVendita,
     u.Nome, u.Cognome, u.Email, u.Telefono_1, u.Telefono_2, u.SMS AS Cellulare,
     u.CodiceFiscale, u.Data_Nascita, u.Sesso,
+    u.Luogo_Nascita, u.Provincia_Nascita, u.Stato_Nascita,
     u.Indirizzo_Via, u.Indirizzo_NumeroCivico, u.Indirizzo_CAP,
     u.Indirizzo_Citta, u.Indirizzo_PV, u.Indirizzo_Stato,
     a.Descrizione AS Abbonamento, ad.Descrizione AS Variante, ad.Durata, ad.Periodo,
@@ -1672,6 +1676,7 @@ function Sync-PersoneSenzaAcquisti {
 SELECT TOP ($dimensioneBlocco)
     u.IDUtente, u.Nome, u.Cognome, u.Email, u.Telefono_1, u.Telefono_2, u.SMS AS Cellulare,
     u.CodiceFiscale, u.Data_Nascita, u.Sesso,
+    u.Luogo_Nascita, u.Provincia_Nascita, u.Stato_Nascita,
     u.Indirizzo_Via, u.Indirizzo_NumeroCivico, u.Indirizzo_CAP,
     u.Indirizzo_Citta, u.Indirizzo_PV, u.Indirizzo_Stato
 FROM dbo.Utenti u

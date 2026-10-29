@@ -713,6 +713,77 @@ La tabella (`scripts/sql/2026-09-05-voucher.sql`) non parla di medicina: la
 colonna `tipo` distingue il benefit, così lo stesso motore serve il prossimo
 — merchandising, ingressi omaggio — senza una tabella nuova.
 
+## Tesseramenti CSI (automatico)
+
+Ogni nuovo abbonamento di un prodotto con tessera viene inviato da solo al
+server nazionale di tesseramento del CSI (web service JSON, guida v. 2.3).
+La pagina `/dashboard/tesseramenti` (sezione `tesseramenti`, gruppo
+Segreteria) mostra chi è tesserato, con tessera, rilascio, scadenza e credito usato,
+e chi non lo è, con il motivo risposto dal CSI o il dato che manca. Non parte
+nessuna email.
+
+- **Edge function** `tesseramento-csi` (`supabase/functions/tesseramento-csi`),
+  chiamata da pg_cron in due giri: `?giro=nuovi` ogni 10 minuti (crea le righe
+  delle nuove vendite e le invia) e `?giro=ritenta` ogni 2 ore (riprova chi
+  non è tesserato, finché il suo abbonamento è in corso).
+- **Prima di inviare** chiede a CSI se la persona è già tesserata nella
+  stagione (operazione `I` per codice fiscale: il web service ha solo POST,
+  quella è la «lettura»): chi è già tesserato dal portale si registra da solo.
+- **Dati**: `tesseramenti_csi` (una riga per persona e stagione),
+  `tesseramenti_csi_tentativi` (ogni chiamata a CSI, con la risposta intera),
+  `tesseramenti_csi_prodotti` (quali prodotti dànno la tessera e con quale
+  codice attività, letto con l'operazione `S`). Tutto in
+  [`2026-10-29-tesseramento-csi.sql`](scripts/sql/2026-10-29-tesseramento-csi.sql).
+- **Interruttore**: la riga `tesseramento_csi` di `automazioni`, spenta di
+  default. In più, finché il segreto `CSI_LIVE` non vale `1` la function
+  chiama CSI con `test = 1`: calcola la quota ma non emette nulla né scala il
+  credito, e la riga diventa «simulato» (scheda «Prove» della pagina).
+- **Segreti** (Dashboard → Edge Functions → Secrets): `CSI_USERID`,
+  `CSI_PASSWORD`, `CSI_X_AUTHORIZATION`, facoltativi `CSI_LIVE`,
+  `CSI_API_URL`, `CSI_COMITATO`, `CSI_STAGIONE`.
+- **Dati richiesti da CSI** per ogni tesserato: cognome, nome, data e
+  **luogo di nascita** (`persone.luogo_nascita`, dal sync Info4U: in
+  Info4U sta in `Utenti.Luogo_Nascita`, compilato per circa il 70% degli
+  utenti; per i nati all'estero a CSI va lo stato, vedi `luogoPerCsi`), sesso
+  e codice attività. Senza uno di questi la riga resta «Dati
+  mancanti» e non si chiama CSI.
+- **Riprova ora**: il pulsante su ogni riga non tesserata rimanda a CSI quella
+  persona subito, senza aspettare le due ore (dopo aver corretto un dato in
+  Info4U). Passa da `riprova_tesseramento_csi()` e dalla function con
+  `?id=`; vale anche a interruttore spento, e con `CSI_LIVE=1` emette una
+  tessera vera. Lascia una riga in Controllo operatori.
+- **Cosa risulta dalla verifica sul server CSI** (con una funzione di diagnosi
+  di sola lettura, poi dismessa): la società tessera con
+  l'attività `CR` per tutti i prodotti; il credito è **a tessere** (convenzione
+  ANIF), non in euro, quindi `N` manda `credito: 2` (`CSI_CREDITO` lo cambia);
+  il campo del tipo tessera si chiama `tipotess`, non `tipoess` come nelle
+  tabelle della guida (si mandano entrambi); la tessera dura 365 giorni dal
+  rilascio.
+- **Le tessere CSI nel CRM** (`2026-10-29-tessere-csi.sql`): la edge function
+  di sola lettura `csi-tessere`, ogni ora (job `csi-tessere`, interruttore
+  `csi_tessere` in `automazioni`), legge da CSI le tessere della stagione
+  corrente e precedente e le scrive in `tessere_csi`, legate alle persone per
+  codice fiscale (o, se non coincide, per cognome, nome e data di nascita,
+  purché una sola persona corrisponda). Da lì:
+  - la **scheda della persona** mostra il riquadro «Tesseramento CSI» (numero,
+    tipo, stagione, rilascio e scadenza) se ha una tessera in corso;
+  - la pagina **Tesseramenti** ha tre viste: *Tessere* (ricerca per cognome,
+    nome, numero o codice fiscale, con evidenza di chi ha un abbonamento reale
+    in corso), *IVA zero senza tessera* (chi ha pagato con IVA a zero, di norma
+    art. 4, e non ha una tessera in corso: la tessera è la condizione del non
+    assoggettamento; con abbonamento reale in corso, da quando è iscritto e
+    ultima tessera) e *Automazione* (l'esito del tesseramento automatico);
+  - «abbonamento reale» è la stessa definizione del report abbonamenti: la vista
+    `abbonamenti_attivi_oggi_dettaglio` (non cancellato, in corso, prodotto non
+    segnato «no abbonamento» nei gruppi).
+- **Quali prodotti dànno la tessera**: quelli le cui vendite portano righe a
+  IVA zero con dicitura «art. 4» sulle ricevute (la tessera è la condizione del
+  non assoggettamento). `tesseramenti_csi_prodotti` si popola da quelle righe:
+  [`2026-10-29-tesseramento-csi-prodotti.sql`](scripts/sql/2026-10-29-tesseramento-csi-prodotti.sql),
+  oggi 140 prodotti, attività `CR`. Da rieseguire quando entra un prodotto nuovo.
+- Un errore di credito, di credenziali o di stagione ferma il giro: vale per
+  tutte le righe e la guida sconsiglia i ritentativi ravvicinati (§14).
+
 ## Personal training
 
 Il registro delle lezioni dei personal trainer, che prima era un foglio di

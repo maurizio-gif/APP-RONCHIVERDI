@@ -172,6 +172,14 @@ const DISEGNI: Record<string, React.ReactNode> = {
       <path d="M9 14.5l2 2 4-4" />
     </>
   ),
+  // Tesseramenti CSI: la tessera con la fotografia e le righe dei dati.
+  tesseramenti: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <circle cx="8.5" cy="11" r="1.8" />
+      <path d="M5.8 16c.5-1.5 1.5-2.2 2.7-2.2s2.2.7 2.7 2.2M14 10h4M14 13.5h4" />
+    </>
+  ),
   // Curriculum: il foglio con la persona sopra.
   candidature: (
     <>

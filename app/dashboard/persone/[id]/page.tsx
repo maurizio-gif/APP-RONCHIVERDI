@@ -41,6 +41,8 @@ import { datiInfo4uDellaPersona } from '@/lib/scheda-info4u-server'
 import { type VoceInfo4u } from '@/lib/schedaInfo4u'
 import { ElencoAPassi } from './ElencoAPassi'
 import { CardFrequenza, CardPagamenti, SezioneEmailInfo4u, SintesiScheda } from './SchedaInfo4u'
+import { CardTesseraCsi } from './CardTesseraCsi'
+import { type TesseraCsi } from '@/lib/tesseramenti'
 
 // La scheda del contatto sul modello di Passion: in testa chi è e come lo si
 // raggiunge; a sinistra il lavoro (il lead, con assegnatario e stato, e le
@@ -141,6 +143,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
     possoRiassegnare,
     pagine,
     { data: sessioniPersonal },
+    { data: tesseraCsi },
   ] = await Promise.all([
     supabase
       .from('persone')
@@ -181,6 +184,14 @@ export default async function PersonaPage({ params }: { params: { id: string } }
       .order('data', { ascending: false })
       .order('ora', { ascending: false })
       .limit(MAX_SESSIONI_PERSONAL),
+    // La tessera CSI in corso, se c'è (legata alla persona per codice
+    // fiscale, vedi scripts/sql/2026-10-29-tessere-csi.sql). Se la vista non
+    // esiste ancora la scheda si apre lo stesso, senza il riquadro.
+    supabase
+      .from('tessere_csi_attive')
+      .select('tessera, stagione, tipotess, attivita, qualifiche, rilascio, scadenza')
+      .eq('persona_id', params.id)
+      .maybeSingle(),
   ])
 
   if (!persona) notFound()
@@ -701,6 +712,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
               </ul>
             )}
           </div>
+          <CardTesseraCsi tessera={(tesseraCsi as TesseraCsi | null) ?? null} />
           <CardFrequenza accessi={info4u.accessi} />
           <CardPagamenti dati={info4u} oggi={oggi} />
           {/* Ogni email partita dal CRM verso questa persona: da qui si apre

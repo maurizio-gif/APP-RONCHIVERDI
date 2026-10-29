@@ -275,6 +275,7 @@ try {
         $comando.CommandText = @"
 SELECT IDUtente, Nome, Cognome, Email, Telefono_1, Telefono_2, SMS AS Cellulare,
        CodiceFiscale, Data_Nascita, Sesso,
+       Luogo_Nascita, Provincia_Nascita, Stato_Nascita,
        Indirizzo_Via, Indirizzo_NumeroCivico, Indirizzo_CAP, Indirizzo_Citta, Indirizzo_PV, Indirizzo_Stato
 FROM dbo.Utenti
 WHERE IDUtente IN ($elencoId)
@@ -296,6 +297,9 @@ WHERE IDUtente IN ($elencoId)
                 Telefono_2          = Get-TestoPulito $riga["Telefono_2"]
                 CodiceFiscale       = Get-TestoPulito $riga["CodiceFiscale"]
                 DataNascita         = Get-DataPulita $riga["Data_Nascita"]
+                LuogoNascita        = Get-TestoPulito $riga["Luogo_Nascita"]
+                ProvinciaNascita    = Get-TestoPulito $riga["Provincia_Nascita"]
+                StatoNascita        = Get-TestoPulito $riga["Stato_Nascita"]
                 Sesso               = Get-TestoPulito $riga["Sesso"]
                 IndirizzoVia        = Get-TestoPulito $riga["Indirizzo_Via"]
                 IndirizzoCivico     = Get-TestoPulito $riga["Indirizzo_NumeroCivico"]
@@ -403,6 +407,9 @@ WHERE IDUtente IN ($elencoId)
                         telefono_2          = $canonico.Telefono_2
                         codice_fiscale      = $canonico.CodiceFiscale
                         data_nascita        = $canonico.DataNascita
+                        luogo_nascita       = $canonico.LuogoNascita
+                        provincia_nascita   = $canonico.ProvinciaNascita
+                        stato_nascita       = $canonico.StatoNascita
                         sesso               = $canonico.Sesso
                         indirizzo_via       = $canonico.IndirizzoVia
                         indirizzo_civico    = $canonico.IndirizzoCivico
@@ -427,6 +434,9 @@ WHERE IDUtente IN ($elencoId)
                         telefono_2          = $canonico.Telefono_2
                         codice_fiscale      = $canonico.CodiceFiscale
                         data_nascita        = $canonico.DataNascita
+                        luogo_nascita       = $canonico.LuogoNascita
+                        provincia_nascita   = $canonico.ProvinciaNascita
+                        stato_nascita       = $canonico.StatoNascita
                         sesso               = $canonico.Sesso
                         indirizzo_via       = $canonico.IndirizzoVia
                         indirizzo_civico    = $canonico.IndirizzoCivico

@@ -11397,6 +11397,13 @@ html[data-avvio='1']::before {
 	}
 }
 
+/* Una riga di tabella da mettere in evidenza: il filo d'oro sul bordo
+   sinistro, come nelle liste dove una persona richiede attenzione (Tesseramenti:
+   chi ha un abbonamento reale in corso). */
+table.tabella tr.riga-evidenza > td:first-child {
+	box-shadow: inset 3px 0 0 var(--accent);
+}
+
 /* Presentazione «Certificati medici» (app/dashboard/voucher/guida): diapositive
    a 16:9 che stanno nel pannello o a tutto schermo. Solo token del tema, così
    il tema scuro le ribalta da solo. */
