@@ -742,6 +742,22 @@ nessuna email.
   tabelle della guida (si mandano entrambi); la tessera dura 365 giorni dal
   rilascio. `csi-verifica?sonda=1&campi={json}` prova una simulazione di `N`
   con i dati di esempio della guida, senza emettere nulla.
+- **Le tessere CSI nel CRM** (`2026-10-29-tessere-csi.sql`): la edge function
+  di sola lettura `csi-tessere`, ogni ora (job `csi-tessere`, interruttore
+  `csi_tessere` in `automazioni`), legge da CSI le tessere della stagione
+  corrente e precedente e le scrive in `tessere_csi`, legate alle persone per
+  codice fiscale. Da lì:
+  - la **scheda della persona** mostra il riquadro «Tesseramento CSI» (numero,
+    tipo, stagione, rilascio e scadenza) se ha una tessera in corso;
+  - la pagina **Tesseramenti** ha tre viste: *Tessere* (ricerca per cognome,
+    nome, numero o codice fiscale, con evidenza di chi ha un abbonamento reale
+    in corso), *IVA zero senza tessera* (chi ha pagato con IVA a zero, di norma
+    art. 4, e non ha una tessera in corso: la tessera è la condizione del non
+    assoggettamento; con abbonamento reale in corso, da quando è iscritto e
+    ultima tessera) e *Automazione* (l'esito del tesseramento automatico);
+  - «abbonamento reale» è la stessa definizione del report abbonamenti: la vista
+    `abbonamenti_attivi_oggi_dettaglio` (non cancellato, in corso, prodotto non
+    segnato «no abbonamento» nei gruppi).
 - Un errore di credito, di credenziali o di stagione ferma il giro: vale per
   tutte le righe e la guida sconsiglia i ritentativi ravvicinati (§14).
 

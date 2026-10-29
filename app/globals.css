@@ -11396,3 +11396,10 @@ html[data-avvio='1']::before {
 		display: none;
 	}
 }
+
+/* Una riga di tabella da mettere in evidenza: il filo d'oro sul bordo
+   sinistro, come nelle liste dove una persona richiede attenzione (Tesseramenti:
+   chi ha un abbonamento reale in corso). */
+table.tabella tr.riga-evidenza > td:first-child {
+	box-shadow: inset 3px 0 0 var(--accent);
+}
