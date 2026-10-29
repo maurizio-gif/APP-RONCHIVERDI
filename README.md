@@ -700,7 +700,7 @@ colonna `tipo` distingue il benefit, così lo stesso motore serve il prossimo
 Ogni nuovo abbonamento di un prodotto con tessera viene inviato da solo al
 server nazionale di tesseramento del CSI (web service JSON, guida v. 2.3).
 La pagina `/dashboard/tesseramenti` (sezione `tesseramenti`, gruppo
-Segreteria) mostra chi è tesserato, con tessera, rilascio, scadenza e quota,
+Segreteria) mostra chi è tesserato, con tessera, rilascio, scadenza e credito usato,
 e chi non lo è, con il motivo risposto dal CSI o il dato che manca. Non parte
 nessuna email.
 
@@ -732,6 +732,14 @@ nessuna email.
   Info4U). Passa da `riprova_tesseramento_csi()` e dalla function con
   `?id=`; vale anche a interruttore spento, e con `CSI_LIVE=1` emette una
   tessera vera. Lascia una riga in Controllo operatori.
+- **Cosa risulta dalla verifica sul server CSI** (edge function di sola lettura
+  `csi-verifica`, che restituisce solo conteggi): la società tessera con
+  l'attività `CR` per tutti i prodotti; il credito è **a tessere** (convenzione
+  ANIF), non in euro, quindi `N` manda `credito: 2` (`CSI_CREDITO` lo cambia);
+  il campo del tipo tessera si chiama `tipotess`, non `tipoess` come nelle
+  tabelle della guida (si mandano entrambi); la tessera dura 365 giorni dal
+  rilascio. `csi-verifica?sonda=1&campi={json}` prova una simulazione di `N`
+  con i dati di esempio della guida, senza emettere nulla.
 - Un errore di credito, di credenziali o di stagione ferma il giro: vale per
   tutte le righe e la guida sconsiglia i ritentativi ravvicinati (§14).
 

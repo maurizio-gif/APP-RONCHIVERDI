@@ -30,8 +30,8 @@ export const dynamic = 'force-dynamic'
 type SearchParams = { vista?: string; motivo?: string }
 
 const data = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '—')
-const euro = (n: number | null) =>
-  n === null ? '—' : n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 })
+// Il credito del CSI è a tessere: la «quota» è quante ne ha scalate (di norma 1).
+const tessere = (n: number | null) => (n === null ? '—' : `${n.toLocaleString('it-IT')} ${n === 1 ? 'tessera' : 'tessere'}`)
 
 export default async function TesseramentiPage({ searchParams }: { searchParams: SearchParams }) {
   if (!(await utenteHaSezione(SEZIONE_TESSERAMENTI))) redirect('/dashboard')
@@ -235,7 +235,7 @@ function TabellaTesserati({ righe }: { righe: RigaTesseramento[] }) {
             <th>Prodotto</th>
             <th>Rilascio</th>
             <th>Scadenza</th>
-            <th className="cella-importo">Quota</th>
+            <th className="cella-importo">Credito usato</th>
             <th>Tesserato il</th>
           </tr>
         </thead>
@@ -254,7 +254,7 @@ function TabellaTesserati({ righe }: { righe: RigaTesseramento[] }) {
               </td>
               <td className="cella-nowrap">{data(r.rilascio)}</td>
               <td className="cella-nowrap">{data(r.scadenza)}</td>
-              <td className="cella-importo cella-nowrap">{euro(r.quota)}</td>
+              <td className="cella-importo cella-nowrap">{tessere(r.quota)}</td>
               <td className="cella-nowrap">
                 {r.tesserato_il ? dataOra(r.tesserato_il) : '—'}
                 {r.origine === 'gia_presente' && (
@@ -280,7 +280,7 @@ function TabellaNonTesserati({ righe, prove }: { righe: RigaTesseramento[]; prov
             <th>Socio</th>
             <th>Prodotto</th>
             <th>{prove ? 'Esito' : 'Motivo'}</th>
-            {prove && <th className="cella-importo">Quota</th>}
+            {prove && <th className="cella-importo">Credito usato</th>}
             <th className="cella-importo">Tentativi</th>
             <th>Ultimo tentativo</th>
             <th aria-label="Azioni" />
@@ -313,7 +313,7 @@ function TabellaNonTesserati({ righe, prove }: { righe: RigaTesseramento[]; prov
                   <span className="badge badge-off">In attesa del primo invio</span>
                 )}
               </td>
-              {prove && <td className="cella-importo cella-nowrap">{euro(r.quota)}</td>}
+              {prove && <td className="cella-importo cella-nowrap">{tessere(r.quota)}</td>}
               <td className="cella-importo">{r.tentativi}</td>
               <td className="cella-nowrap">{r.ultimo_tentativo_il ? dataOra(r.ultimo_tentativo_il) : '—'}</td>
               <td className="cella-nowrap">

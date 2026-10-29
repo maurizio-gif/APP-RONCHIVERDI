@@ -42,6 +42,7 @@
 //                        (con la barra finale: senza, il POST è rifiutato)
 //   CSI_COMITATO         facoltativo, default le prime 3 cifre di CSI_USERID
 //   CSI_STAGIONE         facoltativo, per forzare la stagione
+//   CSI_CREDITO          facoltativo, 2 = credito a tessere (default), 1 = euro
 // SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY li fornisce Supabase. Nessuno di
 // questi valori si scrive nei log né nei tentativi.
 
@@ -52,7 +53,11 @@ import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.1
 type Supabase = SupabaseClient<any, 'public', any>
 
 const CHIAVE_AUTOMAZIONE = 'tesseramento_csi'
-const URL_CSI = Deno.env.get('CSI_API_URL') || 'https://api.csi-net.it/wst/'
+// I segreti incollati dal pannello possono portarsi dietro uno spazio o un a
+// capo: si tolgono (una userid con lo spazio davanti sposta il codice del
+// comitato e CSI risponde «Errore codice comitato»).
+const env = (nome: string) => (Deno.env.get(nome) ?? '').trim()
+const URL_CSI = env('CSI_API_URL') || 'https://api.csi-net.it/wst/'
 
 // Quanto indietro guarda il giro «nuovi», oltre al limite di `attiva_dal`:
 // una finestra stretta evita che una vendita vecchia, ricomparsa per una
@@ -66,6 +71,10 @@ const MASSIMO_PER_GIRO = 25
 const PAUSA_TRA_CHIAMATE_MS = 300
 const TIMEOUT_CSI_MS = 30_000
 const GIORNO_MS = 24 * 60 * 60 * 1000
+
+// 2 = credito a numero di tessere, 1 = in euro. CSI_CREDITO lo cambia senza
+// ripubblicare, se la convenzione della società cambia.
+const TIPO_CREDITO = env('CSI_CREDITO') || '2'
 
 type Giro = 'nuovi' | 'ritenta'
 type MotivoTipo = 'dati_mancanti' | 'csi' | 'credito' | 'rete' | 'configurazione'
@@ -146,11 +155,11 @@ function dataIso(csi: unknown): string | null {
 // ──────────────────────────────────────────────────────────────── chiamate
 
 function credenziali(): { userid: string; password: string; xAuth: string; comitato: string } | null {
-  const userid = Deno.env.get('CSI_USERID') ?? ''
-  const password = Deno.env.get('CSI_PASSWORD') ?? ''
-  const xAuth = Deno.env.get('CSI_X_AUTHORIZATION') ?? ''
+  const userid = env('CSI_USERID')
+  const password = env('CSI_PASSWORD')
+  const xAuth = env('CSI_X_AUTHORIZATION')
   if (!userid || !password || !xAuth) return null
-  return { userid, password, xAuth, comitato: Deno.env.get('CSI_COMITATO') || userid.slice(0, 3) }
+  return { userid, password, xAuth, comitato: env('CSI_COMITATO') || userid.slice(0, 3) }
 }
 
 // Una chiamata al web service: POST JSON, e l'esito si legge sempre dal campo
@@ -235,8 +244,15 @@ function corpoNuovoTesserato(p: Persona, codiceAttivita: string, cmed: string | 
     nascita: dataCsi(p.data_nascita),
     luogo: tronca(p.luogo_nascita, 35),
     sesso: (p.sesso ?? '').trim().toUpperCase(),
+    // Il campo si chiama `tipotess` (lo dice l'errore del server), non
+    // `tipoess` come scritto nelle tabelle della guida: si mandano entrambi.
+    tipotess: 'AT',
     tipoess: 'AT',
     codiceatt1: codiceAttivita,
+    // Il credito della società è a tessere (convenzione ANIF), non in euro:
+    // per le attività CR, CF e CS CSI rifiuta il credito in euro. Verificato
+    // con la simulazione, vedi supabase/functions/csi-verifica.
+    credito: TIPO_CREDITO,
   }
   // I facoltativi si mandano solo se ci sono: in N un campo vuoto non
   // aggiunge nulla, ma non c'è motivo di sporcare la richiesta.
@@ -441,6 +457,7 @@ async function lavoraRiga(ctx: Contesto, riga: Riga): Promise<Esito> {
         origine: 'automatico',
         tessera: null,
         quota: Number(d.quota ?? 0),
+        scadenza: dataIso(d.scadenza),
         motivo: null,
         motivo_tipo: null,
         codice_attivita: codice,
