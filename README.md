@@ -778,6 +778,13 @@ nessuna email.
   - «abbonamento reale» è la stessa definizione del report abbonamenti: la vista
     `abbonamenti_attivi_oggi_dettaglio` (non cancellato, in corso, prodotto non
     segnato «no abbonamento» nei gruppi).
+- **Certificati medici** (`2026-10-29-certificati-medici-stato.sql`): la
+  pagina Certificati medici (Segreteria, permesso `certificati`) mostra lo stato
+  dei certificati di chi ha un abbonamento reale in corso, di qualunque
+  prodotto, calcolato a ogni apertura da `certificati_stato()`: *in scadenza*
+  (entro 30 giorni), *scaduti*, *mai avuto*, *solo provvisorio* (righe
+  «provvisorio» e visite prenotate, che non sono certificati, come nel filtro
+  Certificato dei Contatti) e *validi*. Ogni elenco si cerca e si esporta in CSV.
 - **Quali prodotti dànno la tessera**: quelli le cui vendite portano righe a
   IVA zero con dicitura «art. 4» sulle ricevute (la tessera è la condizione del
   non assoggettamento). `tesseramenti_csi_prodotti` si popola da quelle righe:

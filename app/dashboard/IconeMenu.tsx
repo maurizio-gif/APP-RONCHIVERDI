@@ -180,6 +180,14 @@ const DISEGNI: Record<string, React.ReactNode> = {
       <path d="M5.8 16c.5-1.5 1.5-2.2 2.7-2.2s2.2.7 2.7 2.2M14 10h4M14 13.5h4" />
     </>
   ),
+  // Certificati medici: il foglio con la croce.
+  certificati: (
+    <>
+      <path d="M6 3h12v18H6z" />
+      <path d="M12 8v6M9 11h6" />
+      <path d="M9 17.5h6" />
+    </>
+  ),
   // Curriculum: il foglio con la persona sopra.
   candidature: (
     <>

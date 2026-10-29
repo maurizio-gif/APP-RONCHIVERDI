@@ -108,6 +108,15 @@ const DEFINIZIONI = [
     href: '/dashboard/tesseramenti',
     gruppo: 'Segreteria',
   },
+  // Lo stato dei certificati medici di chi ha un abbonamento in corso: chi è
+  // in scadenza, scaduto, non l'ha mai avuto (funzione certificati_stato, vedi
+  // scripts/sql/2026-10-29-certificati-medici-stato.sql). Un permesso a sé.
+  {
+    chiave: 'certificati',
+    label: 'Certificati medici',
+    href: '/dashboard/certificati',
+    gruppo: 'Segreteria',
+  },
   {
     chiave: 'richieste-tennis-scuola',
     label: 'Young School Tennis — Scuola',

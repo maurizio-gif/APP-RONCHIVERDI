@@ -123,6 +123,7 @@ export const AZIONI_LOG: Record<string, string> = {
   contatti_copiati: 'Contatti: email o cellulari copiati da una lista',
   tesseramento_riprovato: 'Tesseramento CSI: «Riprova ora»',
   tesseramenti_esportati: 'Tesseramenti CSI: elenco esportato in CSV',
+  certificati_esportati: 'Certificati medici: elenco esportato in CSV',
 }
 
 export function etichettaAzione(azione: string): string {
