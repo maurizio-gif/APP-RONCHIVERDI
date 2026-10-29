@@ -767,15 +767,14 @@ nessuna email.
   purché una sola persona corrisponda). Da lì:
   - la **scheda della persona** mostra il riquadro «Tesseramento CSI» (numero,
     tipo, stagione, rilascio e scadenza) se ha una tessera in corso;
-  - la pagina **Tesseramenti** ha tre viste: *Elenchi* (calcolati al momento da
+  - la pagina **Tesseramenti** ha due viste: *Elenchi* (calcolati al momento da
     `tesseramenti_elenco()`, `2026-10-29-tesseramenti-elenco.sql`: tesserati con
     tessera in corso di validità, da tesserare, non tesserabili per dati
-    mancanti e in errore, con ricerca ed esportazione CSV), *Tessere* (ricerca per cognome,
-    nome, numero o codice fiscale, con evidenza di chi ha un abbonamento reale
-    in corso), *IVA zero senza tessera* (chi ha pagato con IVA a zero, di norma
-    art. 4, e non ha una tessera in corso: la tessera è la condizione del non
-    assoggettamento; con abbonamento reale in corso, da quando è iscritto e
-    ultima tessera) (ognuna con il suo CSV);
+    mancanti e in errore, con ricerca ed esportazione CSV) e *Tessere* (ricerca
+    per cognome, nome, numero o codice fiscale, con evidenza di chi ha un
+    abbonamento reale in corso). La funzione `iva_zero_senza_tessera()` (chi ha
+    pagato con IVA a zero e non ha una tessera in corso) resta nel database ma
+    non ha più una vista;
   - «abbonamento reale» è la stessa definizione del report abbonamenti: la vista
     `abbonamenti_attivi_oggi_dettaglio` (non cancellato, in corso, prodotto non
     segnato «no abbonamento» nei gruppi).
