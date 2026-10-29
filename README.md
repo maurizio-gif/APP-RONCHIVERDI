@@ -758,6 +758,11 @@ nessuna email.
   - «abbonamento reale» è la stessa definizione del report abbonamenti: la vista
     `abbonamenti_attivi_oggi_dettaglio` (non cancellato, in corso, prodotto non
     segnato «no abbonamento» nei gruppi).
+- **Quali prodotti dànno la tessera**: quelli le cui vendite portano righe a
+  IVA zero con dicitura «art. 4» sulle ricevute (la tessera è la condizione del
+  non assoggettamento). `tesseramenti_csi_prodotti` si popola da quelle righe:
+  [`2026-10-29-tesseramento-csi-prodotti.sql`](scripts/sql/2026-10-29-tesseramento-csi-prodotti.sql),
+  oggi 140 prodotti, attività `CR`. Da rieseguire quando entra un prodotto nuovo.
 - Un errore di credito, di credenziali o di stagione ferma il giro: vale per
   tutte le righe e la guida sconsiglia i ritentativi ravvicinati (§14).
 
