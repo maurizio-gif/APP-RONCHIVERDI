@@ -10621,3 +10621,18 @@ table.tabella-compatta .nota-in-riga,
 	margin: 0.9rem 0 0;
 	font-size: var(--text-sm, 0.9rem);
 }
+
+/* «Mostra altre N» sotto un elenco che si apre a blocchi (azioni fatte). */
+.elenco-altre {
+	margin-top: 0.6rem;
+}
+
+/* Email di Info4U nella scheda contatto: sezione chiusa di default. */
+.email-info4u {
+	margin-top: 0.9rem;
+	padding-top: 0.8rem;
+	border-top: 1px solid var(--border);
+}
+.email-info4u > summary {
+	cursor: pointer;
+}

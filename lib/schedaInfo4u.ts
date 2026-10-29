@@ -73,6 +73,8 @@ export type VoceInfo4u = {
   /** Istante, per ordinare con il resto delle azioni fatte. */
   quando: string
   genere: 'azione' | 'memo'
+  /** L'azione è il registro di un'email inviata (non un contatto fatto da una persona). */
+  eEmail: boolean
   tipo: string | null
   esito: string | null
   titolo: string | null
@@ -144,4 +146,69 @@ export function statoQuota(quote: QuotaPersona[], oggi: string): StatoQuota {
   const fini = quote.map((q) => q.data_fine).filter(Boolean) as string[]
   if (fini.length) return { tipo: 'scaduta', il: fini.sort().reverse()[0] }
   return { tipo: 'nessuna' }
+}
+
+/** Una riga del registro unico delle email di Info4U. */
+export type RigaRegistroEmail = {
+  chiave: string
+  quando: string
+  oggetto: string | null
+  destinatario: string | null
+  esito: 'inviata' | 'errore' | 'in-coda' | 'registrata'
+  errore: string | null
+  autore: string | null
+}
+
+function giornoRoma(iso: string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome' }).format(new Date(iso))
+}
+
+const normalizza = (t: string | null) => (t ?? '').replace(/\s+/g, ' ').trim().toLowerCase()
+
+/**
+ * Il registro unico delle email: le righe di `email_info4u` (con l'esito
+ * dell'invio) e le azioni con cui Info4U le annota («Inviata email OGGETTO:
+ * "…" all'indirizzo "…"»). Info4U scrive la stessa email in tutte e due, e
+ * la riga è una sola: stesso giorno e stesso oggetto. Dall'azione si prende
+ * il destinatario e chi l'ha mandata; se non c'è nel registro invii resta
+ * come «registrata», senza esito.
+ */
+export function registroEmail(azioni: VoceInfo4u[], email: EmailInfo4u[]): RigaRegistroEmail[] {
+  const righe = new Map<string, RigaRegistroEmail>()
+  for (const e of email) {
+    if (!e.data) continue
+    righe.set(`e-${e.id}`, {
+      chiave: `e-${e.id}`,
+      quando: e.data,
+      oggetto: e.oggetto,
+      destinatario: null,
+      esito: e.errore ? 'errore' : e.inviata ? 'inviata' : 'in-coda',
+      errore: e.errore,
+      autore: null,
+    })
+  }
+  const perGiornoEOggetto = new Map<string, RigaRegistroEmail>()
+  for (const r of righe.values()) perGiornoEOggetto.set(`${giornoRoma(r.quando)}|${normalizza(r.oggetto)}`, r)
+
+  for (const a of azioni) {
+    const m = /OGGETTO:\s*"(.*)"\s*all['’]indirizzo\s*"(.*)"/i.exec(a.testo ?? '')
+    const oggetto = m ? m[1] : null
+    const destinatario = m ? m[2] : null
+    const gia = oggetto != null ? perGiornoEOggetto.get(`${giornoRoma(a.quando)}|${normalizza(oggetto)}`) : undefined
+    if (gia) {
+      gia.destinatario ??= destinatario
+      gia.autore ??= a.autore
+      continue
+    }
+    righe.set(a.chiave, {
+      chiave: a.chiave,
+      quando: a.quando,
+      oggetto: oggetto ?? a.testo,
+      destinatario,
+      esito: 'registrata',
+      errore: null,
+      autore: a.autore,
+    })
+  }
+  return [...righe.values()].sort((x, y) => y.quando.localeCompare(x.quando))
 }

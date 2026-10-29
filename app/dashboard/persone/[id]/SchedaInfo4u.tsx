@@ -10,7 +10,10 @@ import {
   statoQuota,
   type DatiInfo4u,
   type EmailInfo4u,
+  registroEmail,
+  type VoceInfo4u,
 } from '@/lib/schedaInfo4u'
+import { ElencoAPassi } from './ElencoAPassi'
 
 // I blocchi della scheda contatto che vengono dai dati Info4U (vedi
 // lib/scheda-info4u-server.ts). Solo presentazione: nessuna lettura qui.
@@ -190,28 +193,44 @@ export function CardPagamenti({ dati, oggi }: { dati: DatiInfo4u; oggi: string }
   )
 }
 
-/** Le email partite da Info4U (le altre, quelle del CRM, hanno già il loro elenco). */
-export function ElencoEmailInfo4u({ email }: { email: EmailInfo4u[] }) {
-  if (email.length === 0) return null
+/**
+ * Le email di Info4U in un solo registro, in una sezione chiusa di default:
+ * sono la gran parte dello storico (invii automatici di contratti,
+ * credenziali, promemoria) e fra le azioni seppellivano i contatti fatti da
+ * una persona. Il registro unisce gli invii (con l'esito) e le azioni con cui
+ * Info4U li annota: vedi `registroEmail`.
+ */
+export function SezioneEmailInfo4u({ azioni, email }: { azioni: VoceInfo4u[]; email: EmailInfo4u[] }) {
+  const registro = registroEmail(azioni, email)
+  if (registro.length === 0) return null
   return (
-    <>
-      <h3 className="frequenza-titolo">Da Info4U</h3>
-      <ul className="storia">
-        {email.map((e) => (
-          <li key={e.id}>
-            <strong>{e.data ? dataBreve(e.data) : '—'}</strong>{' '}
-            {e.errore ? (
+    <details className="email-info4u">
+      <summary>
+        <strong>Email Info4U</strong> <span className="muted">· {registro.length}</span>
+      </summary>
+      <ElencoAPassi
+        iniziali={10}
+        voci={registro.map((r) => (
+          <li key={r.chiave}>
+            <strong>{dataBreve(r.quando)}</strong>
+            <span className="muted">
+              {' '}
+              · {oraDi(r.quando)}
+              {r.autore ? ` · ${r.autore}` : ''}
+            </span>{' '}
+            {r.esito === 'errore' ? (
               <span className="badge badge-ko">Errore</span>
-            ) : e.inviata ? (
+            ) : r.esito === 'inviata' ? (
               <span className="badge badge-ok">Inviata</span>
-            ) : (
+            ) : r.esito === 'in-coda' ? (
               <span className="badge">In coda</span>
-            )}
-            {e.oggetto && <div className="storia-testo">{e.oggetto}</div>}
-            {e.errore && <div className="storia-testo muted">{e.errore}</div>}
+            ) : null}
+            {r.oggetto && <div className="storia-testo">{r.oggetto}</div>}
+            {r.destinatario && <div className="storia-testo muted">a {r.destinatario}</div>}
+            {r.errore && <div className="storia-testo muted">{r.errore}</div>}
           </li>
         ))}
-      </ul>
-    </>
+      />
+    </details>
   )
 }
