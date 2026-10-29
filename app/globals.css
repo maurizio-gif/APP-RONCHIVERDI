@@ -11242,3 +11242,37 @@ table.tabella th.accessi-num {
 		font-size: 1.4rem;
 	}
 }
+
+/* ─────────────────────────────────────────────────────────── avvio animato */
+
+/* L'avvio animato (lib/avvio.ts): la pallina del logo che gira e compone il
+   logo. Sempre scuro, in tutti e due i temi: è il suo design. */
+
+/* Il velo: lo mette lo script nel <head> prima del primo disegno e lo toglie
+   l'avvio quando comincia a uscire. Senza, la pagina si vedrebbe per un istante
+   prima dell'animazione. */
+html[data-avvio='1']::before {
+	content: '';
+	position: fixed;
+	inset: 0;
+	z-index: 99998;
+	background: #14130f;
+}
+.avvio {
+	position: fixed;
+	inset: 0;
+	z-index: 99999;
+	background: #14130f;
+	cursor: pointer;
+	touch-action: none;
+	overscroll-behavior: contain;
+}
+.avvio canvas {
+	display: block;
+}
+@media print {
+	html[data-avvio='1']::before,
+	.avvio {
+		display: none;
+	}
+}
