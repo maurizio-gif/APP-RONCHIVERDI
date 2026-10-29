@@ -2,6 +2,8 @@ import { Jost, Cormorant_Garamond } from 'next/font/google'
 import './globals.css'
 import { SCRIPT_TEMA } from '@/lib/tema'
 import { AttivaInstallazione } from './AttivaInstallazione'
+import { AvvioAnimato } from './AvvioAnimato'
+import { SCRIPT_AVVIO } from '@/lib/avvio'
 
 // Gli stessi due caratteri del sito: Jost per l'interfaccia, Cormorant
 // Garamond per i titoli. Sul sito arrivano da @fontsource, qui da next/font,
@@ -58,8 +60,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             Un componente React girerebbe dopo il primo disegno, e per un
             istante si vedrebbe la pagina chiara prima che diventi scura. */}
         <script dangerouslySetInnerHTML={{ __html: SCRIPT_TEMA }} />
+        {/* Decide e segna l'avvio animato (lib/avvio.ts), prima del primo disegno:
+            insieme al velo scuro di globals.css evita che si veda la pagina
+            per un istante prima che l'animazione parta. */}
+        <script dangerouslySetInnerHTML={{ __html: SCRIPT_AVVIO }} />
       </head>
       <body>
+        <AvvioAnimato />
         <AttivaInstallazione />
         {children}
       </body>
