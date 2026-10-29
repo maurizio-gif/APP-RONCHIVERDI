@@ -124,6 +124,14 @@ export function emailValida(email: string | null | undefined): boolean {
   return !!email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
+// Il socio senza email nel gestionale: l'automazione crea comunque il voucher,
+// con l'email vuota (la colonna è not null: «vuota» è il segnale) e senza
+// spedire niente. Lo stato resta «attivo»: «manca l'email» non è uno stato del
+// voucher ma una cosa da rimediare, e si ricava da qui.
+export function mancaEmail(voucher: Pick<Voucher, 'stato' | 'email'>): boolean {
+  return voucher.stato === 'attivo' && !emailValida(voucher.email)
+}
+
 // Validazione dei campi del form, condivisa fra il controllo lato server e i
 // messaggi mostrati: restituisce l'errore da far leggere, o null.
 export function erroreDatiSocio(dati: {

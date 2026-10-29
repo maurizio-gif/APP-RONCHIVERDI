@@ -669,6 +669,16 @@ giorno precedente.
   function elenca chi riceverebbe il codice senza inviare nulla. I testi
   delle email stanno in `supabase/functions/_shared/voucher-email-testi.ts`,
   lo stesso file usato dal pannello.
+
+  Il socio **senza email** nel gestionale (o con un indirizzo non valido) ha
+  comunque il suo voucher, creato con l'email vuota e senza invio: il pannello
+  lo segna «Manca email» (avviso sopra l'elenco, riquadro dedicato) e accanto
+  al socio c'è il campo per inserire l'indirizzo con «Salva e invia»
+  (`impostaEmailEInvia` in `lib/voucher-server.ts`: vale solo finché l'email
+  manca). Se l'email arriva dal gestionale entro la finestra di 7 giorni, il
+  giro successivo della function la recupera e spedisce il codice. Nessuna
+  migration: «email vuota» è il segnale, la colonna resta `not null`. Per i
+  soci senza email il doppione si riconosce da nome e cognome.
 - **Validazione** — `/dashboard/validazione`, sezione `validazione-voucher`:
   una cella e un pulsante. Al centro medico si creano account del pannello
   con **quella sola sezione** (casella «Accesso esterno» al momento
@@ -685,6 +695,14 @@ giorno precedente.
   `lib/voucher-email.ts` perché sono comunicazioni concordate con il partner.
   Se l'invio fallisce il voucher esiste comunque e l'elenco lo segna «email
   non partita», con il pulsante per rimandarla.
+
+- **Guida per la segreteria** — `/dashboard/voucher/guida` (stesso permesso
+  `voucher`): presentazione a diapositive del processo (sigla «(cer000)»,
+  codice automatico, validazione di Chiron, certificato in casella, data in
+  Info4U) con pulsante «Presenta» a schermo intero e il video di
+  accompagnamento (`public/guida/certificati-chiron.mp4`, generato da
+  `brag-output-2026-10-29-certificati/`). Se il processo cambia, vanno
+  aggiornate le diapositive in `guida/Presentazione.tsx` e le scene del video.
 
 Il certificato **non passa da qui**: arriva dal socio alla casella dedicata
 (`EMAIL_CERTIFICATI`), citata in tutte le email. Nessun dato sanitario entra

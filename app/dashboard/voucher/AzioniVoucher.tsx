@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { annullaVoucher, reinviaEmail } from './actions'
+import { annullaVoucher, impostaEmail, reinviaEmail } from './actions'
 
 // I comandi su un voucher già emesso. Stanno in un componente client
 // perché servono lo stato "in corso" e la conferma sull'annullamento, che è
@@ -13,6 +13,7 @@ export function AzioniVoucher({
   giaInviata,
   annullabile,
   rimandabile,
+  senzaEmail,
   puoCancellare,
 }: {
   id: string
@@ -24,8 +25,12 @@ export function AzioniVoucher({
   giaInviata: boolean
   annullabile: boolean
   rimandabile: boolean
+  // Il socio non ha un'email nel gestionale: al posto di «Reinvia email» c'è il
+  // campo per inserirla, e il voucher parte appena la si salva.
+  senzaEmail: boolean
   puoCancellare: boolean
 }) {
+  const [emailNuova, setEmailNuova] = useState('')
   const [errore, setErrore] = useState<string | null>(null)
   const [esitoOk, setEsitoOk] = useState<string | null>(null)
   const [inCorso, startTransition] = useTransition()
@@ -42,6 +47,31 @@ export function AzioniVoucher({
 
   return (
     <div className="voce-azioni">
+      {senzaEmail && (
+        <form
+          className="voucher-email-form"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!confirm(`Salvare ${emailNuova.trim()} e inviare il voucher di ${socio} a questo indirizzo?`)) return
+            esegui(() => impostaEmail(id, emailNuova))
+          }}
+        >
+          <input
+            type="email"
+            inputMode="email"
+            autoComplete="off"
+            placeholder="Email del socio"
+            aria-label={`Email di ${socio}`}
+            value={emailNuova}
+            onChange={(e) => setEmailNuova(e.target.value)}
+            disabled={inCorso}
+          />
+          <button type="submit" className="btn btn-sm" disabled={inCorso || !emailNuova.trim()}>
+            {inCorso ? '…' : 'Salva e invia'}
+          </button>
+        </form>
+      )}
+
       {rimandabile && (
         <button
           type="button"

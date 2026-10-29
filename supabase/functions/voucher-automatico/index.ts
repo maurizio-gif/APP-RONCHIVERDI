@@ -11,6 +11,12 @@
 // segreto `cron_token` del Vault (funzione verifica_token_cron). Il JWT di
 // Supabase non serve e la function si pubblica con verify_jwt = false.
 //
+// Il socio senza email nel gestionale (o con un indirizzo non valido) ha
+// comunque il suo voucher: nasce con l'email vuota e nessun invio, e il CRM lo
+// segnala «Manca email» con il campo per inserirla. Se l'email arriva dal
+// gestionale entro la finestra (GIORNI_FINESTRA), il giro successivo la
+// recupera e spedisce il codice.
+//
 // ?prova=1 elenca le vendite degli ultimi giorni che riceverebbero il codice,
 // senza emettere né inviare nulla, anche a interruttore spento.
 //
@@ -80,7 +86,15 @@ type Candidato = {
   nome: string
   cognome: string
   email: string
-  esito: 'da_emettere' | 'emesso' | 'gia_emesso' | 'voucher_esistente' | 'dati_mancanti' | 'errore'
+  esito:
+    | 'da_emettere'
+    | 'emesso'
+    | 'gia_emesso'
+    | 'voucher_esistente'
+    | 'dati_mancanti'
+    | 'senza_email'
+    | 'email_recuperata'
+    | 'errore'
   dettaglio?: string
 }
 
@@ -102,13 +116,13 @@ function dataScadenza(): string {
   return scadenza.toISOString().slice(0, 10)
 }
 
-function erroreDatiSocio(dati: { nome: string; cognome: string; email: string }): string | null {
+function erroreDatiSocio(dati: { nome: string; cognome: string }): string | null {
   if (!dati.nome) return 'Il nome è obbligatorio.'
   if (!dati.cognome) return 'Il cognome è obbligatorio.'
-  if (!dati.email) return 'L’email è obbligatoria: è lì che arriva il voucher.'
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(dati.email)) return 'L’email non sembra valida.'
   return null
 }
+
+const emailValida = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 
 // Il «tipo» nel tracking: lo stesso testo di AUTOMAZIONE_ASSEGNAZIONE in
 // lib/voucher-email.ts, così le email manuali e automatiche si contano insieme.
@@ -162,6 +176,46 @@ async function inviaEmail(
   }
 }
 
+// L'invio dell'email del voucher con tutto quello che lo accompagna: tracking
+// e esito salvato sul voucher. Lo usano l'emissione e il recupero dell'email
+// aggiunta dopo.
+async function spedisciVoucher(supabase: ReturnType<typeof createClient>, voucher: Voucher): Promise<EsitoInvio> {
+  // Come nel pannello: l'esito dell'email si salva accanto al voucher. Se
+  // SendGrid è giù il codice esiste comunque, e la segreteria lo vede
+  // «non partita» con il pulsante per rimandarla.
+  const contenuto = emailAssegnazione(voucher)
+  const esitoEmail = await inviaEmail(voucher.email, contenuto, voucher.id)
+
+  // Nel tracking come ogni email del pannello (lib/email.ts): testo
+  // integrale e X-Message-Id, per la scheda del socio e la prova di invio.
+  const { error: errTracking } = await supabase.from('email_inviate').insert({
+    automazione: AUTOMAZIONE,
+    mittente: MITTENTE_EMAIL,
+    mittente_nome: MITTENTE_NOME,
+    rispondi_a: RISPOSTE_A,
+    destinatario: voucher.email,
+    oggetto: contenuto.oggetto,
+    corpo_html: contenuto.html,
+    corpo_testo: contenuto.testo,
+    provider_message_id: esitoEmail.ok ? esitoEmail.messageId : null,
+    esito: esitoEmail.ok ? 'inviata' : 'errore',
+    errore: esitoEmail.ok ? null : esitoEmail.errore,
+    tracciata: true,
+    voucher_id: voucher.id,
+    inviata_da: 'automatico',
+  })
+  if (errTracking) console.error('Email inviata ma non registrata nel tracking:', errTracking.message)
+  await supabase
+    .from('voucher')
+    .update(
+      esitoEmail.ok
+        ? { email_inviata_il: new Date().toISOString(), email_invii: voucher.email_invii + 1, email_errore: null }
+        : { email_errore: esitoEmail.errore }
+    )
+    .eq('id', voucher.id)
+  return esitoEmail
+}
+
 Deno.serve(async (req: Request) => {
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
     auth: { persistSession: false },
@@ -207,9 +261,12 @@ Deno.serve(async (req: Request) => {
   // Le vendite che hanno già il loro voucher escono subito: è il caso di
   // ogni giro dopo il primo, e non deve costare un tentativo d'emissione.
   const { data: gia } = vendite.length
-    ? await supabase.from('voucher').select('abbonamento_id').in('abbonamento_id', vendite.map((v) => v.id))
+    ? await supabase
+        .from('voucher')
+        .select(COLONNE + ', abbonamento_id')
+        .in('abbonamento_id', vendite.map((v) => v.id))
     : { data: [] }
-  const conVoucher = new Set((gia ?? []).map((r: { abbonamento_id: string }) => r.abbonamento_id))
+  const conVoucher = new Map((gia ?? []).map((r: Voucher & { abbonamento_id: string }) => [r.abbonamento_id, r]))
 
   let emessiInQuestoGiro = 0
 
@@ -226,8 +283,28 @@ Deno.serve(async (req: Request) => {
     }
     candidati.push(candidato)
 
-    if (conVoucher.has(v.id)) {
+    const esistente = conVoucher.get(v.id)
+    if (esistente) {
       candidato.esito = 'gia_emesso'
+      // Il voucher nato senza email: se nel frattempo il gestionale l'ha
+      // avuta, la si scrive sul voucher e il codice parte. `.eq('email', '')`
+      // lascia in pace chi l'ha già inserita a mano dal CRM.
+      if (esistente.email === '' && emailValida(candidato.email) && !prova && emessiInQuestoGiro < MASSIMO_PER_GIRO) {
+        const { data: aggiornato } = await supabase
+          .from('voucher')
+          .update({ email: candidato.email })
+          .eq('id', esistente.id)
+          .eq('email', '')
+          .eq('stato', 'attivo')
+          .select(COLONNE)
+          .maybeSingle()
+        if (aggiornato) {
+          const esitoEmail = await spedisciVoucher(supabase, aggiornato as Voucher)
+          emessiInQuestoGiro++
+          candidato.esito = 'email_recuperata'
+          if (!esitoEmail.ok) candidato.dettaglio = `Email non partita: ${esitoEmail.errore}`
+        }
+      }
       continue
     }
 
@@ -238,12 +315,16 @@ Deno.serve(async (req: Request) => {
       continue
     }
 
-    const { data: esistenti } = await supabase
-      .from('voucher')
-      .select('id')
-      // ilike per ignorare le maiuscole di chi l'ha scritta a mano; `_` e
-      // `%` negli indirizzi vanno protetti, o diventano jolly.
-      .ilike('email', candidato.email.replace(/[\\%_]/g, '\\$&'))
+    // Senza un'email valida il socio si riconosce da nome e cognome.
+    const senzaEmail = !emailValida(candidato.email)
+    const protetto = (t: string) => t.replace(/[\\%_]/g, '\\$&')
+    let cercaEsistenti = supabase.from('voucher').select('id')
+    // ilike per ignorare le maiuscole di chi l'ha scritta a mano; `_` e
+    // `%` negli indirizzi vanno protetti, o diventano jolly.
+    cercaEsistenti = senzaEmail
+      ? cercaEsistenti.ilike('nome', protetto(candidato.nome)).ilike('cognome', protetto(candidato.cognome))
+      : cercaEsistenti.ilike('email', protetto(candidato.email))
+    const { data: esistenti } = await cercaEsistenti
       .neq('stato', 'annullato')
       .gte('created_at', new Date(new Date(v.data_vendita).getTime() - GIORNI_VOUCHER_ESISTENTE * GIORNO_MS).toISOString())
       .limit(1)
@@ -268,7 +349,8 @@ Deno.serve(async (req: Request) => {
           tipo: 'visita_medica',
           nome: candidato.nome,
           cognome: candidato.cognome,
-          email: candidato.email,
+          // Vuota (non null: la colonna è not null) = «manca l'email».
+          email: senzaEmail ? '' : candidato.email,
           telefono: p?.cellulare?.trim() || null,
           note: `${candidato.prodotto} venduto il ${new Date(v.data_vendita).toLocaleDateString('it-IT', { timeZone: 'Europe/Rome' })}`,
           valido_fino: dataScadenza(),
@@ -293,43 +375,14 @@ Deno.serve(async (req: Request) => {
       continue
     }
 
-    // Come nel pannello: l'esito dell'email si salva accanto al voucher. Se
-    // SendGrid è giù il codice esiste comunque, e la segreteria lo vede
-    // «non partita» con il pulsante per rimandarla.
-    const contenuto = emailAssegnazione(voucher)
-    const esitoEmail = await inviaEmail(voucher.email, contenuto, voucher.id)
-
-    // Nel tracking come ogni email del pannello (lib/email.ts): testo
-    // integrale e X-Message-Id, per la scheda del socio e la prova di invio.
-    const { error: errTracking } = await supabase.from('email_inviate').insert({
-      automazione: AUTOMAZIONE,
-      mittente: MITTENTE_EMAIL,
-      mittente_nome: MITTENTE_NOME,
-      rispondi_a: RISPOSTE_A,
-      destinatario: voucher.email,
-      oggetto: contenuto.oggetto,
-      corpo_html: contenuto.html,
-      corpo_testo: contenuto.testo,
-      provider_message_id: esitoEmail.ok ? esitoEmail.messageId : null,
-      esito: esitoEmail.ok ? 'inviata' : 'errore',
-      errore: esitoEmail.ok ? null : esitoEmail.errore,
-      tracciata: true,
-      voucher_id: voucher.id,
-      inviata_da: 'automatico',
-    })
-    if (errTracking) console.error('Email inviata ma non registrata nel tracking:', errTracking.message)
-    await supabase
-      .from('voucher')
-      .update(
-        esitoEmail.ok
-          ? { email_inviata_il: new Date().toISOString(), email_invii: voucher.email_invii + 1, email_errore: null }
-          : { email_errore: esitoEmail.errore }
-      )
-      .eq('id', voucher.id)
+    // Senza email il voucher resta lì, creato e non inviato: lo vede la
+    // segreteria, che inserisce l'indirizzo dal CRM.
+    const esitoEmail: EsitoInvio | null = senzaEmail ? null : await spedisciVoucher(supabase, voucher)
 
     emessiInQuestoGiro++
-    candidato.esito = 'emesso'
-    if (!esitoEmail.ok) candidato.dettaglio = `Email non partita: ${esitoEmail.errore}`
+    candidato.esito = senzaEmail ? 'senza_email' : 'emesso'
+    if (senzaEmail) candidato.dettaglio = 'Manca l’email: il voucher è creato ma il codice non è partito.'
+    else if (esitoEmail && !esitoEmail.ok) candidato.dettaglio = `Email non partita: ${esitoEmail.errore}`
 
     await supabase.from('audit_log').insert({
       email: null,
@@ -337,8 +390,9 @@ Deno.serve(async (req: Request) => {
       entita: 'voucher',
       entita_id: voucher.id,
       dettagli: {
-        destinatario: voucher.email,
-        email_inviata: esitoEmail.ok,
+        destinatario: senzaEmail ? null : voucher.email,
+        email_inviata: esitoEmail?.ok === true,
+        senza_email: senzaEmail,
         automatico: CHIAVE_AUTOMAZIONE,
         abbonamento_id: v.id,
       },

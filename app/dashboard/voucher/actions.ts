@@ -5,7 +5,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { registraLog } from '@/lib/audit'
 import { dataScadenza, erroreDatiSocio, formattaCodice, statoEffettivo } from '@/lib/voucher'
-import { emettiVoucher, leggiVoucherPerId, reinviaVoucher } from '@/lib/voucher-server'
+import { emettiVoucher, impostaEmailEInvia, leggiVoucherPerId, reinviaVoucher } from '@/lib/voucher-server'
 
 // Esito come valore di ritorno e non throw: in produzione Next.js oscura il
 // messaggio di un errore lanciato da una Server Action, e qui la segreteria
@@ -90,6 +90,32 @@ export async function reinviaEmail(id: string): Promise<EsitoAzione> {
 
   revalidatePath('/dashboard/voucher')
   return { ok: true, messaggio: `Email reinviata a ${esito.voucher.email}.` }
+}
+
+// Il socio senza email nel gestionale: l'operatore la inserisce qui e il codice
+// parte subito (vedi impostaEmailEInvia).
+export async function impostaEmail(id: string, emailInserita: string): Promise<EsitoAzione> {
+  const email = await operatoreAutorizzato()
+  if (!email) return NEGATO
+
+  const esito = await impostaEmailEInvia(id, emailInserita, email)
+  if (!esito.ok) return esito
+
+  await registraLog(email, 'voucher_email_impostata', {
+    entita: 'voucher',
+    entitaId: id,
+    dettagli: { codice: esito.voucher.codice, destinatario: esito.voucher.email, email_inviata: esito.emailInviata },
+  })
+
+  revalidatePath('/dashboard/voucher')
+  if (!esito.emailInviata) {
+    return {
+      ok: true,
+      messaggio: `Email salvata: ${esito.voucher.email}.`,
+      avviso: `L’email non è partita (${esito.erroreEmail}). Riprova con «Reinvia email».`,
+    }
+  }
+  return { ok: true, messaggio: `Email salvata e voucher inviato a ${esito.voucher.email}.` }
 }
 
 // Annullare, non cancellare: un voucher emesso per errore resta in tabella
