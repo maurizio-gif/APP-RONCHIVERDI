@@ -686,6 +686,14 @@ giorno precedente.
   Se l'invio fallisce il voucher esiste comunque e l'elenco lo segna «email
   non partita», con il pulsante per rimandarla.
 
+- **Guida per la segreteria** — `/dashboard/voucher/guida` (stesso permesso
+  `voucher`): presentazione a diapositive del processo (sigla «(cer000)»,
+  codice automatico, validazione di Chiron, certificato in casella, data in
+  Info4U) con pulsante «Presenta» a schermo intero e il video di
+  accompagnamento (`public/guida/certificati-chiron.mp4`, generato da
+  `brag-output-2026-10-29-certificati/`). Se il processo cambia, vanno
+  aggiornate le diapositive in `guida/Presentazione.tsx` e le scene del video.
+
 Il certificato **non passa da qui**: arriva dal socio alla casella dedicata
 (`EMAIL_CERTIFICATI`), citata in tutte le email. Nessun dato sanitario entra
 nel database, e nessun dato del socio viene trasmesso al partner: è il socio

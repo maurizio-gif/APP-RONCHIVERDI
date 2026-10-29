@@ -1,0 +1,18 @@
+/* Livello "film": font del brand, base della pagina e furniture comune. Gli stili dell'app stanno in app.css (copiati dal CSS reale). */
+:root { --font-jost: 'Jost'; --font-cormorant: 'Cormorant Garamond'; }
+html, body { margin: 0; padding: 0; width: 1920px; height: 1080px; overflow: hidden; background: #f8f2e5; }
+body { font-family: 'Jost', sans-serif; color: #17170f; }
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* Le regole di titoli e link dell'app, ristrette ai frammenti di interfaccia (.frag) così non toccano i titoli del film. */
+.frag { font-family: var(--font-sans); font-size: var(--text-base); color: var(--text); -webkit-font-smoothing: antialiased; }
+:where(.frag) h1, :where(.frag) h2, :where(.frag) h3 { margin: 0 0 1rem; font-weight: 400; }
+:where(.frag) h1 { font-family: var(--font-serif); font-size: var(--text-2xl); line-height: 1.1; letter-spacing: -0.02em; }
+:where(.frag) h2 { font-family: var(--font-serif); font-size: var(--text-xl); line-height: 1.2; letter-spacing: -0.01em; }
+:where(.frag) h3 { font-size: var(--text-md); font-weight: 500; line-height: 1.3; }
+:where(.frag) a { color: var(--accent); text-decoration: none; }
+:where(.frag) p { margin: 0 0 .5rem; }
+
+/* Contrasto del conteggio verde delle «Fatte» (bianco su verde chiaro arrivava a 4.1:1). */
+.azioni-gruppo-fatte .azioni-gruppo-conto { background: #2e7648; }

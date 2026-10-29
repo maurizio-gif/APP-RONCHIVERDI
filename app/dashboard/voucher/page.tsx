@@ -106,6 +106,11 @@ export default async function VoucherPage({ searchParams }: { searchParams: { q?
           Il codice monouso per la visita inclusa: arriva al socio per email e Chiron lo brucia
           alla prenotazione dalla sua pagina di validazione.
         </p>
+        <p style={{ marginTop: '0.75rem' }}>
+          <Link href="/dashboard/voucher/guida" className="btn btn-ghost btn-sm">
+            Guida per la segreteria: presentazione e video
+          </Link>
+        </p>
       </div>
 
       {/* La procedura scritta dove la segreteria la usa. L'emissione a mano
