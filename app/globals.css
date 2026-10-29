@@ -10621,3 +10621,8 @@ table.tabella-compatta .nota-in-riga,
 	margin: 0.9rem 0 0;
 	font-size: var(--text-sm, 0.9rem);
 }
+
+/* «Mostra altre N» sotto un elenco che si apre a blocchi (azioni fatte). */
+.elenco-altre {
+	margin-top: 0.6rem;
+}

@@ -39,6 +39,7 @@ import { PersoneDiverse } from '../PersoneDiverse'
 import { COLONNE_SESSIONE, type SessionePersonal } from '@/lib/personal'
 import { datiInfo4uDellaPersona } from '@/lib/scheda-info4u-server'
 import { type VoceInfo4u } from '@/lib/schedaInfo4u'
+import { ElencoAPassi } from './ElencoAPassi'
 import { CardFrequenza, CardPagamenti, ElencoEmailInfo4u, SintesiScheda } from './SchedaInfo4u'
 
 // La scheda del contatto sul modello di Passion: in testa chi è e come lo si
@@ -576,8 +577,8 @@ export default async function PersonaPage({ params }: { params: { id: string } }
               {fatte.length === 0 ? (
                 <p className="muted azioni-gruppo-vuoto">Nessuna azione fatta.</p>
               ) : (
-                <ol className="storia">
-                  {fatte.map((f) => {
+                <ElencoAPassi
+                  voci={fatte.map((f) => {
                     if (f.genere === 'nota') {
                       const n = f.nota
                       return (
@@ -644,7 +645,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
                     </li>
                     )
                   })}
-                </ol>
+                />
               )}
             </div>
 
