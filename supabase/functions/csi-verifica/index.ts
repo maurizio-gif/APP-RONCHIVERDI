@@ -276,11 +276,11 @@ Deno.serve(async (req: Request) => {
   risultato.validi_senza_cf = tuttiValidi.filter((t) => (t.cft ?? '').length !== 16).length
 
   // Persone con abbonamento in corso (e il loro codice fiscale).
-  const abbonamenti: { persona_id: string; abbonamento: string }[] = []
+  const abbonamenti: { persona_id: string; abbonamento: string; data_vendita: string | null }[] = []
   for (let da = 0; da < 20000; da += 1000) {
     const { data, error } = await supabase
       .from('abbonamenti')
-      .select('persona_id, abbonamento')
+      .select('persona_id, abbonamento, data_vendita')
       .is('cancellato_il', null)
       .not('persona_id', 'is', null)
       .lte('data_inizio', oggi)
@@ -294,15 +294,19 @@ Deno.serve(async (req: Request) => {
   const idPersone = Array.from(new Set(abbonamenti.map((a) => a.persona_id)))
 
   const cfPersona = new Map<string, string>()
+  const conLuogo = new Set<string>()
+  const natiEstero = new Set<string>()
   for (let i = 0; i < idPersone.length; i += 150) {
     const { data, error } = await supabase
       .from('persone')
-      .select('id, codice_fiscale')
+      .select('id, codice_fiscale, luogo_nascita, provincia_nascita, stato_nascita')
       .in('id', idPersone.slice(i, i + 150))
     if (error) return rispondi({ ...risultato, ok: false, errore: `Persone non lette: ${error.message}` }, 500)
     for (const p of data ?? []) {
       const cf = testo(p.codice_fiscale).toUpperCase()
       if (cf.length === 16) cfPersona.set(p.id, cf)
+      if (testo(p.luogo_nascita).length >= 2) conLuogo.add(p.id)
+      if (testo(p.provincia_nascita).toUpperCase() === 'EE') natiEstero.add(p.id)
     }
   }
 
@@ -316,14 +320,72 @@ Deno.serve(async (req: Request) => {
     non_tesserati_con_cf: cfPersona.size - tesseratiTraSoci.length,
   }
 
+  // I non tesserati con codice fiscale: quanti hanno già il luogo di nascita
+  // (arrivato col sync da Info4U) e quanti no, con o senza il segnale di
+  // nato all'estero. Solo conteggi.
+  const nonTesserati = idPersone.filter((id) => cfPersona.has(id) && !perCf.has(cfPersona.get(id) ?? ''))
+  risultato.non_tesserati_con_cf_e_luogo = {
+    totale: nonTesserati.length,
+    con_luogo: nonTesserati.filter((id) => conLuogo.has(id)).length,
+    senza_luogo: nonTesserati.filter((id) => !conLuogo.has(id)).length,
+    senza_luogo_nati_estero: nonTesserati.filter((id) => !conLuogo.has(id) && natiEstero.has(id)).length,
+  }
+
   // Per ogni prodotto: quanti soci lo hanno in corso, quanti di loro sono
   // tesserati validi, e con quale attività. Un prodotto con quota alta e
   // sempre la stessa attività è un prodotto che dà la tessera.
-  const perProdotto = new Map<string, { soci: Set<string>; tesserati: Set<string>; att: Record<string, number> }>()
+  //
+  // Una persona con due prodotti attivi (un abbonamento e, per esempio, un
+  // servizio accessorio) risulta tesserata per entrambi: la percentuale di un
+  // prodotto accessorio ne esce gonfiata. Per questo si conta anche chi ha
+  // QUESTO prodotto come unico abbonamento in corso: lì la percentuale dice
+  // davvero se il prodotto porta la tessera.
+  const prodottiDellaPersona = new Map<string, Set<string>>()
+  for (const a of abbonamenti) {
+    const insieme = prodottiDellaPersona.get(a.persona_id) ?? new Set<string>()
+    insieme.add(testo(a.abbonamento) || '(senza nome)')
+    prodottiDellaPersona.set(a.persona_id, insieme)
+  }
+  // I non tesserati con codice fiscale, raggruppati per combinazione di
+  // abbonamenti in corso (solo conteggi): dicono che tipo di abbonamento hanno
+  // le persone senza tessera, e quindi se è giusto che non l'abbiano (solo
+  // servizi accessori) o se vanno tesserate (abbonamenti da socio).
+  const combinazioni: Record<string, number> = {}
+  for (const id of nonTesserati) incrementa(combinazioni, Array.from(prodottiDellaPersona.get(id)!).sort().join(' + '))
+  risultato.non_tesserati_per_combinazione = ordina(combinazioni)
+  const perProdotto = new Map<
+    string,
+    {
+      soci: Set<string>
+      tesserati: Set<string>
+      soli: Set<string>
+      soliTesserati: Set<string>
+      nataConAcquisto: number
+      precedente: number
+      att: Record<string, number>
+    }
+  >()
   for (const a of abbonamenti) {
     const nome = testo(a.abbonamento) || '(senza nome)'
-    const p = perProdotto.get(nome) ?? { soci: new Set(), tesserati: new Set(), att: {} }
+    const p = perProdotto.get(nome) ?? { soci: new Set(), tesserati: new Set(), soli: new Set(), soliTesserati: new Set(), nataConAcquisto: 0, precedente: 0, att: {} }
     p.soci.add(a.persona_id)
+    if (prodottiDellaPersona.get(a.persona_id)!.size === 1) {
+      p.soli.add(a.persona_id)
+      const tessera = perCf.get(cfPersona.get(a.persona_id) ?? '')
+      if (tessera && !p.soliTesserati.has(a.persona_id)) {
+        p.soliTesserati.add(a.persona_id)
+        // La tessera è nata con questo acquisto (rilasciata entro una settimana
+        // prima della vendita o dopo) o c'era già (rilasciata prima)? Un prodotto
+        // che porta la tessera la fa nascere quando si compra.
+        const rilascio = dataIso(tessera.rilascio ?? '')
+        const vendita = (a.data_vendita ?? '').slice(0, 10)
+        if (rilascio && vendita) {
+          const soglia = new Date(new Date(vendita).getTime() - 7 * 86400000).toISOString().slice(0, 10)
+          if (rilascio >= soglia) p.nataConAcquisto++
+          else p.precedente++
+        }
+      }
+    }
     const t = perCf.get(cfPersona.get(a.persona_id) ?? '')
     if (t && !p.tesserati.has(a.persona_id)) {
       p.tesserati.add(a.persona_id)
@@ -337,6 +399,10 @@ Deno.serve(async (req: Request) => {
       soci_in_corso: p.soci.size,
       tesserati_validi: p.tesserati.size,
       percentuale_tesserati: Math.round((p.tesserati.size / p.soci.size) * 100),
+      solo_questo: p.soli.size,
+      solo_questo_tesserati: p.soliTesserati.size,
+      tessera_nata_con_acquisto: p.nataConAcquisto,
+      tessera_precedente: p.precedente,
       attivita_usate: ordina(p.att),
     }))
     .sort((a, b) => b.soci_in_corso - a.soci_in_corso)
