@@ -218,6 +218,14 @@ const DISEGNI: Record<string, React.ReactNode> = {
       <path d="M6.5 10v4M17.5 10v4" />
     </>
   ),
+  // Report PDF: il foglio con le barre.
+  report: (
+    <>
+      <path d="M6 3.5h8.5L19 8v12.5H6z" />
+      <path d="M14.5 3.5V8H19" />
+      <path d="M9 17v-3M12 17v-5M15 17v-2" />
+    </>
+  ),
   // Accessi: il tornello con la freccia che entra.
   accessi: (
     <>

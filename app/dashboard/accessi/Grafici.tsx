@@ -257,14 +257,24 @@ function Riga({
 export type VoceBarra = { chiave: string; etichetta: string; valore: number; colore?: string; nota?: string }
 
 /** Una barra per voce, lunga come il suo peso sul massimo. `percentuale` mostra anche la quota sul totale. */
-export function BarreOrizzontali({ voci, percentuale = true, vuoto = 'Niente da mostrare nel periodo.' }: { voci: VoceBarra[]; percentuale?: boolean; vuoto?: string }) {
+export function BarreOrizzontali({
+  voci,
+  percentuale = true,
+  vuoto = 'Niente da mostrare nel periodo.',
+  formato = numero,
+}: {
+  voci: VoceBarra[]
+  percentuale?: boolean
+  vuoto?: string
+  formato?: (n: number) => string
+}) {
   const massimo = Math.max(...voci.map((v) => v.valore), 1)
   const totale = voci.reduce((s, v) => s + v.valore, 0)
   if (voci.length === 0 || totale === 0) return <p className="vuoto">{vuoto}</p>
   return (
     <ul className="accessi-barre">
       {voci.map((v, i) => (
-        <li key={v.chiave} title={`${v.etichetta}: ${numero(v.valore)}`}>
+        <li key={v.chiave} title={`${v.etichetta}: ${formato(v.valore)}`}>
           <span className="accessi-barre-etichetta">
             {v.etichetta}
             {v.nota && <span className="muted"> · {v.nota}</span>}
@@ -276,8 +286,8 @@ export function BarreOrizzontali({ voci, percentuale = true, vuoto = 'Niente da 
             />
           </span>
           <span className="accessi-barre-valore">
-            {numero(v.valore)}
-            {percentuale && totale > 0 && <span className="muted"> · {Math.round((v.valore / totale) * 100)}%</span>}
+            {formato(v.valore)}
+            {percentuale && totale > 0 && v.valore > 0 && <span className="muted"> · {Math.round((v.valore / totale) * 100)}%</span>}
           </span>
         </li>
       ))}

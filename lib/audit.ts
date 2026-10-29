@@ -117,6 +117,7 @@ export const AZIONI_LOG: Record<string, string> = {
   accessi_gruppo_modificato: 'Accessi: gruppo di varchi modificato',
   accessi_gruppo_eliminato: 'Accessi: gruppo di varchi eliminato',
   accessi_varchi_assegnati: 'Accessi: varchi assegnati ai gruppi',
+  report_scaricato: 'Report PDF scaricato',
 }
 
 export function etichettaAzione(azione: string): string {

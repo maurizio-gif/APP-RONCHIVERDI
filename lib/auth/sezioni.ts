@@ -258,6 +258,12 @@ const DEFINIZIONI = [
   // gruppi di varchi. Il gruppo «Report» non entra nel corredo di un invito:
   // si dà a mano a chi legge i numeri (vedi GRUPPI_FUORI_DAL_CORREDO).
   { chiave: 'accessi', label: 'Accessi', href: '/dashboard/accessi', gruppo: 'Report' },
+  // Il report per periodo (da data A a data B) con scarico in PDF: lead,
+  // iscritti, soci, scaduti, incassi e accessi. Ogni sezione del report si
+  // vede solo se l'utente ha anche il permesso della pagina da cui nasce
+  // (lead → direzione, incassi → incassato...): questo permesso apre la
+  // pagina, non allarga quello che si può leggere.
+  { chiave: 'report', label: 'Report PDF', href: '/dashboard/report', gruppo: 'Report' },
 ] as const
 
 export type SezioneChiave = (typeof DEFINIZIONI)[number]['chiave']
