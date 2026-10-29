@@ -10,7 +10,11 @@
 // - ?giro=ritenta  ogni 2 ore: riprova chi non è ancora tesserato;
 // - ?id=<riga>     «Riprova ora» della pagina Tesseramenti: lavora quella riga
 //                  sola, subito. È un'azione manuale: vale anche a
-//                  interruttore spento, e non crea né tocca altre righe.
+//                  interruttore spento, e non crea né tocca altre righe;
+// - ?simula=1      un giro a mano che ignora l'interruttore, ma SOLO in
+//                  simulazione (CSI_LIVE diverso da 1): con CSI_LIVE=1 il
+//                  parametro è ignorato e l'interruttore vale. Con
+//                  &max=<n> (al massimo 50) lavora più righe del solito.
 //
 // Per ogni persona, prima di mandare il nuovo tesserato (operazione N) chiede
 // a CSI se è già tesserata nella stagione (operazione I per codice fiscale):
@@ -531,6 +535,11 @@ Deno.serve(async (req: Request) => {
   const idRiga = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idParam) ? idParam : null
   const live = Deno.env.get('CSI_LIVE') === '1'
   const stagione = stagioneCorrente()
+  // Il giro a mano in simulazione: ignora l'interruttore, mai con tessere vere.
+  const simula = url.searchParams.get('simula') === '1' && !live
+  const massimo = simula
+    ? Math.min(Math.max(Number(url.searchParams.get('max')) || MASSIMO_PER_GIRO, 1), 50)
+    : MASSIMO_PER_GIRO
 
   const { data: stato } = await supabase
     .from('automazioni')
@@ -538,7 +547,7 @@ Deno.serve(async (req: Request) => {
     .eq('chiave', CHIAVE_AUTOMAZIONE)
     .maybeSingle()
 
-  if (!prova && !idRiga && (!stato?.attiva || !stato.attiva_dal)) {
+  if (!prova && !idRiga && !simula && (!stato?.attiva || !stato.attiva_dal)) {
     return rispondi({ ok: true, attiva: false, motivo: 'automazione spenta' })
   }
 
@@ -639,7 +648,7 @@ Deno.serve(async (req: Request) => {
     : ((candidate ?? []) as unknown as Riga[])
         // Chi ha un abbonamento finito o annullato non va più inseguito.
         .filter((r) => !r.abbonamenti || (!r.abbonamenti.cancellato_il && (!r.abbonamenti.data_fine || r.abbonamenti.data_fine >= oggi)))
-        .slice(0, MASSIMO_PER_GIRO)
+        .slice(0, massimo)
 
   if (prova) {
     const { data: persone } = righe.length
@@ -687,6 +696,7 @@ Deno.serve(async (req: Request) => {
     attiva: stato?.attiva === true,
     giro: idRiga ? 'riga' : giro,
     live,
+    simula,
     stagione,
     righe_create: nuoveRighe,
     lavorate: esiti.length,
