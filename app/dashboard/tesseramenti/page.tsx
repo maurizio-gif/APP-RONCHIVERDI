@@ -4,6 +4,7 @@ import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { leggiPaginato } from '@/lib/supabase/leggiPaginato'
 import { dataOra } from '@/lib/persone'
+import { RiprovaOra } from './RiprovaOra'
 import {
   CHIAVE_AUTOMAZIONE_TESSERAMENTO,
   ETICHETTE_MOTIVO,
@@ -282,6 +283,7 @@ function TabellaNonTesserati({ righe, prove }: { righe: RigaTesseramento[]; prov
             {prove && <th className="cella-importo">Quota</th>}
             <th className="cella-importo">Tentativi</th>
             <th>Ultimo tentativo</th>
+            <th aria-label="Azioni" />
           </tr>
         </thead>
         <tbody>
@@ -314,6 +316,9 @@ function TabellaNonTesserati({ righe, prove }: { righe: RigaTesseramento[]; prov
               {prove && <td className="cella-importo cella-nowrap">{euro(r.quota)}</td>}
               <td className="cella-importo">{r.tentativi}</td>
               <td className="cella-nowrap">{r.ultimo_tentativo_il ? dataOra(r.ultimo_tentativo_il) : '—'}</td>
+              <td className="cella-nowrap">
+                <RiprovaOra id={r.id} tentativi={r.tentativi} />
+              </td>
             </tr>
           ))}
         </tbody>

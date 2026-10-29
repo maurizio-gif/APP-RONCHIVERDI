@@ -7,7 +7,10 @@
 // scripts/sql/2026-10-29-tesseramento-csi.sql):
 //
 // - ?giro=nuovi    ogni 10 minuti: crea le righe delle nuove vendite e le invia;
-// - ?giro=ritenta  ogni 2 ore: riprova chi non è ancora tesserato.
+// - ?giro=ritenta  ogni 2 ore: riprova chi non è ancora tesserato;
+// - ?id=<riga>     «Riprova ora» della pagina Tesseramenti: lavora quella riga
+//                  sola, subito. È un'azione manuale: vale anche a
+//                  interruttore spento, e non crea né tocca altre righe.
 //
 // Per ogni persona, prima di mandare il nuovo tesserato (operazione N) chiede
 // a CSI se è già tesserata nella stagione (operazione I per codice fiscale):
@@ -493,6 +496,8 @@ Deno.serve(async (req: Request) => {
   const url = new URL(req.url)
   const prova = url.searchParams.get('prova') === '1'
   const giro: Giro = url.searchParams.get('giro') === 'ritenta' ? 'ritenta' : 'nuovi'
+  const idParam = url.searchParams.get('id') ?? ''
+  const idRiga = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(idParam) ? idParam : null
   const live = Deno.env.get('CSI_LIVE') === '1'
   const stagione = stagioneCorrente()
 
@@ -502,7 +507,7 @@ Deno.serve(async (req: Request) => {
     .eq('chiave', CHIAVE_AUTOMAZIONE)
     .maybeSingle()
 
-  if (!prova && (!stato?.attiva || !stato.attiva_dal)) {
+  if (!prova && !idRiga && (!stato?.attiva || !stato.attiva_dal)) {
     return rispondi({ ok: true, attiva: false, motivo: 'automazione spenta' })
   }
 
@@ -522,7 +527,7 @@ Deno.serve(async (req: Request) => {
   // ── Le nuove vendite diventano righe da inviare (solo il giro «nuovi»).
   let nuoveRighe = 0
   const daCreare: { persona: string; abbonamento: string }[] = []
-  if (giro === 'nuovi') {
+  if (giro === 'nuovi' && !idRiga) {
     const finestra = new Date(Date.now() - GIORNI_FINESTRA * GIORNO_MS)
     const attivaDal = !prova && stato?.attiva_dal ? new Date(stato.attiva_dal) : null
     const dal = (attivaDal && attivaDal > finestra ? attivaDal : finestra).toISOString()
@@ -581,23 +586,29 @@ Deno.serve(async (req: Request) => {
   const stati = giro === 'nuovi' ? ['da_inviare'] : ['da_inviare', 'non_tesserato']
   if (live) stati.push('simulato')
 
-  const { data: candidate, error: errRighe } = await supabase
-    .from('tesseramenti_csi')
-    .select(COLONNE_RIGA)
-    .eq('stagione', stagione)
-    .in('stato', stati)
-    .order('ultimo_tentativo_il', { ascending: true, nullsFirst: true })
-    .limit(100)
+  // «Riprova ora»: quella riga, qualunque sia la stagione e purché non sia già
+  // tesserata. Le altre condizioni (abbonamento finito, tetto per giro) sono
+  // dei giri automatici e qui non contano.
+  const query = supabase.from('tesseramenti_csi').select(COLONNE_RIGA)
+  const { data: candidate, error: errRighe } = idRiga
+    ? await query.eq('id', idRiga).in('stato', ['da_inviare', 'non_tesserato', 'simulato'])
+    : await query
+        .eq('stagione', stagione)
+        .in('stato', stati)
+        .order('ultimo_tentativo_il', { ascending: true, nullsFirst: true })
+        .limit(100)
   if (errRighe) {
     console.error('Lettura righe non riuscita:', errRighe.message)
     return rispondi({ ok: false, errore: errRighe.message }, 500)
   }
 
   const oggi = new Date().toISOString().slice(0, 10)
-  const righe = ((candidate ?? []) as unknown as Riga[])
-    // Chi ha un abbonamento finito o annullato non va più inseguito.
-    .filter((r) => !r.abbonamenti || (!r.abbonamenti.cancellato_il && (!r.abbonamenti.data_fine || r.abbonamenti.data_fine >= oggi)))
-    .slice(0, MASSIMO_PER_GIRO)
+  const righe = idRiga
+    ? ((candidate ?? []) as unknown as Riga[])
+    : ((candidate ?? []) as unknown as Riga[])
+        // Chi ha un abbonamento finito o annullato non va più inseguito.
+        .filter((r) => !r.abbonamenti || (!r.abbonamenti.cancellato_il && (!r.abbonamenti.data_fine || r.abbonamenti.data_fine >= oggi)))
+        .slice(0, MASSIMO_PER_GIRO)
 
   if (prova) {
     const { data: persone } = righe.length
@@ -643,7 +654,7 @@ Deno.serve(async (req: Request) => {
   return rispondi({
     ok: true,
     attiva: stato?.attiva === true,
-    giro,
+    giro: idRiga ? 'riga' : giro,
     live,
     stagione,
     righe_create: nuoveRighe,

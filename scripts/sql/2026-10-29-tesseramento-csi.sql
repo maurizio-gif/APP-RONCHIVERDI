@@ -146,6 +146,27 @@ select cron.schedule(
 	   where exists (select 1 from public.automazioni where chiave = 'tesseramento_csi' and attiva)$$
 );
 
+-- ──────────────────────────────────────────────────────────── riprova ora
+-- Il pulsante «Riprova ora» della pagina Tesseramenti: chiede alla edge
+-- function di rilavorare una riga sola. Passa da qui, e non da una chiamata
+-- diretta del CRM, perché il token delle edge function sta nel Vault e non
+-- esce dal database. Asincrona come ogni chiamata di pg_cron: l'esito
+-- compare sulla riga entro pochi secondi.
+create or replace function public.riprova_tesseramento_csi(p_id uuid)
+returns bigint
+language sql
+security definer
+set search_path = ''
+as $$
+	select public.chiama_edge_function('tesseramento-csi', '?id=' || p_id::text)
+	 where exists (
+		select 1 from public.tesseramenti_csi where id = p_id and stato <> 'tesserato'
+	 )
+$$;
+
+revoke all on function public.riprova_tesseramento_csi(uuid) from public, anon, authenticated;
+grant execute on function public.riprova_tesseramento_csi(uuid) to service_role;
+
 -- ───────────────────────────────────────────────────────────── permesso
 -- La pagina Tesseramenti sta in Segreteria, come Check sospensioni: la
 -- ricevono chi ha già Abbonamenti o è operatore di segreteria.

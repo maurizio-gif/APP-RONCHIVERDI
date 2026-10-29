@@ -727,6 +727,11 @@ nessuna email.
   **luogo di nascita** (`persone.luogo_nascita`, ancora da popolare dal sync
   Info4U), sesso e codice attività. Senza uno di questi la riga resta «Dati
   mancanti» e non si chiama CSI.
+- **Riprova ora**: il pulsante su ogni riga non tesserata rimanda a CSI quella
+  persona subito, senza aspettare le due ore (dopo aver corretto un dato in
+  Info4U). Passa da `riprova_tesseramento_csi()` e dalla function con
+  `?id=`; vale anche a interruttore spento, e con `CSI_LIVE=1` emette una
+  tessera vera. Lascia una riga in Controllo operatori.
 - Un errore di credito, di credenziali o di stagione ferma il giro: vale per
   tutte le righe e la guida sconsiglia i ritentativi ravvicinati (§14).
 
