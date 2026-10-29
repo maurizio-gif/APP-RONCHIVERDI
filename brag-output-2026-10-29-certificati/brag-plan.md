@@ -1,7 +1,7 @@
 # Piano: Certificati medici — guida per la segreteria
 
 > **Deroga alla regola «15–25 secondi».** Come per la guida dell'Agenda, qui è una guida interna da far vedere a tutto
-> lo staff: ~2 min 40 s, in capitoli. Restano valide le altre leggi (leggibile, specifico, mostra la cosa vera).
+> lo staff: ~3 min, in capitoli. Restano valide le altre leggi (leggibile, specifico, mostra la cosa vera).
 > **Voce narrante: spenta** (non richiesta): testi grandi in italiano e musica.
 
 ## Che cos'è
@@ -18,9 +18,10 @@ Scheda scura col logo: «Certificati medici» / «Il nuovo processo con Chiron»
 ## Scene
 1. Titolo — 7 s
 2. Il processo: cinque passi, quali a mano e quali automatici — 12 s
-3. **Alla vendita**: sigla «(cer000)» nel nome prodotto; socio senza email: aggiungerla entro 7 giorni — 19.4 s
+3. **Alla vendita**: sigla «(cer000)» nel nome prodotto — 14.6 s
 4. **Il socio riceve il codice**: email col voucher (testi da `voucher-email-testi.ts`), 8 cifre, 12 mesi, online (campo Note) o telefono — 16 s
 5. **Cosa vedi nel CRM**: elenco voucher, stati, esiti email, «Reinvia email»; il codice non si vede — 20 s
+5b. **Socio senza email**: «Manca email» in evidenza, campo e «Salva e invia»; oppure email aggiunta in Info4U entro 7 giorni — 22 s
 6. **Chiron usa il codice**: Validazione voucher, verifica, conferma, codice consumato — 22 s
 7. **Notifica e stato «Utilizzato»**: email al socio, riga in CRM — 15 s
 8. **Il certificato**: casella `certificatimedici@ronchiverdi.it`, allegato via email, cartaceo fotografato in reception — 18 s

@@ -1,6 +1,6 @@
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { inviaEmailAssegnazione, inviaEmailReinvio, inviaEmailUtilizzato } from '@/lib/voucher-email'
-import { dataOraRoma, emailValida, generaCodice, statoEffettivo, type Voucher } from '@/lib/voucher'
+import { dataOraRoma, emailValida, generaCodice, mancaEmail, statoEffettivo, type Voucher } from '@/lib/voucher'
 
 // Le operazioni sul voucher che toccano il database, in un posto solo: le
 // usano sia il pannello (emissione, reinvio, annullamento) sia l'interfaccia
@@ -131,6 +131,49 @@ export async function reinviaVoucher(id: string, chi: string | null): Promise<Es
   const aggiornato = await registraInvio(voucher, esito)
   if (!esito.ok) return { ok: false, errore: esito.errore }
   return { ok: true, voucher: aggiornato, identica: esito.identica }
+}
+
+export type EsitoImpostaEmail =
+  | { ok: true; voucher: Voucher; emailInviata: boolean; erroreEmail?: string }
+  | { ok: false; errore: string }
+
+// Il voucher nato senza email (socio senza indirizzo nel gestionale): la
+// segreteria inserisce l'indirizzo e l'email con il codice parte subito. Vale
+// solo finché l'email manca: correggere un indirizzo sbagliato è un'altra
+// cosa, e non deve poter dirottare il codice di un socio che l'ha già ricevuto.
+export async function impostaEmailEInvia(id: string, emailInserita: string, chi: string | null): Promise<EsitoImpostaEmail> {
+  const email = emailInserita.trim().toLowerCase()
+  if (!email) return { ok: false, errore: 'Scrivi l’email del socio.' }
+  if (!emailValida(email)) return { ok: false, errore: 'L’email non sembra valida.' }
+
+  const voucher = await leggiVoucherPerId(id)
+  if (!voucher) return { ok: false, errore: 'Voucher non trovato.' }
+  if (!mancaEmail(voucher)) return { ok: false, errore: 'Il voucher ha già un’email: usa «Reinvia email».' }
+
+  const supabase = createSupabaseServiceClient()
+  // `.eq('email', '')` è la guardia contro due operatori che inseriscono
+  // l'indirizzo insieme: vince il primo, il secondo trova la riga già a posto.
+  const { data, error } = await supabase
+    .from('voucher')
+    .update({ email })
+    .eq('id', id)
+    .eq('stato', 'attivo')
+    .eq('email', '')
+    .select(COLONNE)
+    .maybeSingle()
+  if (error) {
+    console.error('Email del voucher non salvata:', error.message)
+    return { ok: false, errore: 'Non siamo riusciti a salvare l’email. Riprova.' }
+  }
+  if (!data) return { ok: false, errore: 'Il voucher è già stato aggiornato da un altro operatore.' }
+
+  const aggiornato = await registraInvio(data as Voucher, await inviaEmailAssegnazione(data as Voucher, chi))
+  return {
+    ok: true,
+    voucher: aggiornato,
+    emailInviata: aggiornato.email_errore === null,
+    erroreEmail: aggiornato.email_errore ?? undefined,
+  }
 }
 
 export async function leggiVoucherPerId(id: string): Promise<Voucher | null> {

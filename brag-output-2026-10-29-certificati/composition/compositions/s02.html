@@ -35,7 +35,6 @@
     #s02-win .dati, #s02-win .dati dt, #s02-win .dati dd { font-size: 30px; }
     #s02-prod { display: inline-block; font-weight: 600; font-size: 38px; padding: 4px 12px; margin: -4px -12px; border-radius: 10px; }
     #s02-sig { color: #8b6c14; border-radius: 8px; padding: 0 6px; box-shadow: 0 0 0 3px rgba(200,153,31,0); }
-    #s02-mail { display: inline-block; padding: 4px 12px; margin: -4px -12px; border-radius: 10px; }
     #s02-tempo { left: 1060px; top: 470px; opacity: 0; }
   
   </style>
@@ -51,7 +50,7 @@
           <dl class="dati">
             <dt>Socio</dt><dd>Mario Rossi</dd>
             <dt>Prodotto</dt><dd><span id="s02-prod">1.1 GOLD OVER 35 <span id="s02-sig">(cer000)</span></span></dd>
-            <dt>Email</dt><dd><span id="s02-mail">mario.rossi@example.it</span></dd>
+            <dt>Email</dt><dd>mario.rossi@example.it</dd>
           </dl>
         </div>
       </div></div>
@@ -59,7 +58,6 @@
       <div class="cap" id="s02-cap0">Tutto parte <b>al momento della vendita</b>, in Info4U.</div>
       <div class="cap" id="s02-cap1">Il nome del prodotto deve contenere la sigla <b>«(cer000)»</b>.</div>
       <div class="cap" id="s02-cap2">Senza sigla, <b>non parte nessun codice</b>.</div>
-      <div class="cap" id="s02-cap3">Socio senza email? <b>Aggiungila entro 7 giorni</b>: il codice parte da solo.</div>
     </div>
   
     </div>
@@ -120,15 +118,14 @@
       tl.to('#s02-all', { opacity: 0, duration: tout, ease: 'power2.in' }, dur - tout);
     }
   
-    const win = W('#s02-win'), sig = W('#s02-sig'), ml = W('#s02-mail');
-    sceneInOut(19.4, 0.35, 0.4);
+    const win = W('#s02-win'), sig = W('#s02-sig');
+    sceneInOut(14.6, 0.35, 0.4);
     viewSet(win.x, win.y, 1.25);
     tl.fromTo('#s02-win', { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' }, 0.2);
     tl.to('#s02-prod', { backgroundColor: 'rgba(139,108,20,0.10)', duration: 0.4 }, 5.4);
     tl.to('#s02-sig', { backgroundColor: 'rgba(200,153,31,0.35)', boxShadow: '0 0 0 3px rgba(200,153,31,0.6)', duration: 0.5, ease: 'power2.out' }, 6.0);
     tl.to('#s02-sig', { scale: 1.08, duration: 0.5, ease: 'power2.inOut', yoyo: true, repeat: 1, transformOrigin: '50% 50%' }, 7.4);
     tl.to('#s02-prod', { backgroundColor: 'rgba(139,108,20,0)', duration: 0.4 }, 10.4);
-    tl.to('#s02-mail', { backgroundColor: 'rgba(53,86,107,0.14)', duration: 0.4 }, 14.0);
     
     tl.fromTo('#s02-cap0', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 0.9);
     tl.to('#s02-cap0', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 4.720);
@@ -136,8 +133,6 @@
     tl.to('#s02-cap1', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 9.620);
     tl.fromTo('#s02-cap2', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 10.2);
     tl.to('#s02-cap2', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 13.220);
-    tl.fromTo('#s02-cap3', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 13.8);
-    tl.to('#s02-cap3', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 18.220);
   
     window.__timelines['s02'] = tl;
   </script>

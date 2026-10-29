@@ -11444,3 +11444,18 @@ html[data-avvio='1']::before {
 	.pres-due { grid-template-columns: 1fr; gap: 1rem; }
 	.pres-slide { aspect-ratio: auto; min-height: 26rem; }
 }
+
+/* Voucher senza email (app/dashboard/voucher): l'avviso sopra l'elenco e il
+   campo per inserire l'indirizzo nella riga del socio. */
+.warn-banner {
+	margin-bottom: 1.25rem;
+	padding: 0.75rem 1rem;
+	background: var(--warn-tint);
+	border: 1px solid var(--warn-border);
+	border-radius: var(--radius);
+	color: var(--warn);
+	font-size: var(--text-sm);
+}
+.voucher-email-form { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.voucher-email-form input { min-width: 14rem; }
+.pres-finto-input { display: inline-block; min-width: 11rem; padding: 0.35rem 0.6rem; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); color: var(--text-muted); font-size: 0.8em; }

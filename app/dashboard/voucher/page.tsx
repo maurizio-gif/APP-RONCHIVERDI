@@ -8,6 +8,7 @@ import {
   dataOraRoma,
   dataRoma,
   emailValida,
+  mancaEmail,
   nomeCompleto,
   statoEffettivo,
   type StatoEffettivo,
@@ -88,6 +89,9 @@ export default async function VoucherPage({ searchParams }: { searchParams: { q?
   const possoCancellare = await puoCancellare(emailCorrente())
   const automazione = await leggiStatoAutomazione()
   const automaticoAttivo = automazione?.attiva === true
+  // I soci senza email nel gestionale: il voucher esiste ma nessuno l'ha
+  // ricevuto, quindi stanno in evidenza sopra l'elenco finché non si rimedia.
+  const senzaEmail = voucher.filter(mancaEmail).length
 
   const conteggi = voucher.reduce<Record<StatoEffettivo, number>>(
     (acc, v) => {
@@ -145,9 +149,11 @@ export default async function VoucherPage({ searchParams }: { searchParams: { q?
             finché il voucher non è stato utilizzato.
           </li>
           <li>
-            <strong>Socio senza email nel gestionale</strong>: il codice non può partire. Aggiungi
-            l’email nel gestionale entro 7 giorni dalla vendita e il codice parte da solo al giro
-            successivo.
+            <strong>Socio senza email nel gestionale</strong>: il voucher viene creato lo stesso e
+            compare qui con l’avviso <strong>«Manca email»</strong>, ma il codice non parte. Scrivi
+            l’indirizzo nel campo accanto al socio e premi <strong>«Salva e invia»</strong>: il codice
+            parte subito. Se invece aggiungi l’email nel gestionale entro 7 giorni dalla vendita, parte
+            da solo.
           </li>
           <li>
             Il socio prenota <strong>online</strong>, scrivendo il codice nel campo «Note» della
@@ -184,6 +190,16 @@ export default async function VoucherPage({ searchParams }: { searchParams: { q?
         </div>
       </form>
 
+      {senzaEmail > 0 && (
+        <p className="warn-banner" role="status" style={{ marginTop: '1.5rem' }}>
+          <strong>
+            {senzaEmail === 1 ? '1 socio senza email' : `${senzaEmail} soci senza email`}
+          </strong>
+          : il voucher è pronto ma il codice non è partito. Inserisci l’indirizzo nella riga del socio
+          e premi «Salva e invia».
+        </p>
+      )}
+
       <div className="griglia-stat" style={{ marginTop: '1.5rem' }}>
         <div className="stat">
           <span className="stat-valore">{conteggi.attivo}</span>
@@ -201,6 +217,12 @@ export default async function VoucherPage({ searchParams }: { searchParams: { q?
           <span className="stat-valore">{conteggi.annullato}</span>
           <span className="stat-label">Annullati</span>
         </div>
+        {senzaEmail > 0 && (
+          <div className="stat stat-warn">
+            <span className="stat-valore">{senzaEmail}</span>
+            <span className="stat-label">Manca email</span>
+          </div>
+        )}
       </div>
 
       <div className="card">
@@ -238,13 +260,19 @@ export default async function VoucherPage({ searchParams }: { searchParams: { q?
                       <td>
                         <div className="cella-chi-nome">{nomeCompleto(v)}</div>
                         <div className="cella-chi-dettagli">
-                          {v.email}
-                          {v.telefono ? ` · ${v.telefono}` : ''}
+                          {v.email || (v.telefono ? '' : 'nessun recapito')}
+                          {v.email && v.telefono ? ' · ' : ''}
+                          {v.telefono ?? ''}
                         </div>
                         {v.note && <div className="cella-chi-dettagli">{v.note}</div>}
                       </td>
                       <td className="cella-nowrap">
                         <span className={CLASSE_BADGE[stato]}>{ETICHETTE_STATO[stato]}</span>
+                        {mancaEmail(v) && (
+                          <div>
+                            <span className="badge badge-ko">Manca email</span>
+                          </div>
+                        )}
                         {v.utilizzato_il && (
                           <div className="cella-chi-dettagli">
                             {dataOraRoma(v.utilizzato_il)}
@@ -279,6 +307,8 @@ export default async function VoucherPage({ searchParams }: { searchParams: { q?
                           <span className="badge badge-ko" title={v.email_errore}>
                             non partita
                           </span>
+                        ) : mancaEmail(v) ? (
+                          <span className="muted">non inviata</span>
                         ) : v.email_inviata_il ? (
                           <>
                             {dataRoma(v.email_inviata_il)}
@@ -298,6 +328,7 @@ export default async function VoucherPage({ searchParams }: { searchParams: { q?
                           giaInviata={v.email_inviata_il !== null}
                           annullabile={v.stato === 'attivo'}
                           rimandabile={stato === 'attivo' && emailValida(v.email)}
+                          senzaEmail={mancaEmail(v)}
                           puoCancellare={possoCancellare}
                         />
                       </td>

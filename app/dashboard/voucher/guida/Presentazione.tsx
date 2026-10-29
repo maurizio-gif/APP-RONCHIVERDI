@@ -55,8 +55,8 @@ const DIAPOSITIVE: Diapositiva[] = [
           </p>
           <p>È quella sigla a far partire l’automazione: senza, il socio non riceve nessun codice.</p>
           <p className="pres-nota">
-            Socio senza email in Info4U? Il codice non può partire: aggiungi l’email entro 7 giorni dalla vendita e
-            parte da solo.
+            Il socio non ha l’email in Info4U? Il voucher nasce lo stesso, ma il codice non parte: vedi il passo
+            successivo.
           </p>
         </div>
         <div className="pres-mock">
@@ -142,6 +142,38 @@ const DIAPOSITIVE: Diapositiva[] = [
     ),
   },
   {
+    id: 'senza-email',
+    titolo: 'Socio senza email: «Manca email»',
+    corpo: (
+      <div className="pres-due">
+        <div>
+          <p>
+            Se in Info4U il socio non ha l’email, il voucher viene <strong>creato lo stesso</strong> ma il codice non
+            parte.
+          </p>
+          <p>
+            Nel CRM lo trovi in evidenza: avviso sopra l’elenco e <strong>«Manca email»</strong> nella riga. Scrivi
+            l’indirizzo e premi <strong>«Salva e invia»</strong>: il codice parte subito.
+          </p>
+          <p className="pres-nota">
+            Se aggiungi l’email in Info4U entro 7 giorni dalla vendita, il codice parte anche da solo.
+          </p>
+        </div>
+        <div className="pres-mock">
+          <p className="warn-banner" style={{ marginBottom: '0.75rem' }}>
+            <strong>1 socio senza email</strong>: il codice non è partito.
+          </p>
+          <p style={{ margin: 0, fontWeight: 600 }}>Anna Neri</p>
+          <p style={{ margin: '0.2em 0 0.6em' }}>
+            <span className="badge badge-ok">Attivo</span> <span className="badge badge-ko">Manca email</span>
+          </p>
+          <span className="pres-finto-input">email del socio</span>{' '}
+          <span className="btn btn-sm">Salva e invia</span>
+        </div>
+      </div>
+    ),
+  },
+  {
     id: 'chiron',
     titolo: '4 · Chiron usa il codice',
     corpo: (
@@ -201,7 +233,7 @@ const DIAPOSITIVE: Diapositiva[] = [
           Il codice parte da solo e vale <strong>12 mesi</strong>.
         </li>
         <li>
-          Non è arrivato? <strong>«Reinvia email»</strong> nel CRM.
+          Non è arrivato? <strong>«Reinvia email»</strong> nel CRM. Manca l’email? <strong>«Salva e invia»</strong>.
         </li>
         <li>
           Il certificato va a <strong>{CASELLA}</strong>: la data in Info4U si inserisce a mano.
