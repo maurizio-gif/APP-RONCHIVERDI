@@ -10636,3 +10636,501 @@ table.tabella-compatta .nota-in-riga,
 .email-info4u > summary {
 	cursor: pointer;
 }
+
+/* ───────────────────────────────────────────────────────────────── accessi */
+
+/* La sezione Accessi (panoramica, ricerca, gruppi di varchi). Colori solo dai
+   token del tema, così i grafici seguono il chiaro e lo scuro; fanno
+   eccezione i colori dei gruppi, che sono un dato scelto da chi li crea. */
+.accessi-nav {
+	margin-top: 0.9rem;
+}
+.accessi-periodo {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.6rem 1.25rem;
+	margin-top: 0.75rem;
+}
+.accessi-periodo-form {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+}
+.accessi-periodo-form input,
+.accessi-ricerca input,
+.accessi-ricerca select,
+.accessi-nuovo-gruppo input,
+.accessi-riga-gruppo input,
+.accessi-scelta-gruppo select {
+	padding: 0.35rem 0.5rem;
+	font: inherit;
+	font-size: var(--text-sm);
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius);
+	background: var(--bg);
+	color: inherit;
+}
+.accessi-periodo-testo {
+	margin: 0;
+	font-size: var(--text-sm);
+}
+
+.accessi-numeri {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+	gap: 0.75rem;
+	margin-bottom: 1.5rem;
+}
+.accessi-numero {
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+	min-width: 0;
+	padding: 1rem 1.1rem 0.7rem;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	overflow: hidden;
+}
+.accessi-numero-etichetta {
+	font-size: var(--text-xs, 0.8rem);
+}
+.accessi-numero-valore {
+	font-size: 1.9rem;
+	line-height: 1.1;
+}
+.accessi-numero-sotto {
+	min-height: 1.3em;
+	font-size: var(--text-xs, 0.8rem);
+}
+.accessi-delta {
+	font-weight: 600;
+}
+.accessi-delta-su {
+	color: var(--ok);
+}
+.accessi-delta-giu {
+	color: var(--error);
+}
+.accessi-delta-piano {
+	color: var(--text-muted);
+}
+.accessi-spark {
+	display: block;
+	width: calc(100% + 2.2rem);
+	height: 2rem;
+	margin: 0.4rem -1.1rem -0.7rem;
+}
+.accessi-spark-area {
+	fill: var(--accent-tint);
+}
+.accessi-spark-linea {
+	fill: none;
+	stroke: var(--accent);
+	stroke-width: 1.6;
+}
+
+.accessi-breve {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	margin: 0;
+	padding-left: 1.1rem;
+}
+
+.accessi-coppia {
+	display: grid;
+	grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+	gap: 1.5rem;
+	margin-top: 1.5rem;
+	align-items: start;
+}
+.accessi-coppia .card + .card {
+	margin-top: 0;
+}
+.accessi-numeri + .card,
+.card + .accessi-coppia,
+.accessi-coppia + .accessi-coppia,
+.accessi-coppia + .card {
+	margin-top: 1.5rem;
+}
+@media (max-width: 900px) {
+	.accessi-coppia {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+/* Tendenza a barre impilate. Il testo sta fuori dall'SVG (che si deforma per
+   riempire la larghezza): solo barre e linee dentro. */
+.accessi-grafico-tela {
+	position: relative;
+}
+.accessi-grafico-tela svg {
+	display: block;
+	width: 100%;
+	height: 14rem;
+	overflow: visible;
+}
+.accessi-grafico-max {
+	position: absolute;
+	top: -0.2rem;
+	left: 0;
+	font-size: var(--text-2xs);
+	pointer-events: none;
+}
+.accessi-griglia {
+	stroke: var(--border);
+	stroke-width: 1;
+	stroke-dasharray: 3 4;
+}
+.accessi-asse {
+	stroke: var(--border-strong);
+	stroke-width: 1;
+}
+.accessi-linea-prec {
+	fill: none;
+	stroke: var(--text-muted);
+	stroke-width: 1.8;
+	stroke-dasharray: 5 4;
+	stroke-linejoin: round;
+}
+.accessi-colonna {
+	transform-box: fill-box;
+	transform-origin: bottom;
+	animation: accessi-cresci 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.accessi-colonna:hover rect:not(:first-child) {
+	filter: brightness(1.12);
+}
+.accessi-grafico-etichette {
+	display: flex;
+	margin-top: 0.35rem;
+	font-size: var(--text-2xs);
+}
+.accessi-grafico-etichette > span {
+	flex: 1 1 0;
+	min-width: 0;
+	overflow: visible;
+	white-space: nowrap;
+	text-align: center;
+}
+.accessi-legenda {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem 1.1rem;
+	margin-top: 0.8rem;
+	font-size: var(--text-xs, 0.8rem);
+}
+.accessi-pallino {
+	display: inline-block;
+	width: 0.65rem;
+	height: 0.65rem;
+	border: 1px solid transparent;
+	border-radius: 50%;
+	vertical-align: baseline;
+}
+.accessi-pallino-linea {
+	width: 1.1rem;
+	height: 0;
+	border: 0;
+	border-top: 2px dashed var(--text-muted);
+	border-radius: 0;
+	vertical-align: middle;
+}
+
+/* Mappa di calore: giorni della settimana per le ore. */
+.accessi-calore-griglia {
+	display: grid;
+	grid-template-columns: 5.5rem repeat(var(--ore), minmax(0, 1fr));
+	gap: 3px;
+	align-items: center;
+}
+.accessi-calore-corto {
+	display: none;
+}
+@media (max-width: 600px) {
+	.accessi-calore-griglia {
+		grid-template-columns: 2.2rem repeat(var(--ore), minmax(0, 1fr));
+		gap: 2px;
+	}
+	.accessi-calore-lungo {
+		display: none;
+	}
+	.accessi-calore-corto {
+		display: inline;
+	}
+	.accessi-calore-ora.is-dispari {
+		visibility: hidden;
+	}
+	.accessi-calore-cella {
+		min-height: 1rem;
+	}
+}
+.accessi-calore-ora {
+	font-size: var(--text-2xs);
+	text-align: center;
+}
+.accessi-calore-giorno {
+	font-size: var(--text-xs, 0.8rem);
+	text-transform: capitalize;
+}
+.accessi-calore-cella {
+	display: block;
+	aspect-ratio: 1.15;
+	min-height: 1.25rem;
+	border-radius: 4px;
+	background: color-mix(in srgb, var(--accent) calc(var(--intensita, 0%) * 0.92), var(--fill-soft));
+	transition: transform 0.12s ease;
+}
+.accessi-calore-cella:hover {
+	transform: scale(1.18);
+	outline: 1px solid var(--accent);
+	position: relative;
+	z-index: 1;
+}
+.accessi-calore-cella.is-picco {
+	outline: 2px solid var(--text);
+	outline-offset: 1px;
+}
+.accessi-calore-legenda {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin-top: 0.8rem;
+	font-size: var(--text-2xs);
+}
+.accessi-calore-scala {
+	width: 7rem;
+	height: 0.55rem;
+	border-radius: 3px;
+	background: linear-gradient(90deg, var(--fill-soft), var(--accent));
+}
+.accessi-filtro-gruppo {
+	margin-bottom: 1rem;
+}
+
+/* Barre orizzontali. */
+.accessi-barre {
+	display: flex;
+	flex-direction: column;
+	gap: 0.7rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.accessi-barre li {
+	display: grid;
+	grid-template-columns: minmax(7rem, 11rem) minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 0.75rem;
+	font-size: var(--text-sm);
+}
+.accessi-barre-pista {
+	height: 0.7rem;
+	border-radius: 4px;
+	background: var(--fill-soft);
+	overflow: hidden;
+}
+.accessi-barre-barra {
+	display: block;
+	height: 100%;
+	border-radius: 4px;
+	transform-origin: left;
+	animation: accessi-allarga 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.accessi-barre-valore {
+	min-width: 5.5rem;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+@media (max-width: 600px) {
+	.accessi-barre li {
+		grid-template-columns: minmax(0, 1fr) auto;
+	}
+	.accessi-barre-pista {
+		grid-column: 1 / -1;
+		order: 3;
+	}
+}
+
+/* Istogramma di fedeltà. */
+.accessi-istogramma {
+	display: grid;
+	grid-template-columns: repeat(6, minmax(0, 1fr));
+	gap: 0.5rem;
+	align-items: end;
+}
+.accessi-istogramma-colonna {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.3rem;
+}
+.accessi-istogramma-valore {
+	font-size: var(--text-xs, 0.8rem);
+	font-variant-numeric: tabular-nums;
+}
+.accessi-istogramma-pista {
+	display: flex;
+	align-items: flex-end;
+	width: 100%;
+	height: 9rem;
+}
+.accessi-istogramma-barra {
+	display: block;
+	width: 100%;
+	min-height: 2px;
+	border-radius: 4px 4px 0 0;
+	background: var(--accent);
+	transform-origin: bottom;
+	animation: accessi-cresci 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.accessi-istogramma-etichetta {
+	font-size: var(--text-2xs);
+	text-align: center;
+}
+.accessi-istogramma-nota {
+	grid-column: 1 / -1;
+	margin: 0.4rem 0 0;
+	font-size: var(--text-2xs);
+	text-align: center;
+}
+
+@keyframes accessi-cresci {
+	from {
+		transform: scaleY(0);
+	}
+	to {
+		transform: scaleY(1);
+	}
+}
+@keyframes accessi-allarga {
+	from {
+		transform: scaleX(0);
+	}
+	to {
+		transform: scaleX(1);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.accessi-colonna,
+	.accessi-barre-barra,
+	.accessi-istogramma-barra {
+		animation: none;
+	}
+	.accessi-calore-cella {
+		transition: none;
+	}
+}
+
+.accessi-num {
+	text-align: right;
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+}
+table.tabella th.accessi-num {
+	text-align: right;
+}
+.accessi-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	margin-left: 0.5rem;
+	padding: 0.1rem 0.5rem;
+	border-radius: 999px;
+	background: var(--fill-soft);
+	font-size: var(--text-2xs);
+}
+
+/* Ricerca. */
+.accessi-ricerca {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 0.75rem;
+}
+.accessi-ricerca label {
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+	font-size: var(--text-xs, 0.8rem);
+}
+.accessi-ricerca-persona {
+	flex: 1 1 16rem;
+}
+.accessi-ricerca-persona input {
+	width: 100%;
+}
+.accessi-ricerca-preset {
+	margin-top: 1rem;
+	align-items: center;
+}
+.accessi-ricerca-sintesi {
+	margin: 0 0 1rem;
+}
+.accessi-paginazione {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	margin-top: 1rem;
+}
+
+/* Gruppi di varchi. */
+.accessi-gruppi {
+	display: flex;
+	flex-direction: column;
+	margin: 0 0 1.25rem;
+	padding: 0;
+	list-style: none;
+}
+.accessi-riga-gruppo {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.6rem;
+	padding: 0.6rem 0;
+	border-top: 1px solid var(--border);
+}
+.accessi-nuovo-gruppo {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.6rem;
+}
+.accessi-colori {
+	display: inline-flex;
+	gap: 0.3rem;
+}
+.accessi-colore {
+	width: 1.2rem;
+	height: 1.2rem;
+	padding: 0;
+	border: 2px solid transparent;
+	border-radius: 50%;
+	cursor: pointer;
+}
+.accessi-colore.is-scelto {
+	border-color: var(--text);
+	box-shadow: 0 0 0 2px var(--surface) inset;
+}
+.accessi-scelta-gruppo {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+.accessi-riga-cambiata td {
+	background: var(--accent-tint);
+}
+.accessi-salva {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	margin-top: 1rem;
+}
+.accessi-errore {
+	color: var(--error);
+	font-size: var(--text-sm);
+}

@@ -113,6 +113,10 @@ export const AZIONI_LOG: Record<string, string> = {
   avanzamento_riaperto: 'Avanzamento progetto: passo riaperto',
   avanzamento_nota: 'Avanzamento progetto: nota',
   timbratura_eliminata: 'Timbratura eliminata',
+  accessi_gruppo_creato: 'Accessi: gruppo di varchi creato',
+  accessi_gruppo_modificato: 'Accessi: gruppo di varchi modificato',
+  accessi_gruppo_eliminato: 'Accessi: gruppo di varchi eliminato',
+  accessi_varchi_assegnati: 'Accessi: varchi assegnati ai gruppi',
 }
 
 export function etichettaAzione(azione: string): string {
