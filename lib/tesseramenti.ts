@@ -155,10 +155,9 @@ export function euroIntero(n: number | null | undefined): string {
 }
 
 // Le viste della pagina Tesseramenti (parametro `sezione`).
-export const SEZIONI_PAGINA = ['elenchi', 'tessere', 'iva'] as const
+export const SEZIONI_PAGINA = ['elenchi', 'tessere'] as const
 export type SezionePagina = (typeof SEZIONI_PAGINA)[number]
 export const ETICHETTE_SEZIONE: Record<SezionePagina, string> = {
   tessere: 'Tessere',
-  iva: 'IVA zero senza tessera',
   elenchi: 'Elenchi',
 }
