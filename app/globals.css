@@ -11134,3 +11134,111 @@ table.tabella th.accessi-num {
 	color: var(--error);
 	font-size: var(--text-sm);
 }
+
+/* ─────────────────────────────────────────────────────────────────── report */
+
+/* Il report per periodo: modulo di scelta e anteprima (stessi blocchi del PDF). */
+.report-form {
+	display: flex;
+	flex-direction: column;
+	gap: 1.1rem;
+	margin-top: 1.1rem;
+}
+.report-form-date {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+}
+.report-form-date label {
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+	font-size: var(--text-xs);
+}
+.report-form-date input {
+	padding: 0.35rem 0.5rem;
+	font: inherit;
+	font-size: var(--text-sm);
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius);
+	background: var(--bg);
+	color: inherit;
+}
+.report-sezioni {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+	gap: 0.6rem 1.25rem;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+.report-sezioni legend {
+	margin-bottom: 0.5rem;
+	padding: 0;
+	font-size: var(--text-xs);
+}
+.report-sezione-scelta {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.6rem;
+	font-size: var(--text-sm);
+	cursor: pointer;
+}
+.report-sezione-scelta input {
+	margin-top: 0.2rem;
+}
+.report-sezione-scelta.is-negata {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+.report-azioni {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.75rem;
+}
+.report-anteprima .report-sezione {
+	margin: 2rem 0 1rem;
+	padding-bottom: 0.4rem;
+	border-bottom: 2px solid var(--accent);
+}
+.report-anteprima .report-sezione:first-child {
+	margin-top: 0;
+}
+.report-anteprima .report-sezione h2 {
+	margin: 0;
+}
+.report-anteprima .report-sezione p {
+	margin: 0.3rem 0 0;
+	font-size: var(--text-sm);
+}
+.report-sottotitolo {
+	margin: 1.4rem 0 0.6rem;
+	color: var(--accent);
+	font-size: var(--text-sm);
+}
+.report-numeri {
+	margin-bottom: 1rem;
+}
+.report-totale td {
+	border-top: 1px solid var(--border-strong);
+}
+@media print {
+	.report-form,
+	.page-head {
+		display: none;
+	}
+}
+.report-nota {
+	margin: 0.8rem 0 0;
+	font-size: var(--text-xs);
+	line-height: 1.5;
+}
+@media (max-width: 600px) {
+	.report-numeri {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+	.report-numeri .accessi-numero-valore {
+		font-size: 1.4rem;
+	}
+}
