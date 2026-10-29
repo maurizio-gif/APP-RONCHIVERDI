@@ -94,6 +94,7 @@ async function sincronizzaStagione(supabase: Supabase, stagione: number, inizio:
       tipotess: testo(t.tipotess) || testo(t.tipoess) || null,
       attivita: [t.att1, t.att2, t.att3, t.att4].map(testo).filter(Boolean),
       qualifiche: [t.qua1, t.qua2, t.qua3, t.qua4, t.qua5].map(testo).filter(Boolean),
+      nascita: dataIso(t.nascita) ?? dataIso(t.datanascita),
       rilascio: dataIso(t.rilascio),
       scadenza: dataIso(t.scadenza),
       foto: testo(t.foto).toUpperCase() === 'S',

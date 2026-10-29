@@ -269,7 +269,7 @@ function corpoNuovoTesserato(p: Persona, codiceAttivita: string, cmed: string | 
     codiceatt1: codiceAttivita,
     // Il credito della società è a tessere (convenzione ANIF), non in euro:
     // per le attività CR, CF e CS CSI rifiuta il credito in euro. Verificato
-    // con la simulazione, vedi supabase/functions/csi-verifica.
+    // con la simulazione.
     credito: TIPO_CREDITO,
   }
   // I facoltativi si mandano solo se ci sono: in N un campo vuoto non

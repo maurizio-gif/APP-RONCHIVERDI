@@ -734,19 +734,19 @@ nessuna email.
   Info4U). Passa da `riprova_tesseramento_csi()` e dalla function con
   `?id=`; vale anche a interruttore spento, e con `CSI_LIVE=1` emette una
   tessera vera. Lascia una riga in Controllo operatori.
-- **Cosa risulta dalla verifica sul server CSI** (edge function di sola lettura
-  `csi-verifica`, che restituisce solo conteggi): la società tessera con
+- **Cosa risulta dalla verifica sul server CSI** (con una funzione di diagnosi
+  di sola lettura, poi dismessa): la società tessera con
   l'attività `CR` per tutti i prodotti; il credito è **a tessere** (convenzione
   ANIF), non in euro, quindi `N` manda `credito: 2` (`CSI_CREDITO` lo cambia);
   il campo del tipo tessera si chiama `tipotess`, non `tipoess` come nelle
   tabelle della guida (si mandano entrambi); la tessera dura 365 giorni dal
-  rilascio. `csi-verifica?sonda=1&campi={json}` prova una simulazione di `N`
-  con i dati di esempio della guida, senza emettere nulla.
+  rilascio.
 - **Le tessere CSI nel CRM** (`2026-10-29-tessere-csi.sql`): la edge function
   di sola lettura `csi-tessere`, ogni ora (job `csi-tessere`, interruttore
   `csi_tessere` in `automazioni`), legge da CSI le tessere della stagione
   corrente e precedente e le scrive in `tessere_csi`, legate alle persone per
-  codice fiscale. Da lì:
+  codice fiscale (o, se non coincide, per cognome, nome e data di nascita,
+  purché una sola persona corrisponda). Da lì:
   - la **scheda della persona** mostra il riquadro «Tesseramento CSI» (numero,
     tipo, stagione, rilascio e scadenza) se ha una tessera in corso;
   - la pagina **Tesseramenti** ha tre viste: *Tessere* (ricerca per cognome,
