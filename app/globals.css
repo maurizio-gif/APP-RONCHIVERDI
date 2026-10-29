@@ -11276,3 +11276,123 @@ html[data-avvio='1']::before {
 		display: none;
 	}
 }
+
+/* ──────────────────────────────────────────────── contatti: filtri e liste */
+
+.contatti-rapide {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+.contatti-gruppi-filtri {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+	gap: 1.25rem;
+}
+.contatti-filtri fieldset {
+	display: flex;
+	flex-direction: column;
+	gap: 0.8rem;
+	min-width: 0;
+	margin: 0;
+	padding: 0.9rem 1rem 1rem;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+}
+.contatti-filtri legend {
+	padding: 0 0.4rem;
+	color: var(--accent);
+	font-size: var(--text-sm);
+	font-weight: 500;
+}
+.contatti-filtri label {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	font-size: var(--text-xs);
+}
+.contatti-filtri label.check-riga {
+	flex-direction: row;
+	font-size: var(--text-sm);
+}
+.contatti-filtri select,
+.contatti-filtri input[type='number'] {
+	padding: 0.4rem 0.5rem;
+	font: inherit;
+	font-size: var(--text-sm);
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius);
+	background: var(--bg);
+	color: inherit;
+}
+.contatti-eta {
+	display: grid;
+	grid-template-columns: 1fr 1fr 1.2fr;
+	gap: 0.5rem;
+}
+.contatti-eta input,
+.contatti-eta select {
+	width: 100%;
+	min-width: 0;
+}
+.contatti-form-azioni {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-end;
+	gap: 0.75rem;
+	margin-top: 1.25rem;
+}
+.contatti-attivi {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+	margin: 0 0 1rem;
+}
+.contatti-azioni {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.6rem 0.9rem;
+	padding: 0.7rem 0.9rem;
+	background: var(--fill-soft);
+	border-radius: var(--radius);
+}
+.contatti-azioni-destra {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-left: auto;
+}
+.contatti-selezione {
+	font-size: var(--text-sm);
+}
+.contatti-messaggio {
+	margin: 0.6rem 0 0;
+	font-size: var(--text-sm);
+}
+.contatti-lista {
+	margin-top: 0.5rem;
+}
+.contatti-lista li.is-scelta .contatti-riga {
+	background: var(--accent-tint);
+}
+.contatti-riga {
+	cursor: default;
+}
+.contatti-casella {
+	flex: none;
+	width: 1.1rem;
+	height: 1.1rem;
+	accent-color: var(--accent);
+}
+.contatti-dettaglio {
+	white-space: normal;
+}
+@media (max-width: 700px) {
+	.contatti-azioni-destra {
+		margin-left: 0;
+	}
+	.contatti-riga .persona-numeri {
+		display: none;
+	}
+}

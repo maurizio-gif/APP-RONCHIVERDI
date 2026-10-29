@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
@@ -147,6 +148,14 @@ export default async function PersonePage() {
           fissandogli qualcosa in agenda, ed è segnato «inserito a mano». L’elenco qui sotto mostra
           l’attività più recente: per uno storico, cerca il suo nome.
         </p>
+        <nav className="agenda-nav accessi-nav" aria-label="Contatti">
+          <Link href="/dashboard/persone" className="btn btn-sm" aria-current="page">
+            Elenco e ricerca
+          </Link>
+          <Link href="/dashboard/persone/filtri" className="btn btn-sm btn-ghost">
+            Filtri e liste
+          </Link>
+        </nav>
       </div>
 
       <div className="griglia-stat">
