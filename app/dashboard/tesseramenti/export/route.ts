@@ -2,15 +2,16 @@ import { NextResponse } from 'next/server'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { registraLog } from '@/lib/audit'
-import { caricaTesseramenti, elencoDi, vistaValida } from '@/lib/tesseramenti-elenchi'
+import { caricaElenco, elencoDi, vistaValida } from '@/lib/tesseramenti-elenchi'
 import { dataIt, ETICHETTE_MOTIVO, ETICHETTE_VISTA, SEZIONE_TESSERAMENTI } from '@/lib/tesseramenti'
 
 export const dynamic = 'force-dynamic'
 
-// L'elenco scelto nella vista Automazione di Tesseramenti (tesserati, da
-// tesserare, non tesserabili, in errore, con l'eventuale filtro per motivo)
-// in CSV, per girarlo ai responsabili. Separatore «;», BOM per Excel. Ogni
-// esportazione finisce nel controllo operatori.
+// L'elenco scelto nella vista Elenchi di Tesseramenti (tesserati, da
+// tesserare, non tesserabili, in errore, con l'eventuale filtro per motivo e
+// la ricerca) in CSV, calcolato al momento, per girarlo ai responsabili.
+// Separatore «;», BOM per Excel. Ogni esportazione finisce nel controllo
+// operatori.
 
 function cella(valore: string | number | null | undefined): string {
   const testo = valore === null || valore === undefined ? '' : String(valore)
@@ -23,19 +24,17 @@ export async function GET(richiesta: Request) {
   if (!(await utenteHaSezione(SEZIONE_TESSERAMENTI))) return new NextResponse('Non autorizzato', { status: 403 })
 
   const parametri = new URL(richiesta.url).searchParams
-  const vista = vistaValida(parametri.get('vista') ?? undefined)
+  const vista = vistaValida(parametri.get('vista'))
   if (!vista) return new NextResponse('Elenco non valido.', { status: 400 })
   const motivo = parametri.get('motivo')
+  const q = parametri.get('q') ?? ''
 
-  const { righe, error } = await caricaTesseramenti(createSupabaseServiceClient())
+  const { righe, error } = await caricaElenco(createSupabaseServiceClient())
   if (error) {
     console.error('Esportazione tesseramenti non riuscita:', error.message)
     return new NextResponse('Errore nell’esportazione.', { status: 500 })
   }
-  const nominativo = (r: (typeof righe)[number]) => `${r.persone?.cognome ?? ''} ${r.persone?.nome ?? ''}`
-  const elenco = elencoDi(righe, vista, motivo)
-    .slice()
-    .sort((a, b) => nominativo(a).localeCompare(nominativo(b), 'it'))
+  const elenco = elencoDi(righe, vista, motivo, q)
 
   const linee = [
     [
@@ -45,9 +44,11 @@ export async function GET(richiesta: Request) {
       'Data di nascita',
       'Email',
       'Cellulare',
-      'Prodotto',
-      'Stagione',
+      'Abbonamento in corso',
+      'Dal',
+      'Al',
       'Tessera',
+      'Tipo tessera',
       'Rilascio',
       'Scadenza',
       'Motivo',
@@ -56,17 +57,19 @@ export async function GET(richiesta: Request) {
     ].join(';'),
     ...elenco.map((r) =>
       [
-        cella(r.persone?.cognome),
-        cella(r.persone?.nome),
-        cella(r.persone?.codice_fiscale),
-        cella(r.persone?.data_nascita ? dataIt(r.persone.data_nascita) : ''),
-        cella(r.persone?.email),
-        cella(r.persone?.cellulare),
-        cella(r.abbonamenti?.abbonamento),
-        cella(r.stagione),
+        cella(r.cognome),
+        cella(r.nome),
+        cella(r.codice_fiscale),
+        cella(r.data_nascita ? dataIt(r.data_nascita) : ''),
+        cella(r.email),
+        cella(r.cellulare),
+        cella(r.abbonamento),
+        cella(r.data_inizio ? dataIt(r.data_inizio) : ''),
+        cella(r.data_fine ? dataIt(r.data_fine) : ''),
         cella(r.tessera),
-        cella(r.rilascio ? dataIt(r.rilascio) : ''),
-        cella(r.scadenza ? dataIt(r.scadenza) : ''),
+        cella(r.tessera_tipo),
+        cella(r.tessera_rilascio ? dataIt(r.tessera_rilascio) : ''),
+        cella(r.tessera_scadenza ? dataIt(r.tessera_scadenza) : ''),
         cella(r.motivo_tipo ? ETICHETTE_MOTIVO[r.motivo_tipo] : ''),
         cella(r.motivo),
         cella(r.tentativi),
@@ -75,7 +78,7 @@ export async function GET(richiesta: Request) {
   ]
 
   await registraLog(emailCorrente(), 'tesseramenti_esportati', {
-    dettagli: { elenco: ETICHETTE_VISTA[vista], motivo: motivo ?? 'tutti', persone: elenco.length },
+    dettagli: { elenco: ETICHETTE_VISTA[vista], motivo: motivo ?? 'tutti', ricerca: q || null, persone: elenco.length },
   })
   const giorno = new Date().toISOString().slice(0, 10)
   return new NextResponse('﻿' + linee.join('\r\n'), {

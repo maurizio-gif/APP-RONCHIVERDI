@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { ETICHETTE_SEZIONE, SEZIONE_TESSERAMENTI, SEZIONI_PAGINA, type SezionePagina } from '@/lib/tesseramenti'
-import { VistaAutomazione } from './VistaAutomazione'
+import { VistaElenchi } from './VistaElenchi'
 import { VistaIvaZero } from './VistaIvaZero'
 import { VistaTessere } from './VistaTessere'
 
@@ -10,13 +10,15 @@ export const dynamic = 'force-dynamic'
 
 // Tesseramenti CSI. Tre viste:
 //
+// - Elenchi: tesserati (tessera in corso di validità), da tesserare, non
+//   tesserabili e in errore, calcolati al momento da abbonamenti, tessere CSI e
+//   anagrafica; si cercano e si esportano in CSV;
 // - Tessere: la ricerca fra le tessere che il server CSI ha in archivio per
 //   la società (lette ogni ora, vedi supabase/functions/csi-tessere), con
 //   evidenza di chi ha un abbonamento reale in corso;
 // - IVA zero senza tessera: chi ha pagato con IVA a zero e non ha una tessera
 //   in corso. La tessera è la condizione del non assoggettamento all'IVA degli
 //   abbonamenti ai soci;
-// - Automazione: l'esito del tesseramento automatico dei nuovi abbonamenti.
 //
 // «Abbonamento reale» ha la stessa definizione del report abbonamenti: la
 // vista abbonamenti_attivi_oggi_dettaglio (non cancellato, in corso, prodotto
@@ -29,7 +31,7 @@ export default async function TesseramentiPage({ searchParams }: { searchParams:
 
   const sezione: SezionePagina = (SEZIONI_PAGINA as readonly string[]).includes(searchParams.sezione ?? '')
     ? (searchParams.sezione as SezionePagina)
-    : 'tessere'
+    : 'elenchi'
 
   return (
     <div>
@@ -58,7 +60,7 @@ export default async function TesseramentiPage({ searchParams }: { searchParams:
 
       {sezione === 'tessere' && <VistaTessere searchParams={searchParams} />}
       {sezione === 'iva' && <VistaIvaZero searchParams={searchParams} />}
-      {sezione === 'automazione' && <VistaAutomazione searchParams={searchParams} />}
+      {sezione === 'elenchi' && <VistaElenchi searchParams={searchParams} />}
     </div>
   )
 }
