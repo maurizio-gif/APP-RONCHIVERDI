@@ -37,6 +37,9 @@ import { conTentativiRichiamo } from '@/lib/richiamo-server'
 import { SpostaLead } from '../SpostaLead'
 import { PersoneDiverse } from '../PersoneDiverse'
 import { COLONNE_SESSIONE, type SessionePersonal } from '@/lib/personal'
+import { datiInfo4uDellaPersona } from '@/lib/scheda-info4u-server'
+import { type VoceInfo4u } from '@/lib/schedaInfo4u'
+import { CardFrequenza, CardPagamenti, ElencoEmailInfo4u, SintesiScheda } from './SchedaInfo4u'
 
 // La scheda del contatto sul modello di Passion: in testa chi è e come lo si
 // raggiunge; a sinistra il lavoro (il lead, con assegnatario e stato, e le
@@ -160,7 +163,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
     ),
     supabase
       .from('abbonamenti')
-      .select('id, abbonamento, variante, periodo, durata, totale, data_vendita, data_inizio, data_fine, data_disdetta, operatore_nome')
+      .select('id, source_iscrizione_id, abbonamento, variante, periodo, durata, totale, data_vendita, data_inizio, data_fine, data_disdetta, operatore_nome')
       .eq('persona_id', params.id)
       .order('data_vendita', { ascending: false, nullsFirst: false }),
     supabase.from('staff_users').select('email, nome, cognome, commerciale'),
@@ -187,6 +190,14 @@ export default async function PersonaPage({ params }: { params: { id: string } }
   const nomiStaff = mappaNomiStaff(staffOrdinato)
   const oggi = oggiRoma()
   const nome = nomePersona(persona)
+
+  // I dati Info4U: frequenza in sede, certificato, quota, rate e ricevute,
+  // azioni e memo dei consulenti, email. Dopo gli abbonamenti perché le rate
+  // si agganciano all'iscrizione.
+  const info4u = await datiInfo4uDellaPersona(
+    params.id,
+    (abbonamenti ?? []).map((a) => a.source_iscrizione_id as number | null).filter((x): x is number => x != null)
+  )
 
   // Le azioni: gli eventi in agenda, agganciati alla persona o a una sua
   // richiesta, più le richieste dal sito ancora da gestire.
@@ -294,10 +305,16 @@ export default async function PersonaPage({ params }: { params: { id: string } }
   type Fatta = { chiave: string; data: string; ora: string | null } & (
     | { genere: 'voce'; voce: VoceAgenda }
     | { genere: 'nota'; nota: NotaInScheda }
+    | { genere: 'info4u'; info: VoceInfo4u }
   )
   const fatte: Fatta[] = [
     ...fatteAgenda.map((v): Fatta => ({ chiave: v.chiave, data: v.data, ora: v.ora, genere: 'voce', voce: v })),
     ...noteRinnovi.map((n): Fatta => ({ chiave: `nota-${n.id}`, data: n.data, ora: n.ora, genere: 'nota', nota: n })),
+    // Azioni e memo dei consulenti su Info4U: sola lettura, stessa lista.
+    ...info4u.storico.map((i): Fatta => {
+      const q = dataOraRomaIso(i.quando)
+      return { chiave: i.chiave, data: q.data, ora: q.ora, genere: 'info4u', info: i }
+    }),
   ].sort((a, b) => `${b.data}${b.ora ?? ''}`.localeCompare(`${a.data}${a.ora ?? ''}`))
 
   // Il lead: quello aperto, o il più recente. Gli altri restano una riga sotto.
@@ -410,6 +427,8 @@ export default async function PersonaPage({ params }: { params: { id: string } }
           </p>
         </div>
       )}
+
+      <SintesiScheda dati={info4u} oggi={oggi} />
 
       <div className="scheda-griglia">
         {/* ---- Colonna 1: il lavoro ---- */}
@@ -582,6 +601,29 @@ export default async function PersonaPage({ params }: { params: { id: string } }
                         </li>
                       )
                     }
+                    if (f.genere === 'info4u') {
+                      const i = f.info
+                      return (
+                        <li key={f.chiave}>
+                          <span className={`badge-tipo ${CLASSE_TIPO.task}`}>{i.genere === 'memo' ? 'Memo' : 'Info4U'}</span>{' '}
+                          {i.tipo && <span className="badge-tag">{i.tipo}</span>}{' '}
+                          <span className="muted">
+                            {dataBreveAnno(f.data)} · {f.ora}
+                            {i.autore ? ` · ${i.autore}` : ''}
+                          </span>
+                          {i.esito && (
+                            <>
+                              {' '}
+                              <span className="badge">{i.esito}</span>
+                            </>
+                          )}
+                          {(i.titolo || i.testo) && (
+                            <div className="storia-testo">{[i.titolo, i.testo].filter(Boolean).join(' — ')}</div>
+                          )}
+                          <div className="muted storia-origine">Da Info4U</div>
+                        </li>
+                      )
+                    }
                     const v = f.voce
                     return (
                     <li key={f.chiave}>
@@ -656,6 +698,8 @@ export default async function PersonaPage({ params }: { params: { id: string } }
               </ul>
             )}
           </div>
+          <CardFrequenza accessi={info4u.accessi} />
+          <CardPagamenti dati={info4u} oggi={oggi} />
           {/* Ogni email partita dal CRM verso questa persona: da qui si apre
               la prova di invio con il testo e lo storico di consegna,
               aperture e click (vedi /dashboard/email). */}
@@ -671,6 +715,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
               </span>
             </div>
             <ElencoEmail email={emailInviate} vuoto="Nessuna email inviata dal CRM a questa persona." />
+            <ElencoEmailInfo4u email={info4u.email} />
           </div>
           {personal.length > 0 && (
             <div className="card">
@@ -705,9 +750,9 @@ export default async function PersonaPage({ params }: { params: { id: string } }
           )}
           <div className="card">
             <div className="card-head">
-              <h2>Accessi al sito</h2>
+              <h2>Visite al sito</h2>
               <span className="muted">
-                {accessi.size > 0 ? `${accessi.size} ${accessi.size === 1 ? 'giorno' : 'giorni'}` : 'nessuno'}
+                {accessi.size > 0 ? `${accessi.size} ${accessi.size === 1 ? 'giorno' : 'giorni'}` : 'nessuna'}
               </span>
             </div>
             {accessi.size === 0 ? (

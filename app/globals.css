@@ -10575,3 +10575,49 @@ table.tabella-compatta .nota-in-riga,
 	color: var(--ok);
 	font-weight: 500;
 }
+
+/* Scheda contatto: sintesi in testa e card «Frequenza in sede». */
+.sintesi {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.6rem 2rem;
+	margin: 0 0 1rem;
+}
+.sintesi-voce {
+	display: flex;
+	flex-direction: column;
+	gap: 0.1rem;
+}
+.sintesi-etichetta {
+	font-size: var(--text-xs, 0.8rem);
+}
+.sintesi-ko .sintesi-valore {
+	color: var(--danger, #b3261e);
+	font-weight: 600;
+}
+.frequenza-griglia {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.6rem;
+}
+.frequenza-cella {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+	align-items: flex-start;
+	padding: 0.5rem 0.6rem;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+}
+.frequenza-periodo,
+.frequenza-mediana {
+	font-size: var(--text-xs, 0.8rem);
+}
+.frequenza-numero {
+	font-size: 1.4rem;
+	line-height: 1.1;
+}
+.frequenza-titolo {
+	margin: 0.9rem 0 0;
+	font-size: var(--text-sm, 0.9rem);
+}
