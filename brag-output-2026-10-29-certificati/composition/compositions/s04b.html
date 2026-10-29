@@ -1,0 +1,178 @@
+<template>
+  <style>
+    @font-face { font-family: 'Jost'; font-weight: 400; src: url('assets/fonts/jost-latin-400-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 500; src: url('assets/fonts/jost-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Jost'; font-weight: 600; src: url('assets/fonts/jost-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 500; src: url('assets/fonts/cormorant-garamond-latin-500-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 600; src: url('assets/fonts/cormorant-garamond-latin-600-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 700; src: url('assets/fonts/cormorant-garamond-latin-700-normal.woff2') format('woff2'); }
+    @font-face { font-family: 'Cormorant Garamond'; font-weight: 500; font-style: italic; src: url('assets/fonts/cormorant-garamond-latin-500-italic.woff2') format('woff2'); }
+
+    #root { position: absolute; inset: 0; overflow: hidden; font-family: 'Jost', sans-serif; color: #17170f; }
+    #s04b-all { position: absolute; inset: 0; }
+    .stage { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 62% at 50% 42%, #fbf8ee 0%, #f1ead8 58%, #e5dec8 100%); }
+    .stage-dark { position: absolute; inset: 0; background: #1c1c18; }
+    .view { position: absolute; left: 0; right: 0; top: 104px; bottom: 246px; overflow: hidden;
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 26px), transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 22px, #000 calc(100% - 26px), transparent 100%); }
+    .cam { position: absolute; left: 0; top: 0; width: 2600px; height: 1600px; transform-origin: 0 0; }
+    .chap { position: absolute; left: 96px; top: 54px; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 28px;
+            letter-spacing: 0.14em; text-transform: uppercase; color: #6e5610; }
+    .chap i { font-style: normal; color: #8b6c14; margin-right: 14px; }
+    .caps { position: absolute; left: 96px; right: 96px; bottom: 100px; display: grid; justify-items: center; align-items: end; }
+    .cap { grid-area: 1 / 1; max-width: 1560px; padding: 20px 40px 22px; border-radius: 16px; border-left: 7px solid #c8991f;
+           background: rgba(28, 28, 24, 0.95); color: #f6efde; font-family: 'Jost', sans-serif; font-weight: 500; font-size: 40px;
+           line-height: 1.22; letter-spacing: 0.002em; text-align: left; box-shadow: 0 14px 40px rgba(28, 28, 24, 0.25); opacity: 0; }
+    .cap b { font-weight: 600; color: #efbf48; }
+    .cur { position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; transform-origin: 0 0; z-index: 900; pointer-events: none; }
+    .cur-in { position: absolute; left: -2px; top: -2px; width: 22px; height: 30px; transform-origin: 2px 2px; }
+    .cur-in svg { display: block; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+    .frag { position: absolute; background: var(--bg); border-radius: 12px; box-shadow: 0 24px 60px rgba(28, 28, 24, 0.20), 0 0 0 1px rgba(28,28,24,.10); overflow: hidden; }
+    .frag .eyebrow { font-size: 28px; }
+    .tapa { outline: 3px solid rgba(200,153,31,.0); }
+  
+    #s04b-win { left: 120px; top: 30px; width: 1700px; padding: 28px 34px 30px; }
+    #s04b-win table.tabella { font-size: 28px; }
+    #s04b-win .cella-chi-nome { font-size: 30px; }
+    #s04b-win .cella-chi-dettagli, #s04b-win .stat-label, #s04b-win .badge, #s04b-win th { font-size: 28px; }
+    #s04b-win .btn-sm { font-size: 28px; }
+    #s04b-win .warn-banner { font-size: 28px; }
+    #s04b-win input { font-size: 28px; min-width: 0; width: 470px; height: 56px; padding: 0 14px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); }
+    #s04b-in { display: inline-block; width: 470px; height: 56px; padding: 8px 14px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); font-size: 28px; white-space: nowrap; overflow: hidden; vertical-align: middle; text-align: left; }
+    #s04b-in .ph { color: #3d3d33; }
+    #s04b-banner { transform-origin: 50% 0; }
+  
+  </style>
+  <div id="root" data-composition-id="s04b" data-width="1920" data-height="1080">
+    <div id="s04b-all">
+      <div class="stage" id="s04b-bg"></div>
+      <div class="chap"><i>3</i>Socio senza email</div>
+      
+      <div class="view"><div class="cam" data-layout-allow-overflow id="s04b-cam">
+        <div class="frag" data-hold id="s04b-win">
+          <div class="page-head"><p class="eyebrow">Partnership</p><h1>Voucher visita medica</h1></div>
+          <p class="warn-banner" id="s04b-banner"><strong>1 socio senza email</strong>: il voucher è pronto ma il codice non è partito. Inserisci l’indirizzo nella riga del socio e premi «Salva e invia».</p>
+          <div class="card"><div class="tabella-wrap">
+            <table class="tabella" id="s04b-tab">
+              <thead><tr><th>Socio</th><th>Stato</th><th>Email</th><th></th></tr></thead>
+              <tbody>
+                <tr id="s04b-r1">
+                  <td><div class="cella-chi-nome">Anna Neri</div><div class="cella-chi-dettagli">339 555 0188</div></td>
+                  <td class="cella-nowrap"><span class="badge badge-ok">Attivo</span><div id="s04b-mk"><span class="badge badge-ko">Manca email</span></div></td>
+                  <td class="cella-nowrap" style="position:relative;min-width:260px"><span class="muted" id="s04b-ni" style="position:absolute;left:0;top:0">non inviata</span><ul class="email-voucher" id="s04b-esito" style="opacity:0"><li><span class="badge badge-info">Consegnata</span> <a>codice assegnato</a><div class="cella-chi-dettagli">29/10/2026, 11:20</div></li></ul></td>
+                  <td><div class="voucher-email-form" id="s04b-form"><span id="s04b-in"><span class="ph" id="s04b-ph">Email del socio</span><span id="s04b-tx"><span style="opacity:0">a</span><span style="opacity:0">n</span><span style="opacity:0">n</span><span style="opacity:0">a</span><span style="opacity:0">.</span><span style="opacity:0">n</span><span style="opacity:0">e</span><span style="opacity:0">r</span><span style="opacity:0">i</span><span style="opacity:0">@</span><span style="opacity:0">e</span><span style="opacity:0">x</span><span style="opacity:0">a</span><span style="opacity:0">m</span><span style="opacity:0">p</span><span style="opacity:0">l</span><span style="opacity:0">e</span><span style="opacity:0">.</span><span style="opacity:0">i</span><span style="opacity:0">t</span></span></span><button type="button" class="btn btn-sm" id="s04b-salva">Salva e invia</button></div></td>
+                </tr>
+                <tr>
+                  <td><div class="cella-chi-nome">Mario Rossi</div><div class="cella-chi-dettagli">mario.rossi@example.it</div></td>
+                  <td class="cella-nowrap"><span class="badge badge-ok">Attivo</span></td>
+                  <td class="cella-nowrap"><ul class="email-voucher"><li><span class="badge badge-ok">Aperta</span> <a>codice assegnato</a><div class="cella-chi-dettagli">29/10/2026, 10:20</div></li></ul></td>
+                  <td><button type="button" class="btn btn-ghost btn-sm">Reinvia email</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div></div>
+        </div>
+        <div class="cur" id="s04b-cur"><div class="cur-in"><svg width="22" height="30" viewBox="0 0 22 30"><path d="M2 2 L2 24 L8 18.5 L12.5 28 L16 26.5 L11.6 17.2 L19.5 17 Z" fill="#17170f" stroke="#fdfaf3" stroke-width="2" stroke-linejoin="round"/></svg></div></div>
+      </div></div>
+      <div class="caps">
+      <div class="cap" id="s04b-cap0">Socio senza email? Il voucher <b>viene creato lo stesso</b>.</div>
+      <div class="cap" id="s04b-cap1">Lo trovi in evidenza: avviso sopra l’elenco e <b>«Manca email»</b>.</div>
+      <div class="cap" id="s04b-cap2">Scrivi l’indirizzo e premi <b>«Salva e invia»</b>: il codice parte subito.</div>
+      <div class="cap" id="s04b-cap3">Oppure aggiungila in Info4U entro 7 giorni: <b>parte da sola</b>.</div>
+    </div>
+  
+    </div>
+    
+  </div>
+  <script>
+    
+    const tl = gsap.timeline({ paused: true });
+    const $ = (s) => document.querySelector(s);
+    const $$ = (s) => document.querySelectorAll(s);
+    const CAM = $('#s04b-cam');
+    const CUR = $('#s04b-cur');
+    const CX = 960, CY = 365, CB = 1.5;
+    // Coordinate "mondo" di un elemento (centro di default), indipendenti dalla camera attuale.
+    function W(sel, fx, fy) {
+      fx = fx === undefined ? 0.5 : fx; fy = fy === undefined ? 0.5 : fy;
+      const e = $(sel), r = e.getBoundingClientRect(), c = CAM.getBoundingClientRect();
+      const k = (c.width / CAM.offsetWidth) || 1;
+      return { x: (r.left - c.left + r.width * fx) / k, y: (r.top - c.top + r.height * fy) / k };
+    }
+    let camS = 1;
+    // Mette al centro dell'area libera (sopra i sottotitoli) il centro di un elemento, a scala s.
+    function centerOn(sel, s, dx, dy) { const p = W(sel); viewSet(p.x + (dx || 0), p.y + (dy || 0), s); return p; }
+    function viewSet(wx, wy, s) {
+      camS = s;
+      gsap.set(CAM, { x: CX - wx * s, y: CY - wy * s, scale: s });
+      if (CUR) gsap.set(CUR, { scale: CB / s });
+    }
+    function view(t, d, wx, wy, s, ease) {
+      ease = ease || 'power2.inOut';
+      tl.to(CAM, { x: CX - wx * s, y: CY - wy * s, scale: s, duration: d, ease: ease }, t);
+      if (CUR) tl.to(CUR, { scale: CB / s, duration: d, ease: ease }, t);
+      camS = s;
+    }
+    // Il cursore: compare, si muove verso un punto del mondo, "clicca".
+    function curAt(x, y) { gsap.set(CUR, { x: x, y: y, scale: CB / camS }); }
+    function curShow(t, on) { tl.to(CUR, { opacity: on === false ? 0 : 1, duration: 0.2 }, t); }
+    function curTo(t, d, p, ease) { tl.to(CUR, { x: p.x, y: p.y, duration: d, ease: ease || 'power3.inOut' }, t); }
+    function tap(t) {
+      const ci = CUR.firstElementChild;
+      tl.to(ci, { scale: 0.8, duration: 0.07, ease: 'power2.out' }, t);
+      tl.to(ci, { scale: 1, duration: 0.14, ease: 'power2.out' }, t + 0.07);
+    }
+    function press(t, sel) {
+      tl.to(sel, { scale: 0.96, duration: 0.07, ease: 'power2.out', transformOrigin: '50% 50%' }, t);
+      tl.to(sel, { scale: 1, duration: 0.16, ease: 'power2.out' }, t + 0.07);
+    }
+    // Scrive un testo già diviso in span (vedi typed()): un carattere ogni 1/cps secondi.
+    function write(t, sel, cps) {
+      const sp = $$(sel + ' > span');
+      tl.to(sp, { opacity: 1, duration: 0.01, stagger: 1 / (cps || 16) }, t);
+      return t + sp.length / (cps || 16);
+    }
+    // Entrata/uscita della scena: dissolvenza morbida.
+    function sceneInOut(dur, tin, tout) {
+      tin = tin === undefined ? 0.35 : tin; tout = tout === undefined ? 0.35 : tout;
+      if (tin > 0) tl.fromTo('#s04b-all', { opacity: 0 }, { opacity: 1, duration: tin, ease: 'power2.out' }, 0);
+      tl.to('#s04b-all', { opacity: 0, duration: tout, ease: 'power2.in' }, dur - tout);
+    }
+  
+    const win = W('#s04b-win'), ban = W('#s04b-banner'), mk = W('#s04b-mk'), inp = W('#s04b-in'), sb = W('#s04b-salva');
+    sceneInOut(22, 0.35, 0.4);
+    viewSet(win.x, win.y - 20, 1.0);
+    tl.fromTo('#s04b-win', { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' }, 0.2);
+    // L'avviso e la targhetta.
+    tl.fromTo('#s04b-banner', { backgroundColor: 'rgba(138,100,16,0.12)' }, { backgroundColor: 'rgba(138,100,16,0.34)', duration: 0.4, yoyo: true, repeat: 1 }, 6.0);
+    view(6.2, 1.2, ban.x, ban.y + 120, 1.1);
+    tl.fromTo('#s04b-mk', { scale: 1 }, { scale: 1.15, duration: 0.3, yoyo: true, repeat: 1, transformOrigin: '0% 50%' }, 8.2);
+    // Si scrive l'indirizzo.
+    view(10.4, 1.0, inp.x - 330, inp.y, 1.15);
+    tl.to('#s04b-ph', { opacity: 0, duration: 0.15 }, 11.6);
+    write(11.8, '#s04b-tx', 11);
+    // «Salva e invia».
+    curAt(sb.x + 200, sb.y + 140);
+    curShow(13.6, true);
+    curTo(13.7, 1.3, { x: sb.x, y: sb.y });
+    press(15.1, '#s04b-salva'); tap(15.1);
+    curShow(15.5, false);
+    tl.to('#s04b-mk', { opacity: 0, duration: 0.25 }, 15.3);
+    tl.to('#s04b-form', { opacity: 0, duration: 0.25 }, 15.3);
+    tl.to('#s04b-ni', { opacity: 0, duration: 0.2 }, 15.3);
+    tl.to('#s04b-esito', { opacity: 1, duration: 0.4 }, 15.5);
+    tl.to('#s04b-banner', { opacity: 0, duration: 0.3 }, 15.6);
+    view(16.4, 1.2, win.x, win.y, 1.0);
+    
+    tl.fromTo('#s04b-cap0', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 0.9);
+    tl.to('#s04b-cap0', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 5.120);
+    tl.fromTo('#s04b-cap1', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 5.7);
+    tl.to('#s04b-cap1', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 10.520);
+    tl.fromTo('#s04b-cap2', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 11);
+    tl.to('#s04b-cap2', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 15.820);
+    tl.fromTo('#s04b-cap3', { opacity: 0, y: 16, filter: 'blur(7px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.26, ease: 'power3.out' }, 16.6);
+    tl.to('#s04b-cap3', { opacity: 0, filter: 'blur(7px)', duration: 0.18, ease: 'power3.in' }, 21.020);
+  
+    window.__timelines['s04b'] = tl;
+  </script>
+</template>
