@@ -253,6 +253,11 @@ const DEFINIZIONI = [
   // passi che restano e chi li fa (contenuti in lib/avanzamento.ts). È per il
   // gruppo di progetto, non per la segreteria.
   { chiave: 'avanzamento', label: 'Avanzamento progetto', href: '/dashboard/avanzamento', gruppo: 'Direzione' },
+  // Gli ingressi al club dai varchi (tornelli, tripodi, sbarre): panoramica
+  // con i grafici di tendenza, ricerca per periodo, persona e varco, e i
+  // gruppi di varchi. Il gruppo «Report» non entra nel corredo di un invito:
+  // si dà a mano a chi legge i numeri (vedi GRUPPI_FUORI_DAL_CORREDO).
+  { chiave: 'accessi', label: 'Accessi', href: '/dashboard/accessi', gruppo: 'Report' },
 ] as const
 
 export type SezioneChiave = (typeof DEFINIZIONI)[number]['chiave']
@@ -302,8 +307,9 @@ export const CHIAVI_SEZIONI: readonly SezioneChiave[] = SEZIONI.map((s) => s.chi
 
 // I gruppi che un nuovo operatore non riceve con l'invito: si danno a mano a
 // chi ne ha bisogno. Amministrazione perché sono dati riservati; Personal
-// Training perché il controllo delle sessioni è di una persona sola.
-export const GRUPPI_FUORI_DAL_CORREDO: readonly string[] = ['Amministrazione', 'Personal Training']
+// Training perché il controllo delle sessioni è di una persona sola; Report
+// perché sono numeri per la direzione, non per il banco.
+export const GRUPPI_FUORI_DAL_CORREDO: readonly string[] = ['Amministrazione', 'Personal Training', 'Report']
 
 // Il corredo di un operatore appena invitato: le sezioni operative, senza
 // quelle dei partner esterni e senza i gruppi riservati.

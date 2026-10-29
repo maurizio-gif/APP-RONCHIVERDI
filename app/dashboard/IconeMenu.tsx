@@ -218,6 +218,14 @@ const DISEGNI: Record<string, React.ReactNode> = {
       <path d="M6.5 10v4M17.5 10v4" />
     </>
   ),
+  // Accessi: il tornello con la freccia che entra.
+  accessi: (
+    <>
+      <path d="M4 4v16M10 4v16" />
+      <path d="M10 8.5h4.5M10 15.5h4.5" />
+      <path d="M14 12h7M18.2 8.8L21 12l-2.8 3.2" />
+    </>
+  ),
   // Controllo operatori: il registro delle azioni.
   'log-operatori': (
     <>
