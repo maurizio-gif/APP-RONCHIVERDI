@@ -172,6 +172,19 @@ export async function VistaIvaZero({ searchParams }: { searchParams: SearchParam
           </div>
         </div>
 
+        {!error && elenco.length > 0 && (
+          <div className="check-sosp-operatori">
+            <span className="muted">{elenco.length.toLocaleString('it-IT')} persone</span>
+            <a
+              className="btn btn-sm"
+              href={`/dashboard/tesseramenti/export-iva?periodo=${periodo.chiave}&titolo=${titolo.chiave}&solo=${solo.chiave}`}
+              download
+            >
+              Esporta CSV
+            </a>
+          </div>
+        )}
+
         {error ? (
           <p className="vuoto">
             Non riesco a leggere l&apos;elenco: {error.message}. Se manca la funzione, esegui

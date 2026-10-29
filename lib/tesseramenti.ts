@@ -29,19 +29,32 @@ export type RigaTesseramento = {
   ultimo_tentativo_il: string | null
   codice_attivita: string | null
   creato_il: string
-  persone: { nome: string | null; cognome: string | null } | null
+  persone: {
+    nome: string | null
+    cognome: string | null
+    codice_fiscale: string | null
+    data_nascita: string | null
+    email: string | null
+    cellulare: string | null
+  } | null
   abbonamenti: { abbonamento: string | null; variante: string | null } | null
 }
 
-// Le tre viste della pagina. «Non tesserati» comprende anche chi è in attesa
-// del primo invio: per la segreteria sono tutti «da sistemare o da attendere».
-export const VISTE = ['tesserati', 'non_tesserati', 'prove'] as const
+// Gli elenchi della vista Automazione:
+// - tesserati: la tessera c'è (emessa da qui o già presente su CSI);
+// - da_tesserare: pronti per l'invio (mai tentati, o la prova in test = 1
+//   è andata a buon fine);
+// - non_tesserabili: mancano dati in anagrafica, non si può nemmeno tentare;
+// - in_errore: CSI ha rifiutato o l'invio è fallito (credito, rete,
+//   configurazione). Si popola quando il tesseramento va in reale.
+export const VISTE = ['tesserati', 'da_tesserare', 'non_tesserabili', 'in_errore'] as const
 export type Vista = (typeof VISTE)[number]
 
 export const ETICHETTE_VISTA: Record<Vista, string> = {
   tesserati: 'Tesserati',
-  non_tesserati: 'Non tesserati',
-  prove: 'Prove (test)',
+  da_tesserare: 'Da tesserare',
+  non_tesserabili: 'Non tesserabili',
+  in_errore: 'In errore',
 }
 
 export const ETICHETTE_MOTIVO: Record<MotivoTipo, string> = {
@@ -55,10 +68,10 @@ export const ETICHETTE_MOTIVO: Record<MotivoTipo, string> = {
 // Chi deve intervenire a mano: serve a dare un colore al badge.
 export const MOTIVI_DA_SISTEMARE: readonly MotivoTipo[] = ['dati_mancanti', 'csi', 'configurazione']
 
-export function vistaDi(stato: StatoTesseramento): Vista {
-  if (stato === 'tesserato') return 'tesserati'
-  if (stato === 'simulato') return 'prove'
-  return 'non_tesserati'
+export function vistaDi(r: Pick<RigaTesseramento, 'stato' | 'motivo_tipo'>): Vista {
+  if (r.stato === 'tesserato') return 'tesserati'
+  if (r.stato === 'da_inviare' || r.stato === 'simulato') return 'da_tesserare'
+  return r.motivo_tipo === 'dati_mancanti' ? 'non_tesserabili' : r.motivo_tipo ? 'in_errore' : 'da_tesserare'
 }
 
 // ─────────────────────────────────────────────── le tessere CSI nel CRM

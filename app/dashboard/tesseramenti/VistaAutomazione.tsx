@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
-import { leggiPaginato } from '@/lib/supabase/leggiPaginato'
+import { caricaTesseramenti, chiaveMotivo, elencoDi, vistaValida } from '@/lib/tesseramenti-elenchi'
 import { dataOra } from '@/lib/persone'
 import { RiprovaOra } from './RiprovaOra'
 import {
@@ -32,19 +32,7 @@ export async function VistaAutomazione({ searchParams }: { searchParams: SearchP
   const supabase = createSupabaseServiceClient()
 
   const [{ righe, error }, { data: automazione }] = await Promise.all([
-    leggiPaginato<RigaTesseramento>((da) =>
-      supabase
-        .from('tesseramenti_csi')
-        .select(
-          'id, persona_id, stagione, stato, origine, tessera, quota, rilascio, scadenza, tesserato_il, motivo, motivo_tipo, tentativi, ultimo_tentativo_il, codice_attivita, creato_il, persone(nome, cognome), abbonamenti(abbonamento, variante)'
-        )
-        .order('aggiornato_il', { ascending: false })
-        .order('id', { ascending: false })
-        .range(da, da + 999) as unknown as PromiseLike<{
-        data: RigaTesseramento[] | null
-        error: { message: string } | null
-      }>
-    ),
+    caricaTesseramenti(supabase),
     supabase
       .from('automazioni')
       .select('attiva, attiva_dal')
@@ -52,37 +40,31 @@ export async function VistaAutomazione({ searchParams }: { searchParams: SearchP
       .maybeSingle(),
   ])
 
-  const conteggi: Record<Vista, number> = { tesserati: 0, non_tesserati: 0, prove: 0 }
-  for (const r of righe) conteggi[vistaDi(r.stato)] += 1
+  const conteggi: Record<Vista, number> = { tesserati: 0, da_tesserare: 0, non_tesserabili: 0, in_errore: 0 }
+  for (const r of righe) conteggi[vistaDi(r)] += 1
 
-  const vista: Vista = (VISTE as readonly string[]).includes(searchParams.vista ?? '')
-    ? (searchParams.vista as Vista)
-    : 'non_tesserati'
-  const nellaVista = righe.filter((r) => vistaDi(r.stato) === vista)
+  const vista: Vista = vistaValida(searchParams.vista) ?? 'da_tesserare'
+  const nellaVista = elencoDi(righe, vista, null)
 
-  // Il filtro per motivo vale solo fra i non tesserati.
+  // Il filtro per motivo vale dove il motivo c'è: non tesserabili e in errore.
   const perMotivo = new Map<MotivoTipo | 'attesa', number>()
-  if (vista === 'non_tesserati') {
-    for (const r of nellaVista) perMotivo.set(r.motivo_tipo ?? 'attesa', (perMotivo.get(r.motivo_tipo ?? 'attesa') ?? 0) + 1)
+  if (vista === 'non_tesserabili' || vista === 'in_errore') {
+    for (const r of nellaVista) perMotivo.set(chiaveMotivo(r), (perMotivo.get(chiaveMotivo(r)) ?? 0) + 1)
   }
-  const motivo = vista === 'non_tesserati' && searchParams.motivo && perMotivo.has(searchParams.motivo as MotivoTipo | 'attesa')
-    ? (searchParams.motivo as MotivoTipo | 'attesa')
-    : null
-  const elenco = motivo ? nellaVista.filter((r) => (r.motivo_tipo ?? 'attesa') === motivo) : nellaVista
+  const motivo =
+    searchParams.motivo && perMotivo.has(searchParams.motivo as MotivoTipo | 'attesa') ? searchParams.motivo : null
+  const elenco = elencoDi(righe, vista, motivo)
 
-  const daSistemare = righe.filter(
-    (r) => r.stato === 'non_tesserato' && r.motivo_tipo && MOTIVI_DA_SISTEMARE.includes(r.motivo_tipo)
-  ).length
+  const daSistemare = conteggi.non_tesserabili + conteggi.in_errore
 
   const href = (v: Vista, m: string | null = null) => {
     const q = new URLSearchParams({ sezione: 'automazione' })
-    if (v !== 'non_tesserati') q.set('vista', v)
+    if (v !== 'da_tesserare') q.set('vista', v)
     if (m) q.set('motivo', m)
     const s = q.toString()
     return `/dashboard/tesseramenti?${s}`
   }
 
-  const viste = VISTE.filter((v) => v !== 'prove' || conteggi.prove > 0 || vista === 'prove')
 
   return (
     <div>
@@ -128,7 +110,7 @@ export async function VistaAutomazione({ searchParams }: { searchParams: SearchP
           <div className="card">
             <div className="check-sosp-filtri">
               <div className="check-sosp-gruppo" role="group" aria-label="Vista">
-                {viste.map((v) => (
+                {VISTE.map((v) => (
                   <Link
                     key={v}
                     href={href(v)}
@@ -147,7 +129,7 @@ export async function VistaAutomazione({ searchParams }: { searchParams: SearchP
               </div>
             </div>
 
-            {vista === 'non_tesserati' && perMotivo.size > 0 && (
+            {perMotivo.size > 0 && (
               <div className="check-sosp-operatori">
                 <span className="muted">Motivo:</span>
                 <Link href={href(vista)} className={`chip${!motivo ? ' is-attivo' : ''}`} scroll={false}>
@@ -167,12 +149,38 @@ export async function VistaAutomazione({ searchParams }: { searchParams: SearchP
               </div>
             )}
 
-            {vista === 'prove' && (
+            {vista === 'da_tesserare' && (
               <p className="field-hint">
-                Esiti della simulazione (test = 1): il CSI ha calcolato la quota ma non ha emesso nessuna tessera né
-                scalato il credito. Passano a «Tesserati» solo quando l’invio è reale.
+                Pronti per il tesseramento. Con «Sarebbe stato tesserato» la simulazione (test = 1) è andata a buon
+                fine: il CSI non ha emesso nessuna tessera né scalato il credito, che succede solo quando
+                l&apos;invio diventa reale.
               </p>
             )}
+            {vista === 'non_tesserabili' && (
+              <p className="field-hint">
+                Mancano dati in anagrafica (di solito il luogo di nascita): finché non si completano il CSI non si può
+                nemmeno chiamare.
+              </p>
+            )}
+            {vista === 'in_errore' && (
+              <p className="field-hint">
+                Il CSI ha rifiutato il tesseramento o l&apos;invio è fallito. Il motivo è quello risposto dal CSI.
+                Resta vuoto finché il tesseramento non va in reale.
+              </p>
+            )}
+
+            <div className="check-sosp-operatori">
+              <span className="muted">{elenco.length.toLocaleString('it-IT')} persone</span>
+              {elenco.length > 0 && (
+                <a
+                  className="btn btn-sm"
+                  href={`/dashboard/tesseramenti/export?vista=${vista}${motivo ? `&motivo=${motivo}` : ''}`}
+                  download
+                >
+                  Esporta CSV
+                </a>
+              )}
+            </div>
 
             {elenco.length === 0 ? (
               <div className="vuoto-buono">
@@ -182,15 +190,17 @@ export async function VistaAutomazione({ searchParams }: { searchParams: SearchP
                 <p className="vuoto-titolo">
                   {vista === 'tesserati'
                     ? 'Ancora nessun tesserato'
-                    : vista === 'prove'
-                      ? 'Nessuna prova registrata'
-                      : 'Nessuno da tesserare'}
+                    : vista === 'in_errore'
+                      ? 'Nessun errore'
+                      : vista === 'non_tesserabili'
+                        ? 'Nessuno con dati mancanti'
+                        : 'Nessuno da tesserare'}
                 </p>
               </div>
             ) : vista === 'tesserati' ? (
               <TabellaTesserati righe={elenco} />
             ) : (
-              <TabellaNonTesserati righe={elenco} prove={vista === 'prove'} />
+              <TabellaNonTesserati righe={elenco} vista={vista} />
             )}
           </div>
         </>
@@ -260,7 +270,8 @@ function TabellaTesserati({ righe }: { righe: RigaTesseramento[] }) {
   )
 }
 
-function TabellaNonTesserati({ righe, prove }: { righe: RigaTesseramento[]; prove: boolean }) {
+function TabellaNonTesserati({ righe, vista }: { righe: RigaTesseramento[]; vista: Vista }) {
+  const prove = vista === 'da_tesserare'
   return (
     <div className="tabella-wrap">
       <table className="tabella tabella-compatta">
@@ -285,7 +296,7 @@ function TabellaNonTesserati({ righe, prove }: { righe: RigaTesseramento[]; prov
                 <Prodotto r={r} />
               </td>
               <td>
-                {prove ? (
+                {r.stato === 'simulato' ? (
                   <span className="badge badge-ok">Sarebbe stato tesserato</span>
                 ) : r.motivo_tipo ? (
                   <>
