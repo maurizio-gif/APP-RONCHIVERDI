@@ -178,8 +178,9 @@ export async function VistaElenchi({ searchParams }: { searchParams: SearchParam
 
             {vista === 'da_tesserare' && (
               <p className="field-hint">
-                Hanno un abbonamento in corso di un prodotto con tessera e nessuna tessera CSI in corso: sono quelli
-                che il tesseramento automatico deve fare.
+                Hanno un abbonamento in corso di un prodotto con tessera (esclusa la Young School Tennis) e nessuna
+                tessera CSI in corso: sono quelli che il tesseramento automatico deve fare. Qui sono visibili i dati
+                obbligatori per CSI: se uno manca compare «manca» e la persona passa fra i non tesserabili.
               </p>
             )}
             {vista === 'non_tesserabili' && (
@@ -233,9 +234,25 @@ export async function VistaElenchi({ searchParams }: { searchParams: SearchParam
   )
 }
 
-function Socio({ r }: { r: RigaElenco }) {
+// `testo` serve alle colonne separate (cognome, nome): se manca il dato si vede
+// «manca» e il link alla scheda resta, per correggerlo.
+function Socio({ r, testo }: { r: RigaElenco; testo?: string | null }) {
+  if (testo !== undefined) {
+    return (
+      <Link href={`/dashboard/persone/${r.persona_id}`}>
+        {testo && testo.trim().length >= 2 ? testo : <span className="badge badge-ko">manca</span>}
+      </Link>
+    )
+  }
   const nome = [r.cognome, r.nome].filter(Boolean).join(' ') || 'Senza nome'
   return <Link href={`/dashboard/persone/${r.persona_id}`}>{nome}</Link>
+}
+
+// Un dato obbligatorio per CSI: il valore, o «manca» in rosso se l'anagrafica
+// non ce l'ha (la lista dei mancanti arriva da tesseramenti_elenco).
+function DatoCsi({ r, chiave, valore }: { r: RigaElenco; chiave: string; valore: string | null }) {
+  const manca = (r.mancanti ?? []).some((m) => m.startsWith(chiave))
+  return manca || !valore ? <span className="badge badge-ko">manca</span> : <>{valore}</>
 }
 
 function Abbonamento({ r }: { r: RigaElenco }) {
@@ -290,7 +307,12 @@ function TabellaDaSistemare({ righe }: { righe: RigaElenco[] }) {
       <table className="tabella tabella-compatta">
         <thead>
           <tr>
-            <th>Socio</th>
+            <th>Cognome</th>
+            <th>Nome</th>
+            <th>Data di nascita</th>
+            <th>Luogo di nascita</th>
+            <th>Sesso</th>
+            <th>Codice fiscale</th>
             <th>Abbonamento in corso</th>
             <th>Iscritto dal</th>
             <th>Situazione</th>
@@ -303,8 +325,21 @@ function TabellaDaSistemare({ righe }: { righe: RigaElenco[] }) {
           {righe.map((r) => (
             <tr key={r.persona_id}>
               <td className="cella-persona">
-                <Socio r={r} />
+                <Socio r={r} testo={r.cognome} />
               </td>
+              <td className="cella-persona">
+                <Socio r={r} testo={r.nome} />
+              </td>
+              <td className="cella-nowrap">
+                <DatoCsi r={r} chiave="data di nascita" valore={r.data_nascita ? dataIt(r.data_nascita) : null} />
+              </td>
+              <td className="cella-nowrap">
+                <DatoCsi r={r} chiave="luogo di nascita" valore={r.luogo_nascita} />
+              </td>
+              <td className="cella-nowrap">
+                <DatoCsi r={r} chiave="sesso" valore={r.sesso} />
+              </td>
+              <td className="cella-nowrap">{r.codice_fiscale || <span className="muted">—</span>}</td>
               <td className="cella-troncata">
                 <Abbonamento r={r} />
               </td>
