@@ -87,6 +87,11 @@ export type RigaElenco = {
   riga_id: string | null
   tentativi: number
   ultimo_tentativo_il: string | null
+  /** Il luogo come lo manda il tesseramento: il comune, o lo stato per chi è nato all'estero. */
+  luogo_nascita: string | null
+  sesso: string | null
+  /** I dati che CSI vuole e in anagrafica mancano (vuoto se è tutto a posto). */
+  mancanti: string[] | null
 }
 
 export const ETICHETTE_MOTIVO: Record<MotivoTipo, string> = {

@@ -789,7 +789,12 @@ nessuna email.
   IVA zero con dicitura «art. 4» sulle ricevute (la tessera è la condizione del
   non assoggettamento). `tesseramenti_csi_prodotti` si popola da quelle righe:
   [`2026-10-29-tesseramento-csi-prodotti.sql`](scripts/sql/2026-10-29-tesseramento-csi-prodotti.sql),
-  oggi 140 prodotti, attività `CR`. Da rieseguire quando entra un prodotto nuovo.
+  attività `CR`. Da rieseguire quando entra un prodotto nuovo. La Young School
+  Tennis (gruppo «YS TENNIS» e le quote di preiscrizione dei suoi corsi) non si
+  tessera: è esclusa dallo script e disattivata da
+  [`2026-10-30-tesseramenti-elenco-dati.sql`](scripts/sql/2026-10-30-tesseramenti-elenco-dati.sql),
+  che porta anche nell'elenco i dati obbligatori per CSI (luogo di nascita,
+  sesso) e quelli mancanti.
 - Un errore di credito, di credenziali o di stagione ferma il giro: vale per
   tutte le righe e la guida sconsiglia i ritentativi ravvicinati (§14).
 

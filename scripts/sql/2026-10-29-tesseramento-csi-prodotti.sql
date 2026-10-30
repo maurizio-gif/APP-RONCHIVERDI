@@ -30,6 +30,14 @@ from (
 	where not coalesce(r.annullata, false)
 		and r.data_ricevuta >= current_date - interval '24 months'
 		and a.abbonamento is not null
+		-- Il tennis (Young School Tennis) non si tessera.
+		and a.abbonamento not ilike '%Y.S. TENNIS%'
+		and not exists (
+			select 1
+			from public.abbonamenti_mappatura m
+			join public.abbonamenti_gruppi g on g.id = m.gruppo_id
+			where m.prodotto = a.abbonamento and g.nome = 'YS TENNIS'
+		)
 	group by a.abbonamento
 	having count(*) filter (where rr.iva = 0 and rr.iva_descrizione = 'art. 4') >= 5
 		and 100.0 * count(*) filter (where rr.iva = 0 and rr.iva_descrizione = 'art. 4') / count(*) >= 30
