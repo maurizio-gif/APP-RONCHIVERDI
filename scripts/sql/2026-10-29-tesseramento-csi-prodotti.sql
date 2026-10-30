@@ -32,6 +32,8 @@ from (
 		and a.abbonamento is not null
 		-- Il tennis (Young School Tennis) non si tessera.
 		and a.abbonamento not ilike '%Y.S. TENNIS%'
+		-- Il welfare aziendale è venduto a società, non a persone.
+		and a.abbonamento not ilike 'ABBONAMENTO WELFARE AZIENDALE%'
 		and not exists (
 			select 1
 			from public.abbonamenti_mappatura m

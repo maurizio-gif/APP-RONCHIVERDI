@@ -794,7 +794,9 @@ nessuna email.
   tessera: è esclusa dallo script e disattivata da
   [`2026-10-30-tesseramenti-elenco-dati.sql`](scripts/sql/2026-10-30-tesseramenti-elenco-dati.sql),
   che porta anche nell'elenco i dati obbligatori per CSI (luogo di nascita,
-  sesso) e quelli mancanti.
+  sesso) e quelli mancanti. Anche l'«ABBONAMENTO WELFARE AZIENDALE» è escluso
+  (venduto a società, non a persone):
+  [`2026-10-30-tesseramenti-escludi-welfare.sql`](scripts/sql/2026-10-30-tesseramenti-escludi-welfare.sql).
 - Un errore di credito, di credenziali o di stagione ferma il giro: vale per
   tutte le righe e la guida sconsiglia i ritentativi ravvicinati (§14).
 
