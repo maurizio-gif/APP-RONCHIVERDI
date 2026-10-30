@@ -25,9 +25,23 @@ type Chi = (typeof CHI)[number]
 const STATI = ['da_motivare', 'motivate'] as const
 type Stato = (typeof STATI)[number]
 
-type SearchParams = { chi?: string; stato?: string; operatore?: string }
+type SearchParams = { chi?: string; stato?: string; operatore?: string; mese?: string }
 
 type RigaVista = Omit<RigaCheck, 'motivi'> & { motivata: boolean }
+
+// Il mese in cui la sospensione è stata inserita (AAAA-MM), all'ora di Roma:
+// una sospensione di fine mese a tarda sera non deve finire nel mese dopo.
+const formatoMese = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit' })
+const meseDi = (iso: string) => formatoMese.format(new Date(iso))
+
+const etichettaMese = (m: string) => {
+  const testo = new Date(`${m}-15T12:00:00Z`).toLocaleDateString('it-IT', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Europe/Rome',
+  })
+  return testo.charAt(0).toUpperCase() + testo.slice(1)
+}
 
 export default async function CheckSospensioniPage({ searchParams }: { searchParams: SearchParams }) {
   if (!(await utenteHaSezione(SEZIONE_CHECK_SOSPENSIONI))) redirect('/dashboard')
@@ -71,9 +85,24 @@ export default async function CheckSospensioniPage({ searchParams }: { searchPar
   const operatoreScelto =
     chi === 'tutti' && searchParams.operatore && perOperatore.has(searchParams.operatore) ? searchParams.operatore : null
 
-  const nellaVista = tutte.filter((r) =>
+  const dellaPersona = tutte.filter((r) =>
     chi === 'mie' ? r.operatore_nome === mioOperatore : !operatoreScelto || r.operatore_nome === operatoreScelto
   )
+
+  // I mesi in cui ci sono sospensioni (dell'operatore o degli operatori scelti),
+  // con quante da motivare e quante motivate: il filtro per mese.
+  const perMese = new Map<string, { daMotivare: number; motivate: number }>()
+  for (const r of dellaPersona) {
+    const m = meseDi(r.data_operazione)
+    const o = perMese.get(m) ?? { daMotivare: 0, motivate: 0 }
+    if (r.motivata) o.motivate += 1
+    else o.daMotivare += 1
+    perMese.set(m, o)
+  }
+  const mesi = Array.from(perMese.entries()).sort((x, y) => y[0].localeCompare(x[0]))
+  const meseScelto = searchParams.mese && perMese.has(searchParams.mese) ? searchParams.mese : null
+
+  const nellaVista = meseScelto ? dellaPersona.filter((r) => meseDi(r.data_operazione) === meseScelto) : dellaPersona
   const daMotivare = nellaVista.filter((r) => !r.motivata).length
   const motivate = nellaVista.length - daMotivare
   // Da motivare: le più vecchie in alto, sono le prime da recuperare.
@@ -91,14 +120,16 @@ export default async function CheckSospensioniPage({ searchParams }: { searchPar
     motivi: motivi[r.source_log_id] ?? [],
   }))
 
-  const href = (p: { chi?: Chi; stato?: Stato; operatore?: string | null }) => {
+  const href = (p: { chi?: Chi; stato?: Stato; operatore?: string | null; mese?: string | null }) => {
     const ricerca = new URLSearchParams()
     const c = p.chi ?? chi
     const s = p.stato ?? stato
     const o = p.operatore === undefined ? operatoreScelto : p.operatore
+    const m = p.mese === undefined ? meseScelto : p.mese
     if (c !== 'mie' && mioOperatore) ricerca.set('chi', c)
     if (s !== 'da_motivare') ricerca.set('stato', s)
     if (c === 'tutti' && o) ricerca.set('operatore', o)
+    if (m) ricerca.set('mese', m)
     const q = ricerca.toString()
     return `/dashboard/abbonamenti/check-sospensioni${q ? `?${q}` : ''}`
   }
@@ -196,6 +227,32 @@ export default async function CheckSospensioniPage({ searchParams }: { searchPar
                 ))}
               </div>
             </div>
+
+            {mesi.length > 1 && (
+              <div className="check-sosp-operatori">
+                <span className="muted">Mese:</span>
+                <Link
+                  href={href({ mese: null })}
+                  className={`chip${!meseScelto ? ' is-attivo' : ''}`}
+                  scroll={false}
+                >
+                  Tutti
+                </Link>
+                {mesi.map(([m, o]) => (
+                  <Link
+                    key={m}
+                    href={href({ mese: m })}
+                    className={`chip${meseScelto === m ? ' is-attivo' : ''}`}
+                    title={`${o.daMotivare} da motivare, ${o.motivate} motivate`}
+                    aria-current={meseScelto === m ? 'true' : undefined}
+                    scroll={false}
+                  >
+                    {etichettaMese(m)}{' '}
+                    <span className="chip-conteggio">{stato === 'da_motivare' ? o.daMotivare : o.motivate}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
 
             {chi === 'tutti' && operatori.length > 0 && (
               <div className="check-sosp-operatori">
