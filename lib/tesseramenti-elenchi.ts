@@ -9,12 +9,14 @@ import { VISTA_DI_CATEGORIA, VISTE, type RigaElenco, type Vista } from '@/lib/te
 // abbonamenti in corso, tessere CSI e dati in anagrafica.
 
 export async function caricaElenco(supabase: SupabaseClient) {
-  return leggiPaginato<RigaElenco>((da) =>
+  const { righe, error } = await leggiPaginato<RigaElenco>((da) =>
     supabase.rpc('tesseramenti_elenco').range(da, da + 999) as unknown as PromiseLike<{
       data: RigaElenco[] | null
       error: { message: string } | null
     }>
   )
+  // Pagina e CSV leggono da qui: i doppioni restano fuori da entrambi.
+  return { righe: senzaDoppioni(righe), error }
 }
 
 export function vistaValida(v: string | undefined | null): Vista | null {
@@ -42,34 +44,22 @@ export function corrisponde(r: RigaElenco, q: string): boolean {
 
 const cfDi = (r: Pick<RigaElenco, 'codice_fiscale'>) => (r.codice_fiscale ?? '').trim().toUpperCase()
 
-export type Anomalie = {
-  /** Da tesserare, ma lo stesso codice fiscale ha già una tessera su un'altra scheda: un doppione in anagrafica. */
-  doppioni: RigaElenco[]
-  /** Da tesserare e senza codice fiscale: senza non si può chiedere a CSI se è già tesserato. */
-  senzaCodiceFiscale: RigaElenco[]
-  /** Da tesserare, ma nessun tesseramento è mai stato creato: il giro automatico non li prende. */
-  senzaRiga: RigaElenco[]
-}
-
 /**
- * Chi sta fra i «da tesserare» ma richiede un controllo a mano. Ogni persona
- * compare in una sola categoria, nell'ordine: doppione, senza codice fiscale,
- * senza riga di tesseramento.
+ * Toglie i doppioni in anagrafica: chi sta fra i «da tesserare» ma ha lo stesso
+ * codice fiscale di un'altra scheda che ha già la tessera CSI. La tessera è
+ * legata alla scheda più vecchia, e la scheda doppia non va tesserata (si
+ * risolve unendo le schede in Info4U).
  */
-export function anomalie(righe: RigaElenco[]): Anomalie {
+export function senzaDoppioni(righe: RigaElenco[]): RigaElenco[] {
   const conTessera = new Map<string, string>()
   for (const r of righe) {
     if (vistaDi(r) === 'tesserati' && cfDi(r).length === 16) conTessera.set(cfDi(r), r.persona_id)
   }
-  const out: Anomalie = { doppioni: [], senzaCodiceFiscale: [], senzaRiga: [] }
-  for (const r of righe) {
-    if (vistaDi(r) !== 'da_tesserare') continue
+  return righe.filter((r) => {
+    if (vistaDi(r) === 'tesserati') return true
     const altra = conTessera.get(cfDi(r))
-    if (altra && altra !== r.persona_id) out.doppioni.push(r)
-    else if (cfDi(r).length !== 16) out.senzaCodiceFiscale.push(r)
-    else if (!r.riga_id) out.senzaRiga.push(r)
-  }
-  return out
+    return !(altra && altra !== r.persona_id)
+  })
 }
 
 export function elencoDi(righe: RigaElenco[], vista: Vista, motivo: string | null, q = ''): RigaElenco[] {

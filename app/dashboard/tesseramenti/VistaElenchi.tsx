@@ -1,9 +1,8 @@
 import Link from 'next/link'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { RiprovaOra } from './RiprovaOra'
-import { anomalie, caricaElenco, chiaveMotivo, elencoDi, vistaDi, vistaValida } from '@/lib/tesseramenti-elenchi'
+import { caricaElenco, chiaveMotivo, elencoDi, vistaDi, vistaValida } from '@/lib/tesseramenti-elenchi'
 import { dataOra } from '@/lib/persone'
-import type { Anomalie } from '@/lib/tesseramenti-elenchi'
 import {
   CHIAVE_AUTOMAZIONE_TESSERAMENTO,
   ETICHETTE_MOTIVO,
@@ -35,30 +34,18 @@ type SearchParams = Record<string, string | undefined>
 export async function VistaElenchi({ searchParams }: { searchParams: SearchParams }) {
   const supabase = createSupabaseServiceClient()
 
-  const [{ righe, error }, { data: automazione }, { data: tentativiKo }] = await Promise.all([
+  const [{ righe, error }, { data: automazione }] = await Promise.all([
     caricaElenco(supabase),
     supabase
       .from('automazioni')
       .select('attiva, attiva_dal')
       .eq('chiave', CHIAVE_AUTOMAZIONE_TESSERAMENTO)
       .maybeSingle(),
-    // Ogni risposta di errore di CSI (rifiuto o rete), anche se la riga è poi
-    // andata a buon fine: il registro dei tentativi non si cancella.
-    supabase
-      .from('tesseramenti_csi_tentativi')
-      .select(
-        'id, creato_il, operazione, test, esito, errore, tesseramenti_csi(persona_id, stato, persone(nome, cognome))'
-      )
-      .neq('esito', 'OK')
-      .order('creato_il', { ascending: false })
-      .limit(200),
   ])
-  const erroriCsi = (tentativiKo ?? []) as unknown as ErroreCsi[]
 
   const conteggi: Record<Vista, number> = { tesserati: 0, da_tesserare: 0, non_tesserabili: 0, in_errore: 0 }
   for (const r of righe) conteggi[vistaDi(r)] += 1
 
-  const da_controllare = anomalie(righe)
   const vista: Vista = vistaValida(searchParams.vista) ?? 'da_tesserare'
   const q = (searchParams.q ?? '').trim().slice(0, 80)
 
@@ -131,9 +118,6 @@ export async function VistaElenchi({ searchParams }: { searchParams: SearchParam
               </span>
             </div>
           </div>
-
-          <DaControllare anomalie={da_controllare} />
-          <ErroriCsi errori={erroriCsi} />
 
           <div className="card">
             <form method="get" action="/dashboard/tesseramenti" className="check-sosp-filtri">
@@ -246,156 +230,6 @@ export async function VistaElenchi({ searchParams }: { searchParams: SearchParam
           </div>
         </>
       )}
-    </div>
-  )
-}
-
-// Chi sta fra i «da tesserare» ma non va tesserato in automatico: ogni gruppo
-// dice perché e che cosa fare. Si apre da solo se c'è qualcuno.
-function DaControllare({ anomalie }: { anomalie: Anomalie }) {
-  const gruppi = [
-    {
-      chiave: 'doppioni',
-      titolo: 'Doppioni in anagrafica',
-      righe: anomalie.doppioni,
-      nota: 'Lo stesso codice fiscale ha già una tessera CSI su un’altra scheda. Non vanno tesserati: unire le due schede in Info4U.',
-    },
-    {
-      chiave: 'senza-cf',
-      titolo: 'Senza codice fiscale',
-      righe: anomalie.senzaCodiceFiscale,
-      nota: 'Senza codice fiscale non si può chiedere a CSI se la persona è già tesserata: un invio automatico rischia un doppio tesseramento. Completare il dato in Info4U.',
-    },
-    {
-      chiave: 'senza-riga',
-      titolo: 'Mai passati dal tesseramento',
-      righe: anomalie.senzaRiga,
-      nota: 'Hanno un abbonamento in corso ma nessun tesseramento è mai stato creato (vendita precedente all’accensione dell’automazione): il giro automatico non li prende.',
-    },
-  ].filter((g) => g.righe.length > 0)
-  if (gruppi.length === 0) return null
-
-  return (
-    <div className="card">
-      <h2>
-        Da controllare{' '}
-        <span className="chip-conteggio">{gruppi.reduce((n, g) => n + g.righe.length, 0)}</span>
-      </h2>
-      {gruppi.map((g) => (
-        <details key={g.chiave} open>
-          <summary>
-            <span className="badge badge-warn">{g.titolo}</span> <span className="chip-conteggio">{g.righe.length}</span>
-          </summary>
-          <p className="field-hint">{g.nota}</p>
-          <div className="tabella-wrap">
-            <table className="tabella tabella-compatta">
-              <thead>
-                <tr>
-                  <th>Socio</th>
-                  <th>Codice fiscale</th>
-                  <th>Abbonamento in corso</th>
-                  <th>Iscritto dal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {g.righe.map((r) => (
-                  <tr key={r.persona_id}>
-                    <td className="cella-persona">
-                      <Socio r={r} />
-                    </td>
-                    <td className="cella-nowrap">{r.codice_fiscale || <span className="badge badge-ko">manca</span>}</td>
-                    <td className="cella-troncata">
-                      <Abbonamento r={r} />
-                    </td>
-                    <td className="cella-nowrap">{dataIt(r.data_inizio)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </details>
-      ))}
-    </div>
-  )
-}
-
-type ErroreCsi = {
-  id: number
-  creato_il: string
-  operazione: string
-  test: boolean
-  esito: 'KO' | 'rete'
-  errore: string | null
-  tesseramenti_csi: {
-    persona_id: string
-    stato: string
-    persone: { nome: string | null; cognome: string | null } | null
-  } | null
-}
-
-const OPERAZIONE_CSI: Record<string, string> = { I: 'Lettura tessera', N: 'Nuovo tesserato' }
-
-// Le risposte di errore di CSI, dalla più recente: il messaggio è quello di CSI,
-// parola per parola. «Risolto» vuol dire che la riga è poi diventata tesserata.
-function ErroriCsi({ errori }: { errori: ErroreCsi[] }) {
-  if (errori.length === 0) return null
-  const aperti = errori.filter((e) => e.tesseramenti_csi?.stato !== 'tesserato').length
-  return (
-    <div className="card">
-      <details>
-        <summary>
-          <strong>Errori di CSI</strong> <span className="chip-conteggio">{errori.length}</span>{' '}
-          <span className="muted">{aperti > 0 ? `${aperti} ancora da risolvere` : 'tutti risolti'}</span>
-        </summary>
-        <p className="field-hint">
-          Quello che CSI ha risposto quando ha rifiutato una chiamata. «Simulazione» è una prova senza
-          emissione; «Risolto» vuol dire che la persona è poi risultata tesserata.
-        </p>
-        <div className="tabella-wrap">
-          <table className="tabella tabella-compatta">
-            <thead>
-              <tr>
-                <th>Quando</th>
-                <th>Socio</th>
-                <th>Chiamata</th>
-                <th>Risposta di CSI</th>
-                <th>Stato</th>
-              </tr>
-            </thead>
-            <tbody>
-              {errori.map((e) => {
-                const riga = e.tesseramenti_csi
-                const nome = [riga?.persone?.cognome, riga?.persone?.nome].filter(Boolean).join(' ') || 'Senza nome'
-                return (
-                  <tr key={e.id}>
-                    <td className="cella-nowrap">{dataOra(e.creato_il)}</td>
-                    <td className="cella-persona">
-                      {riga ? <Link href={`/dashboard/persone/${riga.persona_id}`}>{nome}</Link> : nome}
-                    </td>
-                    <td className="cella-nowrap">
-                      {OPERAZIONE_CSI[e.operazione] ?? e.operazione}
-                      {e.test && <span className="nota-in-riga">simulazione</span>}
-                    </td>
-                    <td>
-                      <span className={`badge ${e.esito === 'rete' ? 'badge-warn' : 'badge-ko'}`}>
-                        {e.esito === 'rete' ? 'Rete' : 'Rifiutato'}
-                      </span>
-                      <span className="nota-in-riga">{e.errore ?? '—'}</span>
-                    </td>
-                    <td className="cella-nowrap">
-                      {riga?.stato === 'tesserato' ? (
-                        <span className="badge badge-ok">Risolto</span>
-                      ) : (
-                        <span className="badge badge-warn">Da risolvere</span>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      </details>
     </div>
   )
 }
