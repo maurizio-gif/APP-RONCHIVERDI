@@ -37,6 +37,11 @@ const CHIAVE_AUTOMAZIONE = 'voucher_cer000'
 // cerca in entrambe le colonne. Il confronto ignora maiuscole e minuscole.
 const SIGLA_PRODOTTO = '(cer000)'
 
+// Il welfare aziendale porta la sigla ma non fa partire il codice: è
+// intestato all'azienda, non a un socio (stessa esclusione dei tesseramenti
+// CSI, vedi scripts/sql/2026-10-30-tesseramenti-escludi-welfare.sql).
+const ESCLUSI_NEL_NOME = '%welfare%'
+
 // Quanto indietro guarda ogni giro, oltre al limite di `attiva_dal`: la
 // sincronizzazione porta le vendite entro pochi minuti, e una finestra
 // stretta evita che un abbonamento vecchio, ricomparso per una correzione
@@ -249,6 +254,7 @@ Deno.serve(async (req: Request) => {
     // Le virgolette servono: la sigla ha le parentesi, che nel filtro `or`
     // di PostgREST altrimenti chiudono il valore.
     .or(`abbonamento.ilike."%${SIGLA_PRODOTTO}%",variante.ilike."%${SIGLA_PRODOTTO}%"`)
+    .not('abbonamento', 'ilike', ESCLUSI_NEL_NOME)
     .is('cancellato_il', null)
     .gte('data_vendita', dal)
     .order('data_vendita', { ascending: true })
