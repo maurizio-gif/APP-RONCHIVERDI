@@ -8,6 +8,11 @@
 //
 // - ?giro=nuovi    ogni 10 minuti: crea le righe delle nuove vendite e le invia;
 // - ?giro=ritenta  ogni 2 ore: riprova chi non è ancora tesserato;
+//
+// Tutti e due i giri riprendono anche chi ha un abbonamento in corso di un
+// prodotto con tessera, nessuna tessera e nessuna riga di tesseramento (una
+// vendita fuori dalla finestra dei nuovi, o un dato corretto in anagrafica
+// dopo): la riga si crea e, se i dati ci sono, la tessera parte da sola.
 // - ?id=<riga>     «Riprova ora» della pagina Tesseramenti: lavora quella riga
 //                  sola, subito. È un'azione manuale: vale anche a
 //                  interruttore spento, e non crea né tocca altre righe;
@@ -514,6 +519,74 @@ async function lavoraRiga(ctx: Contesto, riga: Riga): Promise<Esito> {
   return { rigaId: riga.id, esito: 'non_tesserato', dettaglio: risposta.errore }
 }
 
+// ───────────────────────────────────────────────────────────── arretrati
+
+type Arretrato = { persona_id: string; abbonamento_id: string; codice_attivita: string | null }
+
+const BLOCCO_IN = 100
+
+// Chi ha un abbonamento reale in corso di un prodotto con tessera e non ha né
+// una tessera in corso né una riga di tesseramento per la stagione. Restano
+// fuori i doppioni in anagrafica: se un'altra scheda con lo stesso codice
+// fiscale ha già la tessera, questa non va tesserata.
+async function arretrati(supabase: Supabase, prodotti: Map<string, string>, stagione: number): Promise<Arretrato[]> {
+  const { data: vendite, error } = await supabase
+    .from('abbonamenti_attivi_oggi_dettaglio')
+    .select('id, persona_id, abbonamento, data_fine')
+    .in('abbonamento', Array.from(prodotti.keys()))
+    .not('persona_id', 'is', null)
+    .order('data_fine', { ascending: false, nullsFirst: true })
+    .limit(2000)
+  if (error) {
+    console.error('Lettura abbonamenti in corso non riuscita:', error.message)
+    return []
+  }
+  const perPersona = new Map<string, { id: string; abbonamento: string }>()
+  for (const v of (vendite ?? []) as { id: string; persona_id: string; abbonamento: string }[]) {
+    if (!perPersona.has(v.persona_id)) perPersona.set(v.persona_id, { id: v.id, abbonamento: v.abbonamento })
+  }
+  const persone = Array.from(perPersona.keys())
+
+  const conRiga = new Set<string>()
+  const conTessera = new Set<string>()
+  const codiciFiscali = new Map<string, string>()
+  for (let i = 0; i < persone.length; i += BLOCCO_IN) {
+    const blocco = persone.slice(i, i + BLOCCO_IN)
+    const [{ data: righe }, { data: tessere }, { data: anagrafica }] = await Promise.all([
+      supabase.from('tesseramenti_csi').select('persona_id').eq('stagione', stagione).in('persona_id', blocco),
+      supabase.from('tessere_csi_attive').select('persona_id').in('persona_id', blocco),
+      supabase.from('persone').select('id, codice_fiscale').in('id', blocco),
+    ])
+    for (const r of (righe ?? []) as { persona_id: string }[]) conRiga.add(r.persona_id)
+    for (const t of (tessere ?? []) as { persona_id: string }[]) conTessera.add(t.persona_id)
+    for (const p of (anagrafica ?? []) as { id: string; codice_fiscale: string | null }[]) {
+      const cf = (p.codice_fiscale ?? '').trim().toUpperCase()
+      if (cf.length === 16) codiciFiscali.set(p.id, cf)
+    }
+  }
+
+  const candidati = persone.filter((id) => !conRiga.has(id) && !conTessera.has(id))
+  // Un'altra scheda con lo stesso codice fiscale che ha già la tessera.
+  const cfDaVerificare = Array.from(new Set(candidati.map((id) => codiciFiscali.get(id)).filter((c): c is string => !!c)))
+  const cfConTessera = new Set<string>()
+  for (let i = 0; i < cfDaVerificare.length; i += BLOCCO_IN) {
+    const { data } = await supabase
+      .from('tessere_csi')
+      .select('cft')
+      .in('cft', cfDaVerificare.slice(i, i + BLOCCO_IN))
+      .gte('scadenza', new Date().toISOString().slice(0, 10))
+    for (const t of (data ?? []) as { cft: string }[]) cfConTessera.add(t.cft)
+  }
+
+  return candidati
+    .filter((id) => !cfConTessera.has(codiciFiscali.get(id) ?? ''))
+    .map((id) => ({
+      persona_id: id,
+      abbonamento_id: perPersona.get(id)!.id,
+      codice_attivita: prodotti.get(perPersona.get(id)!.abbonamento) ?? null,
+    }))
+}
+
 // ─────────────────────────────────────────────────────────────── il giro
 
 const COLONNE_RIGA =
@@ -621,8 +694,28 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  // ── Gli arretrati: abbonamento in corso, nessuna tessera, nessuna riga. Anche
+  // questi diventano righe da inviare (la finestra dei nuovi non li vede).
+  let righeArretrate = 0
+  if (!idRiga) {
+    const daRiprendere = await arretrati(supabase, prodotti, stagione)
+    for (const a of daRiprendere) daCreare.push({ persona: a.persona_id, abbonamento: a.abbonamento_id })
+    if (!prova && daRiprendere.length > 0) {
+      const { error: errArretrati } = await supabase
+        .from('tesseramenti_csi')
+        .upsert(
+          daRiprendere.map((a) => ({ persona_id: a.persona_id, stagione, abbonamento_id: a.abbonamento_id, codice_attivita: a.codice_attivita })),
+          { onConflict: 'persona_id,stagione', ignoreDuplicates: true }
+        )
+      if (errArretrati) console.error('Righe arretrate non create:', errArretrati.message)
+      else righeArretrate = daRiprendere.length
+    }
+  }
+
   // ── Le righe da lavorare. Le «simulate» si rifanno solo dopo il passaggio
   // a CSI_LIVE=1: in simulazione ripeterle sarebbe una chiamata inutile.
+  // Il giro «nuovi» riprende anche chi era fermo per un dato mancante: finché
+  // il dato non c'è non costa nessuna chiamata a CSI, e appena c'è parte.
   const stati = giro === 'nuovi' ? ['da_inviare'] : ['da_inviare', 'non_tesserato']
   if (live) stati.push('simulato')
 
@@ -634,7 +727,11 @@ Deno.serve(async (req: Request) => {
     ? await query.eq('id', idRiga).in('stato', ['da_inviare', 'non_tesserato', 'simulato'])
     : await query
         .eq('stagione', stagione)
-        .in('stato', stati)
+        .or(
+          giro === 'nuovi'
+            ? `stato.in.(${stati.join(',')}),and(stato.eq.non_tesserato,motivo_tipo.eq.dati_mancanti)`
+            : `stato.in.(${stati.join(',')})`
+        )
         .order('ultimo_tentativo_il', { ascending: true, nullsFirst: true })
         .limit(100)
   if (errRighe) {
@@ -699,6 +796,7 @@ Deno.serve(async (req: Request) => {
     simula,
     stagione,
     righe_create: nuoveRighe,
+    righe_arretrate: righeArretrate,
     lavorate: esiti.length,
     fermato: ctx.fermato,
     esiti,

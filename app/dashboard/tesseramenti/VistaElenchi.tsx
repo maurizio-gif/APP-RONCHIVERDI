@@ -182,14 +182,17 @@ export async function VistaElenchi({ searchParams }: { searchParams: SearchParam
             {vista === 'da_tesserare' && (
               <p className="field-hint">
                 Hanno un abbonamento in corso di un prodotto con tessera (esclusa la Young School Tennis) e nessuna
-                tessera CSI in corso: sono quelli che il tesseramento automatico deve fare. Qui sono visibili i dati
-                obbligatori per CSI: se uno manca compare «manca» e la persona passa fra i non tesserabili.
+                tessera CSI in corso: il tesseramento automatico li prende da solo (ogni 10 minuti) e li invia a CSI.
+                Qui sono visibili i dati obbligatori per CSI: se uno manca compare «manca» e la persona passa fra i
+                non tesserabili.
               </p>
             )}
             {vista === 'non_tesserabili' && (
               <p className="field-hint">
                 Hanno l&apos;abbonamento ma in anagrafica manca un dato che CSI richiede (di solito il luogo di
-                nascita): finché non si completa non si può nemmeno chiamare CSI.
+                nascita): finché non si completa non si può nemmeno chiamare CSI. Dopo aver corretto il dato in Info4U il
+                CRM si aggiorna entro un massimo di 20 ore (il sync rilegge tutti gli abbonamenti aperti); poi il
+                tesseramento parte da solo, senza altri passaggi.
               </p>
             )}
             {vista === 'in_errore' && (
