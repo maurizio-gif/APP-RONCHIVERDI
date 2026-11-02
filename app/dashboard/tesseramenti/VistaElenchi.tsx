@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { AggiornaAuto } from './AggiornaAuto'
 import { RiprovaOra } from './RiprovaOra'
+import { SistematoInfo4u } from './SistematoInfo4u'
 import { caricaElenco, chiaveMotivo, elencoDi, vistaDi, vistaValida } from '@/lib/tesseramenti-elenchi'
 import { dataOra } from '@/lib/persone'
 import {
@@ -181,18 +182,17 @@ export async function VistaElenchi({ searchParams }: { searchParams: SearchParam
 
             {vista === 'da_tesserare' && (
               <p className="field-hint">
-                Hanno un abbonamento in corso di un prodotto con tessera (esclusa la Young School Tennis) e nessuna
-                tessera CSI in corso: il tesseramento automatico li prende da solo (ogni 10 minuti) e li invia a CSI.
-                Qui sono visibili i dati obbligatori per CSI: se uno manca compare «manca» e la persona passa fra i
-                non tesserabili.
+                In questa lista trovi persone con un abbonamento in corso di un prodotto con tessera (esclusa la Young
+                School Tennis), dati corretti e tesseramento ancora da fare. I tesseramenti partono da soli, con un
+                ciclo ogni 10 minuti, oppure si fanno a mano con «Tessera ora».
               </p>
             )}
             {vista === 'non_tesserabili' && (
               <p className="field-hint">
                 Hanno l&apos;abbonamento ma in anagrafica manca un dato che CSI richiede (di solito il luogo di
-                nascita): finché non si completa non si può nemmeno chiamare CSI. Dopo aver corretto il dato in Info4U il
-                CRM si aggiorna entro un massimo di 20 ore (il sync rilegge tutti gli abbonamenti aperti); poi il
-                tesseramento parte da solo, senza altri passaggi.
+                nascita): finché non si completa non si può nemmeno chiamare CSI. Il dato si corregge in Info4U e qui si
+                spunta «Sistemato». L&apos;aggiornamento da Info4U al CRM può impiegare fino a un massimo di 20 ore:
+                appena i dati arrivano la persona passa in «Da tesserare» e il tesseramento viene fatto in automatico.
               </p>
             )}
             {vista === 'in_errore' && (
@@ -231,7 +231,7 @@ export async function VistaElenchi({ searchParams }: { searchParams: SearchParam
             ) : vista === 'tesserati' ? (
               <TabellaTesserati righe={elenco} />
             ) : (
-              <TabellaDaSistemare righe={elenco} />
+              <TabellaDaSistemare righe={elenco} conFlag={vista === 'non_tesserabili'} />
             )}
           </div>
         </>
@@ -307,7 +307,7 @@ function TabellaTesserati({ righe }: { righe: RigaElenco[] }) {
   )
 }
 
-function TabellaDaSistemare({ righe }: { righe: RigaElenco[] }) {
+function TabellaDaSistemare({ righe, conFlag }: { righe: RigaElenco[]; conFlag: boolean }) {
   return (
     <div className="tabella-wrap">
       <table className="tabella tabella-compatta">
@@ -322,6 +322,7 @@ function TabellaDaSistemare({ righe }: { righe: RigaElenco[] }) {
             <th>Abbonamento in corso</th>
             <th>Iscritto dal</th>
             <th>Situazione</th>
+            {conFlag && <th>Info4U</th>}
             <th className="cella-importo">Tentativi</th>
             <th>Ultimo tentativo</th>
             <th aria-label="Azioni" />
@@ -375,6 +376,15 @@ function TabellaDaSistemare({ righe }: { righe: RigaElenco[] }) {
                   <span className="badge badge-off">Da tesserare</span>
                 )}
               </td>
+              {conFlag && (
+                <td>
+                  <SistematoInfo4u
+                    personaId={r.persona_id}
+                    sistematoIl={r.sistemato_il ?? null}
+                    sistematoDa={r.sistemato_da ?? null}
+                  />
+                </td>
+              )}
               <td className="cella-importo">{r.tentativi}</td>
               <td className="cella-nowrap">{r.ultimo_tentativo_il ? dataOra(r.ultimo_tentativo_il) : '—'}</td>
               <td className="cella-nowrap">

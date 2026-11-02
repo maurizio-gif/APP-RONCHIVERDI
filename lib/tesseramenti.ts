@@ -95,6 +95,9 @@ export type RigaElenco = {
   /** La risposta di CSI all'ultimo tentativo, se è stato rifiutato (o CSI non rispondeva). */
   ultimo_errore?: string | null
   ultimo_errore_il?: string | null
+  /** Il flag «sistemato su Info4U» messo dalla segreteria (solo per i non tesserabili). */
+  sistemato_il?: string | null
+  sistemato_da?: string | null
 }
 
 export const ETICHETTE_MOTIVO: Record<MotivoTipo, string> = {

@@ -18,7 +18,24 @@ export async function caricaElenco(supabase: SupabaseClient) {
   if (error) return { righe, error }
   // Pagina e CSV leggono da qui: i doppioni restano fuori da entrambi.
   const senza = senzaDoppioni(righe)
-  return { righe: await conEsitoInvio(supabase, senza), error }
+  const conEsito = await conEsitoInvio(supabase, senza)
+  return { righe: await conSistemato(supabase, conEsito), error }
+}
+
+/** Il flag «sistemato su Info4U» dei non tesserabili (tabella tesseramenti_sistemati; se manca, nessun flag). */
+async function conSistemato(supabase: SupabaseClient, righe: RigaElenco[]): Promise<RigaElenco[]> {
+  const ids = righe.filter((r) => vistaDi(r) === 'non_tesserabili').map((r) => r.persona_id)
+  if (ids.length === 0) return righe
+  const { data, error } = await supabase
+    .from('tesseramenti_sistemati')
+    .select('persona_id, sistemato_il, sistemato_da')
+    .in('persona_id', ids)
+  if (error || !data) return righe
+  const perPersona = new Map(data.map((d: { persona_id: string; sistemato_il: string; sistemato_da: string }) => [d.persona_id, d]))
+  return righe.map((r) => {
+    const f = perPersona.get(r.persona_id)
+    return f ? { ...r, sistemato_il: f.sistemato_il, sistemato_da: f.sistemato_da } : r
+  })
 }
 
 /**

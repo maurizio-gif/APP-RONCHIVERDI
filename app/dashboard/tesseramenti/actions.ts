@@ -152,3 +152,37 @@ export async function tesseraPersona(personaId: string): Promise<EsitoRiprova> {
   if (!creata) return { ok: false, errore: 'Il tesseramento è già stato preparato: ricarica la pagina.' }
   return riprovaTesseramento(creata.id)
 }
+
+// Il flag «Sistemato su Info4U»: la segreteria segna che il dato mancante è
+// stato corretto in Info4U. È solo un promemoria (il tesseramento riparte da
+// solo quando il dato arriva nel CRM): si toglie con `sistemato = false`.
+export async function segnaSistemato(personaId: string, sistemato: boolean): Promise<{ ok: true } | { ok: false; errore: string }> {
+  const email = emailCorrente()
+  if (!email || !(await utenteHaSezione(SEZIONE_TESSERAMENTI))) {
+    return { ok: false, errore: 'Non hai accesso a questa sezione.' }
+  }
+  if (!UUID.test(personaId)) return { ok: false, errore: 'Persona non riconosciuta.' }
+
+  const supabase = createSupabaseServiceClient()
+  const { error } = sistemato
+    ? await supabase
+        .from('tesseramenti_sistemati')
+        .upsert({ persona_id: personaId, sistemato_il: new Date().toISOString(), sistemato_da: email }, { onConflict: 'persona_id' })
+    : await supabase.from('tesseramenti_sistemati').delete().eq('persona_id', personaId)
+  if (error) {
+    console.error('Tesseramenti: flag sistemato non salvato', error.message)
+    return {
+      ok: false,
+      errore: /tesseramenti_sistemati/.test(error.message)
+        ? 'Manca la tabella dei flag: esegui scripts/sql/2026-11-02-tesseramenti-sistemato-info4u.sql su Supabase.'
+        : 'Non riesco a salvare. Riprova fra poco.',
+    }
+  }
+  await registraLog(email, 'tesseramento_sistemato', {
+    entita: 'persone',
+    entitaId: personaId,
+    dettagli: { sistemato },
+  })
+  revalidatePath('/dashboard/tesseramenti')
+  return { ok: true }
+}
