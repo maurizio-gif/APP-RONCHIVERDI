@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { leggiPaginato } from '@/lib/supabase/leggiPaginato'
-import { VISTA_DI_CATEGORIA, VISTE, type RigaElenco, type Vista } from '@/lib/tesseramenti'
+import { VISTA_DI_CATEGORIA, VISTE, oggiRoma, type RigaElenco, type Vista } from '@/lib/tesseramenti'
 
 // Gli elenchi di Tesseramenti, per la vista Elenchi e per la sua esportazione
 // in CSV: la pagina e il file leggono dalla stessa funzione del database
@@ -15,8 +15,58 @@ export async function caricaElenco(supabase: SupabaseClient) {
       error: { message: string } | null
     }>
   )
+  if (error) return { righe, error }
   // Pagina e CSV leggono da qui: i doppioni restano fuori da entrambi.
-  return { righe: senzaDoppioni(righe), error }
+  const senza = senzaDoppioni(righe)
+  return { righe: await conEsitoInvio(supabase, senza), error }
+}
+
+/**
+ * Due cose che la funzione del database non sa, perché la tessera arriva
+ * nell'archivio CSI solo con la lettura oraria:
+ * - chi è stato tesserato da qui (riga «tesserato» con la scadenza in corso) passa
+ *   subito fra i tesserati, senza aspettare la lettura successiva;
+ * - per chi non è tesserato, la risposta di CSI all'ultimo tentativo, se rifiutato.
+ */
+async function conEsitoInvio(supabase: SupabaseClient, righe: RigaElenco[]): Promise<RigaElenco[]> {
+  const ids = righe.filter((r) => r.riga_id && vistaDi(r) !== 'tesserati').map((r) => r.riga_id as string)
+  if (ids.length === 0) return righe
+
+  const emesse = new Map<string, { tessera: string | null; rilascio: string | null; scadenza: string | null }>()
+  const ultimoEsito = new Map<string, { errore: string | null; il: string }>()
+  const oggi = oggiRoma()
+
+  for (let i = 0; i < ids.length; i += 200) {
+    const blocco = ids.slice(i, i + 200)
+    const [{ data: tesseramenti }, { data: tentativi }] = await Promise.all([
+      supabase.from('tesseramenti_csi').select('id, stato, tessera, rilascio, scadenza').in('id', blocco).eq('stato', 'tesserato'),
+      supabase
+        .from('tesseramenti_csi_tentativi')
+        .select('tesseramento_id, esito, errore, creato_il')
+        .in('tesseramento_id', blocco)
+        .order('creato_il', { ascending: false }),
+    ])
+    for (const t of tesseramenti ?? []) {
+      if (t.tessera && t.scadenza && t.scadenza >= oggi) {
+        emesse.set(t.id, { tessera: t.tessera, rilascio: t.rilascio, scadenza: t.scadenza })
+      }
+    }
+    for (const a of tentativi ?? []) {
+      if (!ultimoEsito.has(a.tesseramento_id)) {
+        ultimoEsito.set(a.tesseramento_id, { errore: a.esito === 'OK' ? null : (a.errore ?? 'Errore di CSI.'), il: a.creato_il })
+      }
+    }
+  }
+
+  return righe.map((r) => {
+    if (!r.riga_id || vistaDi(r) === 'tesserati') return r
+    const tessera = emesse.get(r.riga_id)
+    if (tessera) {
+      return { ...r, categoria: 'tesserato', tessera: tessera.tessera, tessera_rilascio: tessera.rilascio, tessera_scadenza: tessera.scadenza, motivo_tipo: null, motivo: null }
+    }
+    const esito = ultimoEsito.get(r.riga_id)
+    return esito?.errore ? { ...r, ultimo_errore: esito.errore, ultimo_errore_il: esito.il } : r
+  })
 }
 
 export function vistaValida(v: string | undefined | null): Vista | null {

@@ -92,6 +92,9 @@ export type RigaElenco = {
   sesso: string | null
   /** I dati che CSI vuole e in anagrafica mancano (vuoto se è tutto a posto). */
   mancanti: string[] | null
+  /** La risposta di CSI all'ultimo tentativo, se è stato rifiutato (o CSI non rispondeva). */
+  ultimo_errore?: string | null
+  ultimo_errore_il?: string | null
 }
 
 export const ETICHETTE_MOTIVO: Record<MotivoTipo, string> = {
@@ -100,6 +103,33 @@ export const ETICHETTE_MOTIVO: Record<MotivoTipo, string> = {
   credito: 'Credito CSI',
   rete: 'CSI non raggiungibile',
   configurazione: 'Configurazione',
+}
+
+/**
+ * Che cosa fare per correggere l'errore di una riga non tesserata (null se non
+ * c'è niente da fare: basta aspettare il prossimo giro o «Riprova ora»).
+ */
+export function azioneConsigliata(
+  r: Pick<RigaElenco, 'motivo_tipo' | 'mancanti' | 'ultimo_errore'>
+): string | null {
+  if (r.mancanti && r.mancanti.length > 0) {
+    return `Completa in Info4U: ${r.mancanti.join(', ')}. Poi «Riprova ora».`
+  }
+  if (r.ultimo_errore && /gi[àa] tesserat/i.test(r.ultimo_errore)) {
+    return 'CSI ha già una tessera per questo nominativo: cercala sul portale CSI e verifica che il codice fiscale in anagrafica coincida (correggilo se serve).'
+  }
+  switch (r.motivo_tipo) {
+    case 'credito':
+      return 'Ricarica il credito tessere sul portale CSI, poi «Riprova ora».'
+    case 'rete':
+      return 'CSI non risponde: si riprova da solo ogni 2 ore, oppure «Riprova ora».'
+    case 'configurazione':
+      return 'Problema di configurazione (attività o credenziali CSI): avvisa chi gestisce il tesseramento.'
+    case 'csi':
+      return 'Controlla in Info4U nome, data e luogo di nascita, sesso e codice fiscale, poi «Riprova ora».'
+    default:
+      return r.ultimo_errore ? 'Controlla i dati della persona in Info4U, poi «Riprova ora».' : null
+  }
 }
 
 // Chi deve intervenire a mano: serve a dare un colore al badge.

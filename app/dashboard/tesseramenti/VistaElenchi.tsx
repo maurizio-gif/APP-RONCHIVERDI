@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
+import { AggiornaAuto } from './AggiornaAuto'
 import { RiprovaOra } from './RiprovaOra'
 import { caricaElenco, chiaveMotivo, elencoDi, vistaDi, vistaValida } from '@/lib/tesseramenti-elenchi'
 import { dataOra } from '@/lib/persone'
@@ -9,6 +10,7 @@ import {
   ETICHETTE_VISTA,
   MOTIVI_DA_SISTEMARE,
   VISTE,
+  azioneConsigliata,
   dataIt,
   descriviTessera,
   type MotivoTipo,
@@ -73,10 +75,11 @@ export async function VistaElenchi({ searchParams }: { searchParams: SearchParam
 
   return (
     <div>
+      <AggiornaAuto />
       <p className="muted">
         Gli elenchi si ricalcolano a ogni apertura: chi ha una tessera CSI in corso di validità, e fra chi ha un
         abbonamento reale in corso di un prodotto con tessera, chi la tessera non ce l&apos;ha. Non è la coda di
-        invio: se una tessera viene fatta dal portale CSI, la persona passa da sola fra i tesserati entro un&apos;ora.
+        invio: l&apos;esito dei tesseramenti fatti da qui compare subito; una tessera fatta dal portale CSI entra entro un&apos;ora.
       </p>
 
       {error && (
@@ -345,14 +348,25 @@ function TabellaDaSistemare({ righe }: { righe: RigaElenco[] }) {
               </td>
               <td className="cella-nowrap">{dataIt(r.data_inizio)}</td>
               <td>
-                {r.motivo_tipo ? (
+                {r.motivo_tipo || r.ultimo_errore ? (
                   <>
                     <span
-                      className={`badge ${MOTIVI_DA_SISTEMARE.includes(r.motivo_tipo) ? 'badge-ko' : 'badge-warn'}`}
+                      className={`badge ${!r.motivo_tipo || MOTIVI_DA_SISTEMARE.includes(r.motivo_tipo) ? 'badge-ko' : 'badge-warn'}`}
                     >
-                      {ETICHETTE_MOTIVO[r.motivo_tipo]}
+                      {r.motivo_tipo ? ETICHETTE_MOTIVO[r.motivo_tipo] : 'Rifiutato da CSI'}
                     </span>
-                    <span className="nota-in-riga">{r.motivo}</span>
+                    {r.motivo && <span className="nota-in-riga">{r.motivo}</span>}
+                    {r.ultimo_errore && (
+                      <span className="nota-in-riga">
+                        CSI risponde: {r.ultimo_errore}
+                        {r.ultimo_errore_il && ` (${dataOra(r.ultimo_errore_il)})`}
+                      </span>
+                    )}
+                    {azioneConsigliata(r) && (
+                      <span className="nota-in-riga">
+                        <strong>Cosa fare:</strong> {azioneConsigliata(r)}
+                      </span>
+                    )}
                   </>
                 ) : (
                   <span className="badge badge-off">Da tesserare</span>
