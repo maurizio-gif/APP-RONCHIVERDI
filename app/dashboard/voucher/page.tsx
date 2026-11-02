@@ -132,8 +132,8 @@ export default async function VoucherPage({ searchParams }: { searchParams: { q?
         </div>
         <ol style={{ margin: 0, paddingLeft: '1.25rem', lineHeight: 1.7 }}>
           <li>
-            I contratti con la sigla <strong>«(cer000)»</strong> nel nome del prodotto (per
-            esempio «1.1 GOLD OVER 35 (cer000)») ricevono il codice <strong>in automatico</strong>{' '}
+            I contratti con la sigla <strong>«(cer000)»</strong> nel prodotto o nella variante (per
+            esempio «1.1 GOLD OVER 35», variante «(cer000)») ricevono il codice <strong>in automatico</strong>{' '}
             per email, entro circa 15 minuti da quando la vendita arriva dal gestionale. Non serve
             fare nulla.
             {!automaticoAttivo && (
