@@ -38,12 +38,12 @@ export function SistematoInfo4u({
     <>
       <label className="cella-nowrap" style={{ display: 'inline-flex', gap: '0.4rem', alignItems: 'center', cursor: 'pointer' }}>
         <input type="checkbox" checked={sistemato} onChange={cambia} disabled={inCorso} />
-        {sistemato ? 'Sistemato' : 'Da sistemare'}
+        Sistemato su Info4U
       </label>
       {sistemato && (
         <span className="nota-in-riga">
-          il {quando}
-          {sistematoDa ? ` da ${sistematoDa}` : ''}: in attesa del sync da Info4U
+          segnato il {quando}
+          {sistematoDa ? ` da ${sistematoDa}` : ''}: in attesa che i dati arrivino dal sync
         </span>
       )}
       {errore && (

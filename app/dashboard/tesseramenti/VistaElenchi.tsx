@@ -191,7 +191,7 @@ export async function VistaElenchi({ searchParams }: { searchParams: SearchParam
               <p className="field-hint">
                 Hanno l&apos;abbonamento ma in anagrafica manca un dato che CSI richiede (di solito il luogo di
                 nascita): finché non si completa non si può nemmeno chiamare CSI. Il dato si corregge in Info4U e qui si
-                spunta «Sistemato». L&apos;aggiornamento da Info4U al CRM può impiegare fino a un massimo di 20 ore:
+                spunta «Sistemato su Info4U». L&apos;aggiornamento da Info4U al CRM può impiegare fino a un massimo di 20 ore:
                 appena i dati arrivano la persona passa in «Da tesserare» e il tesseramento viene fatto in automatico.
               </p>
             )}
@@ -322,7 +322,7 @@ function TabellaDaSistemare({ righe, conFlag }: { righe: RigaElenco[]; conFlag: 
             <th>Abbonamento in corso</th>
             <th>Iscritto dal</th>
             <th>Situazione</th>
-            {conFlag && <th>Info4U</th>}
+            {conFlag && <th>Sistemato su Info4U</th>}
             <th className="cella-importo">Tentativi</th>
             <th>Ultimo tentativo</th>
             <th aria-label="Azioni" />
