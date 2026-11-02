@@ -20,6 +20,10 @@ export const dynamic = 'force-dynamic'
 // vista abbonamenti_attivi_oggi_dettaglio (non cancellato, in corso, prodotto
 // non segnato «no abbonamento» nei gruppi).
 
+// La guida alla sezione per la segreteria (presentazione). Sta fuori da
+// ronchiverdi.it, quindi si apre in una scheda nuova.
+const URL_GUIDA = 'https://claude.ai/artifact/MaSCQxbqGSgsSUYkpVhkXP'
+
 type SearchParams = Record<string, string | undefined>
 
 export default async function TesseramentiPage({ searchParams }: { searchParams: SearchParams }) {
@@ -34,6 +38,11 @@ export default async function TesseramentiPage({ searchParams }: { searchParams:
       <div className="page-head">
         <p className="eyebrow">Segreteria</p>
         <h1>Tesseramenti CSI</h1>
+        <p>
+          <a className="btn btn-sm" href={URL_GUIDA} target="_blank" rel="noopener noreferrer">
+            Guida alla sezione (presentazione)
+          </a>
+        </p>
         <div className="check-sosp-gruppo" role="group" aria-label="Vista">
           {SEZIONI_PAGINA.map((s) => (
             <Link
