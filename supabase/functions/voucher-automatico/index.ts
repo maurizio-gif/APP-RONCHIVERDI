@@ -1,6 +1,6 @@
 // Edge function: il voucher della visita medica che parte da solo.
 //
-// Ogni nuova vendita di un prodotto con la sigla "(cer000)" nel nome riceve
+// Ogni nuova vendita con la sigla "(cer000)" nel prodotto o nella variante riceve
 // il codice per email, senza passare dalla segreteria. La chiama pg_cron ogni
 // 15 minuti (job `voucher-automatico`, vedi
 // scripts/sql/2026-10-16-automazioni-su-supabase.sql), e solo quando la riga
@@ -31,8 +31,10 @@ import { emailAssegnazione } from '../_shared/voucher-email-testi.ts'
 
 const CHIAVE_AUTOMAZIONE = 'voucher_cer000'
 
-// La sigla come la scrive il gestionale nel nome del prodotto, oggi
-// «1.1 GOLD OVER 35 (cer000)». Il confronto ignora maiuscole e minuscole.
+// La sigla come la scrive il gestionale. Oggi sta nella `variante` («1.1 GOLD
+// OVER 35» + variante «(cer000)»); prima stava nel nome del prodotto, e
+// l'«ABBONAMENTO WELFARE AZIENDALE (cer000)» ce l'ha ancora nel nome: si
+// cerca in entrambe le colonne. Il confronto ignora maiuscole e minuscole.
 const SIGLA_PRODOTTO = '(cer000)'
 
 // Quanto indietro guarda ogni giro, oltre al limite di `attiva_dal`: la
@@ -244,7 +246,9 @@ Deno.serve(async (req: Request) => {
   const { data, error } = await supabase
     .from('abbonamenti')
     .select('id, abbonamento, variante, data_vendita, persone(nome, cognome, email, cellulare)')
-    .ilike('abbonamento', `%${SIGLA_PRODOTTO}%`)
+    // Le virgolette servono: la sigla ha le parentesi, che nel filtro `or`
+    // di PostgREST altrimenti chiudono il valore.
+    .or(`abbonamento.ilike."%${SIGLA_PRODOTTO}%",variante.ilike."%${SIGLA_PRODOTTO}%"`)
     .is('cancellato_il', null)
     .gte('data_vendita', dal)
     .order('data_vendita', { ascending: true })

@@ -659,7 +659,8 @@ giorno precedente.
 - **Emissione automatica «(cer000)»** — la edge function Supabase
   `voucher-automatico` (`supabase/functions/voucher-automatico`), chiamata
   da pg_cron ogni 15 minuti, emette il codice per ogni nuova vendita di un
-  prodotto con «(cer000)» nel nome, letta da `abbonamenti`. Una vendita
+  prodotto con «(cer000)» nel nome o nella variante (oggi sta nella
+  `variante`), letta da `abbonamenti`. Una vendita
   produce al massimo un voucher (unico su `voucher.abbonamento_id`), e non
   parte se il socio ne ha già uno emesso attorno alla vendita. L'interruttore
   è la riga `voucher_cer000` di `automazioni`, spenta di default: accensione
