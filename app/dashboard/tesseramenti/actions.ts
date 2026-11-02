@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { registraLog } from '@/lib/audit'
-import { SEZIONE_TESSERAMENTI, azioneConsigliata, type MotivoTipo } from '@/lib/tesseramenti'
+import { SEZIONE_TESSERAMENTI, azioneConsigliata, oggiRoma, type MotivoTipo } from '@/lib/tesseramenti'
 
 // «Riprova ora»: rimanda a CSI una riga non tesserata senza aspettare il
 // giro delle due ore (utile dopo aver corretto un dato in Info4U). La chiamata
@@ -98,4 +98,57 @@ export async function riprovaTesseramento(id: string): Promise<EsitoRiprova> {
   }
   revalidatePath('/dashboard/tesseramenti')
   return { ok: true, esito: 'in_corso' }
+}
+
+// «Tessera ora» per chi è fra i «da tesserare» e non ha ancora una riga di
+// tesseramento (una vendita precedente all'accensione dell'automazione): la riga
+// si crea qui, dall'abbonamento in corso, e parte subito come «Riprova ora».
+export async function tesseraPersona(personaId: string): Promise<EsitoRiprova> {
+  const email = emailCorrente()
+  if (!email || !(await utenteHaSezione(SEZIONE_TESSERAMENTI))) {
+    return { ok: false, errore: 'Non hai accesso a questa sezione.' }
+  }
+  if (!UUID.test(personaId)) return { ok: false, errore: 'Persona non riconosciuta.' }
+
+  // La stagione in cui nasce la tessera: da luglio l'anno corrente, fino a giugno il precedente.
+  const [anno, mese] = oggiRoma().split('-').map(Number)
+  const stagione = mese >= 7 ? anno : anno - 1
+
+  const supabase = createSupabaseServiceClient()
+  const { data: esistente } = await supabase
+    .from('tesseramenti_csi')
+    .select('id')
+    .eq('persona_id', personaId)
+    .eq('stagione', stagione)
+    .maybeSingle()
+  if (esistente) return riprovaTesseramento(esistente.id)
+
+  const [{ data: prodotti }, { data: abbonamenti }] = await Promise.all([
+    supabase.from('tesseramenti_csi_prodotti').select('prodotto, codice_attivita').eq('attivo', true),
+    supabase
+      .from('abbonamenti_attivi_oggi_dettaglio')
+      .select('id, abbonamento, data_fine')
+      .eq('persona_id', personaId)
+      .order('data_fine', { ascending: false, nullsFirst: true }),
+  ])
+  const codici = new Map((prodotti ?? []).map((p: { prodotto: string; codice_attivita: string }) => [p.prodotto, p.codice_attivita]))
+  const ab = (abbonamenti ?? []).find((a: { abbonamento: string }) => codici.has(a.abbonamento)) as
+    | { id: string; abbonamento: string }
+    | undefined
+  if (!ab) return { ok: false, errore: 'Non ha un abbonamento in corso di un prodotto con tessera.' }
+
+  const { data: creata, error } = await supabase
+    .from('tesseramenti_csi')
+    .upsert(
+      { persona_id: personaId, stagione, abbonamento_id: ab.id, codice_attivita: codici.get(ab.abbonamento) ?? null },
+      { onConflict: 'persona_id,stagione', ignoreDuplicates: true }
+    )
+    .select('id')
+    .maybeSingle()
+  if (error) {
+    console.error('Tesseramenti: riga non creata', error.message)
+    return { ok: false, errore: 'Non riesco a preparare il tesseramento. Riprova fra poco.' }
+  }
+  if (!creata) return { ok: false, errore: 'Il tesseramento è già stato preparato: ricarica la pagina.' }
+  return riprovaTesseramento(creata.id)
 }

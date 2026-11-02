@@ -375,7 +375,9 @@ function TabellaDaSistemare({ righe }: { righe: RigaElenco[] }) {
               <td className="cella-importo">{r.tentativi}</td>
               <td className="cella-nowrap">{r.ultimo_tentativo_il ? dataOra(r.ultimo_tentativo_il) : '—'}</td>
               <td className="cella-nowrap">
-                {r.riga_id && r.categoria !== 'tesserato' && <RiprovaOra id={r.riga_id} tentativi={r.tentativi} />}
+                {r.categoria !== 'tesserato' && (r.riga_id || r.categoria === 'da_tesserare') && (
+                  <RiprovaOra id={r.riga_id} personaId={r.persona_id} tentativi={r.tentativi} />
+                )}
               </td>
             </tr>
           ))}
