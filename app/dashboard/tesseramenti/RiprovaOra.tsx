@@ -1,59 +1,64 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState, useTransition } from 'react'
-import { riprovaTesseramento } from './actions'
+import { useEffect, useState, useTransition } from 'react'
+import { riprovaTesseramento, type EsitoRiprova } from './actions'
 
-// Il tentativo parte dal database e finisce dopo qualche secondo: dopo il
-// clic la pagina si riaggiorna da sola finché la riga non cambia (o per al
-// massimo ~20 secondi), così l'esito compare senza ricaricare a mano.
-const PAUSA_MS = 3000
-const GIRI_MASSIMI = 7
+// «Riprova ora»: il clic aspetta la risposta di CSI (qualche secondo) e mostra
+// subito l'esito sulla riga: la tessera emessa, oppure l'errore con cosa fare.
+// Dopo un tesseramento riuscito la riga esce dall'elenco, quindi il messaggio
+// resta visibile un attimo prima di aggiornare la pagina.
+const PAUSA_DOPO_SUCCESSO_MS = 3000
 
-export function RiprovaOra({ id, tentativi }: { id: string; tentativi: number }) {
+export function RiprovaOra({ id }: { id: string; tentativi?: number }) {
   const router = useRouter()
   const [inCorso, startTransition] = useTransition()
-  const [attesa, setAttesa] = useState(false)
-  const [errore, setErrore] = useState<string | null>(null)
-  const tentativiAlClic = useRef(tentativi)
-  const giri = useRef(0)
-
-  // La riga è cambiata (un nuovo tentativo registrato, o è uscita
-  // dall'elenco): non c'è più niente da aspettare.
-  useEffect(() => {
-    if (attesa && tentativi !== tentativiAlClic.current) setAttesa(false)
-  }, [tentativi, attesa])
+  const [esito, setEsito] = useState<EsitoRiprova | null>(null)
 
   useEffect(() => {
-    if (!attesa) return
-    const t = setTimeout(() => {
-      giri.current += 1
-      if (giri.current >= GIRI_MASSIMI) setAttesa(false)
-      else router.refresh()
-    }, PAUSA_MS)
+    if (!esito || !esito.ok) return
+    const t = setTimeout(() => router.refresh(), esito.esito === 'tesserato' ? PAUSA_DOPO_SUCCESSO_MS : 0)
     return () => clearTimeout(t)
-  }, [attesa, router, tentativi])
+  }, [esito, router])
 
   function riprova() {
-    if (inCorso || attesa) return
-    setErrore(null)
-    tentativiAlClic.current = tentativi
-    giri.current = 0
+    if (inCorso) return
+    setEsito(null)
     startTransition(async () => {
-      const esito = await riprovaTesseramento(id)
-      if (esito.ok) setAttesa(true)
-      else setErrore(esito.errore)
+      setEsito(await riprovaTesseramento(id))
     })
   }
 
   return (
     <>
-      <button type="button" className="btn btn-ghost btn-sm" onClick={riprova} disabled={inCorso || attesa}>
-        {inCorso || attesa ? 'Invio in corso…' : 'Riprova ora'}
+      <button type="button" className="btn btn-ghost btn-sm" onClick={riprova} disabled={inCorso}>
+        {inCorso ? 'Invio a CSI…' : 'Riprova ora'}
       </button>
-      {errore && (
+      {esito && !esito.ok && (
         <span className="nota-in-riga" role="alert">
-          {errore}
+          {esito.errore}
+        </span>
+      )}
+      {esito?.ok && esito.esito === 'tesserato' && (
+        <span className="nota-in-riga" role="status">
+          <span className="badge badge-ok">Tesserato</span>
+          {esito.tessera ? ` tessera n. ${esito.tessera}` : ''}
+        </span>
+      )}
+      {esito?.ok && esito.esito === 'errore' && (
+        <span className="nota-in-riga" role="alert">
+          <span className="badge badge-ko">Non tesserato</span> {esito.errore}
+          {esito.azione && (
+            <>
+              {' '}
+              <strong>Cosa fare:</strong> {esito.azione}
+            </>
+          )}
+        </span>
+      )}
+      {esito?.ok && esito.esito === 'in_corso' && (
+        <span className="nota-in-riga" role="status">
+          CSI sta ancora rispondendo: l&apos;esito comparirà qui a breve.
         </span>
       )}
     </>

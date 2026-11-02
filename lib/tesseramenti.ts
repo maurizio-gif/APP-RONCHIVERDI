@@ -125,6 +125,8 @@ export function azioneConsigliata(
       return 'CSI non risponde: si riprova da solo ogni 2 ore, oppure «Riprova ora».'
     case 'configurazione':
       return 'Problema di configurazione (attività o credenziali CSI): avvisa chi gestisce il tesseramento.'
+    case 'dati_mancanti':
+      return 'Completa in Info4U i dati mancanti indicati, poi «Riprova ora».'
     case 'csi':
       return 'Controlla in Info4U nome, data e luogo di nascita, sesso e codice fiscale, poi «Riprova ora».'
     default:
