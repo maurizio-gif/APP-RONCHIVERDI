@@ -42,6 +42,8 @@ import { type VoceInfo4u } from '@/lib/schedaInfo4u'
 import { ElencoAPassi } from './ElencoAPassi'
 import { CardFrequenza, CardPagamenti, SezioneEmailInfo4u, SintesiScheda } from './SchedaInfo4u'
 import { CardTesseraCsi } from './CardTesseraCsi'
+import { CardValoreCliente } from './CardValoreCliente'
+import { calcolaValoreCliente } from '@/lib/valoreCliente'
 import { type TesseraCsi } from '@/lib/tesseramenti'
 
 // La scheda del contatto sul modello di Passion: in testa chi è e come lo si
@@ -144,6 +146,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
     pagine,
     { data: sessioniPersonal },
     { data: tesseraCsi },
+    { data: movimenti },
   ] = await Promise.all([
     supabase
       .from('persone')
@@ -192,9 +195,19 @@ export default async function PersonaPage({ params }: { params: { id: string } }
       .select('tessera, stagione, tipotess, attivita, qualifiche, rilascio, scadenza')
       .eq('persona_id', params.id)
       .maybeSingle(),
+    // I movimenti di cassa, per il valore cliente (vedi lib/valoreCliente.ts).
+    // Un errore qui non deve impedire alla scheda di aprirsi: il riquadro
+    // semplicemente non c'è.
+    supabase
+      .from('transazioni')
+      .select('importo, data_operazione')
+      .eq('persona_id', params.id)
+      .is('cancellato_il', null)
+      .limit(5000),
   ])
 
   if (!persona) notFound()
+  const valoreCliente = calcolaValoreCliente(movimenti ?? [])
 
   const staffOrdinato = ordinaPerCognome((staff ?? []) as (RigaStaff & { commerciale?: boolean })[])
   const operatori = staffOrdinato.map((x) => x.email)
@@ -678,6 +691,7 @@ export default async function PersonaPage({ params }: { params: { id: string } }
 
         {/* ---- Colonna 2: gli abbonamenti (Info4U) ---- */}
         <div>
+          <CardValoreCliente valore={valoreCliente} />
           <div className="card">
             <div className="card-head">
               <h2>Abbonamenti</h2>
