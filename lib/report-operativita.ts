@@ -1,7 +1,7 @@
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { caricaGruppi } from '@/lib/abbonamenti'
 import { AZIONE_RICHIAMO, giornoDiIstante, giornoPiu, mezzanotteRoma, tipoDaAzione } from '@/lib/agenda'
-import { provenienzaTrattativa } from '@/lib/provenienza'
+import { provenienzaDiOrigine, provenienzaTrattativa } from '@/lib/provenienza'
 
 // Server-only (client service role): i dati del report giornaliero del Core
 // Manager, l'operatività di ogni operatore commerciale — New e rinnovi — giorno
@@ -12,13 +12,19 @@ import { provenienzaTrattativa } from '@/lib/provenienza'
 //  - TELEFONATE: le telefonate chiuse in agenda, anche a vuoto («non
 //    risponde» è un tentativo fatto), per chi le ha chiuse e il giorno in cui
 //    sono state chiuse.
-//  - VISITE: le visite in sede svolte (esito «eseguita»): una visita saltata
-//    non è una azione di chi doveva farla.
+//  - VISITE FISSATE e SVOLTE: le visite in sede del giorno, dall'agenda e
+//    dalle richieste del sito che sono già un appuntamento, di chi le ha in
+//    carico (assegnato_a). Fissate: tutte quelle non annullate; svolte: quelle
+//    con esito «eseguita» — una visita saltata non è una azione di chi doveva
+//    farla. Sono fuori le visite nate da un walk-in (il tour «da fare subito»
+//    del registro ospiti): stanno nei walk-in.
 //  - MESSAGGI: email e WhatsApp registrati, e le richieste dal sito senza
 //    appuntamento (messaggio, «Richiamami») lavorate, per chi le ha gestite.
 //  - ALTRE: i task generici chiusi.
-//  - WALK-IN ACCOLTI: chi si è registrato al banco con questo operatore al
-//    banco (form_contatti.operatore).
+//  - WALK-IN ACCOLTI: chi si è registrato al banco, per l'operatore che era al
+//    banco (form_contatti.operatore). Molte registrazioni non indicano
+//    l'operatore: finiscono in «Non attribuito», così il totale dei walk-in è
+//    sempre quello vero.
 //  - NOTE RINNOVO: le note scritte sulle scadenze Core (gestione e motivo del
 //    mancato rinnovo), per chi le ha scritte: sono le «azioni rinnovo».
 //  - PRESE IN CARICO: le trattative prese in carico (opportunita.assegnato_il).
@@ -59,7 +65,11 @@ export type Vendita = { n: number; euro: number }
 /** Le misure di un operatore in un giorno. */
 export type Misure = {
   tel: number
+  /** Visite in sede svolte. */
   visite: number
+  /** Visite in sede fissate per quel giorno (comprese le svolte). */
+  fissati: number
+  triplePack: number
   msg: number
   altre: number
   walkinAccolti: number
@@ -72,6 +82,8 @@ export function misureVuote(): Misure {
   return {
     tel: 0,
     visite: 0,
+    fissati: 0,
+    triplePack: 0,
     msg: 0,
     altre: 0,
     walkinAccolti: 0,
@@ -91,6 +103,8 @@ export function sommaMisure(elenco: Misure[]): Misure {
   for (const m of elenco) {
     s.tel += m.tel
     s.visite += m.visite
+    s.fissati += m.fissati
+    s.triplePack += m.triplePack
     s.msg += m.msg
     s.altre += m.altre
     s.walkinAccolti += m.walkinAccolti
@@ -150,13 +164,20 @@ function aBlocchi<T>(elenco: T[]): T[][] {
   return blocchi
 }
 
+/** L'operatore in minuscolo; la chiave vuota è «Non attribuito». */
+export const NON_ATTRIBUITO = ''
 const chiaveOperatore = (email: string | null | undefined) => (email ?? '').trim().toLowerCase()
 
 /**
  * Le misure di ogni operatore per ogni giorno da `da` ad `a` (giorni di Roma,
  * estremi inclusi).
  */
-export async function caricaOperativita(supabase: Supabase, da: string, a: string): Promise<Operativita> {
+export async function caricaOperativita(
+  supabase: Supabase,
+  da: string,
+  a: string,
+  { rinnovi = true }: { rinnovi?: boolean } = {}
+): Promise<Operativita> {
   const giorni: string[] = []
   for (let g = da; g <= a; g = giornoPiu(g, 1)) giorni.push(g)
 
@@ -176,9 +197,9 @@ export async function caricaOperativita(supabase: Supabase, da: string, a: strin
     return m
   }
 
-  const gruppoCore = (await caricaGruppi()).find((g) => g.nome === 'CORE')
+  const gruppoCore = rinnovi ? (await caricaGruppi()).find((g) => g.nome === 'CORE') : undefined
 
-  const [task, richieste, walkin, prese, vinte, create, note, vendite] = await Promise.all([
+  const [task, visiteTask, visiteRichieste, richieste, walkin, prese, vinte, create, note, vendite] = await Promise.all([
     // Le voci d'agenda chiuse: per le telefonate e le visite c'è esito_il,
     // per email e WhatsApp (registrate già chiuse) solo completato_il.
     tuttiPaginato<Record<string, any>>(
@@ -187,11 +208,38 @@ export async function caricaOperativita(supabase: Supabase, da: string, a: strin
           .from('task')
           .select('tipo, esito_tipo, esito_da, esito_il, completato_il, assegnato_a')
           .eq('stato', 'completato')
+          .neq('tipo', 'appuntamento_in_sede')
           .or(
             `and(esito_il.gte.${inizio},esito_il.lt.${fine}),and(esito_il.is.null,completato_il.gte.${inizio},completato_il.lt.${fine})`
           )
           .range(d, f),
       'task'
+    ),
+    // Le visite in sede del giorno, fissate in agenda: contano per la data in
+    // cui cadono e per chi le ha in carico.
+    tuttiPaginato<Record<string, any>>(
+      (d, f) =>
+        supabase
+          .from('task')
+          .select('data, stato, esito_tipo, assegnato_a, entita, entita_id')
+          .eq('tipo', 'appuntamento_in_sede')
+          .neq('stato', 'annullato')
+          .gte('data', da)
+          .lte('data', a)
+          .range(d, f),
+      'visite in agenda'
+    ),
+    // E quelle prenotate dal sito, dove la richiesta stessa è l'appuntamento.
+    tuttiPaginato<Record<string, any>>(
+      (d, f) =>
+        supabase
+          .from('form_contatti')
+          .select('data_scelta, origine, esito_tipo, gestito, assegnato_a')
+          .eq('azione', 'appuntamento')
+          .gte('data_scelta', da)
+          .lte('data_scelta', a)
+          .range(d, f),
+      'visite dal sito'
     ),
     // Messaggi e «Richiamami» lavorati: contano per quando e da chi.
     tuttiPaginato<Record<string, any>>(
@@ -231,7 +279,7 @@ export async function caricaOperativita(supabase: Supabase, da: string, a: strin
       (d, f) =>
         supabase
           .from('opportunita')
-          .select('id, assegnato_a, chiuso_il, valore_euro, origine, abbonamento_id')
+          .select('id, assegnato_a, chiuso_il, valore_euro, origine, abbonamento_id, triple_pack')
           .eq('stato', 'vinto')
           .is('abbonamento_id', null)
           .gte('chiuso_il', inizio)
@@ -280,37 +328,68 @@ export async function caricaOperativita(supabase: Supabase, da: string, a: strin
   // ── azioni ──
   for (const t of task) {
     const quando = (t.esito_il ?? t.completato_il) as string | null
-    const operatore = chiaveOperatore(t.esito_da ?? t.assegnato_a)
-    if (!quando || !operatore) continue
-    const m = misure(giornoDiIstante(quando), operatore)
+    if (!quando) continue
+    const m = misure(giornoDiIstante(quando), chiaveOperatore(t.esito_da ?? t.assegnato_a))
     if (!m) continue
     if (t.tipo === 'appuntamento_telefonico') m.tel += 1
-    else if (t.tipo === 'appuntamento_in_sede') {
-      if (t.esito_tipo === 'eseguita') m.visite += 1
-    } else if (t.tipo === 'email' || t.tipo === 'whatsapp') m.msg += 1
+    else if (t.tipo === 'email' || t.tipo === 'whatsapp') m.msg += 1
     else m.altre += 1
   }
 
+  // Le visite nate da un walk-in (il tour «da fare subito» del registro
+  // ospiti) non sono visite da vendere: stanno nei walk-in. Per riconoscerle
+  // serve l'origine della richiesta a cui il task è agganciato.
+  const idRichiesteDiTask = [
+    ...new Set(visiteTask.filter((t) => t.entita === 'form_contatti').map((t) => t.entita_id as string)),
+  ]
+  const origineDelTask = new Map<string, string | null>()
+  const risposteOrigini = await Promise.all(
+    aBlocchi(idRichiesteDiTask).map((ids) => supabase.from('form_contatti').select('id, origine').in('id', ids))
+  )
+  for (const { data, error } of risposteOrigini) {
+    if (error) console.error('Report operatività, origine delle visite non letta:', error.message)
+    for (const r of data ?? []) origineDelTask.set(String(r.id), (r.origine as string | null) ?? null)
+  }
+  const eWalkIn = (origine: string | null | undefined) => provenienzaDiOrigine(origine ?? null).chiave === 'guest-register'
+
+  for (const t of visiteTask) {
+    const origine = t.entita === 'form_contatti' ? origineDelTask.get(String(t.entita_id)) : null
+    if (eWalkIn(origine)) continue
+    const m = misure(String(t.data), chiaveOperatore(t.assegnato_a))
+    if (!m) continue
+    m.fissati += 1
+    if (t.stato === 'completato' && t.esito_tipo === 'eseguita') m.visite += 1
+  }
+  for (const r of visiteRichieste) {
+    if (!r.data_scelta || eWalkIn(r.origine as string | null)) continue
+    const m = misure(String(r.data_scelta).slice(0, 10), chiaveOperatore(r.assegnato_a))
+    if (!m) continue
+    m.fissati += 1
+    if (r.gestito && r.esito_tipo === 'eseguita') m.visite += 1
+  }
+
   for (const r of richieste) {
-    const operatore = chiaveOperatore(r.gestito_da)
-    if (!operatore || !r.gestito_il) continue
+    if (!r.gestito_il) continue
     // Come nel foglio classico: un «Richiamami» conta fra i messaggi.
     if (tipoDaAzione(r.azione as string | null) !== 'messaggio' && r.azione !== AZIONE_RICHIAMO) continue
-    const m = misure(giornoDiIstante(r.gestito_il as string), operatore)
+    const m = misure(giornoDiIstante(r.gestito_il as string), chiaveOperatore(r.gestito_da))
     if (m) m.msg += 1
   }
 
+  // I walk-in: molte registrazioni non dicono chi era al banco, e vanno
+  // comunque contate (finiscono in «Non attribuito»). Sono anche i lead
+  // arrivati del canale: la registrazione è il lead.
   for (const w of walkin) {
-    const operatore = chiaveOperatore(w.operatore)
-    if (!operatore) continue
-    const m = misure(giornoDiIstante(w.created_at as string), operatore)
+    const giorno = giornoDiIstante(w.created_at as string)
+    const m = misure(giorno, chiaveOperatore(w.operatore))
     if (m) m.walkinAccolti += 1
+    const arrivati = lead.get(giorno)
+    if (arrivati) arrivati.walkin += 1
   }
 
   for (const p of prese) {
-    const operatore = chiaveOperatore(p.assegnato_a)
-    if (!operatore || !p.assegnato_il) continue
-    const m = misure(giornoDiIstante(p.assegnato_il as string), operatore)
+    if (!p.assegnato_il) continue
+    const m = misure(giornoDiIstante(p.assegnato_il as string), chiaveOperatore(p.assegnato_a))
     if (m) m.prese += 1
   }
 
@@ -344,14 +423,17 @@ export async function caricaOperativita(supabase: Supabase, da: string, a: strin
 
   for (const c of create) {
     const giorno = lead.get(giornoDiIstante(c.creato_il as string))
-    if (giorno) giorno[canaleDi(c.id as string, (c.origine as string | null) ?? null)] += 1
+    if (!giorno) continue
+    const canale = canaleDi(c.id as string, (c.origine as string | null) ?? null)
+    // I walk-in sono già contati dalle registrazioni al banco.
+    if (canale !== 'walkin') giorno[canale] += 1
   }
 
   for (const v of vinte) {
-    const operatore = chiaveOperatore(v.assegnato_a)
-    if (!operatore || !v.chiuso_il) continue
-    const m = misure(giornoDiIstante(v.chiuso_il as string), operatore)
+    if (!v.chiuso_il) continue
+    const m = misure(giornoDiIstante(v.chiuso_il as string), chiaveOperatore(v.assegnato_a))
     if (!m) continue
+    if (v.triple_pack) m.triplePack += 1
     const vendita = m.vendite[canaleDi(v.id as string, (v.origine as string | null) ?? null)]
     vendita.n += 1
     vendita.euro += v.valore_euro != null ? Number(v.valore_euro) : 0

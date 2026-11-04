@@ -5,20 +5,15 @@ import { utenteHaSezione } from '@/lib/auth/sezioni-server'
 import {
   dataBreve,
   giorniDelMese,
-  giornoDiIstante,
   giornoPiu,
   etichettaMese,
   mesePiu,
-  mezzanotteRoma,
   oggiRoma,
   primoDelMese,
-  tipoDaAzione,
-  AZIONE_RICHIAMO,
   ultimoDelMese,
 } from '@/lib/agenda'
 import { euro } from '@/lib/pipeline'
-import { COLONNE_NOTA_VINTA, conColonneNuove } from '@/lib/migrazioni'
-import { provenienzaDiOrigine } from '@/lib/provenienza'
+import { caricaOperativita, sommaMisure } from '@/lib/report-operativita'
 import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import { CellaObiettivo } from './CellaObiettivo'
 import { OperativitaGiornaliera, PERIODI, type Periodo } from './OperativitaGiornaliera'
@@ -39,26 +34,26 @@ export const dynamic = 'force-dynamic'
 // la somma di tutte le commerciali, per quando la domanda è come sta andando
 // il settore e non una persona sola.
 //
-// ── Cosa conta cosa (le scelte che qualcuno dovrà rivedere) ──────────────
+// ── Cosa conta cosa ──────────────────────────────────────────────────────
 //
-//  - CONTATTI/TELEF: le telefonate (task e richieste di tipo "telefonata")
-//    del giorno, fissate o già registrate, di questa consulente.
-//  - MESSAGGI GESTITI: le richieste arrivate senza appuntamento (un
-//    messaggio, non una telefonata né una visita) che questa consulente ha
-//    gestito quel giorno — non quando sono arrivate, ma quando sono state
-//    lavorate (`form_contatti.gestito_il`).
-//  - APP.TI FISSATI / (GIORNO STESSO) / SVOLTI: le visite in sede di questa
-//    consulente per quel giorno — **escluse** quelle nate da un walk-in
-//    (quelle sono nella loro colonna). "Fissati" e "del giorno stesso" oggi
-//    contano la stessa cosa: il vecchio distinguo fra quando è stato preso
-//    l'appuntamento e quando si tiene non ha un corrispondente nei dati.
-//  - WALK IN / CHIUSI: chi si è registrato al banco quel giorno con questa
-//    consulente al banco (`form_contatti.operatore`), e quanti di loro hanno
-//    già un'iscrizione vinta.
-//  - TOTAL SALES / N. triple pack / FATTURATO: le trattative vinte quel
-//    giorno da questa consulente, quante includono un triple pack, e quanto
-//    valgono in euro — preso da `opportunita.valore_euro`, non da un conto a
-//    parte.
+// I numeri non si calcolano qui: vengono da lib/report-operativita.ts, la
+// stessa fonte delle tabelle «Per canale» e «Per operatore» della schermata
+// sopra. Il foglio classico e la schermata nuova dicono quindi le stesse
+// cose (prima ognuno contava a modo suo, e non tornavano). Cosa vuol dire
+// ogni colonna:
+//
+//  - CONTATTI/TELEF: le telefonate chiuse nel giorno, anche a vuoto.
+//  - APP.TI FISSATI / SVOLTI: le visite in sede del giorno (agenda e
+//    richieste dal sito che sono già un appuntamento) e quelle con esito
+//    «eseguita». Fuori le visite nate da un walk-in.
+//  - WALK IN: le registrazioni al banco del giorno, comprese quelle senza
+//    operatore (in «Tutti»); con una consulente sola, solo quelle in cui era
+//    lei al banco. CHIUSI: le trattative vinte che arrivano da un walk-in.
+//  - TOTAL SALES / N. triple pack / FATTURATO: le trattative New vinte nel
+//    giorno (walk-in, sito, altro), quante includono un triple pack e quanto
+//    valgono (opportunita.valore_euro). Fuori i rinnovi — stanno nella
+//    tabella «Per operatore» — e i lead aperti da una scadenza mensile, la
+//    cui vendita è il rinnovo.
 //  - GOAL GIORNALIERO: scritto a mano, come sul foglio — vive nella sua
 //    tabella (obiettivi_giornalieri), non si calcola.
 //  - REFERRAL: omessa. Oggi non ha un'origine sua nei dati (arriva come una
@@ -69,7 +64,6 @@ export const dynamic = 'force-dynamic'
 type Giorno = {
   data: string
   contattiTelef: number
-  messaggiGestiti: number
   appFissati: number
   appSvolti: number
   walkIn: number
@@ -83,7 +77,6 @@ function giornoVuoto(data: string): Giorno {
   return {
     data,
     contattiTelef: 0,
-    messaggiGestiti: 0,
     appFissati: 0,
     appSvolti: 0,
     walkIn: 0,
@@ -165,8 +158,6 @@ export default async function ReportGiornalieroPage({
   const primo = meseRichiesto
   const ultimo = ultimoDelMese(meseRichiesto)
   const giorni = giorniDelMese(meseRichiesto)
-  const inizioIstante = mezzanotteRoma(primo)
-  const fineIstante = mezzanotteRoma(giornoPiu(ultimo, 1))
 
   // I link del foglio classico: portano con sé la scelta della schermata
   // nuova (giorno, periodo, operatore), così aprire o cambiare il foglio non
@@ -204,113 +195,18 @@ export default async function ReportGiornalieroPage({
   const righe = new Map<string, Giorno>(giorni.map((g) => [g, giornoVuoto(g)]))
   const obiettiviMappa = new Map<string, number>()
 
-  // PostgREST tronca comunque ogni singola risposta a 1000 righe (stesso
-  // troncamento silenzioso già corretto nel resoconto serale,
-  // lib/report-direzionale.ts): sulla vista "Tutti" un mese intero di task e
-  // richieste può superarle, quindi ogni lettura qui sotto va paginata con
-  // `.range()` invece di fidarsi di una singola risposta.
-  async function tuttiPaginato<T>(
-    esegui: (da: number, a: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
-  ): Promise<{ data: T[]; error: { message: string } | null }> {
-    const tutte: T[] = []
-    let ultimoErrore: { message: string } | null = null
-    for (let da = 0; ; da += 1000) {
-      const { data, error } = await esegui(da, da + 999)
-      ultimoErrore = error
-      tutte.push(...(data ?? []))
-      if (!data || data.length < 1000) break
-    }
-    return { data: tutte, error: ultimoErrore }
-  }
-
   if (emailFiltro.length > 0) {
-    const [
-      { data: obiettivi, error: erroreObiettivi },
-      { data: taskRighe },
-      { data: telefApp },
-      { data: messaggi },
-      { data: walkIn },
-      { data: vinte },
-    ] = await Promise.all([
-      tuttiPaginato<Record<string, any>>((da, a) =>
-        supabase
-          .from('obiettivi_giornalieri')
-          .select('giorno, goal')
-          .in('commerciale', emailFiltro)
-          .gte('giorno', primo)
-          .lte('giorno', ultimo)
-          .range(da, a)
-      ),
-      // Telefonate e visite in sede fissate dalla segreteria o dal
-      // commerciale stesso (task), per la data in cui cadono.
-      tuttiPaginato<Record<string, any>>((da, a) =>
-        supabase
-          .from('task')
-          .select('id, tipo, data, stato, esito_tipo, entita, entita_id')
-          .in('assegnato_a', emailFiltro)
-          .in('tipo', ['appuntamento_telefonico', 'appuntamento_in_sede'])
-          .gte('data', primo)
-          .lte('data', ultimo)
-          .range(da, a)
-      ),
-      // Telefonate e visite in sede prenotate direttamente dal sito, quando
-      // la richiesta stessa è già l'appuntamento (non passa da un task).
-      tuttiPaginato<Record<string, any>>((da, a) =>
-        supabase
-          .from('form_contatti')
-          .select('id, azione, data_scelta, origine, esito_tipo, gestito')
-          .in('assegnato_a', emailFiltro)
-          .in('azione', ['telefonata', 'appuntamento'])
-          .gte('data_scelta', primo)
-          .lte('data_scelta', ultimo)
-          .range(da, a)
-      ),
-      // I messaggi (richieste senza appuntamento) che questa consulente ha
-      // gestito nel mese: contano per quando sono stati lavorati
-      // (`gestito_il`), non per quando sono arrivati.
-      tuttiPaginato<Record<string, any>>((da, a) =>
-        supabase
-          .from('form_contatti')
-          .select('id, azione, gestito_il')
-          .in('gestito_da', emailFiltro)
-          .eq('gestito', true)
-          .gte('gestito_il', inizioIstante)
-          .lt('gestito_il', fineIstante)
-          .range(da, a)
-      ),
-      // I walk-in di cui una di queste consulenti era al banco: origine e
-      // operatore sono le due colonne che lo dicono (vedi api/lead.ts sul
-      // sito).
-      tuttiPaginato<Record<string, any>>((da, a) =>
-        supabase
-          .from('form_contatti')
-          .select('id, created_at, persona_id, opportunita_id')
-          .eq('origine', 'walk-in')
-          .in('operatore', emailFiltro)
-          .gte('created_at', inizioIstante)
-          .lt('created_at', fineIstante)
-          .range(da, a)
-      ),
-      // Le vinte del mese: valgono per TOTAL SALES, triple pack e fatturato.
-      // `triple_pack` è la colonna più recente (vedi
-      // scripts/sql/2026-09-17-triple-pack-e-obiettivi-giornalieri.sql): se
-      // la migration non è ancora passata, si rilegge senza — a metà, non a
-      // zero, che direbbe "nessuna vendita" su un mese che invece ne ha.
-      tuttiPaginato<Record<string, any>>((da, a) =>
-        conColonneNuove<Record<string, any>>(
-          'id, persona_id, chiuso_il, valore_euro, triple_pack',
-          COLONNE_NOTA_VINTA,
-          (colonne) =>
-            supabase
-              .from('opportunita')
-              .select(colonne)
-              .in('assegnato_a', emailFiltro)
-              .eq('stato', 'vinto')
-              .gte('chiuso_il', inizioIstante)
-              .lt('chiuso_il', fineIstante)
-              .range(da, a)
-        )
-      ),
+    // Le stesse misure delle tabelle sopra (lib/report-operativita.ts): è la
+    // fonte unica, così il foglio classico e la schermata nuova non possono
+    // più dire due cose diverse. Solo il New: i rinnovi qui non entrano.
+    const [{ data: obiettivi, error: erroreObiettivi }, dati] = await Promise.all([
+      supabase
+        .from('obiettivi_giornalieri')
+        .select('giorno, goal')
+        .in('commerciale', emailFiltro)
+        .gte('giorno', primo)
+        .lte('giorno', ultimo),
+      caricaOperativita(supabase, primo, ultimo, { rinnovi: false }),
     ])
 
     if (erroreObiettivi && !/obiettivi_giornalieri/.test(erroreObiettivi.message)) {
@@ -325,82 +221,25 @@ export default async function ReportGiornalieroPage({
       obiettiviMappa.set(giorno, (obiettiviMappa.get(giorno) ?? 0) + (o.goal as number))
     }
 
-    // Per escludere dalle visite "APP.TI" quelle nate da un walk-in (il tour
-    // "da fare subito" che il guest register crea da solo, vedi
-    // api/lead.ts): serve sapere l'origine della richiesta a cui un task è
-    // agganciato. Le voci scritte a mano per una persona (entita='persona')
-    // non hanno una richiesta dietro e restano incluse — distinguere anche
-    // lì l'origine del lead originario è un affinamento per un'altra volta.
-    const idRichiesteDiTask = [
-      ...new Set(
-        (taskRighe ?? [])
-          .filter((t) => t.entita === 'form_contatti')
-          .map((t) => t.entita_id as string)
-      ),
-    ]
-    const { data: richiesteDiTask } = idRichiesteDiTask.length
-      ? await supabase.from('form_contatti').select('id, origine').in('id', idRichiesteDiTask)
-      : { data: [] as { id: string; origine: string | null }[] }
-    const origineRichiesta = new Map(
-      (richiesteDiTask ?? []).map((r) => [r.id as string, r.origine as string | null])
-    )
-
-    const eWalkIn = (origine: string | null) => provenienzaDiOrigine(origine).chiave === 'guest-register'
-
-    for (const t of taskRighe ?? []) {
-      const giorno = righe.get(t.data as string)
-      if (!giorno) continue
-      if (t.tipo === 'appuntamento_telefonico') {
-        giorno.contattiTelef += 1
-        continue
-      }
-      // appuntamento_in_sede: fuori le visite nate da un walk-in.
-      const origine = t.entita === 'form_contatti' ? (origineRichiesta.get(t.entita_id as string) ?? null) : null
-      if (eWalkIn(origine)) continue
-      giorno.appFissati += 1
-      if (t.stato === 'completato' && t.esito_tipo === 'eseguita') giorno.appSvolti += 1
-    }
-
-    for (const r of telefApp ?? []) {
-      if (!r.data_scelta) continue
-      const giorno = righe.get(String(r.data_scelta).slice(0, 10))
-      if (!giorno) continue
-      if (eWalkIn(r.origine as string | null)) continue
-      if (r.azione === 'telefonata') {
-        giorno.contattiTelef += 1
-      } else {
-        giorno.appFissati += 1
-        if (r.gestito && r.esito_tipo === 'eseguita') giorno.appSvolti += 1
-      }
-    }
-
-    for (const m of messaggi ?? []) {
-      // Un «Richiamami» conta come i messaggi, di cui ha preso il posto.
-      if (
-        !m.gestito_il ||
-        (tipoDaAzione(m.azione as string | null) !== 'messaggio' && m.azione !== AZIONE_RICHIAMO)
+    // «Tutti» è tutto il lavoro del mese, anche quello senza operatore
+    // (walk-in senza nessuno al banco, trattative senza assegnatario): è la
+    // somma che torna con la tabella «Per operatore». Una consulente sola è
+    // solo il suo.
+    for (const g of giorni) {
+      const delGiorno = dati.perGiorno.get(g)
+      if (!delGiorno) continue
+      const m = sommaMisure(
+        [...delGiorno.entries()].filter(([email]) => commerciale === TUTTI || email === commerciale).map(([, x]) => x)
       )
-        continue
-      const giorno = righe.get(giornoDiIstante(m.gestito_il as string))
-      if (!giorno) continue
-      giorno.messaggiGestiti += 1
-    }
-
-    const opportunitaVinteWalkIn = new Set<string>()
-    for (const w of walkIn ?? []) {
-      const giorno = righe.get(giornoDiIstante(w.created_at as string))
-      if (!giorno) continue
-      giorno.walkIn += 1
-      if (w.opportunita_id) opportunitaVinteWalkIn.add(w.opportunita_id as string)
-    }
-
-    for (const v of vinte ?? []) {
-      const giorno = righe.get(giornoDiIstante(v.chiuso_il as string))
-      if (!giorno) continue
-      giorno.vinte += 1
-      if (v.triple_pack) giorno.triplePack += 1
-      giorno.fatturato += v.valore_euro != null ? Number(v.valore_euro) : 0
-      if (opportunitaVinteWalkIn.has(v.id as string)) giorno.walkInChiusi += 1
+      const riga = righe.get(g)!
+      riga.contattiTelef = m.tel
+      riga.appFissati = m.fissati
+      riga.appSvolti = m.visite
+      riga.walkIn = m.walkinAccolti
+      riga.walkInChiusi = m.vendite.walkin.n
+      riga.vinte = m.vendite.walkin.n + m.vendite.sito.n + m.vendite.altro.n
+      riga.triplePack = m.triplePack
+      riga.fatturato = m.vendite.walkin.euro + m.vendite.sito.euro + m.vendite.altro.euro
     }
   }
 

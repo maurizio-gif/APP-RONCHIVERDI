@@ -10,6 +10,7 @@ import {
   correlazione,
   leggiCorrelazione,
   misureVuote,
+  NON_ATTRIBUITO,
   sommaMisure,
   venditeTotali,
   type CanaleVendita,
@@ -48,6 +49,8 @@ export type RigaStaffReport = {
 const formatoEuro = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 const eur = (v: number) => (v ? formatoEuro.format(v) : '—')
 const num = (v: number) => (v ? v.toLocaleString('it-IT') : '—')
+/** «42%», o «—» quando non c'è niente da dividere. */
+const percento = (parte: number, tutto: number) => (tutto > 0 ? `${Math.round((parte / tutto) * 100)}%` : '—')
 
 /** «+12%» / «−5%» rispetto al periodo prima; «—» quando non c'è da confrontare. */
 function delta(attuale: number, prima: number): { testo: string; classe: string } {
@@ -126,6 +129,7 @@ export async function OperativitaGiornaliera({
   for (const delGiorno of dati.perGiorno.values()) for (const e of delGiorno.keys()) operatori.add(e)
 
   const nome = (email: string) => {
+    if (email === NON_ATTRIBUITO) return 'Non attribuito'
     const s = staffPerEmail.get(email)
     const completo = [s?.nome, s?.cognome].filter(Boolean).join(' ').trim()
     return completo || email
@@ -379,6 +383,9 @@ export async function OperativitaGiornaliera({
                 <th colSpan={8} className="rop-gruppo">
                   Azioni
                 </th>
+                <th colSpan={4} className="rop-gruppo">
+                  Visite e close
+                </th>
                 <th colSpan={5} className="rop-gruppo">
                   Vendite
                 </th>
@@ -391,13 +398,27 @@ export async function OperativitaGiornaliera({
               </tr>
               <tr>
                 <th className="cella-importo" title="Telefonate chiuse, anche senza risposta">Tel.</th>
-                <th className="cella-importo" title="Visite in sede svolte">Visite</th>
+                <th className="cella-importo" title="Visite in sede svolte, walk-in esclusi">Visite svolte</th>
                 <th className="cella-importo" title="Email, WhatsApp e messaggi o «Richiamami» dal sito lavorati">Msg.</th>
                 <th className="cella-importo" title="Altri task chiusi">Altre</th>
                 <th className="cella-importo" title="Walk-in registrati al banco con questo operatore">Walk-in acc.</th>
                 <th className="cella-importo" title="Note scritte sulle scadenze Core: azioni rinnovo">Note rinn.</th>
                 <th className="cella-importo" title="Trattative prese in carico">Prese</th>
                 <th className="cella-importo">Totale</th>
+                <th className="cella-importo" title="Visite in sede fissate per il giorno, walk-in esclusi">Fissate</th>
+                <th className="cella-importo" title="Visite svolte su fissate">Show</th>
+                <th
+                  className="cella-importo"
+                  title="Close ratio sulle visite: vendite da sito e altro New su visite svolte"
+                >
+                  Close app.
+                </th>
+                <th
+                  className="cella-importo"
+                  title="Close ratio walk-in: vendite da walk-in su walk-in accolti"
+                >
+                  Close WI
+                </th>
                 <th className="cella-importo" title="Trattative vinte da un lead walk-in">Walk-in</th>
                 <th className="cella-importo" title="Trattative vinte da una richiesta dal sito">Sito</th>
                 <th className="cella-importo" title="Agenda, phone-in, eventi, recupero dei mancati rinnovi">Altro New</th>
@@ -418,9 +439,15 @@ export async function OperativitaGiornaliera({
                 return (
                   <tr key={r.email} className={r.email === scelto ? 'is-oggi' : ''}>
                     <td className="cella-nowrap">
-                      <Link href={`${href({ operatore: r.email })}#dettaglio`} scroll={false}>
-                        {nome(r.email)}
-                      </Link>
+                      {r.email === NON_ATTRIBUITO ? (
+                        <span title="Walk-in senza operatore al banco, trattative e note senza assegnatario">
+                          {nome(r.email)}
+                        </span>
+                      ) : (
+                        <Link href={`${href({ operatore: r.email })}#dettaglio`} scroll={false}>
+                          {nome(r.email)}
+                        </Link>
+                      )}
                       {reparto(r.email) && <span className="nota-in-riga">{reparto(r.email)}</span>}
                     </td>
                     <td className="cella-importo">{num(r.m.tel)}</td>
@@ -433,6 +460,10 @@ export async function OperativitaGiornaliera({
                     <td className="cella-importo">
                       <strong>{num(r.azioni)}</strong>
                     </td>
+                    <td className="cella-importo">{num(r.m.fissati)}</td>
+                    <td className="cella-importo">{percento(r.m.visite, r.m.fissati)}</td>
+                    <td className="cella-importo">{percento(r.m.vendite.sito.n + r.m.vendite.altro.n, r.m.visite)}</td>
+                    <td className="cella-importo">{percento(r.m.vendite.walkin.n, r.m.walkinAccolti)}</td>
                     {CANALI_VENDITA.map((c) => (
                       <td key={c} className="cella-importo" title={r.m.vendite[c].n ? eur(r.m.vendite[c].euro) : undefined}>
                         {r.m.vendite[c].n ? `${r.m.vendite[c].n} · ${eur(r.m.vendite[c].euro)}` : '—'}
@@ -484,6 +515,10 @@ export async function OperativitaGiornaliera({
                 <td className="cella-importo">
                   <strong>{num(azioniTot)}</strong>
                 </td>
+                <td className="cella-importo">{num(totale.fissati)}</td>
+                <td className="cella-importo">{percento(totale.visite, totale.fissati)}</td>
+                <td className="cella-importo">{percento(totale.vendite.sito.n + totale.vendite.altro.n, totale.visite)}</td>
+                <td className="cella-importo">{percento(totale.vendite.walkin.n, totale.walkinAccolti)}</td>
                 {CANALI_VENDITA.map((c) => (
                   <td key={c} className="cella-importo">
                     {totale.vendite[c].n ? `${totale.vendite[c].n} · ${eur(totale.vendite[c].euro)}` : '—'}
@@ -546,13 +581,14 @@ export async function OperativitaGiornaliera({
                 <tr>
                   <th>Giorno</th>
                   <th className="cella-importo">Tel.</th>
-                  <th className="cella-importo">Visite</th>
+                  <th className="cella-importo">Visite svolte</th>
                   <th className="cella-importo">Msg.</th>
                   <th className="cella-importo">Altre</th>
                   <th className="cella-importo">Walk-in acc.</th>
                   <th className="cella-importo">Note rinn.</th>
                   <th className="cella-importo">Prese</th>
                   <th className="cella-importo">Azioni</th>
+                  <th className="cella-importo" title="Visite fissate per il giorno">Visite fissate</th>
                   <th className="cella-importo">Walk-in</th>
                   <th className="cella-importo">Sito</th>
                   <th className="cella-importo">Altro New</th>
@@ -577,6 +613,7 @@ export async function OperativitaGiornaliera({
                       <td className="cella-importo">
                         <strong>{num(azioniTotali(m))}</strong>
                       </td>
+                      <td className="cella-importo">{num(m.fissati)}</td>
                       {CANALI_VENDITA.map((c) => (
                         <td key={c} className="cella-importo">
                           {m.vendite[c].n ? `${m.vendite[c].n} · ${eur(m.vendite[c].euro)}` : '—'}

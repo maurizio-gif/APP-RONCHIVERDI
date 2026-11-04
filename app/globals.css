@@ -11647,15 +11647,17 @@ table.tabella tr.riga-evidenza > td:first-child {
 
 .rop-tabella thead tr:nth-child(2) th:nth-child(1),
 .rop-tabella thead tr:nth-child(2) th:nth-child(9),
-.rop-tabella thead tr:nth-child(2) th:nth-child(14),
-.rop-tabella thead tr:nth-child(2) th:nth-child(16) {
+.rop-tabella thead tr:nth-child(2) th:nth-child(13),
+.rop-tabella thead tr:nth-child(2) th:nth-child(18),
+.rop-tabella thead tr:nth-child(2) th:nth-child(20) {
 	border-left: 1px solid var(--border);
 }
 
 .rop-tabella tbody td:nth-child(2),
 .rop-tabella tbody td:nth-child(10),
-.rop-tabella tbody td:nth-child(15),
-.rop-tabella tbody td:nth-child(17) {
+.rop-tabella tbody td:nth-child(14),
+.rop-tabella tbody td:nth-child(19),
+.rop-tabella tbody td:nth-child(21) {
 	border-left: 1px solid var(--border);
 }
 
