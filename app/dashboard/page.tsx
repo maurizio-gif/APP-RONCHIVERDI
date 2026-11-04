@@ -33,6 +33,7 @@ import type { DatiTrattativa } from './richieste/Trattativa'
 import type { EventoDOrigine, TrattativaConPersona } from './TrattativeDashboard'
 import { ElencoLead } from './ElencoLead'
 import { conTentativiRichiamo } from '@/lib/richiamo-server'
+import { ORIGINE_RECUPERO } from '@/lib/provenienza'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,9 +43,21 @@ const IMPEGNI_IN_ELENCO = 12
 /** Quante trattative elencare per blocco prima di rimandare alla sezione. */
 const TRATTATIVE_IN_ELENCO = 12
 
+/**
+ * I mancati rinnovi sono tanti e si lavorano a più riprese, e non hanno un
+ * elenco loro dove rimandare (non sono richieste: Club e Family non li
+ * mostra): qui se ne elencano di più, e oltre il tetto lo si dice.
+ */
+const TRATTATIVE_RECUPERO_IN_ELENCO = 50
+
 /** Le schede dei lead, sul modello di Passion: un elenco solo, filtrato. */
 const VISTE_LEAD = [
-  { chiave: 'libere', testo: 'Da prendere in carico' },
+  // «Da prendere in carico» è in due contenitori: i mancati rinnovi sono
+  // tanti e si lavorano più a lungo, e mescolati ai lead che arrivano dal sito
+  // o dal banco li sommergono. `libere` sono i new puri, `recupero` i mancati
+  // rinnovi (origine recupero-rinnovo, vedi lib/provenienza.ts).
+  { chiave: 'libere', testo: 'New da prendere in carico' },
+  { chiave: 'recupero', testo: 'Mancati rinnovi da prendere in carico' },
   { chiave: 'mie', testo: 'Assegnate a te' },
   { chiave: 'in_gestione', testo: 'In gestione' },
   { chiave: 'vinte', testo: 'Vinte' },
@@ -112,9 +125,9 @@ async function contatoriTrattative(email: string | null) {
   // filtro (l'intera opportunita) va paginata con .range(): PostgREST
   // tronca comunque una select a 1000 righe, e la tabella le ha già
   // superate — vedi il bug del resoconto serale (lib/report-direzionale.ts).
-  const righe: { stato: string; assegnato_a: string | null }[] = []
+  const righe: { stato: string; assegnato_a: string | null; origine: string | null }[] = []
   for (let da = 0; ; da += 1000) {
-    const { data } = await supabase.from('opportunita').select('stato, assegnato_a').range(da, da + 999)
+    const { data } = await supabase.from('opportunita').select('stato, assegnato_a, origine').range(da, da + 999)
     righe.push(...(data ?? []))
     if (!data || data.length < 1000) break
   }
@@ -125,17 +138,22 @@ async function contatoriTrattative(email: string | null) {
   // «Da prendere in carico» sono quelle di nessuno, non quelle in stato
   // `nuovo`: chiunque abbia il diritto commerciale può prendersele, quindi
   // per chi guarda sono lavoro disponibile, non lavoro di altri.
+  // Divise in due: i new puri e i mancati rinnovi.
   let libere = 0
+  let libereRecupero = 0
 
   for (const riga of righe) {
     const stato = riga.stato as StatoTrattativa
     if (!(stato in club)) continue
     club[stato] += 1
     if (email && riga.assegnato_a === email) mie[stato] += 1
-    if (!riga.assegnato_a && !eChiusa(stato)) libere += 1
+    if (!riga.assegnato_a && !eChiusa(stato)) {
+      if (riga.origine === ORIGINE_RECUPERO) libereRecupero += 1
+      else libere += 1
+    }
   }
 
-  return { mie, club, libere }
+  return { mie, club, libere, libereRecupero }
 }
 
 /**
@@ -302,14 +320,22 @@ async function trattativeDaLavorare(email: string | null, vista: VistaLead) {
     .select(
       'id, stato, assegnato_a, motivo_perso, motivo_annullato, persona_id, creato_il, origine, richiesta, abbonamento_id, recupero_abbonamento_id, recupero_anni, note'
     )
-  if (vista === 'libere') query = query.in('stato', ['nuovo', 'in_gestione']).is('assegnato_a', null)
+  // `origine` può essere null: un `neq` da solo lascerebbe fuori proprio i
+  // lead senza origine, quindi si chiede «null oppure diversa da recupero».
+  if (vista === 'libere')
+    query = query
+      .in('stato', ['nuovo', 'in_gestione'])
+      .is('assegnato_a', null)
+      .or(`origine.is.null,origine.neq.${ORIGINE_RECUPERO}`)
+  else if (vista === 'recupero')
+    query = query.in('stato', ['nuovo', 'in_gestione']).is('assegnato_a', null).eq('origine', ORIGINE_RECUPERO)
   else if (vista === 'mie') query = query.in('stato', ['nuovo', 'in_gestione']).eq('assegnato_a', email ?? '')
   else if (vista === 'in_gestione') query = query.eq('stato', 'in_gestione')
   else if (vista === 'vinte') query = query.eq('stato', 'vinto')
   else if (vista === 'perse') query = query.eq('stato', 'perso')
   const { data } = await query
     .order(vista === 'vinte' || vista === 'perse' ? 'chiuso_il' : 'creato_il', { ascending: false })
-    .limit(TRATTATIVE_IN_ELENCO)
+    .limit(vista === 'recupero' ? TRATTATIVE_RECUPERO_IN_ELENCO : TRATTATIVE_IN_ELENCO)
 
   const scelte = data ?? []
   const personaIds = [...new Set(scelte.map((t) => t.persona_id).filter(Boolean))] as string[]
@@ -582,8 +608,10 @@ export default async function RiepilogoPage({ searchParams }: { searchParams: Pa
   const vistaScelta = VISTE_LEAD.some((v) => v.chiave === searchParams.lead)
     ? (searchParams.lead as VistaLead)
     : null
-  const vistaDaiConti = (conti: { libere: number } | null): VistaLead =>
-    vistaScelta ?? (conti && conti.libere === 0 ? 'mie' : 'libere')
+  // Senza scheda scelta: prima i new da prendere (sono i lead freschi), poi i
+  // mancati rinnovi, poi i propri.
+  const vistaDaiConti = (conti: { libere: number; libereRecupero: number } | null): VistaLead =>
+    vistaScelta ?? (!conti || conti.libere > 0 ? 'libere' : conti.libereRecupero > 0 ? 'recupero' : 'mie')
   const contiInCorso = vedeTrattative ? contatoriTrattative(email) : Promise.resolve(null)
   const leadInCorso = !vedeTrattative
     ? Promise.resolve(null)
@@ -613,6 +641,7 @@ export default async function RiepilogoPage({ searchParams }: { searchParams: Pa
 
   const contiLead: Record<VistaLead, number> | null = trattative && {
     libere: trattative.libere,
+    recupero: trattative.libereRecupero,
     mie: trattative.mie.nuovo + trattative.mie.in_gestione,
     in_gestione: trattative.club.in_gestione,
     vinte: trattative.club.vinto,
@@ -629,8 +658,11 @@ export default async function RiepilogoPage({ searchParams }: { searchParams: Pa
     return `/dashboard?${q.toString()}`
   }
 
-  const filtroLead: Record<VistaLead, string> = {
+  // Dove porta «Vedi tutti». I mancati rinnovi non hanno un elenco a parte:
+  // non sono richieste, e Club e Family mostra solo quelle.
+  const filtroLead: Record<VistaLead, string | null> = {
     libere: 'stato=nuovo',
+    recupero: null,
     mie: 'mostra=tutte&mie=1',
     in_gestione: 'stato=in_gestione',
     vinte: 'stato=vinto',
@@ -697,8 +729,11 @@ export default async function RiepilogoPage({ searchParams }: { searchParams: Pa
           <div className="riepilogo-testa">
             <h2 className="riepilogo-titolo">Lead</h2>
             {contiLead.libere > 0 && (
-              <span className="badge badge-warn badge-punto">
-                {contiLead.libere} da prendere in carico
+              <span className="badge badge-warn badge-punto">{contiLead.libere} new da prendere in carico</span>
+            )}
+            {contiLead.recupero > 0 && (
+              <span className="badge badge-info badge-punto">
+                {contiLead.recupero} {contiLead.recupero === 1 ? 'mancato rinnovo' : 'mancati rinnovi'} da prendere in carico
               </span>
             )}
           </div>
@@ -729,14 +764,19 @@ export default async function RiepilogoPage({ searchParams }: { searchParams: Pa
             ) : (
               <p className="muted">Nessun lead qui.</p>
             )}
-            {contiLead[vistaLead] > lead.length && (
-              <Link
-                className="btn btn-ghost btn-sm card-coda"
-                href={`/dashboard/richieste/richieste-club?${filtroLead[vistaLead]}`}
-              >
-                Vedi tutti ({contiLead[vistaLead]})
-              </Link>
-            )}
+            {contiLead[vistaLead] > lead.length &&
+              (filtroLead[vistaLead] ? (
+                <Link
+                  className="btn btn-ghost btn-sm card-coda"
+                  href={`/dashboard/richieste/richieste-club?${filtroLead[vistaLead]}`}
+                >
+                  Vedi tutti ({contiLead[vistaLead]})
+                </Link>
+              ) : (
+                <p className="muted card-coda">
+                  Ne mostro {lead.length} su {contiLead[vistaLead]}: man mano che ne prendi in carico, compaiono gli altri.
+                </p>
+              ))}
           </div>
         </section>
       )}
