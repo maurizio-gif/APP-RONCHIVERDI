@@ -64,6 +64,33 @@ export async function preparaDocumentiSospensione(
   return { ok: true, caricamenti }
 }
 
+// Per vedere un documento: un URL firmato di breve durata, senza `download`,
+// così il browser lo mostra (PDF, immagini) invece di scaricarlo. Chi ha la
+// sezione può vederli tutti, come le note: la segreteria si copre fra colleghi.
+export async function urlDocumentoSospensione(
+  documentoId: string
+): Promise<{ ok: true; url: string } | { ok: false; errore: string }> {
+  const email = emailCorrente()
+  if (!email || !(await utenteHaSezione(SEZIONE_CHECK_SOSPENSIONI))) {
+    return { ok: false, errore: 'Non hai accesso a questa sezione.' }
+  }
+  const supabase = createSupabaseServiceClient()
+  const { data, error } = await supabase
+    .from('sospensioni_documenti')
+    .select('percorso')
+    .eq('id', documentoId)
+    .maybeSingle()
+  if (error || !data) return { ok: false, errore: 'Documento non trovato: potrebbe essere già stato rimosso.' }
+  const { data: firmato, error: erroreFirma } = await supabase.storage
+    .from(BUCKET_SOSPENSIONI)
+    .createSignedUrl((data as { percorso: string }).percorso, 120)
+  if (erroreFirma || !firmato) {
+    console.error('Check sospensioni: documento non aperto', erroreFirma?.message)
+    return { ok: false, errore: 'Non riesco ad aprire il documento. Riprova.' }
+  }
+  return { ok: true, url: firmato.signedUrl }
+}
+
 // Solo i file caricati da chi chiama, dentro la sua cartella.
 function documentiPropri(email: string, documenti: DocumentoCaricato[]): DocumentoCaricato[] {
   const cartella = `${cartellaDi(email)}/`

@@ -10554,6 +10554,24 @@ table.tabella-compatta .nota-in-riga,
 	width: 40%;
 }
 
+/* Il nome di un documento allegato: si clicca per vederlo. */
+.check-sosp-documento {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--accent);
+	font: inherit;
+	text-align: left;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+	cursor: pointer;
+}
+
+.check-sosp-documento:disabled {
+	cursor: progress;
+	opacity: 0.7;
+}
+
 /* Riga chiusa: l'anteprima del motivo su una riga. «Gestisci» sta nella prima
    colonna, a sinistra, dove si apre la gestione. */
 .check-sosp-anteprima {

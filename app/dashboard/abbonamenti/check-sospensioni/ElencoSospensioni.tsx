@@ -7,7 +7,7 @@ import { nomeDiEmail } from '@/lib/staff'
 import { pesoLeggibile } from '@/lib/ticket'
 import { LUNGHEZZA_MASSIMA_MOTIVO, type DocumentoSospensione, type MotivoSospensione } from '@/lib/sospensioni'
 import { CampoNote } from '@/components/CampoNote'
-import { aggiungiMotivoSospensione } from './actions'
+import { aggiungiMotivoSospensione, urlDocumentoSospensione } from './actions'
 import { SceltaDocumenti, useDocumenti } from './Documenti'
 
 export type RigaCheck = {
@@ -316,18 +316,56 @@ function CellaMotivo({
   )
 }
 
-// I documenti allegati a una nota: per ora se ne vede solo il nome. Aprirli e
-// rimuoverli, una volta visionati, si gestisce dal CRM più avanti.
+// I documenti allegati a una nota: il nome si clicca e il documento si apre in
+// una tab nuova, da vedere (non si scarica). Rimuoverli, una volta visionati,
+// si gestisce dal CRM più avanti.
 function ElencoDocumenti({ documenti }: { documenti: DocumentoSospensione[] | undefined }) {
+  const [inApertura, setInApertura] = useState<string | null>(null)
+  const [errore, setErrore] = useState<string | null>(null)
   if (!documenti?.length) return null
+
+  async function apri(id: string) {
+    if (inApertura) return
+    setErrore(null)
+    setInApertura(id)
+    // La tab si apre subito, dentro il clic, perché dopo l'attesa il browser
+    // potrebbe bloccarla; l'indirizzo firmato la raggiunge appena arriva.
+    const finestra = window.open('', '_blank')
+    if (finestra) finestra.opener = null
+    const esito = await urlDocumentoSospensione(id)
+    if (esito.ok) {
+      if (finestra) finestra.location.href = esito.url
+      else window.open(esito.url, '_blank', 'noopener')
+    } else {
+      finestra?.close()
+      setErrore(esito.errore)
+    }
+    setInApertura(null)
+  }
+
   return (
-    <ul className="tk-allegati-elenco">
-      {documenti.map((d) => (
-        <li key={d.id}>
-          <span>📎 {d.nome}</span>
-          <span className="muted">{pesoLeggibile(d.byte)}</span>
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="tk-allegati-elenco">
+        {documenti.map((d) => (
+          <li key={d.id}>
+            <button
+              type="button"
+              className="check-sosp-documento"
+              onClick={() => apri(d.id)}
+              disabled={inApertura === d.id}
+              title="Apri il documento in una tab nuova"
+            >
+              📎 {d.nome}
+            </button>
+            <span className="muted">{inApertura === d.id ? 'Apro…' : pesoLeggibile(d.byte)}</span>
+          </li>
+        ))}
+      </ul>
+      {errore && (
+        <p className="field-hint" style={{ color: 'var(--error)' }}>
+          {errore}
+        </p>
+      )}
+    </>
   )
 }

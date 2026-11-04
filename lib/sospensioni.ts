@@ -8,7 +8,7 @@ import type { SezioneChiave } from '@/lib/auth/sezioni'
 export const SEZIONE_CHECK_SOSPENSIONI: SezioneChiave = 'check-sospensioni'
 
 // Un documento allegato a una nota (certificato, trasferimento di lavoro, ...).
-// Se ne vede il nome: aprirlo e rimuoverlo dal CRM arriva dopo.
+// Si apre per vederlo (senza scaricarlo); rimuoverlo dal CRM arriva dopo.
 export type DocumentoSospensione = {
   id: string
   nome: string
