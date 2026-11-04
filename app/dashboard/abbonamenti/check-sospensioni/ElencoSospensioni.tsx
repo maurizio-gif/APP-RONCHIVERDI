@@ -1,12 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useTransition } from 'react'
+import { useState, useTransition, type Dispatch, type SetStateAction } from 'react'
 import { dataOra } from '@/lib/persone'
 import { nomeDiEmail } from '@/lib/staff'
-import { LUNGHEZZA_MASSIMA_MOTIVO, type MotivoSospensione } from '@/lib/sospensioni'
+import { pesoLeggibile } from '@/lib/ticket'
+import { LUNGHEZZA_MASSIMA_MOTIVO, type DocumentoSospensione, type MotivoSospensione } from '@/lib/sospensioni'
 import { CampoNote } from '@/components/CampoNote'
 import { aggiungiMotivoSospensione } from './actions'
+import { SceltaDocumenti, useDocumenti } from './Documenti'
 
 export type RigaCheck = {
   source_log_id: number
@@ -36,7 +38,8 @@ export function ElencoSospensioni({
   righe: RigaCheck[]
   nomiStaff: Record<string, string>
   mostraOperatore: boolean
-  // In «Da motivare» il campo è già aperto; in «Motivate» si apre con Rettifica.
+  // In «Da motivare», aperta la riga il campo è già pronto; in «Motivate» si
+  // apre con Rettifica.
   daMotivare: boolean
 }) {
   // In «Da motivare» la riga esce dall'elenco appena salvata (la pagina si
@@ -54,6 +57,7 @@ export function ElencoSospensioni({
       <table className="tabella tabella-compatta">
         <thead>
           <tr>
+            <th aria-label="Gestione"></th>
             <th>Inserita il</th>
             <th>Socio</th>
             <th>Abbonamento</th>
@@ -65,37 +69,16 @@ export function ElencoSospensioni({
           </tr>
         </thead>
         <tbody>
-          {righe.map((r) => {
-            const persona = [r.persona_cognome, r.persona_nome].filter(Boolean).join(' ') || 'Senza nome'
-            return (
-              <tr key={r.source_log_id}>
-                <td className="cella-nowrap">{dataOra(r.data_operazione)}</td>
-                <td className="cella-persona">
-                  {r.persona_id ? <Link href={`/dashboard/persone/${r.persona_id}`}>{persona}</Link> : persona}
-                </td>
-                <td className="cella-troncata" title={[r.abbonamento, r.variante].filter(Boolean).join(' · ') || undefined}>
-                  {r.abbonamento ?? '—'}
-                  {r.variante && <span className="nota-in-riga">{r.variante}</span>}
-                </td>
-                <td className="cella-importo cella-nowrap">
-                  <strong>{r.proroga_giorni} giorni</strong>
-                  <span className="nota-in-riga">
-                    fine {data(r.fine_precedente)} → {data(r.fine_nuova)}
-                  </span>
-                </td>
-                {mostraOperatore && <td className="cella-nowrap">{r.operatore_nome ?? '—'}</td>}
-                <td className="check-sosp-col-motivo">
-                  <CellaMotivo
-                    sourceLogId={r.source_log_id}
-                    noteIniziali={r.motivi}
-                    nomiStaff={nomiStaff}
-                    apertoDaSubito={daMotivare}
-                    onSalvato={() => setSalvato(persona)}
-                  />
-                </td>
-              </tr>
-            )
-          })}
+          {righe.map((r) => (
+            <RigaSospensione
+              key={r.source_log_id}
+              r={r}
+              nomiStaff={nomiStaff}
+              mostraOperatore={mostraOperatore}
+              daMotivare={daMotivare}
+              onSalvato={setSalvato}
+            />
+          ))}
         </tbody>
       </table>
     </div>
@@ -103,25 +86,108 @@ export function ElencoSospensioni({
   )
 }
 
+// Una sospensione: la riga chiusa mostra solo l'anteprima del motivo, se c'è;
+// «Gestisci» apre sotto il motivo intero, il campo per scriverlo o rettificarlo
+// e i documenti. Le note stanno qui e non nella cella aperta, così l'anteprima
+// si aggiorna anche a riga richiusa.
+function RigaSospensione({
+  r,
+  nomiStaff,
+  mostraOperatore,
+  daMotivare,
+  onSalvato,
+}: {
+  r: RigaCheck
+  nomiStaff: Record<string, string>
+  mostraOperatore: boolean
+  daMotivare: boolean
+  onSalvato: (persona: string) => void
+}) {
+  const [aperta, setAperta] = useState(false)
+  const [note, setNote] = useState(r.motivi)
+  const persona = [r.persona_cognome, r.persona_nome].filter(Boolean).join(' ') || 'Senza nome'
+  const anteprima = note[0]?.testo
+  const colonne = mostraOperatore ? 7 : 6
+  const idGestione = `check-sosp-${r.source_log_id}`
+
+  return (
+    <>
+      <tr>
+        {/* Il pulsante sta a sinistra, dove si apre la gestione: a destra
+            bisognerebbe scorrere la tabella per trovarlo. */}
+        <td className="check-sosp-col-gestisci">
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm richiesta-espandi"
+            onClick={() => setAperta((v) => !v)}
+            aria-expanded={aperta}
+            aria-controls={idGestione}
+            aria-label={`Gestisci la sospensione di ${persona}`}
+          >
+            Gestisci <span className="richiesta-caret" aria-hidden="true">▼</span>
+          </button>
+        </td>
+        <td className="cella-nowrap">{dataOra(r.data_operazione)}</td>
+        <td className="cella-persona">
+          {r.persona_id ? <Link href={`/dashboard/persone/${r.persona_id}`}>{persona}</Link> : persona}
+        </td>
+        <td className="cella-troncata" title={[r.abbonamento, r.variante].filter(Boolean).join(' · ') || undefined}>
+          {r.abbonamento ?? '—'}
+          {r.variante && <span className="nota-in-riga">{r.variante}</span>}
+        </td>
+        <td className="cella-importo cella-nowrap">
+          <strong>{r.proroga_giorni} giorni</strong>
+          <span className="nota-in-riga">
+            fine {data(r.fine_precedente)} → {data(r.fine_nuova)}
+          </span>
+        </td>
+        {mostraOperatore && <td className="cella-nowrap">{r.operatore_nome ?? '—'}</td>}
+        <td className="check-sosp-col-motivo">
+          <span className="check-sosp-anteprima" title={anteprima}>
+            {anteprima}
+          </span>
+        </td>
+      </tr>
+      {aperta && (
+        <tr id={idGestione} className="check-sosp-gestione">
+          <td colSpan={colonne}>
+            <CellaMotivo
+              sourceLogId={r.source_log_id}
+              note={note}
+              setNote={setNote}
+              nomiStaff={nomiStaff}
+              apertoDaSubito={daMotivare}
+              onSalvato={() => onSalvato(persona)}
+            />
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
 function CellaMotivo({
   sourceLogId,
-  noteIniziali,
+  note,
+  setNote,
   nomiStaff,
   apertoDaSubito,
   onSalvato,
 }: {
   sourceLogId: number
-  noteIniziali: MotivoSospensione[]
+  note: MotivoSospensione[]
+  setNote: Dispatch<SetStateAction<MotivoSospensione[]>>
   nomiStaff: Record<string, string>
   apertoDaSubito: boolean
   onSalvato: () => void
 }) {
-  const [note, setNote] = useState(noteIniziali)
-  const [scrivo, setScrivo] = useState(apertoDaSubito && noteIniziali.length === 0)
+  const [scrivo, setScrivo] = useState(apertoDaSubito && note.length === 0)
   const [storico, setStorico] = useState(false)
   const [testo, setTesto] = useState('')
   const [errore, setErrore] = useState<string | null>(null)
+  const [avviso, setAvviso] = useState<string | null>(null)
   const [inCorso, startTransition] = useTransition()
+  const documenti = useDocumenti()
 
   const ultima = note[0]
   const rettifica = note.length > 0
@@ -129,12 +195,24 @@ function CellaMotivo({
   function salva() {
     if (!testo.trim() || inCorso) return
     setErrore(null)
+    setAvviso(null)
     startTransition(async () => {
-      const esito = await aggiungiMotivoSospensione(sourceLogId, testo)
+      // Prima i documenti, poi la nota: se un file non sale la nota non si
+      // salva (una nota non si cancella) e si può riprovare.
+      let caricati
+      try {
+        caricati = await documenti.carica()
+      } catch (e) {
+        setErrore(e instanceof Error ? e.message : 'Non è stato possibile caricare i documenti.')
+        return
+      }
+      const esito = await aggiungiMotivoSospensione(sourceLogId, testo, caricati)
       if (esito.ok) {
         setNote((v) => [esito.nota, ...v])
         setTesto('')
+        documenti.svuota()
         setScrivo(false)
+        if (esito.avviso) setAvviso(esito.avviso)
         onSalvato()
       } else {
         setErrore(esito.errore)
@@ -147,6 +225,7 @@ function CellaMotivo({
       {ultima && (
         <div className="check-sosp-ultima">
           <p className="note-storico-testo">{ultima.testo}</p>
+          <ElencoDocumenti documenti={ultima.documenti} />
           <span className="note-storico-meta">
             {nomeDiEmail(ultima.autore, nomiStaff) ?? ultima.autore} · {dataOra(ultima.creato_il)}
             {note.length > 1 && ' · rettifica'}
@@ -173,6 +252,7 @@ function CellaMotivo({
             disabled={inCorso}
             aria-label={rettifica ? 'Rettifica del motivo' : 'Motivo della sospensione'}
           />
+          <SceltaDocumenti documenti={documenti} disabilitato={inCorso} />
           <div className="note-gestione-azioni">
             <button type="button" className="btn btn-sm" onClick={salva} disabled={inCorso || !testo.trim()}>
               {inCorso ? 'Salvo…' : rettifica ? 'Salva rettifica' : 'Salva motivo'}
@@ -185,6 +265,7 @@ function CellaMotivo({
                   setScrivo(false)
                   setTesto('')
                   setErrore(null)
+                  documenti.svuota()
                 }}
                 disabled={inCorso}
               >
@@ -192,7 +273,6 @@ function CellaMotivo({
               </button>
             )}
           </div>
-          <p className="field-hint">Una volta salvato non si modifica: si può solo aggiungere una rettifica.</p>
         </div>
       ) : (
         <div className="note-gestione-riga">
@@ -212,6 +292,11 @@ function CellaMotivo({
           {errore}
         </p>
       )}
+      {avviso && (
+        <p className="field-hint" style={{ color: 'var(--error)' }} role="status">
+          {avviso}
+        </p>
+      )}
 
       {storico && note.length > 1 && (
         <ul className="note-storico">
@@ -222,10 +307,27 @@ function CellaMotivo({
                 {i === note.length - 1 ? ' · motivo' : ' · rettifica'}
               </span>
               <p className="note-storico-testo">{n.testo}</p>
+              <ElencoDocumenti documenti={n.documenti} />
             </li>
           ))}
         </ul>
       )}
     </div>
+  )
+}
+
+// I documenti allegati a una nota: per ora se ne vede solo il nome. Aprirli e
+// rimuoverli, una volta visionati, si gestisce dal CRM più avanti.
+function ElencoDocumenti({ documenti }: { documenti: DocumentoSospensione[] | undefined }) {
+  if (!documenti?.length) return null
+  return (
+    <ul className="tk-allegati-elenco">
+      {documenti.map((d) => (
+        <li key={d.id}>
+          <span>📎 {d.nome}</span>
+          <span className="muted">{pesoLeggibile(d.byte)}</span>
+        </li>
+      ))}
+    </ul>
   )
 }

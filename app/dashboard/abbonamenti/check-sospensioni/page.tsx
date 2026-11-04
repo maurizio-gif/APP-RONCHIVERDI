@@ -143,8 +143,7 @@ export default async function CheckSospensioniPage({ searchParams }: { searchPar
         <h1>Check sospensioni</h1>
         <p className="muted">
           Le sospensioni inserite in Info4U dal 1° settembre 2026. Per ognuna scrivi il motivo (malattia, trasferimento,
-          altro) e quale giustificativo hai ricevuto. Una volta salvato il motivo non si modifica: se c’è da
-          correggere, aggiungi una rettifica.
+          altro) e quale giustificativo hai ricevuto.
         </p>
       </div>
 

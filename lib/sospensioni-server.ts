@@ -1,6 +1,6 @@
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { getSezioniConsentite } from '@/lib/auth/sezioni-server'
-import { SEZIONE_CHECK_SOSPENSIONI, type MotivoSospensione } from '@/lib/sospensioni'
+import { SEZIONE_CHECK_SOSPENSIONI, type DocumentoSospensione, type MotivoSospensione } from '@/lib/sospensioni'
 
 // Server-only (client service role): le letture della pagina Check
 // sospensioni e del badge nel menu.
@@ -52,7 +52,8 @@ const BLOCCO = 150
 /**
  * Le note sul motivo, raggruppate per la chiave scelta (la proroga o
  * l'abbonamento), la più recente in cima. Se la tabella non c'è ancora
- * ritorna vuoto: la pagina resta usabile.
+ * ritorna vuoto: la pagina resta usabile. Per chiave `source_log_id` ogni
+ * nota porta anche i documenti allegati.
  */
 export async function caricaMotivi(
   supabase: Supabase,
@@ -80,6 +81,42 @@ export async function caricaMotivi(
     for (const riga of (data ?? []) as unknown as (MotivoSospensione & Record<string, number>)[]) {
       const chiave = riga[per]
       ;(risultato[chiave] ??= []).push({ id: riga.id, testo: riga.testo, autore: riga.autore, creato_il: riga.creato_il })
+    }
+  }
+
+  if (per === 'source_log_id') {
+    const documenti = await caricaDocumenti(supabase, unici)
+    for (const note of Object.values(risultato)) {
+      for (const nota of note) nota.documenti = documenti[nota.id] ?? []
+    }
+  }
+  return risultato
+}
+
+/**
+ * I documenti allegati alle note di queste proroghe, raggruppati per nota.
+ * Se la tabella non c'è ancora (migration non eseguita) ritorna vuoto.
+ */
+async function caricaDocumenti(supabase: Supabase, sourceLogIds: number[]): Promise<Record<string, DocumentoSospensione[]>> {
+  const risultato: Record<string, DocumentoSospensione[]> = {}
+  const blocchi: number[][] = []
+  for (let i = 0; i < sourceLogIds.length; i += BLOCCO) blocchi.push(sourceLogIds.slice(i, i + BLOCCO))
+  const risposte = await Promise.all(
+    blocchi.map((blocco) =>
+      supabase
+        .from('sospensioni_documenti')
+        .select('id, motivo_id, nome, tipo, byte')
+        .in('source_log_id', blocco)
+        .order('creato_il', { ascending: true })
+    )
+  )
+  for (const { data, error } of risposte) {
+    if (error) {
+      console.error('Documenti delle sospensioni non letti:', error.message)
+      continue
+    }
+    for (const riga of (data ?? []) as unknown as (DocumentoSospensione & { motivo_id: string })[]) {
+      ;(risultato[riga.motivo_id] ??= []).push({ id: riga.id, nome: riga.nome, tipo: riga.tipo, byte: riga.byte })
     }
   }
   return risultato

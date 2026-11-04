@@ -10554,6 +10554,29 @@ table.tabella-compatta .nota-in-riga,
 	width: 40%;
 }
 
+/* Riga chiusa: l'anteprima del motivo su una riga. «Gestisci» sta nella prima
+   colonna, a sinistra, dove si apre la gestione. */
+.check-sosp-anteprima {
+	display: block;
+	max-width: 28rem;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--text-muted);
+}
+
+/* La riga aperta sotto la sospensione: le celle compatte non vanno a capo,
+   qui sì. */
+table.tabella-compatta .check-sosp-gestione td {
+	white-space: normal;
+	padding: 0.6rem 0.6rem 0.9rem;
+	background: var(--accent-tint);
+}
+
+.check-sosp-gestione .check-sosp-motivo {
+	max-width: 44rem;
+}
+
 .check-sosp-motivo {
 	display: flex;
 	flex-direction: column;
