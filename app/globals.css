@@ -11584,3 +11584,82 @@ table.tabella tr.riga-evidenza > td:first-child {
 .voucher-email-form { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
 .voucher-email-form input { min-width: 14rem; }
 .pres-finto-input { display: inline-block; min-width: 11rem; padding: 0.35rem 0.6rem; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); color: var(--text-muted); font-size: 0.8em; }
+
+/* ─────────────────────────────────────────── report giornaliero (operatività) */
+
+/* Giorno e periodo sulla stessa riga; vanno a capo su telefono. */
+.rop-controlli {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem 1.25rem;
+}
+
+.rop-nav {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.rop-data {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+}
+
+/* Variazione sul periodo prima: verde in su, rosso in giù. */
+.rop-su {
+	color: var(--ok);
+	font-weight: 600;
+}
+
+.rop-giu {
+	color: var(--error);
+	font-weight: 600;
+}
+
+/* Le barrette dell'andamento: l'ultimo giorno in evidenza, i giorni a zero
+   appena un filo. */
+.rop-spark {
+	display: block;
+}
+
+.rop-barra {
+	fill: var(--border-strong);
+}
+
+.rop-barra-oggi {
+	fill: var(--accent);
+}
+
+.rop-barra-zero {
+	fill: var(--border);
+}
+
+/* Intestazione a due livelli: il nome del gruppo sta sopra le sue colonne. */
+.rop-tabella .rop-gruppo {
+	text-align: center;
+	border-left: 1px solid var(--border);
+	border-bottom: 1px solid var(--border);
+}
+
+.rop-tabella thead tr:nth-child(2) th:nth-child(1),
+.rop-tabella thead tr:nth-child(2) th:nth-child(9),
+.rop-tabella thead tr:nth-child(2) th:nth-child(14),
+.rop-tabella thead tr:nth-child(2) th:nth-child(16) {
+	border-left: 1px solid var(--border);
+}
+
+.rop-tabella tbody td:nth-child(2),
+.rop-tabella tbody td:nth-child(10),
+.rop-tabella tbody td:nth-child(15),
+.rop-tabella tbody td:nth-child(17) {
+	border-left: 1px solid var(--border);
+}
+
+table.tabella-compatta tr.rop-totale td {
+	background: var(--accent-tint);
+	border-top: 1px solid var(--border-strong);
+}

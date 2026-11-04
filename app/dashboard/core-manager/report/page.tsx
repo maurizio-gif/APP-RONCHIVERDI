@@ -21,6 +21,7 @@ import { COLONNE_NOTA_VINTA, conColonneNuove } from '@/lib/migrazioni'
 import { provenienzaDiOrigine } from '@/lib/provenienza'
 import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import { CellaObiettivo } from './CellaObiettivo'
+import { OperativitaGiornaliera, PERIODI, type Periodo } from './OperativitaGiornaliera'
 
 export const dynamic = 'force-dynamic'
 
@@ -111,7 +112,7 @@ const TUTTI = 'tutti'
 export default async function ReportGiornalieroPage({
   searchParams,
 }: {
-  searchParams: { commerciale?: string; mese?: string }
+  searchParams: { commerciale?: string; mese?: string; giorno?: string; periodo?: string; operatore?: string; classico?: string }
 }) {
   if (!(await utenteHaSezione('core-manager'))) {
     redirect('/dashboard')
@@ -122,7 +123,7 @@ export default async function ReportGiornalieroPage({
 
   const { data: staff, error: erroreStaff } = await supabase
     .from('staff_users')
-    .select('email, nome, cognome, commerciale')
+    .select('email, nome, cognome, commerciale, operatore_segreteria')
   if (erroreStaff) console.error('Commerciali non lette:', erroreStaff.message)
 
   const commerciali = ordinaPerCognome(
@@ -141,7 +142,22 @@ export default async function ReportGiornalieroPage({
   // sola per la vista singola. Le query sotto usano sempre `.in(...)` su
   // questo elenco — mai `.eq()` sparsi — così le due viste sono la stessa
   // domanda fatta a un pubblico diverso, non due logiche da tenere allineate.
-  const emailFiltro = commerciale === TUTTI ? commerciali.map((s) => s.email) : commerciale ? [commerciale] : []
+  // Il foglio classico (il vecchio schema, una consulente alla volta) si legge
+  // solo quando lo si apre: sono una dozzina di letture che la schermata
+  // principale non usa.
+  const classico = searchParams.classico === '1' || !!searchParams.commerciale || !!searchParams.mese
+  const emailFiltro = !classico
+    ? []
+    : commerciale === TUTTI
+      ? commerciali.map((s) => s.email)
+      : commerciale
+        ? [commerciale]
+        : []
+
+  // La schermata nuova: il giorno (mai nel futuro), il periodo e l'operatore.
+  const giornoScelto =
+    /^\d{4}-\d{2}-\d{2}$/.test(searchParams.giorno ?? '') && searchParams.giorno! <= oggi ? searchParams.giorno! : oggi
+  const periodo: Periodo = (PERIODI.find((p) => String(p.valore) === searchParams.periodo)?.valore ?? 1) as Periodo
 
   const meseRichiesto = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.mese ?? '')
     ? primoDelMese(searchParams.mese!)
@@ -152,11 +168,37 @@ export default async function ReportGiornalieroPage({
   const inizioIstante = mezzanotteRoma(primo)
   const fineIstante = mezzanotteRoma(giornoPiu(ultimo, 1))
 
+  // I link del foglio classico: portano con sé la scelta della schermata
+  // nuova (giorno, periodo, operatore), così aprire o cambiare il foglio non
+  // la fa perdere.
   function link(parametri: { commerciale?: string; mese?: string }) {
     const params = new URLSearchParams()
+    if (searchParams.giorno) params.set('giorno', searchParams.giorno)
+    if (searchParams.periodo) params.set('periodo', searchParams.periodo)
+    if (searchParams.operatore) params.set('operatore', searchParams.operatore)
+    params.set('classico', '1')
     if (parametri.commerciale ?? commerciale) params.set('commerciale', parametri.commerciale ?? commerciale!)
     params.set('mese', parametri.mese ?? meseRichiesto)
-    return `/dashboard/core-manager/report?${params.toString()}`
+    return `/dashboard/core-manager/report?${params.toString()}#classico`
+  }
+
+  // I link della schermata nuova: portano con sé l'eventuale foglio classico
+  // aperto. Un parametro a null si toglie.
+  function indirizzo(cambi: { giorno?: string; periodo?: Periodo; operatore?: string | null }) {
+    const params = new URLSearchParams()
+    const giorno = cambi.giorno ?? giornoScelto
+    if (giorno !== oggi) params.set('giorno', giorno)
+    const per = cambi.periodo ?? periodo
+    if (per !== 1) params.set('periodo', String(per))
+    const operatore = cambi.operatore === undefined ? searchParams.operatore : cambi.operatore
+    if (operatore) params.set('operatore', operatore)
+    if (classico) {
+      params.set('classico', '1')
+      if (searchParams.commerciale) params.set('commerciale', searchParams.commerciale)
+      if (searchParams.mese) params.set('mese', searchParams.mese)
+    }
+    const q = params.toString()
+    return `/dashboard/core-manager/report${q ? `?${q}` : ''}`
   }
 
   const righe = new Map<string, Giorno>(giorni.map((g) => [g, giornoVuoto(g)]))
@@ -370,8 +412,8 @@ export default async function ReportGiornalieroPage({
         <p className="eyebrow">Core Manager</p>
         <h1>Report giornaliero</h1>
         <p className="muted">
-          Lo stesso schema del foglio a cui la responsabile è abituata: un giorno per riga, una
-          consulente alla volta.{' '}
+          Cosa ha fatto ogni operatore, New e rinnovi, e quanto ha venduto: per tipo di azione, per
+          canale (walk-in, sito, rinnovi) e nel tempo.{' '}
           <Link className="link" href="/dashboard/core-manager">
             Torna al Core Manager
           </Link>
@@ -379,6 +421,30 @@ export default async function ReportGiornalieroPage({
         </p>
       </div>
 
+      <OperativitaGiornaliera
+        giorno={giornoScelto}
+        periodo={periodo}
+        oggi={oggi}
+        operatoreScelto={searchParams.operatore ?? null}
+        href={indirizzo}
+        staff={(staff ?? []) as any}
+      />
+
+      {/* Il vecchio schema del foglio (goal, show ratio, close), una
+          consulente alla volta: resta, ma a parte. */}
+      <section id="classico">
+      {!classico ? (
+        <div className="card">
+          <p className="muted">
+            Il foglio classico — goal giornaliero, show ratio, close, una consulente alla volta — è
+            ancora qui.{' '}
+            <Link className="link" href={link({}) }>
+              Apri il foglio classico
+            </Link>
+          </p>
+        </div>
+      ) : (
+      <>
       <div className="filtri">
         <div className="filtri-testa">
           <span className="filtri-titolo">Filtra il report</span>
@@ -488,6 +554,9 @@ export default async function ReportGiornalieroPage({
         </div>
         </div>
       )}
+      </>
+      )}
+      </section>
     </>
   )
 }
