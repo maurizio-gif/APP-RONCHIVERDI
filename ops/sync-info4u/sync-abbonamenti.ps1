@@ -23,11 +23,21 @@
     piu' sotto), per esempio -SoloExtra crm_azioni,email_info4u. Con questo
     parametro lo script salta vendite, cassa, rate e modifiche: serve a provare
     una tabella nuova da sola, a mano, prima di lasciarla al task schedulato.
+
+.PARAMETER RiparaOmonimi
+    Una tantum, a mano: ricrea la scheda degli IDUtente che hanno righe
+    (vendite, certificati, email...) agganciate alla scheda di un omonimo e
+    nessuna scheda propria (vedi
+    scripts/sql/2026-11-05-persone-omonimi-info4u-riallinea.sql, da eseguire
+    prima). Li rilegge da Info4U e li passa a Send-PersoneUpsert; il trigger
+    persone_collega_info4u sposta le loro righe sulla scheda nuova. Salta
+    tutto il resto della sincronizzazione.
 #>
 
 param(
     [string]$ConfigPath = (Join-Path $PSScriptRoot "config.json"),
-    [string[]]$SoloExtra = @()
+    [string[]]$SoloExtra = @(),
+    [switch]$RiparaOmonimi
 )
 
 $ErrorActionPreference = "Stop"
@@ -381,16 +391,40 @@ function Send-PersonaUpsert {
         return $null
     }
 
-    $rigaTrovata = Invoke-RestMethod -Uri "$($config.Supabase.Url)/rest/v1/persone?id=eq.$idTrovato&select=id,fonte" `
+    $rigaTrovata = Invoke-RestMethod -Uri "$($config.Supabase.Url)/rest/v1/persone?id=eq.$idTrovato&select=id,fonte,source_utente_id" `
         -Headers $supabaseHeaders -Method Get
     if (-not $rigaTrovata -or $rigaTrovata.Count -eq 0) {
         Write-Log "IDUtente $($Riga.IDUtente): riga $idTrovato non trovata subito dopo trova_o_crea_persona, salto l'anagrafica per questa vendita." "WARN"
         return $null
     }
 
+    # La riga trovata per nome e' gia' di un ALTRO IDUtente Info4U: e' un
+    # omonimo (o un doppione dentro Info4U), non questa persona. Scriverci
+    # sopra il corpo ne cambiava source_utente_id e anagrafica: la scheda
+    # passava all'utente nuovo e abbonamenti, certificati, email e ricevute
+    # dell'altro restavano agganciati a un nome sbagliato (vedi
+    # scripts/sql/2026-11-05-persone-omonimi-info4u-riallinea.sql). Si crea
+    # invece una scheda separata, segnalata come possibile doppione: se e'
+    # davvero la stessa persona, la decisione di unirle resta a uno staff.
+    $utenteTrovato = $rigaTrovata[0].source_utente_id
+    if ($null -ne $utenteTrovato -and [int]$utenteTrovato -ne [int]$Riga.IDUtente) {
+        Write-Log "IDUtente $($Riga.IDUtente): nome e cognome gia' della scheda dell'IDUtente $utenteTrovato (persona $idTrovato), creo una scheda separata invece di scriverci sopra." "WARN"
+
+        $corpoOmonimo = $corpoPersona.Clone()
+        $corpoOmonimo["conflitto_con_persona_id"] = $idTrovato
+        $corpoOmonimo["conflitto_campo"] = "possibile_doppione"
+
+        $headersOmonimo = $supabaseHeaders.Clone()
+        $headersOmonimo["Prefer"] = "return=representation"
+        $corpoOmonimoJson = @($corpoOmonimo) | ConvertTo-Json -Depth 5
+        $rispostaOmonimo = Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/persone" `
+            -Headers $headersOmonimo -Method Post -Corpo $corpoOmonimoJson
+        return $rispostaOmonimo[0].id
+    }
+
     if ($rigaTrovata[0].fonte -eq "info4u") {
-        # Riga di Info4U (nuova, o un omonimo Info4U il cui cellulare
-        # coincide): ci si scrive sopra tutto il corpo, come sempre.
+        # Riga di Info4U appena creata (o una scheda Info4U senza ancora un
+        # IDUtente): ci si scrive sopra tutto il corpo, come sempre.
         $corpoJson = $corpoPersona | ConvertTo-Json -Depth 5
         Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/persone?id=eq.$idTrovato" `
             -Headers $supabaseHeaders -Method Patch -Corpo $corpoJson | Out-Null
@@ -1773,11 +1807,61 @@ function Sync-Extra {
     if ($errori.Count -gt 0) { throw "Dati aggiuntivi: errore su $($errori -join ', ')." }
 }
 
+# Gli IDUtente rimasti senza scheda perche' un omonimo ci ha scritto sopra
+# (vedi -RiparaOmonimi in testa e
+# scripts/sql/2026-11-05-persone-omonimi-info4u-riallinea.sql): si rileggono
+# da dbo.Utenti e si passano a Send-PersoneUpsert, che ora crea per ciascuno
+# una scheda separata segnalata come possibile doppione dell'omonimo. Il
+# trigger persone_collega_info4u ci sposta sopra le sue righe.
+function Repair-UtentiSenzaScheda {
+    $elenco = Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/rpc/info4u_utenti_senza_scheda" `
+        -Headers $supabaseHeaders -Method Post -Corpo "{}"
+    $ids = @($elenco | ForEach-Object { [int]$_.source_utente_id } | Sort-Object -Unique)
+    Write-Log "Ripara omonimi: $($ids.Count) IDUtente senza una scheda propria."
+
+    $dimensioneBlocco = 200
+    $totale = 0
+    for ($i = 0; $i -lt $ids.Count; $i += $dimensioneBlocco) {
+        $blocco = $ids[$i..([math]::Min($i + $dimensioneBlocco, $ids.Count) - 1)]
+        # Solo interi (cast sopra): si possono mettere nella IN senza parametri.
+        $comandoText = @"
+SELECT
+    u.IDUtente, u.Nome, u.Cognome, u.Email, u.Telefono_1, u.Telefono_2, u.SMS AS Cellulare,
+    u.CodiceFiscale, u.Data_Nascita, u.Sesso,
+    u.Luogo_Nascita, u.Provincia_Nascita, u.Stato_Nascita,
+    u.Indirizzo_Via, u.Indirizzo_NumeroCivico, u.Indirizzo_CAP,
+    u.Indirizzo_Citta, u.Indirizzo_PV, u.Indirizzo_Stato
+FROM dbo.Utenti u
+WHERE u.IDUtente IN ($($blocco -join ','))
+ORDER BY u.IDUtente ASC
+"@
+        $righe = Invoke-QueryDbgym -CommandText $comandoText -Parametri @{}
+        if ($righe.Count -lt $blocco.Count) {
+            Write-Log "Ripara omonimi: $($blocco.Count - $righe.Count) IDUtente non piu' in Info4U, li salto." "WARN"
+        }
+        if ($righe.Count -gt 0) {
+            Send-PersoneUpsert -Righe $righe | Out-Null
+        }
+        $totale += $righe.Count
+        Write-Log "Ripara omonimi: $totale di $($ids.Count) IDUtente ripassati."
+    }
+
+    $restanti = @(Invoke-SupabaseScrittura -Uri "$($config.Supabase.Url)/rest/v1/rpc/info4u_utenti_senza_scheda" `
+        -Headers $supabaseHeaders -Method Post -Corpo "{}")
+    Write-Log "Ripara omonimi: fine, IDUtente ancora senza scheda: $($restanti.Count)."
+}
+
 # ─────────────────────────────────────────────────────────────────── run
 
 Write-Log "Avvio sincronizzazione."
 
 try {
+    if ($RiparaOmonimi) {
+        Repair-UtentiSenzaScheda
+        Write-Log "Fine (ripara omonimi)."
+        exit 0
+    }
+
     if ($SoloExtra.Count -gt 0) {
         Write-Log "Solo dati aggiuntivi: $($SoloExtra -join ', ')."
         Sync-Extra
