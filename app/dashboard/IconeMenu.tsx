@@ -250,6 +250,14 @@ const DISEGNI: Record<string, React.ReactNode> = {
       <path d="M14 12h7M18.2 8.8L21 12l-2.8 3.2" />
     </>
   ),
+  // Piano editoriale: il calendario con la pellicola di un video.
+  'piano-editoriale': (
+    <>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 10h18M8 3v4M16 3v4" />
+      <path d="M10.5 13.5v4l3.5-2z" />
+    </>
+  ),
   // Controllo operatori: il registro delle azioni.
   'log-operatori': (
     <>
