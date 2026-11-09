@@ -38,7 +38,7 @@ create table if not exists public.piano_editoriale_voci (
 	id uuid primary key default gen_random_uuid(),
 	-- Il giorno in cui il contenuto dovrebbe uscire.
 	data_pubblicazione date not null,
-	tipo text not null check (tipo in ('post', 'storia', 'reel', 'video', 'altro')),
+	tipo text not null check (tipo in ('storia', 'post', 'carosello', 'video', 'reel', 'altro')),
 	titolo text not null check (btrim(titolo) <> '' and length(titolo) <= 160),
 	descrizione text not null default '' check (length(descrizione) <= 4000),
 	-- Il reparto o il corso a cui si riferisce (es. «Scuola nuoto»): testo libero.
@@ -50,7 +50,7 @@ create table if not exists public.piano_editoriale_voci (
 	urgente boolean not null default false,
 	motivo_urgenza text check (motivo_urgenza is null or length(motivo_urgenza) <= 500),
 	-- Le ore di lavoro stimate (si propongono per tipo, Giada le corregge).
-	ore_stimate numeric(4, 1) not null default 1 check (ore_stimate >= 0 and ore_stimate <= 40),
+	ore_stimate numeric(5, 2) not null default 1 check (ore_stimate >= 0 and ore_stimate <= 40),
 	-- La risposta di Giada (perché rifiutata o spostata, cosa serve ancora).
 	nota_gestione text check (nota_gestione is null or length(nota_gestione) <= 1000),
 	-- Email di staff_users: sopravvive alla persona.

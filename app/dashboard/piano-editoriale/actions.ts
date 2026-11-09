@@ -189,7 +189,7 @@ export type EsitoSemplice = { ok: true } | { ok: false; errore: string }
 // la sposta a una data possibile o la rifiuta (con una nota, sempre).
 export async function aggiornaVoce(
   id: string,
-  campi: { stato: string; nota: string; data?: string; ore?: number }
+  campi: { stato: string; nota: string; data?: string; minuti?: number }
 ): Promise<EsitoSemplice> {
   const ruolo = await ruoloPiano()
   if (!ruolo?.gestisce) return { ok: false, errore: 'Solo chi gestisce il piano editoriale può farlo.' }
@@ -209,9 +209,11 @@ export async function aggiornaVoce(
     if (!dataValida(campi.data)) return { ok: false, errore: 'Data non valida.' }
     aggiornamento.data_pubblicazione = campi.data
   }
-  if (campi.ore !== undefined) {
-    if (!Number.isFinite(campi.ore) || campi.ore < 0 || campi.ore > 40) return { ok: false, errore: 'Ore non valide (da 0 a 40).' }
-    aggiornamento.ore_stimate = Math.round(campi.ore * 2) / 2
+  if (campi.minuti !== undefined) {
+    if (!Number.isFinite(campi.minuti) || campi.minuti < 0 || campi.minuti > 2400) {
+      return { ok: false, errore: 'Minuti non validi (da 0 a 2400).' }
+    }
+    aggiornamento.ore_stimate = Math.round((campi.minuti / 60) * 100) / 100
   }
 
   const { data, error } = await createSupabaseServiceClient()

@@ -11,6 +11,7 @@ import {
   PREAVVISO_GIORNI,
   aggiungiGiorni,
   dataBreve,
+  durata,
   etichettaMese,
   meseValido,
   meseVicino,
@@ -192,7 +193,7 @@ export default async function PianoEditorialePage({ searchParams }: { searchPara
                 )
               })}
               <div className={`pe-carico${ore > ORE_SETTIMANALI ? ' pe-carico-pieno' : ''}`}>
-                <b>{ore}</b> / {ORE_SETTIMANALI} h
+                <b>{durata(ore)}</b> / {ORE_SETTIMANALI} h
                 {ore > ORE_SETTIMANALI && <span className="pe-carico-nota">Settimana piena</span>}
               </div>
             </div>

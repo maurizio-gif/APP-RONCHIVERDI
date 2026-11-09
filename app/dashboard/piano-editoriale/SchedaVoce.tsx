@@ -8,6 +8,7 @@ import {
   ETICHETTE_TIPO,
   STATI,
   dataBreve,
+  durata,
   pesoLeggibile,
   type AllegatoVoce,
   type StatoVoce,
@@ -37,7 +38,7 @@ export function SchedaVoce({
   const [stato, setStato] = useState<StatoVoce>(voce.stato)
   const [nota, setNota] = useState(voce.nota_gestione ?? '')
   const [data, setData] = useState(voce.data_pubblicazione)
-  const [ore, setOre] = useState(String(voce.ore_stimate))
+  const [ore, setOre] = useState(String(Math.round(Number(voce.ore_stimate) * 60)))
   const [errore, setErrore] = useState<string | null>(null)
 
   async function apri(id: string) {
@@ -50,7 +51,7 @@ export function SchedaVoce({
   function salva() {
     setErrore(null)
     avvia(async () => {
-      const r = await aggiornaVoce(voce.id, { stato, nota, data, ore: Number(ore.replace(',', '.')) })
+      const r = await aggiornaVoce(voce.id, { stato, nota, data, minuti: Number(ore.replace(',', '.')) })
       if (!r.ok) setErrore(r.errore)
       else router.refresh()
     })
@@ -76,7 +77,7 @@ export function SchedaVoce({
           <h3 className="pe-voce-titolo">{voce.titolo}</h3>
           <p className="muted pe-voce-meta">
             {ETICHETTE_TIPO[voce.tipo]}
-            {voce.reparto ? ` · ${voce.reparto}` : ''} · chiesto da {richiedente} · ~{voce.ore_stimate} h
+            {voce.reparto ? ` · ${voce.reparto}` : ''} · chiesto da {richiedente} · ~{durata(voce.ore_stimate)}
           </p>
         </div>
         <div className="pe-voce-badge">
@@ -134,7 +135,7 @@ export function SchedaVoce({
               <input id={`da-${voce.id}`} type="date" value={data} onChange={(e) => setData(e.target.value)} />
             </div>
             <div className="field">
-              <label htmlFor={`or-${voce.id}`}>Ore stimate</label>
+              <label htmlFor={`or-${voce.id}`}>Minuti stimati</label>
               <input
                 id={`or-${voce.id}`}
                 inputMode="decimal"
