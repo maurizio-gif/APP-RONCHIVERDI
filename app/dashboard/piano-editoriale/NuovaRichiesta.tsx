@@ -10,6 +10,7 @@ import {
   LUNGHEZZA_MASSIMA_DESCRIZIONE,
   MASSIMO_FILE_PIANO,
   ORE_PER_TIPO,
+  durata,
   PREAVVISO_GIORNI,
   TIPI,
   erroreFilePiano,
@@ -160,7 +161,7 @@ export function NuovaRichiesta({
               </option>
             ))}
           </select>
-          <span className="field-hint">Circa {ORE_PER_TIPO[tipo]} {ORE_PER_TIPO[tipo] === 1 ? 'ora' : 'ore'} di lavoro per Giada.</span>
+          <span className="field-hint">Circa {durata(ORE_PER_TIPO[tipo])} di lavoro per Giada.</span>
         </div>
       </div>
 

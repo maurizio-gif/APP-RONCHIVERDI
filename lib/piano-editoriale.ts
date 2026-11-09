@@ -19,16 +19,19 @@ export const PREAVVISO_GIORNI = 14
 
 // ── i tipi ──────────────────────────────────────────────────────────────────
 
-export type TipoVoce = 'post' | 'storia' | 'reel' | 'video' | 'altro'
+export type TipoVoce = 'storia' | 'post' | 'carosello' | 'video' | 'reel' | 'altro'
 
-// Le ore di lavoro che si stimano per tipo: servono a far vedere quanto del
-// suo monte ore settimanale è già occupato. Giada le corregge per ogni voce.
-export const TIPI: { chiave: TipoVoce; testo: string; ore: number }[] = [
-  { chiave: 'post', testo: 'Post', ore: 1 },
-  { chiave: 'storia', testo: 'Storia', ore: 0.5 },
-  { chiave: 'reel', testo: 'Reel', ore: 2 },
-  { chiave: 'video', testo: 'Video (con riprese)', ore: 3 },
-  { chiave: 'altro', testo: 'Altro', ore: 1 },
+// Il tempo di lavoro che si stima per tipo, in minuti: serve a far vedere
+// quanto del suo monte ore settimanale è già occupato. Giada lo corregge per
+// ogni voce. Il video è quello con i filmati già montati; il reel è quello da
+// girare, con le riprese.
+export const TIPI: { chiave: TipoVoce; testo: string; minuti: number }[] = [
+  { chiave: 'storia', testo: 'Storia', minuti: 10 },
+  { chiave: 'post', testo: 'Post', minuti: 15 },
+  { chiave: 'carosello', testo: 'Carosello', minuti: 25 },
+  { chiave: 'video', testo: 'Video già montato', minuti: 60 },
+  { chiave: 'reel', testo: 'Reel con riprese', minuti: 90 },
+  { chiave: 'altro', testo: 'Altro', minuti: 30 },
 ]
 
 export const ETICHETTE_TIPO: Record<TipoVoce, string> = Object.fromEntries(TIPI.map((t) => [t.chiave, t.testo])) as Record<
@@ -36,10 +39,19 @@ export const ETICHETTE_TIPO: Record<TipoVoce, string> = Object.fromEntries(TIPI.
   string
 >
 
-export const ORE_PER_TIPO: Record<TipoVoce, number> = Object.fromEntries(TIPI.map((t) => [t.chiave, t.ore])) as Record<
-  TipoVoce,
-  number
->
+// Le ore (a due decimali, come si salvano) di ogni tipo.
+export const ORE_PER_TIPO: Record<TipoVoce, number> = Object.fromEntries(
+  TIPI.map((t) => [t.chiave, Math.round((t.minuti / 60) * 100) / 100])
+) as Record<TipoVoce, number>
+
+/** «10 min», «1 h», «1 h 30»: le ore (anche frazionarie) lette da una persona. */
+export function durata(ore: number): string {
+  const minuti = Math.round(Number(ore) * 60)
+  if (minuti < 60) return `${minuti} min`
+  const h = Math.floor(minuti / 60)
+  const m = minuti % 60
+  return m ? `${h} h ${m}` : `${h} h`
+}
 
 // ── gli stati ───────────────────────────────────────────────────────────────
 
