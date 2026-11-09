@@ -14,6 +14,9 @@
 //   guest-register — il banco, cioè il registro ospiti (`walk-in`);
 //   evento         — il QR di un evento: stesso form del Guest Register, aperto con
 //                    ?utm_source=evento (origine 'evento', scritta dal sito);
+//   porta-un-amico — la landing della newsletter: un socio segnala un amico, che è
+//                    il lead (origine 'porta-un-amico', scritta dal sito; il socio
+//                    sta in form_contatti.segnalato_da_nome/cognome);
 //   phone-in       — una telefonata o un'email alla segreteria, registrata in
 //                    Phone In / Email In (origine 'phone-email-in', scritta da
 //                    assegnaTrattativaDaEvento in lib/trattative-server.ts);
@@ -40,6 +43,7 @@ export type ChiaveProvenienza =
   | 'sito'
   | 'guest-register'
   | 'evento'
+  | 'porta-un-amico'
   | 'phone-in'
   | 'agenda'
   | 'scadenza-mensile'
@@ -61,6 +65,9 @@ export const ORIGINE_BANCO = 'walk-in'
 
 /** L'origine con cui il sito marca chi si registra dal QR di un evento. */
 export const ORIGINE_EVENTO = 'evento'
+
+/** L'origine con cui il sito marca l'amico segnalato da un socio. */
+export const ORIGINE_PORTA_UN_AMICO = 'porta-un-amico'
 
 /** L'origine delle trattative aperte da Phone In / Email In. */
 export const ORIGINE_PHONE_IN = 'phone-email-in'
@@ -116,6 +123,14 @@ const EVENTO: Provenienza = {
   classe: 'da-evento',
   spiegazione:
     'Si è registrato dal QR code di un evento: l’abbiamo incontrato di persona, ma non è passato dal banco. Il nome dell’evento è nella campagna.',
+}
+
+const PORTA_UN_AMICO: Provenienza = {
+  chiave: 'porta-un-amico',
+  etichetta: 'Porta un amico',
+  classe: 'da-amico',
+  spiegazione:
+    'È l’amico di un socio, segnalato dalla newsletter «Porta un amico»: non ha scritto lui. Il nome del socio è nel messaggio — citalo al telefono — e se sottoscrive l’annuale entro il 30 novembre il socio ha diritto al Daily Pass da 3 giorni, da registrare in Reception.',
 }
 
 const PHONE_IN: Provenienza = {
@@ -178,6 +193,7 @@ export function provenienzaTrattativa({
 
   if (origine === ORIGINE_BANCO) return GUEST_REGISTER
   if (origine === ORIGINE_EVENTO) return EVENTO
+  if (origine === ORIGINE_PORTA_UN_AMICO) return PORTA_UN_AMICO
   if (!haRichiesta) {
     if (origine === ORIGINE_PHONE_IN) return PHONE_IN
     if (origine === ORIGINE_SCADENZA_MENSILE) return SCADENZA_MENSILE
@@ -207,6 +223,7 @@ export function provenienzaTrattativa({
 export function provenienzaDiOrigine(origine: string | null | undefined): Provenienza {
   if (origine === ORIGINE_BANCO) return GUEST_REGISTER
   if (origine === ORIGINE_EVENTO) return EVENTO
+  if (origine === ORIGINE_PORTA_UN_AMICO) return PORTA_UN_AMICO
   if (origine === ORIGINE_PHONE_IN) return PHONE_IN
   if (origine === 'agenda') return AGENDA
   if (origine === ORIGINE_SCADENZA_MENSILE) return SCADENZA_MENSILE
@@ -238,6 +255,7 @@ export type ChiaveRichiesta =
   | 'email'
   | 'messaggio'
   | 'mancato_rinnovo'
+  | 'segnalazione'
 
 export type RichiestaLead = { chiave: ChiaveRichiesta; etichetta: string; classe: string }
 
@@ -253,6 +271,8 @@ const ETICHETTE_RICHIESTA: Record<ChiaveRichiesta, string> = {
   messaggio: 'Messaggio',
   // Un lead di recupero: non ha chiesto niente, è il club che lo cerca.
   mancato_rinnovo: 'Mancato rinnovo',
+  // L'amico di un socio: non ha chiesto lui di essere richiamato.
+  segnalazione: 'Segnalazione di un socio',
 }
 
 export function eChiaveRichiesta(v: string | null | undefined): v is ChiaveRichiesta {
@@ -269,6 +289,7 @@ export function richiestaDaAzione(
   if (azione === 'telefonata') return 'telefonata'
   if (azione === 'messaggio') return 'messaggio'
   if (origine === ORIGINE_BANCO) return 'in_sede'
+  if (origine === ORIGINE_PORTA_UN_AMICO) return 'segnalazione'
   return null
 }
 
