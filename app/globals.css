@@ -11674,3 +11674,320 @@ table.tabella-compatta tr.rop-totale td {
 	background: var(--accent-tint);
 	border-top: 1px solid var(--border-strong);
 }
+
+/* piano editoriale: il calendario dei contenuti richiesti a Giada */
+.pe-nuova-chiusa {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	margin-bottom: 1rem;
+}
+
+.pe-esito {
+	color: var(--ok);
+	font-size: var(--text-sm);
+}
+
+.pe-form {
+	max-width: 760px;
+	margin-bottom: 1rem;
+}
+
+.pe-form .field + .field,
+.pe-form .pe-riga,
+.pe-form .tk-allegati,
+.pe-form .tk-invia,
+.pe-form .pe-urgenza {
+	margin-top: 1rem;
+}
+
+.pe-form input,
+.pe-form select,
+.pe-form textarea {
+	width: 100%;
+	font: inherit;
+}
+
+.pe-form-titolo,
+.pe-orari-titolo {
+	margin: 0 0 0.5rem;
+	font-size: var(--text-md, 1.05rem);
+}
+
+.pe-riga {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem 1rem;
+}
+
+.pe-riga > .field {
+	flex: 1 1 200px;
+	margin-top: 0;
+}
+
+.pe-urgenza {
+	padding: 0.75rem 1rem;
+	border-left: 3px solid var(--warn);
+	border-radius: 6px;
+	background: var(--warn-tint);
+	font-size: var(--text-sm);
+}
+
+.pe-orari {
+	margin-bottom: 1rem;
+}
+
+.pe-orari-elenco {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem 1.25rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	font-size: var(--text-sm);
+}
+
+.pe-nav {
+	align-items: center;
+	margin-bottom: 0.75rem;
+}
+
+.pe-mese {
+	min-width: 9rem;
+	text-align: center;
+}
+
+.pe-calendario {
+	overflow-x: auto;
+	margin-bottom: 1rem;
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	background: var(--surface);
+}
+
+.pe-intestazione,
+.pe-settimana {
+	display: grid;
+	grid-template-columns: repeat(7, minmax(92px, 1fr)) 84px;
+	min-width: 760px;
+}
+
+.pe-intestazione {
+	border-bottom: 1px solid var(--border);
+	font-size: var(--text-xs);
+	font-weight: 600;
+	text-align: center;
+}
+
+.pe-intestazione span {
+	padding: 0.4rem 0;
+}
+
+.pe-settimana + .pe-settimana {
+	border-top: 1px solid var(--border);
+}
+
+.pe-giorno {
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+	min-height: 5.5rem;
+	padding: 0.3rem;
+	border-left: 1px solid var(--border);
+}
+
+.pe-giorno:first-child {
+	border-left: 0;
+}
+
+.pe-num {
+	font-size: var(--text-xs);
+	color: var(--text-muted);
+}
+
+.pe-fuori {
+	background: var(--fill-soft);
+}
+
+.pe-fuori .pe-num {
+	opacity: 0.55;
+}
+
+.pe-oggi .pe-num {
+	display: inline-block;
+	align-self: flex-start;
+	padding: 0 0.4rem;
+	border-radius: 999px;
+	background: var(--accent);
+	color: #fff;
+	font-weight: 600;
+}
+
+.pe-passato {
+	opacity: 0.8;
+}
+
+.pe-chip {
+	display: block;
+	overflow: hidden;
+	padding: 0.15rem 0.35rem;
+	border-radius: 4px;
+	font-size: var(--text-2xs);
+	line-height: 1.25;
+	text-decoration: none;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	background: var(--warn-tint);
+	color: var(--warn);
+}
+
+.pe-chip-tipo {
+	font-weight: 700;
+	text-transform: uppercase;
+}
+
+.pe-chip-urgente {
+	outline: 1px solid var(--error);
+}
+
+.pe-stato-in_carico,
+.pe-stato-in_lavorazione {
+	background: var(--info-tint);
+	color: var(--info);
+}
+
+.pe-stato-da_approvare {
+	background: var(--accent-tint);
+	color: var(--accent);
+}
+
+.pe-stato-pubblicato {
+	background: var(--ok-tint);
+	color: var(--ok);
+}
+
+.pe-stato-rifiutata {
+	background: var(--fill-soft);
+	color: var(--text-muted);
+	text-decoration: line-through;
+}
+
+.pe-carico {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 0.1rem;
+	border-left: 1px solid var(--border);
+	font-size: var(--text-xs);
+}
+
+.pe-carico-pieno {
+	background: var(--error-tint);
+	color: var(--error);
+}
+
+.pe-carico-nota {
+	font-size: var(--text-2xs);
+	font-weight: 600;
+}
+
+.pe-filtri {
+	margin-bottom: 0.75rem;
+	flex-wrap: wrap;
+}
+
+.pe-elenco {
+	display: grid;
+	gap: 0.75rem;
+}
+
+.pe-voce {
+	scroll-margin-top: 1rem;
+}
+
+.pe-voce-urgente {
+	border-left: 3px solid var(--error);
+}
+
+.pe-voce-testa {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	gap: 0.5rem;
+}
+
+.pe-voce-data {
+	font-size: var(--text-xs);
+	font-weight: 600;
+	text-transform: uppercase;
+	color: var(--accent);
+}
+
+.pe-voce-titolo {
+	margin: 0.1rem 0 0;
+	font-size: var(--text-md, 1.05rem);
+}
+
+.pe-voce-meta {
+	margin: 0.2rem 0 0;
+	font-size: var(--text-xs);
+}
+
+.pe-voce-badge {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	gap: 0.4rem;
+}
+
+.pe-voce-testo {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.pe-file {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem 0.75rem;
+	margin: 0.5rem 0;
+	padding: 0;
+	list-style: none;
+}
+
+.pe-file li {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	font-size: var(--text-xs);
+}
+
+.pe-nota {
+	padding: 0.6rem 0.85rem;
+	border-left: 3px solid var(--accent);
+	border-radius: 6px;
+	background: var(--accent-tint);
+	font-size: var(--text-sm);
+}
+
+.pe-gestione {
+	margin: 0.75rem 0;
+	padding-top: 0.75rem;
+	border-top: 1px solid var(--border);
+}
+
+.pe-gestione input,
+.pe-gestione select,
+.pe-gestione textarea {
+	width: 100%;
+	font: inherit;
+}
+
+.pe-gestione .field + .field {
+	margin-top: 0.75rem;
+}
+
+.pe-piede {
+	margin-top: 1rem;
+	font-size: var(--text-2xs);
+}

@@ -165,6 +165,17 @@ const DEFINIZIONI = [
     href: '/dashboard/richieste/richieste-fitness-manager',
     gruppo: 'Richieste dal sito',
   },
+  // Il piano editoriale: ogni responsabile chiede post e video alla social
+  // media manager (10 ore a settimana), con 14 giorni di preavviso, e lei
+  // risponde dalla stessa pagina (vedi lib/piano-editoriale.ts). Il
+  // calendario è di tutti; chi gestisce il piano è marcato su staff_users
+  // (social_manager). Nel corredo di un invito normale.
+  {
+    chiave: 'piano-editoriale',
+    label: 'Piano editoriale',
+    href: '/dashboard/piano-editoriale',
+    gruppo: 'Comunicazione',
+  },
   // La pagina che usa il centro medico per bruciare i codici. E' una sezione
   // come le altre — account personale, permesso assegnabile — ma marcata
   // "esterna": chi ha solo questa non e' della segreteria, e il pannello non
