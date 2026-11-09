@@ -5996,6 +5996,15 @@ button.th-ordina {
 	color: var(--ok);
 }
 
+/* Porta un amico: l'oro del club, come il Walk-in ma più chiaro — è una
+   persona che non abbiamo ancora incontrato, presentata da chi già conosciamo. */
+.tag-provenienza.da-amico {
+	background: var(--surface);
+	border-color: var(--accent);
+	color: var(--accent);
+	font-weight: 600;
+}
+
 /* Phone In / Email In: verde petrolio, come chi è passato dalla segreteria
    per telefono o per email — ha già parlato con qualcuno del club. */
 .tag-provenienza.da-telefono {
