@@ -209,26 +209,6 @@ export function motivoDi(t: {
 /** Il percorso "buono", quello che si mostra come avanzamento: persa è un'uscita laterale. */
 export const PASSI_AVANZAMENTO: readonly StatoTrattativa[] = ['nuovo', 'in_gestione', 'vinto']
 
-/**
- * Gli stati che compongono la **fotografia**: le righe «Nel club: 3 da
- * prendere in carico, 5 in gestione…» in dashboard e in cima a un canale.
- *
- * `annullato` non c'è, e non è una dimenticanza. Quella riga serve a una
- * domanda sola — quanto lavoro c'è e com'è andata — e le annullate non sono
- * né lavoro né risultato: «0 annullate» accanto agli altri numeri è una
- * colonna che non si guarda mai, e «7 annullate» sembra un dato quando è solo
- * il conto degli errori di inserimento.
- *
- * Restano invece fra i **filtri**, che usano STATI per intero: lì la domanda
- * è «fammele vedere», e una riga che non si può ritrovare è una riga persa.
- */
-export const STATI_IN_SINTESI: readonly StatoTrattativa[] = [
-  'nuovo',
-  'in_gestione',
-  'vinto',
-  'perso',
-]
-
 export const OPZIONI_STATO = STATI.map((s) => ({ valore: s, etichetta: ETICHETTE_STATO[s] }))
 
 export type Trattativa = {
