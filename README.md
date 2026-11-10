@@ -157,6 +157,22 @@ elenchi sotto sono il loro dettaglio, con i comandi per prenderle in carico,
 riassegnarle o cambiarne lo stato (lo stesso componente della sezione Club e
 Family, non una copia). Il totale del club sta in una riga sotto i riquadri.
 
+**Ritrovare il proprio lavoro.** Le schede *Assegnate a te*, *In gestione*,
+*Vinte* e *Perse* hanno due filtri sotto: **Le mie / Di tutti** e **Tutti /
+New / Mancati rinnovi**. Un commerciale apre sulle proprie; chi coordina e non
+ha trattative sue (`vede_dashboard_new` senza `commerciale`) apre sul club. I
+numeri sui chip sono quelli dell'elenco che aprono, e l'elenco si sfoglia a
+pagine da 50 (`pag` nell'indirizzo).
+
+Prima *In gestione*, *Vinte* e *Perse* elencavano le dodici più recenti **del
+club intero**, mentre i chip — e questo stesso README — parlavano di «vinte da
+te, perse da te»: chi aveva 79 perse ne trovava nove, mescolate a quelle dei
+colleghi. E «Vedi tutti» portava a Club e Family, che elenca le *richieste* dal
+sito: i mancati rinnovi non sono richieste, quindi lì non c'erano, e in
+dashboard restavano visibili solo se capitavano fra le dodici. Una ritrovabilità
+che dipende dalla fortuna non è una ritrovabilità: l'unica coda a rimandare
+ancora a Club e Family è quella dei *New da prendere in carico*.
+
 Prima i riquadri contavano tutto il club e sopra c'era un elenco separato delle
 proprie: con un commerciale solo al lavoro i numeri coincidevano e la pagina
 sembrava ripetersi. «Da prendere in carico» era perfino lo stesso insieme detto

@@ -5483,6 +5483,14 @@ button.th-ordina {
 	margin-top: 1rem;
 }
 
+/* Le pagine di un elenco di lead: «← Precedenti  51–100 di 148  Successivi →». */
+.lead-pagine {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.75rem;
+}
+
 /* I riquadri dei numeri quando stanno in coda a una sezione e non in testa:
    sono la fotografia, e chiudono il capitolo invece di aprirlo. */
 .griglia-stat-coda {

@@ -50,6 +50,14 @@ const TRATTATIVE_IN_ELENCO = 12
  */
 const TRATTATIVE_RECUPERO_IN_ELENCO = 50
 
+/**
+ * Le schede del proprio lavoro (assegnate, in gestione, vinte, perse) si
+ * sfogliano a pagine: un commerciale ne ha decine per stato, e fermarsi a
+ * dodici voleva dire non poter più ritrovare le proprie — il club ha un solo
+ * posto dove vedere un mancato rinnovo, ed è questo.
+ */
+const TRATTATIVE_PER_PAGINA = 50
+
 /** Le schede dei lead, sul modello di Passion: un elenco solo, filtrato. */
 const VISTE_LEAD = [
   // «Da prendere in carico» è in due contenitori: i mancati rinnovi sono
@@ -64,6 +72,33 @@ const VISTE_LEAD = [
   { chiave: 'perse', testo: 'Perse' },
 ] as const
 type VistaLead = (typeof VISTE_LEAD)[number]['chiave']
+
+/** Le schede che mostrano il lavoro già preso: si filtrano per chi e per tipo. */
+const VISTE_DEL_LAVORO = ['mie', 'in_gestione', 'vinte', 'perse'] as const satisfies readonly VistaLead[]
+const STATI_DELLA_VISTA: Record<(typeof VISTE_DEL_LAVORO)[number], StatoTrattativa[]> = {
+  mie: ['nuovo', 'in_gestione'],
+  in_gestione: ['in_gestione'],
+  vinte: ['vinto'],
+  perse: ['perso'],
+}
+function eVistaDelLavoro(v: VistaLead): v is (typeof VISTE_DEL_LAVORO)[number] {
+  return (VISTE_DEL_LAVORO as readonly string[]).includes(v)
+}
+
+/** Di chi sono i lead elencati: i propri, o quelli di tutto il club. */
+type DiChiLead = 'mie' | 'tutti'
+
+/**
+ * Che tipo di lead: i new (sito, banco, agenda…) o i mancati rinnovi
+ * (origine recupero-rinnovo). Si lavorano in modo diverso e finivano
+ * mescolati: chi cerca «i miei mancati rinnovi gestiti» deve poterli isolare.
+ */
+type TipoLead = 'tutti' | 'new' | 'recupero'
+const TIPI_LEAD: { chiave: TipoLead; testo: string }[] = [
+  { chiave: 'tutti', testo: 'Tutti' },
+  { chiave: 'new', testo: 'New' },
+  { chiave: 'recupero', testo: 'Mancati rinnovi' },
+]
 
 /** Le schede delle azioni (gli eventi d'agenda): quando, e di chi. */
 const QUANDO_TASK = [
@@ -135,6 +170,10 @@ async function contatoriTrattative(email: string | null) {
   const vuoto = () => Object.fromEntries(STATI.map((x) => [x, 0])) as Record<StatoTrattativa, number>
   const mie = vuoto()
   const club = vuoto()
+  // Di quelle sopra, quante sono mancati rinnovi: i lead di recupero si
+  // lavorano a parte, e chi li cerca deve poterli contare e isolare.
+  const mieRecupero = vuoto()
+  const clubRecupero = vuoto()
   // «Da prendere in carico» sono quelle di nessuno, non quelle in stato
   // `nuovo`: chiunque abbia il diritto commerciale può prendersele, quindi
   // per chi guarda sono lavoro disponibile, non lavoro di altri.
@@ -145,15 +184,34 @@ async function contatoriTrattative(email: string | null) {
   for (const riga of righe) {
     const stato = riga.stato as StatoTrattativa
     if (!(stato in club)) continue
+    const eRecupero = riga.origine === ORIGINE_RECUPERO
     club[stato] += 1
-    if (email && riga.assegnato_a === email) mie[stato] += 1
+    if (eRecupero) clubRecupero[stato] += 1
+    if (email && riga.assegnato_a === email) {
+      mie[stato] += 1
+      if (eRecupero) mieRecupero[stato] += 1
+    }
     if (!riga.assegnato_a && !eChiusa(stato)) {
-      if (riga.origine === ORIGINE_RECUPERO) libereRecupero += 1
+      if (eRecupero) libereRecupero += 1
       else libere += 1
     }
   }
 
-  return { mie, club, libere, libereRecupero }
+  return { mie, club, mieRecupero, clubRecupero, libere, libereRecupero }
+}
+
+type ContatoriTrattative = Awaited<ReturnType<typeof contatoriTrattative>>
+
+/**
+ * Quante trattative ha una scheda del lavoro, per chi e per tipo: lo stesso
+ * numero che l'elenco mostrerà, perché il chip promette quello che si trova
+ * cliccandolo.
+ */
+function contaLavoro(c: ContatoriTrattative, stati: StatoTrattativa[], di: DiChiLead, tipo: TipoLead): number {
+  const somma = (r: Record<StatoTrattativa, number>) => stati.reduce((a, s) => a + r[s], 0)
+  const totale = somma(di === 'mie' ? c.mie : c.club)
+  const recupero = somma(di === 'mie' ? c.mieRecupero : c.clubRecupero)
+  return tipo === 'recupero' ? recupero : tipo === 'new' ? totale - recupero : totale
 }
 
 /**
@@ -306,12 +364,13 @@ async function impegniDelGiorno(email: string | null, quando: QuandoTask, chi: C
  * la fotografia del club. Questo dice *quali sono le tue*, che è la domanda
  * con cui si apre la giornata e a cui i riquadri non rispondono.
  */
-async function trattativeDaLavorare(email: string | null, vista: VistaLead) {
+async function trattativeDaLavorare(
+  email: string | null,
+  vista: VistaLead,
+  { di, tipo, pagina }: { di: DiChiLead; tipo: TipoLead; pagina: number }
+) {
   const supabase = createSupabaseServiceClient()
 
-  // Solo le aperte: una vinta o persa non è lavoro, è storia — si consulta
-  // dalla sezione, filtrando per stato.
-  //
   // `origine` serve alla targhetta della provenienza: su una trattativa nata
   // al banco è l'unico posto in cui quel fatto è scritto, se poi la richiesta
   // agganciata non c'è (vedi lib/provenienza.ts).
@@ -329,13 +388,20 @@ async function trattativeDaLavorare(email: string | null, vista: VistaLead) {
       .or(`origine.is.null,origine.neq.${ORIGINE_RECUPERO}`)
   else if (vista === 'recupero')
     query = query.in('stato', ['nuovo', 'in_gestione']).is('assegnato_a', null).eq('origine', ORIGINE_RECUPERO)
-  else if (vista === 'mie') query = query.in('stato', ['nuovo', 'in_gestione']).eq('assegnato_a', email ?? '')
-  else if (vista === 'in_gestione') query = query.eq('stato', 'in_gestione')
-  else if (vista === 'vinte') query = query.eq('stato', 'vinto')
-  else if (vista === 'perse') query = query.eq('stato', 'perso')
-  const { data } = await query
-    .order(vista === 'vinte' || vista === 'perse' ? 'chiuso_il' : 'creato_il', { ascending: false })
-    .limit(vista === 'recupero' ? TRATTATIVE_RECUPERO_IN_ELENCO : TRATTATIVE_IN_ELENCO)
+  else if (eVistaDelLavoro(vista)) {
+    query = query.in('stato', STATI_DELLA_VISTA[vista])
+    // «Assegnate a te» è per definizione le proprie. Le altre tre erano
+    // sempre del club intero, anche se i riquadri e il README dicono «vinte
+    // da te, perse da te»: chi cercava le proprie ne trovava dodici su
+    // centocinquanta, dei colleghi quanto sue.
+    if (vista === 'mie' || di === 'mie') query = query.eq('assegnato_a', email ?? '')
+    if (tipo === 'recupero') query = query.eq('origine', ORIGINE_RECUPERO)
+    else if (tipo === 'new') query = query.or(`origine.is.null,origine.neq.${ORIGINE_RECUPERO}`)
+  }
+  query = query.order(vista === 'vinte' || vista === 'perse' ? 'chiuso_il' : 'creato_il', { ascending: false })
+  const { data } = await (eVistaDelLavoro(vista)
+    ? query.range((pagina - 1) * TRATTATIVE_PER_PAGINA, pagina * TRATTATIVE_PER_PAGINA - 1)
+    : query.limit(vista === 'recupero' ? TRATTATIVE_RECUPERO_IN_ELENCO : TRATTATIVE_IN_ELENCO))
 
   const scelte = data ?? []
   const personaIds = [...new Set(scelte.map((t) => t.persona_id).filter(Boolean))] as string[]
@@ -528,7 +594,18 @@ async function trattativeDaLavorare(email: string | null, vista: VistaLead) {
   return scelte.map(conPersona)
 }
 
-type Parametri = { lead?: string; quando?: string; chi?: string; q?: string }
+type Parametri = {
+  lead?: string
+  quando?: string
+  chi?: string
+  q?: string
+  /** Lead: di chi (mie | tutti). Senza, le proprie per i commerciali e tutte per chi coordina. */
+  di?: string
+  /** Lead: new o mancati rinnovi. */
+  tipo?: string
+  /** Lead: la pagina dell'elenco, da 1. */
+  pag?: string
+}
 
 /**
  * I contatti che corrispondono alla ricerca: nome e cognome (anche insieme,
@@ -613,11 +690,18 @@ export default async function RiepilogoPage({ searchParams }: { searchParams: Pa
   const vistaDaiConti = (conti: { libere: number; libereRecupero: number } | null): VistaLead =>
     vistaScelta ?? (!conti || conti.libere > 0 ? 'libere' : conti.libereRecupero > 0 ? 'recupero' : 'mie')
   const contiInCorso = vedeTrattative ? contatoriTrattative(email) : Promise.resolve(null)
+  // Il lavoro già preso si guarda per chi e per tipo. Il commerciale apre sulle
+  // proprie — è la domanda con cui arriva, «le mie vinte, le mie perse» — chi
+  // coordina e non ha trattative sue, sul club: un elenco suo sarebbe vuoto.
+  const di: DiChiLead = searchParams.di === 'tutti' ? 'tutti' : searchParams.di === 'mie' || sonoCommerciale ? 'mie' : 'tutti'
+  const tipoLead: TipoLead = searchParams.tipo === 'new' || searchParams.tipo === 'recupero' ? searchParams.tipo : 'tutti'
+  const pagina = Math.max(1, Math.floor(Number(searchParams.pag)) || 1)
+  const opzioniLead = { di, tipo: tipoLead, pagina }
   const leadInCorso = !vedeTrattative
     ? Promise.resolve(null)
     : vistaScelta
-      ? trattativeDaLavorare(email, vistaScelta)
-      : contiInCorso.then((conti) => trattativeDaLavorare(email, vistaDaiConti(conti)))
+      ? trattativeDaLavorare(email, vistaScelta, opzioniLead)
+      : contiInCorso.then((conti) => trattativeDaLavorare(email, vistaDaiConti(conti), opzioniLead))
 
   const [trovati, trattative, nomeUtente, lead, impegni, nonInstradate, { data: staff }] = await Promise.all([
     cerca ? cercaContatti(cerca) : Promise.resolve(null),
@@ -639,35 +723,42 @@ export default async function RiepilogoPage({ searchParams }: { searchParams: Pa
   const oggi = oggiRoma()
   const inArrivo = SEZIONI.filter((s) => s.inArrivo && sezioniConsentite.includes(s.chiave))
 
+  // I numeri sulle schede sono quelli dell'elenco che aprono: le tre del
+  // lavoro già preso seguono il «di chi» e il tipo scelti sotto, così il
+  // chip «Vinte 36» e le righe che si trovano cliccandolo tornano.
   const contiLead: Record<VistaLead, number> | null = trattative && {
     libere: trattative.libere,
     recupero: trattative.libereRecupero,
-    mie: trattative.mie.nuovo + trattative.mie.in_gestione,
-    in_gestione: trattative.club.in_gestione,
-    vinte: trattative.club.vinto,
-    perse: trattative.club.perso,
+    mie: contaLavoro(trattative, STATI_DELLA_VISTA.mie, 'mie', tipoLead),
+    in_gestione: contaLavoro(trattative, STATI_DELLA_VISTA.in_gestione, di, tipoLead),
+    vinte: contaLavoro(trattative, STATI_DELLA_VISTA.vinte, di, tipoLead),
+    perse: contaLavoro(trattative, STATI_DELLA_VISTA.perse, di, tipoLead),
   }
 
-  // I link delle schede tengono la scelta dell'altra sezione.
+  const contaVista = (vista: (typeof VISTE_DEL_LAVORO)[number], d: DiChiLead, t: TipoLead) =>
+    trattative ? contaLavoro(trattative, STATI_DELLA_VISTA[vista], d, t) : 0
+
+  // I link delle schede tengono la scelta dell'altra sezione. La pagina no:
+  // cambiando scheda o filtro si riparte dalla prima.
   const link = (p: Parametri) => {
     const q = new URLSearchParams()
-    const tutti = { lead: vistaLead, quando, chi, ...p }
+    const tutti = { lead: vistaLead, quando, chi, di, tipo: tipoLead, ...p }
     if (tutti.lead) q.set('lead', tutti.lead)
     if (tutti.quando) q.set('quando', tutti.quando)
     if (tutti.chi === 'miei') q.set('chi', 'miei')
+    q.set('di', tutti.di)
+    if (tutti.tipo && tutti.tipo !== 'tutti') q.set('tipo', tutti.tipo)
+    if (p.pag && p.pag !== '1') q.set('pag', p.pag)
     return `/dashboard?${q.toString()}`
   }
 
-  // Dove porta «Vedi tutti». I mancati rinnovi non hanno un elenco a parte:
-  // non sono richieste, e Club e Family mostra solo quelle.
-  const filtroLead: Record<VistaLead, string | null> = {
-    libere: 'stato=nuovo',
-    recupero: null,
-    mie: 'mostra=tutte&mie=1',
-    in_gestione: 'stato=in_gestione',
-    vinte: 'stato=vinto',
-    perse: 'stato=perso',
-  }
+  // Le schede del lavoro già preso e le «new da prendere» si sfogliano qui;
+  // solo la coda dei new liberi rimanda a Club e Family, dove stanno le
+  // richieste dal sito. Là non ci sono i mancati rinnovi (non sono richieste),
+  // né i lead nati senza una richiesta dietro: è il motivo per cui
+  // «Vedi tutti» non va bene come unico modo di ritrovare le proprie.
+  const totaleVista = contiLead?.[vistaLead] ?? 0
+  const ultimaPagina = Math.max(1, Math.ceil(totaleVista / TRATTATIVE_PER_PAGINA))
 
   return (
     <>
@@ -751,6 +842,44 @@ export default async function RiepilogoPage({ searchParams }: { searchParams: Pa
             ))}
           </div>
 
+          {/* Il lavoro già preso si legge per chi e per tipo: «le mie vinte»,
+              «i miei mancati rinnovi gestiti». «Assegnate a te» è già delle
+              proprie, quindi lì «di chi» non c'è. Chi non è commerciale non ha
+              trattative sue: per lui la scelta sarebbe sempre un elenco vuoto. */}
+          {eVistaDelLavoro(vistaLead) && (
+            <div className="filtro-gruppo">
+              {vistaLead !== 'mie' && sonoCommerciale && (
+                <>
+                  <Scheda
+                    href={link({ di: 'mie' })}
+                    attiva={di === 'mie'}
+                    quante={contaVista(vistaLead, 'mie', tipoLead)}
+                  >
+                    Le mie
+                  </Scheda>
+                  <Scheda
+                    href={link({ di: 'tutti' })}
+                    attiva={di === 'tutti'}
+                    quante={contaVista(vistaLead, 'tutti', tipoLead)}
+                  >
+                    Di tutti
+                  </Scheda>
+                  <span className="filtro-separatore" aria-hidden="true" />
+                </>
+              )}
+              {TIPI_LEAD.map((t) => (
+                <Scheda
+                  key={t.chiave}
+                  href={link({ tipo: t.chiave })}
+                  attiva={t.chiave === tipoLead}
+                  quante={contaVista(vistaLead, vistaLead === 'mie' ? 'mie' : di, t.chiave)}
+                >
+                  {t.testo}
+                </Scheda>
+              ))}
+            </div>
+          )}
+
           <div className="card">
             {lead.length > 0 ? (
               <ElencoLead
@@ -764,19 +893,37 @@ export default async function RiepilogoPage({ searchParams }: { searchParams: Pa
             ) : (
               <p className="muted">Nessun lead qui.</p>
             )}
-            {contiLead[vistaLead] > lead.length &&
-              (filtroLead[vistaLead] ? (
-                <Link
-                  className="btn btn-ghost btn-sm card-coda"
-                  href={`/dashboard/richieste/richieste-club?${filtroLead[vistaLead]}`}
-                >
+            {eVistaDelLavoro(vistaLead) ? (
+              totaleVista > TRATTATIVE_PER_PAGINA && (
+                <nav className="card-coda lead-pagine" aria-label="Pagine dell'elenco">
+                  {pagina > 1 && (
+                    <Link className="btn btn-ghost btn-sm" href={link({ pag: String(pagina - 1) })}>
+                      ← Precedenti
+                    </Link>
+                  )}
+                  <span className="muted">
+                    {(pagina - 1) * TRATTATIVE_PER_PAGINA + 1}–{Math.min(pagina * TRATTATIVE_PER_PAGINA, totaleVista)} di{' '}
+                    {totaleVista}
+                  </span>
+                  {pagina < ultimaPagina && (
+                    <Link className="btn btn-ghost btn-sm" href={link({ pag: String(pagina + 1) })}>
+                      Successivi →
+                    </Link>
+                  )}
+                </nav>
+              )
+            ) : (
+              contiLead[vistaLead] > lead.length &&
+              (vistaLead === 'libere' ? (
+                <Link className="btn btn-ghost btn-sm card-coda" href="/dashboard/richieste/richieste-club?stato=nuovo">
                   Vedi tutti ({contiLead[vistaLead]})
                 </Link>
               ) : (
                 <p className="muted card-coda">
                   Ne mostro {lead.length} su {contiLead[vistaLead]}: man mano che ne prendi in carico, compaiono gli altri.
                 </p>
-              ))}
+              ))
+            )}
           </div>
         </section>
       )}
