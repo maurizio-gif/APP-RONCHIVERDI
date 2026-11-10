@@ -157,8 +157,8 @@ elenchi sotto sono il loro dettaglio, con i comandi per prenderle in carico,
 riassegnarle o cambiarne lo stato (lo stesso componente della sezione Club e
 Family, non una copia). Il totale del club sta in una riga sotto i riquadri.
 
-**Ritrovare il proprio lavoro.** Le schede *In gestione*, *Vinte* e *Perse*
-hanno due filtri sotto: **Le mie / Di tutti** e **Tutti /
+**Ritrovare il proprio lavoro.** Le schede *In gestione*, *Vinte*, *Perse* e
+*Annullate* hanno due filtri sotto: **Le mie / Di tutti** e **Tutti /
 New / Mancati rinnovi**. Un commerciale apre sulle proprie; chi coordina e non
 ha trattative sue (`vede_dashboard_new` senza `commerciale`) apre sul club. I
 numeri sui chip sono quelli dell'elenco che aprono, e l'elenco si sfoglia a
@@ -166,8 +166,20 @@ pagine da 50 (`pag` nell'indirizzo).
 
 Non c'è una scheda «Assegnate a te»: assegnare un lead `nuovo` lo porta subito
 `in_gestione`, quindi sarebbe la stessa lista di *In gestione → Le mie* sotto un
-altro nome. La stessa cosa in due posti non aggiunge informazione: toglie
-fiducia nei numeri.
+altro nome.
+
+**Un posto solo per le trattative.** La Dashboard è l'unico luogo dove si
+guardano le trattative per stato, per assegnatario e per tipo (new o mancati
+rinnovi); ogni scheda si sfoglia a pagine da 50, senza rimandi altrove. Eventi
+Core (`/dashboard/richieste/richieste-club`) è la casella delle **richieste**:
+«da lavorare» o «tutte», e su ogni riga il blocco trattativa per agire su
+quella persona. Prima aveva anche i conti per stato e i filtri «Stato della
+trattativa» e «Assegnazione», ma contavano le richieste e non le trattative: la
+stessa domanda — le mie in gestione — dava 48 in Dashboard e 20 lì, perché 28
+trattative non hanno una richiesta dal sito dietro (mancati rinnovi, agenda,
+banco). Due numeri per la stessa cosa non si leggono come due punti di vista:
+si leggono come un errore. I vecchi indirizzi con `?stato=` e `?mie=` si aprono
+lo stesso, ignorando quei parametri.
 
 Prima *In gestione*, *Vinte* e *Perse* elencavano le dodici più recenti **del
 club intero**, mentre i chip — e questo stesso README — parlavano di «vinte da
@@ -542,11 +554,11 @@ Tre effetti che vale la pena conoscere:
   vorrebbe dire perdere il commerciale vero che c'era prima. **Attenzione: di
   quella funzione ne esistono due** — vedi «Le due `trova_o_crea_opportunita`»
   qui sotto;
-- **non entra nella fotografia.** La riga «Nel club: …» in dashboard e quella
-  in cima al canale mostrano `STATI_IN_SINTESI`, cioè i quattro stati che sono
-  lavoro o risultato. `annullato` resta invece fra i **chip dei filtri**, che
-  usano `STATI` per intero: lì la domanda è «fammele vedere», e una riga che
-  non si può ritrovare è una riga persa;
+- **non entra nei numeri del lavoro.** I chip «da prendere in carico» e le
+  schede *In gestione*, *Vinte*, *Perse* della dashboard dicono quanto lavoro
+  c'è e com'è andata; le annullate non sono né l'uno né l'altro. Hanno però la
+  loro scheda, *Annullate*, in fondo: la domanda lì è «fammele vedere», e una
+  riga che non si può ritrovare è una riga persa;
 - **la richiesta sotto non si chiude da sé.** Annullare la trattativa e
   chiudere la richiesta che l'ha generata sono due gesti su due oggetti
   diversi: dopo l'annullamento quel modulo resta «da lavorare» finché non lo

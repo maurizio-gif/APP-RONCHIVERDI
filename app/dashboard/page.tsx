@@ -40,21 +40,12 @@ export const dynamic = 'force-dynamic'
 /** Quanti impegni mostrare in elenco prima di rimandare all'agenda. */
 const IMPEGNI_IN_ELENCO = 12
 
-/** Quante trattative elencare per blocco prima di rimandare alla sezione. */
-const TRATTATIVE_IN_ELENCO = 12
-
 /**
- * I mancati rinnovi sono tanti e si lavorano a più riprese, e non hanno un
- * elenco loro dove rimandare (non sono richieste: Club e Family non li
- * mostra): qui se ne elencano di più, e oltre il tetto lo si dice.
- */
-const TRATTATIVE_RECUPERO_IN_ELENCO = 50
-
-/**
- * Le schede del proprio lavoro (assegnate, in gestione, vinte, perse) si
- * sfogliano a pagine: un commerciale ne ha decine per stato, e fermarsi a
- * dodici voleva dire non poter più ritrovare le proprie — il club ha un solo
- * posto dove vedere un mancato rinnovo, ed è questo.
+ * Ogni scheda dei lead si sfoglia a pagine. Qui sta l'unico elenco delle
+ * trattative: i mancati rinnovi non sono richieste, quindi Eventi Core non li
+ * mostra, e un tetto fisso a dodici voleva dire non poter più ritrovare le
+ * proprie — un commerciale ne ha decine per stato. Rimandare a un secondo
+ * elenco peggiorava le cose: stessa domanda, numeri diversi.
  */
 const TRATTATIVE_PER_PAGINA = 50
 
@@ -69,6 +60,9 @@ const VISTE_LEAD = [
   { chiave: 'in_gestione', testo: 'In gestione' },
   { chiave: 'vinte', testo: 'Vinte' },
   { chiave: 'perse', testo: 'Perse' },
+  // Né vinte né perse (vedi «Annullata» in pipeline.ts): fuori dai numeri, ma
+  // una riga che non si può ritrovare è una riga persa.
+  { chiave: 'annullate', testo: 'Annullate' },
 ] as const
 type VistaLead = (typeof VISTE_LEAD)[number]['chiave']
 
@@ -80,11 +74,12 @@ type VistaLead = (typeof VISTE_LEAD)[number]['chiave']
  * «In gestione → Le mie» sotto un altro nome — e la stessa cosa in due posti
  * è esattamente ciò che fa dubitare dei numeri.
  */
-const VISTE_DEL_LAVORO = ['in_gestione', 'vinte', 'perse'] as const satisfies readonly VistaLead[]
+const VISTE_DEL_LAVORO = ['in_gestione', 'vinte', 'perse', 'annullate'] as const satisfies readonly VistaLead[]
 const STATI_DELLA_VISTA: Record<(typeof VISTE_DEL_LAVORO)[number], StatoTrattativa[]> = {
   in_gestione: ['in_gestione'],
   vinte: ['vinto'],
   perse: ['perso'],
+  annullate: ['annullato'],
 }
 function eVistaDelLavoro(v: VistaLead): v is (typeof VISTE_DEL_LAVORO)[number] {
   return (VISTE_DEL_LAVORO as readonly string[]).includes(v)
@@ -402,10 +397,8 @@ async function trattativeDaLavorare(
     if (tipo === 'recupero') query = query.eq('origine', ORIGINE_RECUPERO)
     else if (tipo === 'new') query = query.or(`origine.is.null,origine.neq.${ORIGINE_RECUPERO}`)
   }
-  query = query.order(vista === 'vinte' || vista === 'perse' ? 'chiuso_il' : 'creato_il', { ascending: false })
-  const { data } = await (eVistaDelLavoro(vista)
-    ? query.range((pagina - 1) * TRATTATIVE_PER_PAGINA, pagina * TRATTATIVE_PER_PAGINA - 1)
-    : query.limit(vista === 'recupero' ? TRATTATIVE_RECUPERO_IN_ELENCO : TRATTATIVE_IN_ELENCO))
+  query = query.order(vista === 'vinte' || vista === 'perse' || vista === 'annullate' ? 'chiuso_il' : 'creato_il', { ascending: false })
+  const { data } = await query.range((pagina - 1) * TRATTATIVE_PER_PAGINA, pagina * TRATTATIVE_PER_PAGINA - 1)
 
   const scelte = data ?? []
   const personaIds = [...new Set(scelte.map((t) => t.persona_id).filter(Boolean))] as string[]
@@ -736,6 +729,7 @@ export default async function RiepilogoPage({ searchParams }: { searchParams: Pa
     in_gestione: contaLavoro(trattative, STATI_DELLA_VISTA.in_gestione, di, tipoLead),
     vinte: contaLavoro(trattative, STATI_DELLA_VISTA.vinte, di, tipoLead),
     perse: contaLavoro(trattative, STATI_DELLA_VISTA.perse, di, tipoLead),
+    annullate: contaLavoro(trattative, STATI_DELLA_VISTA.annullate, di, tipoLead),
   }
 
   const contaVista = (vista: (typeof VISTE_DEL_LAVORO)[number], d: DiChiLead, t: TipoLead) =>
@@ -755,11 +749,6 @@ export default async function RiepilogoPage({ searchParams }: { searchParams: Pa
     return `/dashboard?${q.toString()}`
   }
 
-  // Le schede del lavoro già preso e le «new da prendere» si sfogliano qui;
-  // solo la coda dei new liberi rimanda a Club e Family, dove stanno le
-  // richieste dal sito. Là non ci sono i mancati rinnovi (non sono richieste),
-  // né i lead nati senza una richiesta dietro: è il motivo per cui
-  // «Vedi tutti» non va bene come unico modo di ritrovare le proprie.
   const totaleVista = contiLead?.[vistaLead] ?? 0
   const ultimaPagina = Math.max(1, Math.ceil(totaleVista / TRATTATIVE_PER_PAGINA))
 
@@ -896,36 +885,23 @@ export default async function RiepilogoPage({ searchParams }: { searchParams: Pa
             ) : (
               <p className="muted">Nessun lead qui.</p>
             )}
-            {eVistaDelLavoro(vistaLead) ? (
-              totaleVista > TRATTATIVE_PER_PAGINA && (
-                <nav className="card-coda lead-pagine" aria-label="Pagine dell'elenco">
-                  {pagina > 1 && (
-                    <Link className="btn btn-ghost btn-sm" href={link({ pag: String(pagina - 1) })}>
-                      ← Precedenti
-                    </Link>
-                  )}
-                  <span className="muted">
-                    {(pagina - 1) * TRATTATIVE_PER_PAGINA + 1}–{Math.min(pagina * TRATTATIVE_PER_PAGINA, totaleVista)} di{' '}
-                    {totaleVista}
-                  </span>
-                  {pagina < ultimaPagina && (
-                    <Link className="btn btn-ghost btn-sm" href={link({ pag: String(pagina + 1) })}>
-                      Successivi →
-                    </Link>
-                  )}
-                </nav>
-              )
-            ) : (
-              contiLead[vistaLead] > lead.length &&
-              (vistaLead === 'libere' ? (
-                <Link className="btn btn-ghost btn-sm card-coda" href="/dashboard/richieste/richieste-club?stato=nuovo">
-                  Vedi tutti ({contiLead[vistaLead]})
-                </Link>
-              ) : (
-                <p className="muted card-coda">
-                  Ne mostro {lead.length} su {contiLead[vistaLead]}: man mano che ne prendi in carico, compaiono gli altri.
-                </p>
-              ))
+            {totaleVista > TRATTATIVE_PER_PAGINA && (
+              <nav className="card-coda lead-pagine" aria-label="Pagine dell'elenco">
+                {pagina > 1 && (
+                  <Link className="btn btn-ghost btn-sm" href={link({ pag: String(pagina - 1) })}>
+                    ← Precedenti
+                  </Link>
+                )}
+                <span className="muted">
+                  {(pagina - 1) * TRATTATIVE_PER_PAGINA + 1}–{Math.min(pagina * TRATTATIVE_PER_PAGINA, totaleVista)} di{' '}
+                  {totaleVista}
+                </span>
+                {pagina < ultimaPagina && (
+                  <Link className="btn btn-ghost btn-sm" href={link({ pag: String(pagina + 1) })}>
+                    Successivi →
+                  </Link>
+                )}
+              </nav>
             )}
           </div>
         </section>

@@ -9,14 +9,7 @@ import {
 import { emailCorrente, getSezioniConsentite } from '@/lib/auth/sezioni-server'
 import { eCommerciale, puoCancellare, puoRiassegnare } from '@/lib/auth/permessi'
 import { COLONNE_RICHIESTA, canaleDaChiave, eGestioneSemplice } from '@/lib/richieste'
-import {
-  ETICHETTE_STATO,
-  PUNTO_STATO,
-  STATI,
-  STATI_IN_SINTESI,
-  eStatoValido,
-  type StatoTrattativa,
-} from '@/lib/pipeline'
+import type { StatoTrattativa } from '@/lib/pipeline'
 import { voceDaTask } from '@/lib/agenda'
 import { mappaNomiStaff, ordinaPerCognome, type RigaStaff } from '@/lib/staff'
 import { GuidaModello } from '@/components/GuidaModello'
@@ -35,7 +28,7 @@ export default async function CanalePage({
   searchParams,
 }: {
   params: { canale: string }
-  searchParams: { mostra?: string; stato?: string; mie?: string; richiesta?: string }
+  searchParams: { mostra?: string; richiesta?: string }
 }) {
   const canale = canaleDaChiave(params.canale)
   if (!canale) notFound()
@@ -52,21 +45,14 @@ export default async function CanalePage({
   // lavorazione che non esiste.
   const semplice = eGestioneSemplice(canale)
 
-  // Lo stato arriva dai riquadri del riepilogo. Si accetta solo un valore
-  // della pipeline: un parametro inventato non deve svuotare l'elenco senza
-  // spiegazione, deve semplicemente non filtrare.
-  const statoRichiesto = eStatoValido(searchParams.stato) ? searchParams.stato : null
-
-  // Filtrando per stato si guarda tutta la storia, non solo il da lavorare:
-  // «vinte» e «perse» sono per definizione richieste già chiuse, e col filtro
-  // di default l'elenco sarebbe sempre vuoto — un link che promette un numero
-  // e porta a una pagina vuota è peggio di nessun link.
-  const soloDaLavorare = !statoRichiesto && searchParams.mostra !== 'tutte'
-
-  // «Assegnate a me» guarda l'assegnatario della trattativa, perché la
-  // richiesta in sé non ha un titolare: è la persona a essere seguita da
-  // qualcuno, non il singolo modulo. Esiste solo dove esistono le trattative.
-  const soloMie = !!canale.inAgenda && searchParams.mie === '1'
+  // Questa pagina è la casella delle **richieste**: da lavorare, o tutte. Lo
+  // stato delle trattative (in gestione, vinte, perse, mancati rinnovi) e «le
+  // mie» si guardano in un posto solo, la Dashboard: qui c'erano gli stessi
+  // filtri, ma contavano le richieste e non le trattative, e la stessa domanda
+  // dava due numeri diversi (48 in Dashboard, 20 qui, per le stesse in
+  // gestione). I vecchi indirizzi con `stato` e `mie` si aprono lo stesso: i
+  // parametri sono ignorati.
+  const soloDaLavorare = searchParams.mostra !== 'tutte'
 
   const supabase = createSupabaseServiceClient()
 
@@ -113,20 +99,20 @@ export default async function CanalePage({
     : queryDaLavorare.in('attivita', canale.attivita)
   if (canale.settore) queryDaLavorare = queryDaLavorare.eq('settore', canale.settore)
 
-  // Le righe che alimentano i numeri sui chip dei filtri. Solo tre colonne e
-  // nessun ordinamento: un filtro che non dice quante cose troverà si prova a
-  // caso, e provarlo a caso su un elenco di duecento righe vuol dire caricare
-  // la pagina due volte per scoprire che era vuota.
+  // Le righe che alimentano i numeri sui chip «Da lavorare» e «Tutte». Una
+  // colonna sola e nessun ordinamento: un filtro che non dice quante cose
+  // troverà si prova a caso, e provarlo a caso su un elenco di duecento righe
+  // vuol dire caricare la pagina due volte per scoprire che era vuota.
   //
   // Sono più delle duecento righe mostrate, di proposito: i chip devono dire
-  // quante ce ne sono, non quante ne sta guardando questa pagina — e la riga
-  // «N di M caricate» sopra l'elenco dice già la differenza. Il .limit(2000)
-  // non basta da solo a difendere da questo: PostgREST tronca comunque ogni
-  // singola risposta a 1000 righe, quindi serve paginare con .range().
-  async function conteggiDelCanale(): Promise<{ gestito: boolean; opportunita_id: string | null }[]> {
-    const righe: { gestito: boolean; opportunita_id: string | null }[] = []
+  // quante ce ne sono, non quante ne sta guardando questa pagina. Il
+  // .limit(2000) non basta da solo a difendere da questo: PostgREST tronca
+  // comunque ogni singola risposta a 1000 righe, quindi serve paginare con
+  // .range().
+  async function conteggiDelCanale(): Promise<{ gestito: boolean }[]> {
+    const righe: { gestito: boolean }[] = []
     for (let da = 0; da < 2000; da += 1000) {
-      let q = supabase.from('form_contatti').select('gestito, opportunita_id').range(da, da + 999)
+      let q = supabase.from('form_contatti').select('gestito').range(da, da + 999)
       q = suo.origine ? q.in('origine', suo.origine) : q.in('attivita', suo.attivita)
       if (suo.settore) q = q.eq('settore', suo.settore)
       const { data } = await q
@@ -345,82 +331,12 @@ export default async function CanalePage({
     }
   }
 
-  // Il filtro per stato si applica qui e non in SQL: lo stato sta su
-  // `opportunita`, non su form_contatti, e le trattative si conoscono solo
-  // dopo averle caricate qui sopra.
-  const io = emailCorrente()
-  const richiesteMostrate = richieste.filter((x) => {
-    const trattativa = x.opportunita_id ? contesto?.trattative[x.opportunita_id] : undefined
-
-    if (statoRichiesto) {
-      // Senza trattativa la richiesta è lavoro che nessuno ha ancora preso:
-      // vale come "da prendere in carico", così non scompare dai conti di chi
-      // apre quel riquadro.
-      const stato = trattativa?.stato ?? 'nuovo'
-      if (stato !== statoRichiesto) return false
-    }
-
-    // Solo le proprie vuol dire proprie davvero: le libere non ci entrano,
-    // perché per quelle c'è il filtro «Da prendere in carico» — un «mie» che
-    // comprende anche quelle di nessuno non risponde più a nessuna domanda.
-    if (soloMie && trattativa?.assegnato_a !== io) return false
-
-    return true
-  })
-
-  // Quanti filtri sono attivi: serve a dire in pagina che si sta guardando un
-  // sottoinsieme, e a offrire l'azzeramento solo quando ha senso.
-  const filtriAttivi = [!soloDaLavorare, !!statoRichiesto, soloMie].filter(Boolean).length
-
-  // ── I numeri sui chip dei filtri ───────────────────────────────────────
-  //
-  // Un filtro che non dice quante cose troverà si prova a caso: si clicca,
-  // si aspetta la pagina, e spesso si scopre che era vuoto. I chip qui sotto
-  // portano il loro conteggio, e ogni conteggio è calcolato **tenendo gli
-  // altri filtri come sono adesso**: il numero sul chip è esattamente quello
-  // che si otterrà cliccandolo, non un totale astratto che poi non torna.
-  //
-  // Si conta sulle righe leggere di conteggiDelCanale, non su quelle mostrate: le
-  // duecento in pagina sono una finestra, e un chip che contasse la finestra
-  // direbbe una cosa diversa a ogni filtro.
-  function contaRichieste(quali: {
-    /** true = solo da lavorare, false = tutte. */
-    soloAperte: boolean
-    stato: StatoTrattativa | null
-    mie: boolean
-  }): number {
-    let quante = 0
-    for (const riga of righeDaContare ?? []) {
-      if (quali.soloAperte && riga.gestito) continue
-
-      const trattativa = riga.opportunita_id
-        ? contesto?.trattative[riga.opportunita_id as string]
-        : undefined
-
-      // Senza trattativa la richiesta è lavoro che nessuno ha ancora preso:
-      // vale come «da prendere in carico», la stessa regola dell'elenco.
-      if (quali.stato && (trattativa?.stato ?? 'nuovo') !== quali.stato) continue
-      if (quali.mie && trattativa?.assegnato_a !== io) continue
-
-      quante += 1
-    }
-    return quante
-  }
-
+  // I numeri sui chip: quante richieste ci sono da lavorare e quante in tutto.
+  // Si contano sulle righe leggere di conteggiDelCanale, non su quelle
+  // mostrate: le duecento in pagina sono una finestra.
   const conti = {
-    daLavorare: contaRichieste({ soloAperte: true, stato: null, mie: soloMie }),
-    tutte: contaRichieste({ soloAperte: false, stato: statoRichiesto, mie: soloMie }),
-    /** Con lo stato scelto la lavorazione non filtra (vedi soloDaLavorare). */
-    perStato: Object.fromEntries(
-      STATI.map((x) => [x, contaRichieste({ soloAperte: false, stato: x, mie: soloMie })])
-    ) as Record<StatoTrattativa, number>,
-    qualsiasiStato: contaRichieste({ soloAperte: soloDaLavorare, stato: null, mie: soloMie }),
-    mie: contaRichieste({ soloAperte: soloDaLavorare, stato: statoRichiesto, mie: true }),
-    tutteAssegnazioni: contaRichieste({
-      soloAperte: soloDaLavorare,
-      stato: statoRichiesto,
-      mie: false,
-    }),
+    daLavorare: (righeDaContare ?? []).filter((riga) => !riga.gestito).length,
+    tutte: (righeDaContare ?? []).length,
   }
 
   // Catturata fuori dalla funzione: dentro una chiusura TypeScript non tiene
@@ -428,15 +344,11 @@ export default async function CanalePage({
   // possibilmente undefined.
   const chiaveCanale = canale.chiave
 
-  /** Un link che cambia un filtro e lascia stare gli altri. */
-  function link(cambi: { mostra?: string | null; stato?: string | null; mie?: string | null }) {
+  /** Un link che cambia il filtro. */
+  function link(cambi: { mostra?: string | null }) {
     const params = new URLSearchParams()
     const mostra = cambi.mostra === undefined ? searchParams.mostra : cambi.mostra
-    const stato = cambi.stato === undefined ? searchParams.stato : cambi.stato
-    const mie = cambi.mie === undefined ? searchParams.mie : cambi.mie
     if (mostra) params.set('mostra', mostra)
-    if (stato) params.set('stato', stato)
-    if (mie) params.set('mie', mie)
     const qs = params.toString()
     return `/dashboard/richieste/${chiaveCanale}${qs ? `?${qs}` : ''}`
   }
@@ -470,20 +382,6 @@ export default async function CanalePage({
           </span>
         </div>
 
-        {/* La pipeline del canale in fila, cogli stessi colori dei chip e
-            delle righe: è la fotografia che prima non c'era da nessuna parte
-            se non tornando in dashboard. */}
-        {canale.inAgenda && (
-          <ul className="canale-conti muted">
-            {STATI_IN_SINTESI.map((x) => (
-              <li key={x}>
-                <span className={`chip-punto ${PUNTO_STATO[x]}`} aria-hidden="true" />
-                <b>{conti.perStato[x]}</b> {ETICHETTE_STATO[x].toLowerCase()}
-              </li>
-            ))}
-          </ul>
-        )}
-
         <p className="canale-referente muted">
           Referente: <strong>{r.nome}</strong>
           <br />
@@ -502,29 +400,19 @@ export default async function CanalePage({
           trattative esistono (vedi lib/richieste.ts). */}
       {canale.inAgenda && <GuidaModello />}
 
-      {/* I filtri erano pulsanti: maiuscoli, oro pieno quello attivo, identici
-          ai comandi che agiscono sui dati — e muti su quante cose avrebbero
-          trovato. Ora sono chip: tondi, in tondo minuscolo, ognuno col suo
-          numero, e quello attivo pieno con una spunta. Il numero è calcolato
-          tenendo fermi gli altri filtri, quindi è esattamente quello che si
-          ottiene cliccando. */}
+      {/* Un solo filtro: le richieste da lavorare, o tutte. Il numero sul chip
+          è quello che si ottiene cliccandolo. Lo stato delle trattative e
+          «assegnate a me» non sono qui: si guardano in Dashboard, l'unico
+          posto dove un lead in gestione, vinto o perso — e un mancato rinnovo —
+          ha un solo numero. */}
       <div className="filtri">
-        <div className="filtri-testa">
-          <span className="filtri-titolo">Filtra l&apos;elenco</span>
-          {filtriAttivi > 0 && (
-            <Link className="link filtri-azzera" href={link({ mostra: null, stato: null, mie: null })}>
-              Azzera i filtri ({filtriAttivi})
-            </Link>
-          )}
-        </div>
-
         <div className="filtri-gruppi">
           <fieldset className="filtro-gruppo">
             <legend>{semplice ? 'Gestione' : 'Lavorazione'}</legend>
             <Chip
               attivo={soloDaLavorare}
               quante={conti.daLavorare}
-              href={link({ mostra: null, stato: null })}
+              href={link({ mostra: null })}
             >
               {semplice ? 'Da gestire' : 'Da lavorare'}
             </Chip>
@@ -532,94 +420,36 @@ export default async function CanalePage({
               Tutte
             </Chip>
           </fieldset>
-
-          {/* Gli stessi quattro stati dei riquadri del riepilogo, col pallino
-              del proprio colore: arrivando da un riquadro si vede quale filtro
-              è attivo, di che colore è quello stato in elenco, e si può
-              cambiarlo senza tornare indietro. Solo dove esistono le
-              trattative. */}
-          {canale.inAgenda && (
-            <>
-              <fieldset className="filtro-gruppo">
-                {/* Qui gli stati ci sono tutti, annullate comprese: la
-                    fotografia qui sopra dice quanto lavoro c'è, questi
-                    servono a ritrovare una riga — e una riga che non si può
-                    chiedere è una riga persa. */}
-                <legend>Stato della trattativa</legend>
-                <Chip
-                  attivo={!statoRichiesto}
-                  quante={conti.qualsiasiStato}
-                  href={link({ stato: null })}
-                >
-                  Qualsiasi
-                </Chip>
-                {STATI.map((stato) => (
-                  <Chip
-                    key={stato}
-                    attivo={statoRichiesto === stato}
-                    quante={conti.perStato[stato]}
-                    punto={PUNTO_STATO[stato]}
-                    href={link({ stato: statoRichiesto === stato ? null : stato })}
-                  >
-                    {ETICHETTE_STATO[stato]}
-                  </Chip>
-                ))}
-              </fieldset>
-
-              <fieldset className="filtro-gruppo">
-                <legend>Assegnazione</legend>
-                <Chip attivo={!soloMie} quante={conti.tutteAssegnazioni} href={link({ mie: null })}>
-                  Chiunque
-                </Chip>
-                <Chip attivo={soloMie} quante={conti.mie} href={link({ mie: '1' })}>
-                  Assegnate a me
-                </Chip>
-              </fieldset>
-            </>
-          )}
         </div>
       </div>
 
-      {/* Quante si stanno guardando su quante ce ne sono: senza, un elenco
-          filtrato e un elenco corto si somigliano troppo. */}
-      {filtriAttivi > 0 && richiesteMostrate.length > 0 && (
-        <p className="filtri-esito muted">
-          {richiesteMostrate.length} di {richieste.length}{' '}
-          {richieste.length === 1 ? 'richiesta caricata' : 'richieste caricate'}
-        </p>
-      )}
-
-      {richiesteMostrate.length === 0 ? (
+      {richieste.length === 0 ? (
         // Un elenco vuoto centrato in grigio si legge come un guasto. Qui i
-        // tre casi sono diversi e vanno detti diversi: i filtri sono troppo
-        // stretti (colpa dei filtri), non c'è niente da lavorare (buona
-        // notizia), la sezione non ha ancora ricevuto niente (fatto).
+        // due casi sono diversi e vanno detti diversi: non c'è niente da
+        // lavorare (buona notizia), la sezione non ha ancora ricevuto niente
+        // (fatto).
         <div className="card">
           <div className="vuoto-buono">
             <span className="vuoto-glifo" aria-hidden="true">
-              {filtriAttivi > 0 ? '⌕' : '✓'}
+              ✓
             </span>
             <p className="vuoto-titolo">
-              {filtriAttivi > 0
-                ? 'Nessuna richiesta con questi filtri'
-                : soloDaLavorare
-                  ? semplice
-                    ? 'Niente da gestire'
-                    : 'Niente da lavorare'
-                  : 'Nessuna richiesta in questa sezione'}
+              {soloDaLavorare
+                ? semplice
+                  ? 'Niente da gestire'
+                  : 'Niente da lavorare'
+                : 'Nessuna richiesta in questa sezione'}
             </p>
             <p className="vuoto-nota">
-              {filtriAttivi > 0
-                ? 'Allarga la ricerca togliendo un filtro.'
-                : soloDaLavorare
-                  ? semplice
-                    ? 'Tutte le richieste arrivate sono state segnate gestite.'
-                    : 'Tutte le richieste arrivate sono state chiuse con un esito.'
-                  : 'Le richieste compariranno qui appena arrivano dal sito.'}
-              {(soloDaLavorare || filtriAttivi > 0) && (
+              {soloDaLavorare
+                ? semplice
+                  ? 'Tutte le richieste arrivate sono state segnate gestite.'
+                  : 'Tutte le richieste arrivate sono state chiuse con un esito.'
+                : 'Le richieste compariranno qui appena arrivano dal sito.'}
+              {soloDaLavorare && (
                 <>
                   {' '}
-                  <Link className="link" href={link({ mostra: 'tutte', stato: null, mie: null })}>
+                  <Link className="link" href={link({ mostra: 'tutte' })}>
                     Guarda tutte le richieste
                   </Link>
                 </>
@@ -629,7 +459,7 @@ export default async function CanalePage({
         </div>
       ) : (
         <ElencoRichieste
-          richieste={richiesteMostrate.map((riga) => ({
+          richieste={richieste.map((riga) => ({
             ...riga,
             storico: storicoPersona.get(riga.id),
             eventi: riga.persona_id ? (eventiPerPersona.get(riga.persona_id) ?? []) : [],
@@ -656,14 +486,11 @@ function Chip({
   href,
   attivo,
   quante,
-  /** La classe del pallino di stato, dove il chip filtra uno stato. */
-  punto,
   children,
 }: {
   href: string
   attivo: boolean
   quante: number
-  punto?: string
   children: React.ReactNode
 }) {
   return (
@@ -677,7 +504,6 @@ function Chip({
           ✓
         </span>
       )}
-      {punto && !attivo && <span className={`chip-punto ${punto}`} aria-hidden="true" />}
       {children}
       <span className="chip-conteggio">{quante}</span>
     </Link>
