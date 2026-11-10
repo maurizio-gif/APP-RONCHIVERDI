@@ -8,6 +8,7 @@ import {
   impostaPuoCancellare,
   impostaPuoInvitare,
   impostaPuoRiassegnare,
+  impostaSocialManager,
   impostaVedeDashboardNew,
 } from './actions'
 import { TogglePermesso } from './TogglePermesso'
@@ -27,6 +28,7 @@ export type DatiUtente = {
   puo_riassegnare: boolean
   vede_dashboard_new: boolean
   operatore_segreteria: boolean
+  social_manager: boolean
 }
 
 // Una riga per persona: chiusa dice chi è e cosa può fare, aperta si modifica.
@@ -72,6 +74,7 @@ export function RigaUtente({
     !u.commerciale && u.vede_dashboard_new && 'Dashboard New',
     u.puo_cancellare && 'Cancella',
     u.operatore_segreteria && 'Segreteria',
+    u.social_manager && 'Social manager',
   ].filter(Boolean) as string[]
 
   const etichettaSezioni =
@@ -186,6 +189,14 @@ export function RigaUtente({
               valoreIniziale={u.operatore_segreteria}
               etichetta="Operatore di segreteria (walk-in)"
               azione={impostaOperatoreSegreteria}
+              disabilitato={!amministra}
+              motivoDisabilitato="Serve il permesso di amministrare"
+            />
+            <TogglePermesso
+              email={u.email}
+              valoreIniziale={u.social_manager}
+              etichetta="Social media manager (gestisce il piano editoriale)"
+              azione={impostaSocialManager}
               disabilitato={!amministra}
               motivoDisabilitato="Serve il permesso di amministrare"
             />

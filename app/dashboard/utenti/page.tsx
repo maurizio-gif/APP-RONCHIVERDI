@@ -31,7 +31,7 @@ export default async function UtentiPage({
   const supabase = createSupabaseServiceClient()
   const { data } = await supabase
     .from('staff_users')
-    .select('email, nome, cognome, sezioni_consentite, puo_invitare, puo_cancellare, commerciale, puo_riassegnare, vede_dashboard_new, operatore_segreteria, created_at')
+    .select('email, nome, cognome, sezioni_consentite, puo_invitare, puo_cancellare, commerciale, puo_riassegnare, vede_dashboard_new, operatore_segreteria, social_manager, created_at')
 
   // In ordine alfabetico di cognome, non di iscrizione. L'ordine di
   // inserimento è la storia di come è cresciuto il pannello: dice qualcosa a
@@ -114,6 +114,13 @@ export default async function UtentiPage({
                 <span>
                   <strong>Personal trainer</strong> — solo la registrazione delle proprie sessioni, dal
                   telefono.
+                </span>
+              </label>
+              <label className="check-riga">
+                <input type="radio" name="accesso" value="social-manager" />
+                <span>
+                  <strong>Social media manager</strong> — solo il piano editoriale, che gestisce da sola
+                  (prende in carico, sposta, rifiuta, aggiorna lo stato). Nessun permesso amministrativo.
                 </span>
               </label>
             </fieldset>

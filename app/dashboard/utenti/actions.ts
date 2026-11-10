@@ -8,6 +8,7 @@ import { CHIAVI_SEZIONI, SEZIONI_DEL_CORREDO, SEZIONI_ESTERNE, type SezioneChiav
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { puoAmministrare } from '@/lib/auth/permessi'
 import { registraLog } from '@/lib/audit'
+import { SEZIONE_PIANO_EDITORIALE } from '@/lib/piano-editoriale'
 
 // Risultato come valore di ritorno, non un throw: in produzione Next.js
 // oscura sempre il messaggio di un errore lanciato da una Server Action,
@@ -43,6 +44,9 @@ export async function invitaStaff(formData: FormData) {
   // registro dei trainer, e al trainer non serve bruciare voucher.
   const accesso = String(formData.get('accesso') ?? 'operatore')
   const sezioneEsterna = SEZIONI_ESTERNE.find((chiave) => chiave === accesso) ?? null
+  // La social media manager non è un'esterna: vede solo il piano editoriale e
+  // lo gestisce da sola (social_manager), senza nessun permesso amministrativo.
+  const socialManager = accesso === 'social-manager'
 
   if (!email || !nome || !cognome) {
     redirect(urlErrore('Nome, cognome ed email sono obbligatori.'))
@@ -94,7 +98,12 @@ export async function invitaStaff(formData: FormData) {
       commerciale: false,
       puo_riassegnare: false,
       vede_dashboard_new: false,
-      sezioni_consentite: sezioneEsterna ? [sezioneEsterna] : [...SEZIONI_DEL_CORREDO],
+      social_manager: socialManager,
+      sezioni_consentite: socialManager
+        ? [SEZIONE_PIANO_EDITORIALE]
+        : sezioneEsterna
+          ? [sezioneEsterna]
+          : [...SEZIONI_DEL_CORREDO],
     })
     if (error) redirect(urlErrore(error.message))
   }
@@ -120,7 +129,7 @@ export async function invitaStaff(formData: FormData) {
   await registraLog(emailCorrente(), 'utente_invitato', {
     entita: 'staff_users',
     entitaId: email,
-    dettagli: { email_target: email, nome, cognome, accesso: sezioneEsterna ?? 'operatore' },
+    dettagli: { email_target: email, nome, cognome, accesso: socialManager ? 'social-manager' : (sezioneEsterna ?? 'operatore') },
   })
 
   revalidatePath('/dashboard/utenti')
@@ -224,6 +233,29 @@ export async function impostaOperatoreSegreteria(
   if (error) return { ok: false, errore: error.message }
 
   await registraLog(emailCorrente(), 'operatore_segreteria_modificato', {
+    entita: 'staff_users',
+    entitaId: email,
+    dettagli: { email_target: email, valore },
+  })
+
+  invalidaRigheStaff()
+  revalidatePath('/dashboard/utenti')
+  return { ok: true }
+}
+
+// Social media manager: chi gestisce il piano editoriale da sola (prende in
+// carico, sposta, rifiuta, aggiorna lo stato). Non dà nessun altro permesso e
+// non apre sezioni: per quello restano gli altri interruttori.
+export async function impostaSocialManager(email: string, valore: boolean): Promise<Risultato> {
+  if (!(await chiamanteAmministra())) {
+    return { ok: false, errore: 'Non hai il permesso di modificare i permessi degli altri utenti.' }
+  }
+
+  const supabase = createSupabaseServiceClient()
+  const { error } = await supabase.from('staff_users').update({ social_manager: valore }).eq('email', email)
+  if (error) return { ok: false, errore: error.message }
+
+  await registraLog(emailCorrente(), 'social_manager_modificato', {
     entita: 'staff_users',
     entitaId: email,
     dettagli: { email_target: email, valore },
