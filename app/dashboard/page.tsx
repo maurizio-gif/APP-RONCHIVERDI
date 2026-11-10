@@ -66,17 +66,22 @@ const VISTE_LEAD = [
   // rinnovi (origine recupero-rinnovo, vedi lib/provenienza.ts).
   { chiave: 'libere', testo: 'New da prendere in carico' },
   { chiave: 'recupero', testo: 'Mancati rinnovi da prendere in carico' },
-  { chiave: 'mie', testo: 'Assegnate a te' },
   { chiave: 'in_gestione', testo: 'In gestione' },
   { chiave: 'vinte', testo: 'Vinte' },
   { chiave: 'perse', testo: 'Perse' },
 ] as const
 type VistaLead = (typeof VISTE_LEAD)[number]['chiave']
 
-/** Le schede che mostrano il lavoro già preso: si filtrano per chi e per tipo. */
-const VISTE_DEL_LAVORO = ['mie', 'in_gestione', 'vinte', 'perse'] as const satisfies readonly VistaLead[]
+/**
+ * Le schede che mostrano il lavoro già preso: si filtrano per chi e per tipo.
+ *
+ * Non c'è una scheda «Assegnate a te»: assegnare un lead `nuovo` lo porta
+ * subito `in_gestione` (vedi assegnaTrattativa), quindi era la stessa lista di
+ * «In gestione → Le mie» sotto un altro nome — e la stessa cosa in due posti
+ * è esattamente ciò che fa dubitare dei numeri.
+ */
+const VISTE_DEL_LAVORO = ['in_gestione', 'vinte', 'perse'] as const satisfies readonly VistaLead[]
 const STATI_DELLA_VISTA: Record<(typeof VISTE_DEL_LAVORO)[number], StatoTrattativa[]> = {
-  mie: ['nuovo', 'in_gestione'],
   in_gestione: ['in_gestione'],
   vinte: ['vinto'],
   perse: ['perso'],
@@ -390,11 +395,10 @@ async function trattativeDaLavorare(
     query = query.in('stato', ['nuovo', 'in_gestione']).is('assegnato_a', null).eq('origine', ORIGINE_RECUPERO)
   else if (eVistaDelLavoro(vista)) {
     query = query.in('stato', STATI_DELLA_VISTA[vista])
-    // «Assegnate a te» è per definizione le proprie. Le altre tre erano
-    // sempre del club intero, anche se i riquadri e il README dicono «vinte
-    // da te, perse da te»: chi cercava le proprie ne trovava dodici su
-    // centocinquanta, dei colleghi quanto sue.
-    if (vista === 'mie' || di === 'mie') query = query.eq('assegnato_a', email ?? '')
+    // Prima queste schede erano sempre del club intero, anche se i riquadri e
+    // il README dicono «vinte da te, perse da te»: chi cercava le proprie ne
+    // trovava dodici su centocinquanta, dei colleghi quanto sue.
+    if (di === 'mie') query = query.eq('assegnato_a', email ?? '')
     if (tipo === 'recupero') query = query.eq('origine', ORIGINE_RECUPERO)
     else if (tipo === 'new') query = query.or(`origine.is.null,origine.neq.${ORIGINE_RECUPERO}`)
   }
@@ -686,9 +690,9 @@ export default async function RiepilogoPage({ searchParams }: { searchParams: Pa
     ? (searchParams.lead as VistaLead)
     : null
   // Senza scheda scelta: prima i new da prendere (sono i lead freschi), poi i
-  // mancati rinnovi, poi i propri.
+  // mancati rinnovi, poi il proprio lavoro in corso.
   const vistaDaiConti = (conti: { libere: number; libereRecupero: number } | null): VistaLead =>
-    vistaScelta ?? (!conti || conti.libere > 0 ? 'libere' : conti.libereRecupero > 0 ? 'recupero' : 'mie')
+    vistaScelta ?? (!conti || conti.libere > 0 ? 'libere' : conti.libereRecupero > 0 ? 'recupero' : 'in_gestione')
   const contiInCorso = vedeTrattative ? contatoriTrattative(email) : Promise.resolve(null)
   // Il lavoro già preso si guarda per chi e per tipo. Il commerciale apre sulle
   // proprie — è la domanda con cui arriva, «le mie vinte, le mie perse» — chi
@@ -729,7 +733,6 @@ export default async function RiepilogoPage({ searchParams }: { searchParams: Pa
   const contiLead: Record<VistaLead, number> | null = trattative && {
     libere: trattative.libere,
     recupero: trattative.libereRecupero,
-    mie: contaLavoro(trattative, STATI_DELLA_VISTA.mie, 'mie', tipoLead),
     in_gestione: contaLavoro(trattative, STATI_DELLA_VISTA.in_gestione, di, tipoLead),
     vinte: contaLavoro(trattative, STATI_DELLA_VISTA.vinte, di, tipoLead),
     perse: contaLavoro(trattative, STATI_DELLA_VISTA.perse, di, tipoLead),
@@ -843,12 +846,12 @@ export default async function RiepilogoPage({ searchParams }: { searchParams: Pa
           </div>
 
           {/* Il lavoro già preso si legge per chi e per tipo: «le mie vinte»,
-              «i miei mancati rinnovi gestiti». «Assegnate a te» è già delle
-              proprie, quindi lì «di chi» non c'è. Chi non è commerciale non ha
-              trattative sue: per lui la scelta sarebbe sempre un elenco vuoto. */}
+              «i miei mancati rinnovi gestiti». Chi non è commerciale non ha
+              trattative sue: per lui «Le mie» sarebbe sempre un elenco vuoto,
+              quindi la scelta non compare. */}
           {eVistaDelLavoro(vistaLead) && (
             <div className="filtro-gruppo">
-              {vistaLead !== 'mie' && sonoCommerciale && (
+              {sonoCommerciale && (
                 <>
                   <Scheda
                     href={link({ di: 'mie' })}
@@ -872,7 +875,7 @@ export default async function RiepilogoPage({ searchParams }: { searchParams: Pa
                   key={t.chiave}
                   href={link({ tipo: t.chiave })}
                   attiva={t.chiave === tipoLead}
-                  quante={contaVista(vistaLead, vistaLead === 'mie' ? 'mie' : di, t.chiave)}
+                  quante={contaVista(vistaLead, di, t.chiave)}
                 >
                   {t.testo}
                 </Scheda>

@@ -157,12 +157,17 @@ elenchi sotto sono il loro dettaglio, con i comandi per prenderle in carico,
 riassegnarle o cambiarne lo stato (lo stesso componente della sezione Club e
 Family, non una copia). Il totale del club sta in una riga sotto i riquadri.
 
-**Ritrovare il proprio lavoro.** Le schede *Assegnate a te*, *In gestione*,
-*Vinte* e *Perse* hanno due filtri sotto: **Le mie / Di tutti** e **Tutti /
+**Ritrovare il proprio lavoro.** Le schede *In gestione*, *Vinte* e *Perse*
+hanno due filtri sotto: **Le mie / Di tutti** e **Tutti /
 New / Mancati rinnovi**. Un commerciale apre sulle proprie; chi coordina e non
 ha trattative sue (`vede_dashboard_new` senza `commerciale`) apre sul club. I
 numeri sui chip sono quelli dell'elenco che aprono, e l'elenco si sfoglia a
 pagine da 50 (`pag` nell'indirizzo).
+
+Non c'è una scheda «Assegnate a te»: assegnare un lead `nuovo` lo porta subito
+`in_gestione`, quindi sarebbe la stessa lista di *In gestione → Le mie* sotto un
+altro nome. La stessa cosa in due posti non aggiunge informazione: toglie
+fiducia nei numeri.
 
 Prima *In gestione*, *Vinte* e *Perse* elencavano le dodici più recenti **del
 club intero**, mentre i chip — e questo stesso README — parlavano di «vinte da
