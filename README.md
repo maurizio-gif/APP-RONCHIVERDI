@@ -158,11 +158,19 @@ riassegnarle o cambiarne lo stato (lo stesso componente della sezione Club e
 Family, non una copia). Il totale del club sta in una riga sotto i riquadri.
 
 **Ritrovare il proprio lavoro.** Le schede *In gestione*, *Vinte*, *Perse* e
-*Annullate* hanno due filtri sotto: **Le mie / Di tutti** e **Tutti /
-New / Mancati rinnovi**. Un commerciale apre sulle proprie; chi coordina e non
-ha trattative sue (`vede_dashboard_new` senza `commerciale`) apre sul club. I
-numeri sui chip sono quelli dell'elenco che aprono, e l'elenco si sfoglia a
-pagine da 50 (`pag` nell'indirizzo).
+*Annullate* hanno due righe di filtri sotto: **di chi** (*Le mie*, *Di tutti*, e
+un chip per ogni collega che ha trattative in quella scheda) e **di che
+tipo** (*Tutti / New / Mancati rinnovi*). Un commerciale apre sulle proprie;
+chi coordina e non ha trattative sue (`vede_dashboard_new` senza
+`commerciale`) apre sul club. *Le mie* c'è solo per i commerciali — per gli
+altri sarebbe sempre vuoto — mentre i chip dei colleghi ci sono per tutti:
+chi coordina controlla così il lavoro di un commerciale senza esserlo, e
+confronta i numeri con quelli che vede lui. Il collega sta nell'indirizzo
+(`di=<email>`, `di=mie` per le proprie, `di=tutti` per il club). I chip dei
+colleghi sono solo quelli con qualcosa nella scheda aperta, più quello
+scelto; vi compare anche chi non è più commerciale ma ha ancora trattative
+assegnate. I numeri sui chip sono quelli dell'elenco che aprono, e l'elenco si
+sfoglia a pagine da 50 (`pag` nell'indirizzo).
 
 Non c'è una scheda «Assegnate a te»: assegnare un lead `nuovo` lo porta subito
 `in_gestione`, quindi sarebbe la stessa lista di *In gestione → Le mie* sotto un
