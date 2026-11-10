@@ -156,17 +156,32 @@ function pulsantePrenotazione(etichetta: string): string {
 
 // ─────────────────────────────────────────── 1. email di assegnazione
 
-export function emailAssegnazione(voucher: VoucherEmail): ContenutoEmail {
+// Una premessa facoltativa, fra il saluto e il testo di sempre: la usa il
+// recupero dei soci che hanno comprato prima del 1° novembre 2026 (edge
+// function voucher-recupero), a cui il codice arriva settimane dopo la
+// vendita e va spiegato perché. Senza premessa l'email è quella di sempre.
+// Testo semplice, senza HTML: lo si scappa qui.
+export type OpzioniAssegnazione = { premessa?: string }
+
+export function premessaRecuperoPreNovembre(): string {
+  return `dal 1° novembre la visita medico-sportiva inclusa nell'abbonamento si prenota direttamente con ${PARTNER_NOME}, con un codice personale. Il tuo abbonamento è stato sottoscritto prima di questo cambiamento e la visita compresa risulta ancora da utilizzare: per questo ti mandiamo il tuo codice.`
+}
+
+export function emailAssegnazione(voucher: VoucherEmail, opzioni: OpzioniAssegnazione = {}): ContenutoEmail {
   const codice = formattaCodice(voucher.codice)
   const scadenza = dataRoma(voucher.valido_fino)
+  const premessa = opzioni.premessa?.trim() || ''
+  // Dopo la premessa il testo di sempre diventa una frase nuova.
+  const apertura = premessa ? 'Con' : 'con'
 
   const html = guscio(
     'Il tuo voucher per la visita medica',
     [
       `<h1 style="margin:0 0 18px 0;font-family:'Cormorant Garamond',Georgia,serif;font-weight:400;font-size:30px;line-height:1.2;color:${INCHIOSTRO};">La visita medica è inclusa nel tuo abbonamento</h1>`,
       paragrafo(`Ciao ${esc(voucher.nome)},`),
+      premessa ? paragrafo(esc(premessa)) : '',
       paragrafo(
-        `con il tuo abbonamento hai diritto alla <strong>visita medico&#8209;sportiva in omaggio</strong> presso ${esc(PARTNER_NOME)}. Ecco il codice da comunicare al momento della prenotazione.`
+        `${apertura} il tuo abbonamento hai diritto alla <strong>visita medico&#8209;sportiva in omaggio</strong> presso ${esc(PARTNER_NOME)}. Ecco il codice da comunicare al momento della prenotazione.`
       ),
       `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 22px 0;"><tr><td align="center" style="background:rgba(232,212,106,0.16);border:1px solid rgba(200,170,60,0.55);border-radius:12px;padding:22px 16px;">
 <p style="margin:0 0 8px 0;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:${ORO};">Il tuo codice</p>
@@ -207,8 +222,8 @@ export function emailAssegnazione(voucher: VoucherEmail): ContenutoEmail {
   )
 
   const testo = `Ciao ${voucher.nome},
-
-con il tuo abbonamento hai diritto alla visita medico-sportiva in omaggio presso ${PARTNER_NOME}.
+${premessa ? `\n${premessa}\n` : ''}
+${apertura} il tuo abbonamento hai diritto alla visita medico-sportiva in omaggio presso ${PARTNER_NOME}.
 
 IL TUO CODICE: ${codice}
 Intestato a ${nomeCompleto(voucher)} - valido fino al ${scadenza}
