@@ -659,7 +659,8 @@ giorno precedente.
 - **Emissione automatica «(cer000)»** — la edge function Supabase
   `voucher-automatico` (`supabase/functions/voucher-automatico`), chiamata
   da pg_cron ogni 15 minuti, emette il codice per ogni nuova vendita di un
-  prodotto con «(cer000)» nel nome, letta da `abbonamenti`. Una vendita
+  prodotto con «(cer000)» nel nome o nella variante (oggi la sigla sta nella
+  variante; il welfare aziendale è escluso), letta da `abbonamenti`. Una vendita
   produce al massimo un voucher (unico su `voucher.abbonamento_id`), e non
   parte se il socio ne ha già uno emesso attorno alla vendita. L'interruttore
   è la riga `voucher_cer000` di `automazioni`, spenta di default: accensione
@@ -679,6 +680,19 @@ giorno precedente.
   giro successivo della function la recupera e spedisce il codice. Nessuna
   migration: «email vuota» è il segnale, la colonna resta `not null`. Per i
   soci senza email il doppione si riconosce da nome e cognome.
+- **Recupero per chi ha comprato prima del 1° novembre 2026** — la visita
+  «VISITA MEDICA · Compresa» venduta prima del nuovo processo, ancora «Non
+  effettuata» in Info4U, non aveva un codice. La lista (file del gestionale
+  del 05/11/2026, 510 righe) è in `voucher_recupero`, caricata e verificata da
+  [`2026-11-10-voucher-recupero-pre-novembre.sql`](scripts/sql/2026-11-10-voucher-recupero-pre-novembre.sql),
+  che documenta le esclusioni (codice già presente, non più socio, doppione,
+  certificato recente valido oltre 60 giorni). La edge function
+  `voucher-recupero` spedisce a lotti di 25 ogni 10 minuti finché
+  l'interruttore `voucher_recupero` di `automazioni` è acceso, e lo spegne da
+  sola a lista finita. Email di assegnazione di sempre con una premessa
+  (`premessaRecuperoPreNovembre`), stesso tracking: «Reinvia email» del CRM
+  la rimanda identica. Con `?prova=1` il riepilogo della lista, con
+  `?anteprima=indirizzo` l'email d'esempio con un codice finto.
 - **Validazione** — `/dashboard/validazione`, sezione `validazione-voucher`:
   una cella e un pulsante. Al centro medico si creano account del pannello
   con **quella sola sezione** (casella «Accesso esterno» al momento
