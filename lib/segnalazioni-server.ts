@@ -22,13 +22,27 @@ export type Elenchi = {
 export async function leggiElenchi(): Promise<Elenchi> {
   const supabase = createSupabaseServiceClient()
   const [{ data: settori }, { data: motivi }] = await Promise.all([
-    supabase.from('segnalazioni_settori').select('chiave, nome, responsabile_email').eq('attivo', true).order('ordine').order('nome'),
-    supabase.from('segnalazioni_motivi').select('chiave, nome').eq('attivo', true).order('ordine').order('nome'),
+    supabase.from('segnalazioni_settori').select('chiave, nome, responsabile_email').eq('attivo', true),
+    supabase.from('segnalazioni_motivi').select('chiave, nome').eq('attivo', true),
   ])
   return {
-    settori: (settori ?? []) as Elenchi['settori'],
-    motivi: (motivi ?? []) as Voce[],
+    settori: inOrdineAlfabetico((settori ?? []) as Elenchi['settori']),
+    motivi: inOrdineAlfabetico((motivi ?? []) as Voce[]),
   }
+}
+
+const CONFRONTO = new Intl.Collator('it', { sensitivity: 'base', numeric: true })
+
+// Alfabetico per nome, con «Altro» sempre in fondo: nelle tendine del form si
+// cerca per lettera, e «Altro» è l'ultima spiaggia, non una voce come le
+// altre. Si ordina qui e non nella query: l'ordine del database dipende dalla
+// sua collazione, che non tratta bene accenti e maiuscole.
+function inOrdineAlfabetico<T extends Voce>(voci: T[]): T[] {
+  return [...voci].sort((a, b) => {
+    if (a.chiave === 'altro') return 1
+    if (b.chiave === 'altro') return -1
+    return CONFRONTO.compare(a.nome, b.nome)
+  })
 }
 
 // Anche le voci disattivate: servono a leggere le segnalazioni vecchie.
