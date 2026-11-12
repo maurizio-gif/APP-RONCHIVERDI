@@ -56,6 +56,8 @@ export type OpportunitaLibera = {
    * ritrovarla a mano in un elenco.
    */
   richiestaId: string | null
+  /** `form_contatti.origine` dell'ultima richiesta: dice se è un lead Meta. */
+  origine: string | null
 }
 
 /** Un avviso, qualunque ne sia la sorgente: la forma che l'avviso disegna. */
@@ -75,6 +77,8 @@ export type AvvisoLavoro = {
   messaggio: string | null
   /** Solo sulle trattative: la voce da aprire in agenda una volta presa. */
   richiestaId?: string | null
+  /** Solo sulle trattative: l'origine della richiesta, per riconoscere un lead Meta. */
+  origine?: string | null
   /**
    * Di quale sezione è. Chi ha nove sezioni attive riceve avvisi di nove
    * origini diverse: senza dirlo, «Marco Rossi» in un riquadro non dice se
@@ -152,7 +156,7 @@ export async function getOpportunitaLibere(): Promise<OpportunitaLibera[]> {
     // così scrivendo nella mappa vince l'ultima letta — la più recente.
     supabase
       .from('form_contatti')
-      .select('id, persona_id, attivita_label, messaggio, created_at')
+      .select('id, persona_id, attivita_label, messaggio, created_at, origine')
       .in('persona_id', personaIds)
       .order('created_at', { ascending: true }),
     // Il mensile in scadenza dei lead aperti da crea_lead_scadenze_mensili:
@@ -171,13 +175,14 @@ export async function getOpportunitaLibere(): Promise<OpportunitaLibera[]> {
   const perPersona = new Map((persone ?? []).map((p) => [p.id as string, p]))
   const ultimaRichiesta = new Map<
     string,
-    { attivita: string | null; messaggio: string | null; richiestaId: string }
+    { attivita: string | null; messaggio: string | null; richiestaId: string; origine: string | null }
   >()
   for (const r of richieste ?? []) {
     ultimaRichiesta.set(r.persona_id as string, {
       attivita: (r.attivita_label as string) ?? null,
       messaggio: (r.messaggio as string) ?? null,
       richiestaId: r.id as string,
+      origine: (r.origine as string) ?? null,
     })
   }
 
@@ -204,6 +209,7 @@ export async function getOpportunitaLibere(): Promise<OpportunitaLibera[]> {
         })(),
       messaggio: richiesta?.messaggio ?? null,
       richiestaId: richiesta?.richiestaId ?? null,
+      origine: richiesta?.origine ?? null,
     }
   })
 }
@@ -296,6 +302,7 @@ export async function getAvvisiLavoro(): Promise<AvvisoLavoro[]> {
     attivita: t.attivita,
     messaggio: t.messaggio,
     richiestaId: t.richiestaId,
+    origine: t.origine,
     sezione: 'Eventi Core',
     href: `/dashboard/persone/${t.personaId}`,
   }))

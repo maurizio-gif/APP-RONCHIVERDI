@@ -7,6 +7,7 @@ import { prendiInCarico } from './richieste/trattativa-actions'
 import { useAvvisoSonoro } from './useAvvisoSonoro'
 import { IconaNuovaScheda } from '@/components/IconaNuovaScheda'
 import { hrefAgendaTrattativa } from '@/lib/agenda'
+import { ORIGINE_META_LEAD } from '@/lib/provenienza'
 import type { AvvisoLavoro } from './opportunita-actions'
 
 // Il lavoro appena arrivato va addosso a chi lo deve fare: la richiesta delle
@@ -120,13 +121,19 @@ export function AvvisoOpportunita({ abilitato }: { abilitato: boolean }) {
 
   if (!abilitato || !corrente) return null
 
+  // Un lead dei moduli Meta (caricato in Lead Meta) si presenta come tale:
+  // chi lo vede deve capire subito che arriva da una sponsorizzata.
+  const daMeta = corrente.genere === 'trattativa' && corrente.origine === ORIGINE_META_LEAD
+
   return (
-    <div className="avviso-opportunita" role="alert">
+    <div className={`avviso-opportunita${daMeta ? ' avviso-meta' : ''}`} role="alert">
       <div className="avviso-testa">
         <p className="eyebrow">
-          {corrente.genere === 'trattativa'
-            ? 'Nuova trattativa da prendere in carico'
-            : 'Nuova richiesta da gestire'}
+          {daMeta
+            ? 'Nuovo lead Meta · Abbonamenti Club'
+            : corrente.genere === 'trattativa'
+              ? 'Nuova trattativa da prendere in carico'
+              : 'Nuova richiesta da gestire'}
           {coda.length > 1 && <span className="avviso-coda">+{coda.length - 1} in attesa</span>}
         </p>
         <button type="button" className="avviso-chiudi" aria-label="Chiudi l'avviso" onClick={chiudi}>
@@ -134,7 +141,9 @@ export function AvvisoOpportunita({ abilitato }: { abilitato: boolean }) {
         </button>
       </div>
 
-      <p className="avviso-nome">{corrente.nome}</p>
+      <p className="avviso-nome">
+        {daMeta && <span className="tag-provenienza da-meta">Meta Lead Ads</span>} {corrente.nome}
+      </p>
 
       {/* Di quale sezione è. Chi ne ha nove attive riceve avvisi di nove
           origini: senza dirlo, un nome in un riquadro non dice se chiama per

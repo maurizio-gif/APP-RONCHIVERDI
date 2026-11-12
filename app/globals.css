@@ -3909,6 +3909,10 @@ button.th-ordina {
 	background: var(--agenda);
 }
 
+.split-canali-segmento.da-meta {
+	background: #1877f2;
+}
+
 .split-canali-segmento.da-recupero {
 	background: var(--recupero);
 }
@@ -5637,6 +5641,13 @@ button.th-ordina {
 	}
 }
 
+/* Un lead Meta: il bordo blu di Meta, per distinguerlo a colpo d'occhio dagli
+   altri avvisi senza cambiarne la forma. */
+.avviso-opportunita.avviso-meta {
+	border-color: #1877f2;
+	border-width: 2px;
+}
+
 .avviso-testa {
 	display: flex;
 	align-items: flex-start;
@@ -6011,6 +6022,16 @@ button.th-ordina {
 	border-color: var(--accent);
 	color: var(--accent);
 	font-weight: 600;
+}
+
+/* Meta Lead Ads: blu pieno con testo bianco, volutamente più forte delle altre
+   targhette — chi guarda l'elenco deve capire al volo che è un lead di una
+   sponsorizzata, da richiamare in fretta. */
+.tag-provenienza.da-meta {
+	background: #1877f2;
+	border-color: #1877f2;
+	color: #fff;
+	font-weight: 700;
 }
 
 /* Phone In / Email In: verde petrolio, come chi è passato dalla segreteria

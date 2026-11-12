@@ -17,6 +17,8 @@
 //   porta-un-amico — la landing della newsletter: un socio segnala un amico, che è
 //                    il lead (origine 'porta-un-amico', scritta dal sito; il socio
 //                    sta in form_contatti.segnalato_da_nome/cognome);
+//   meta-lead      — un modulo Lead Ads di Meta (Facebook/Instagram), caricato a
+//                    mano in Lead Meta (origine 'meta-lead-ads', vedi lib/leadMeta.ts);
 //   phone-in       — una telefonata o un'email alla segreteria, registrata in
 //                    Phone In / Email In (origine 'phone-email-in', scritta da
 //                    assegnaTrattativaDaEvento in lib/trattative-server.ts);
@@ -44,6 +46,7 @@ export type ChiaveProvenienza =
   | 'guest-register'
   | 'evento'
   | 'porta-un-amico'
+  | 'meta-lead'
   | 'phone-in'
   | 'agenda'
   | 'scadenza-mensile'
@@ -68,6 +71,9 @@ export const ORIGINE_EVENTO = 'evento'
 
 /** L'origine con cui il sito marca l'amico segnalato da un socio. */
 export const ORIGINE_PORTA_UN_AMICO = 'porta-un-amico'
+
+/** L'origine con cui Lead Meta marca i lead dei moduli sponsorizzati. */
+export const ORIGINE_META_LEAD = 'meta-lead-ads'
 
 /** L'origine delle trattative aperte da Phone In / Email In. */
 export const ORIGINE_PHONE_IN = 'phone-email-in'
@@ -133,6 +139,14 @@ const PORTA_UN_AMICO: Provenienza = {
     'È l’amico di un socio, segnalato dalla newsletter «Porta un amico»: non ha scritto lui. Il nome del socio è nel messaggio — citalo al telefono — e se sottoscrive l’annuale entro il 30 novembre il socio ha diritto al Daily Pass da 3 giorni, da registrare in Reception.',
 }
 
+const META_LEAD: Provenienza = {
+  chiave: 'meta-lead',
+  etichetta: 'Meta Lead Ads',
+  classe: 'da-meta',
+  spiegazione:
+    'Ha compilato il modulo di una sponsorizzata su Facebook o Instagram: non ha visitato il sito. La campagna è nei dati di tracciamento.',
+}
+
 const PHONE_IN: Provenienza = {
   chiave: 'phone-in',
   etichetta: 'Phone In / Email In',
@@ -194,6 +208,7 @@ export function provenienzaTrattativa({
   if (origine === ORIGINE_BANCO) return GUEST_REGISTER
   if (origine === ORIGINE_EVENTO) return EVENTO
   if (origine === ORIGINE_PORTA_UN_AMICO) return PORTA_UN_AMICO
+  if (origine === ORIGINE_META_LEAD) return META_LEAD
   if (!haRichiesta) {
     if (origine === ORIGINE_PHONE_IN) return PHONE_IN
     if (origine === ORIGINE_SCADENZA_MENSILE) return SCADENZA_MENSILE
@@ -224,6 +239,7 @@ export function provenienzaDiOrigine(origine: string | null | undefined): Proven
   if (origine === ORIGINE_BANCO) return GUEST_REGISTER
   if (origine === ORIGINE_EVENTO) return EVENTO
   if (origine === ORIGINE_PORTA_UN_AMICO) return PORTA_UN_AMICO
+  if (origine === ORIGINE_META_LEAD) return META_LEAD
   if (origine === ORIGINE_PHONE_IN) return PHONE_IN
   if (origine === 'agenda') return AGENDA
   if (origine === ORIGINE_SCADENZA_MENSILE) return SCADENZA_MENSILE

@@ -75,6 +75,17 @@ const DEFINIZIONI = [
     href: '/dashboard/agenda/phone-email-in',
     gruppo: 'Segreteria',
   },
+  // I lead dei moduli Meta (Facebook / Instagram Lead Ads), caricati a mano
+  // incollando l'esportazione di Gestione lead: entrano come richieste Club con
+  // la targhetta «Meta Lead Ads» e la campagna, e da lì si prendono in carico
+  // come ogni altro lead (vedi app/dashboard/lead-meta e lib/leadMeta.ts).
+  {
+    chiave: 'lead-meta',
+    label: 'Lead Meta',
+    href: '/dashboard/lead-meta',
+    gruppo: 'Segreteria',
+  },
+
   // Lamentele e disservizi riferiti dai soci al banco: si registrano, si
   // assegnano al responsabile del settore, si seguono fino alla risoluzione
   // (vedi scripts/sql/2026-11-12-segnalazioni.sql). Sostituisce l'Excel
