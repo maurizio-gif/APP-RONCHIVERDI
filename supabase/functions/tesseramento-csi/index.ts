@@ -524,25 +524,41 @@ async function lavoraRiga(ctx: Contesto, riga: Riga): Promise<Esito> {
 type Arretrato = { persona_id: string; abbonamento_id: string; codice_attivita: string | null }
 
 const BLOCCO_IN = 100
+// Righe per pagina nella lettura degli abbonamenti in corso (il tetto di
+// PostgREST è 1000) e massimo complessivo, per non girare all'infinito.
+const PAGINA_LETTURA = 1000
+const TETTO_LETTURA = 20_000
 
 // Chi ha un abbonamento reale in corso di un prodotto con tessera e non ha né
 // una tessera in corso né una riga di tesseramento per la stagione. Restano
 // fuori i doppioni in anagrafica: se un'altra scheda con lo stesso codice
 // fiscale ha già la tessera, questa non va tesserata.
 async function arretrati(supabase: Supabase, prodotti: Map<string, string>, stagione: number): Promise<Arretrato[]> {
-  const { data: vendite, error } = await supabase
-    .from('abbonamenti_attivi_oggi_dettaglio')
-    .select('id, persona_id, abbonamento, data_fine')
-    .in('abbonamento', Array.from(prodotti.keys()))
-    .not('persona_id', 'is', null)
-    .order('data_fine', { ascending: false, nullsFirst: true })
-    .limit(2000)
-  if (error) {
-    console.error('Lettura abbonamenti in corso non riuscita:', error.message)
-    return []
+  // La lettura va a pagine: PostgREST taglia ogni risposta a 1000 righe (un
+  // `.limit(2000)` non basta) e gli abbonamenti con tessera in corso sono più
+  // di 2500, quindi chi stava oltre la millesima riga non veniva mai ripreso.
+  // L'ordine ha `id` come secondo criterio perché le pagine non si
+  // sovrappongano né saltino righe a parità di `data_fine`.
+  const vendite: { id: string; persona_id: string; abbonamento: string }[] = []
+  for (let da = 0; ; da += PAGINA_LETTURA) {
+    const { data, error } = await supabase
+      .from('abbonamenti_attivi_oggi_dettaglio')
+      .select('id, persona_id, abbonamento, data_fine')
+      .in('abbonamento', Array.from(prodotti.keys()))
+      .not('persona_id', 'is', null)
+      .order('data_fine', { ascending: false, nullsFirst: true })
+      .order('id', { ascending: true })
+      .range(da, da + PAGINA_LETTURA - 1)
+    if (error) {
+      console.error('Lettura abbonamenti in corso non riuscita:', error.message)
+      return []
+    }
+    const pagina = (data ?? []) as { id: string; persona_id: string; abbonamento: string }[]
+    vendite.push(...pagina)
+    if (pagina.length < PAGINA_LETTURA || vendite.length >= TETTO_LETTURA) break
   }
   const perPersona = new Map<string, { id: string; abbonamento: string }>()
-  for (const v of (vendite ?? []) as { id: string; persona_id: string; abbonamento: string }[]) {
+  for (const v of vendite) {
     if (!perPersona.has(v.persona_id)) perPersona.set(v.persona_id, { id: v.id, abbonamento: v.abbonamento })
   }
   const persone = Array.from(perPersona.keys())
