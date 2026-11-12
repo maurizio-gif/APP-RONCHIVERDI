@@ -58,6 +58,21 @@ const DEFINIZIONI = [
     href: '/dashboard/voucher',
     gruppo: 'Segreteria',
   },
+  // L'invio a mano di un voucher: chi ha questo permesso, oltre a vedere
+  // l'elenco, cerca un socio in anagrafica e gli manda il codice se ha un
+  // abbonamento attivo (vedi app/dashboard/voucher/NuovoVoucher.tsx). Un
+  // permesso a parte perché i codici a regime partono dall'automazione e
+  // emetterne altri è un'eccezione che si dà a una persona alla volta: fuori
+  // dal menu (la pagina è quella dei voucher) e fuori dal corredo di un
+  // invito normale.
+  {
+    chiave: 'voucher-manuale',
+    label: 'Voucher · invio manuale',
+    href: '/dashboard/voucher',
+    gruppo: 'Segreteria',
+    fuoriMenu: true,
+    fuoriCorredo: true,
+  },
   // Telefonate ed email arrivate quando nessun commerciale era disponibile:
   // si registra cosa è arrivato (adesso, eseguita), con un seguito
   // facoltativo da programmare; il contatto si verifica prima su tutta
@@ -341,6 +356,8 @@ export type Sezione = {
    * un'altra (l'agenda a elenco, dal pulsante «Vista elenco» del calendario).
    */
   fuoriMenu?: boolean
+  /** Permesso che un operatore appena invitato non riceve: si dà a mano. */
+  fuoriCorredo?: boolean
   /** Sezione destinata a un partner esterno, non alla segreteria: vedi SEZIONI_ESTERNE. */
   esterna?: boolean
 }
@@ -382,7 +399,7 @@ export const GRUPPI_FUORI_DAL_CORREDO: readonly string[] = ['Amministrazione', '
 // Il corredo di un operatore appena invitato: le sezioni operative, senza
 // quelle dei partner esterni e senza i gruppi riservati.
 export const SEZIONI_DEL_CORREDO: readonly SezioneChiave[] = SEZIONI.filter(
-  (s) => !s.esterna && !GRUPPI_FUORI_DAL_CORREDO.includes(s.gruppo ?? '')
+  (s) => !s.esterna && !s.fuoriCorredo && !GRUPPI_FUORI_DAL_CORREDO.includes(s.gruppo ?? '')
 ).map((s) => s.chiave)
 
 // Header con cui il middleware propaga al layout l'email già validata: il

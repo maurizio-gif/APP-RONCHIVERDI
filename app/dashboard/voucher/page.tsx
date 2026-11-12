@@ -17,6 +17,7 @@ import {
 import { COLONNE } from '@/lib/voucher-server'
 import { leggiStatoAutomazione } from '@/lib/voucher-automatico'
 import { AzioniVoucher } from './AzioniVoucher'
+import { NuovoVoucher } from './NuovoVoucher'
 import { emailDeiVoucher } from '@/lib/email-tracking-server'
 import { dataOraEmail } from '@/lib/email-tracking'
 import { BadgeEsito } from '../email/BadgeEsito'
@@ -73,6 +74,7 @@ export default async function VoucherPage({ searchParams }: { searchParams: { q?
   }
 
   const ricerca = (searchParams.q ?? '').trim()
+  const puoInviareAMano = await utenteHaSezione('voucher-manuale')
 
   const supabase = createSupabaseServiceClient()
   const { data } = await supabase
@@ -117,10 +119,16 @@ export default async function VoucherPage({ searchParams }: { searchParams: { q?
         </p>
       </div>
 
-      {/* La procedura scritta dove la segreteria la usa. L'emissione a mano
-          (NuovoVoucher) è sospesa: a regime i codici partono solo
-          dall'automazione, e il form tornerà per i casi fuori flusso se
-          servirà. */}
+      {/* L'invio a mano (NuovoVoucher) lo vede solo chi ha il permesso
+          «voucher-manuale»: a regime i codici partono dall'automazione, e
+          questo serve per i casi fuori flusso. */}
+      {puoInviareAMano && (
+        <div style={{ marginBottom: '1.5rem' }}>
+          <NuovoVoucher />
+        </div>
+      )}
+
+      {/* La procedura scritta dove la segreteria la usa. */}
       <div className="card">
         <div className="card-head">
           <h2>Come funziona</h2>
