@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import {
   ETICHETTE_TIPO_BREVI,
@@ -191,6 +192,7 @@ export function RigaRichiesta({
   const ripetuta = !!storico && storico.ordinale > 1
   const trattativa = r.opportunita_id ? contesto?.trattative[r.opportunita_id] : undefined
   const giaSeguitaDa = trattativa?.stato === 'in_gestione' ? trattativa.assegnato_a : null
+  const chiVende = trattativa?.stato === 'vinto' ? nomeDiEmail(trattativa.assegnato_a, nomiStaff) : null
 
 
   // ── Cosa deve dire la riga prima di essere aperta ─────────────────────
@@ -271,7 +273,23 @@ export function RigaRichiesta({
           </span>
 
           <div className="richiesta-corpo">
-            <strong className="richiesta-nome">{nome}</strong>
+            {/* Il nome apre la scheda del contatto in un'altra scheda: la testa
+                intera apre e chiude la riga, quindi il clic non deve salire. */}
+            <strong className="richiesta-nome">
+              {r.persona_id ? (
+                <Link
+                  className="link"
+                  href={`/dashboard/persone/${r.persona_id}`}
+                  target="_blank"
+                  rel="noopener"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {nome}
+                </Link>
+              ) : (
+                nome
+              )}
+            </strong>
             {minore && <span className="muted"> · per {minore}</span>}
 
             {/* Quando è arrivata. */}
@@ -387,7 +405,9 @@ export function RigaRichiesta({
                   di una ancora aperta non si può sapere chi la farà. Stessa
                   regola di EventiElenco. */}
               {r.gestito && chiLHaFatta ? (
-                <span className="tag-assegnato e-fatta">Fatta da {chiLHaFatta}</span>
+                <span className="tag-assegnato e-fatta">
+                  {chiVende ? 'Richiesta gestita da' : 'Fatta da'} {chiLHaFatta}
+                </span>
               ) : (
                 <span
                   className={`tag-assegnato${
@@ -401,6 +421,11 @@ export function RigaRichiesta({
                     : 'Non assegnato'}
                 </span>
               )}
+
+              {/* Su una trattativa vinta «Fatta da» si legge come «venduta da»:
+                  ma firma la richiesta (il messaggio, la visita), e la
+                  vendita può essere di chi l'ha ricevuta dopo (rassegnata). */}
+              {chiVende && <span className="tag-assegnato e-fatta">Vinta da {chiVende}</span>}
 
               {ripetuta && (
                 <span className="tag tag-avviso">{storico!.ordinale}ª richiesta</span>
