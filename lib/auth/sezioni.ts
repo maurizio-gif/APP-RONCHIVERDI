@@ -75,6 +75,17 @@ const DEFINIZIONI = [
     href: '/dashboard/agenda/phone-email-in',
     gruppo: 'Segreteria',
   },
+  // Lamentele e disservizi riferiti dai soci al banco: si registrano, si
+  // assegnano al responsabile del settore, si seguono fino alla risoluzione
+  // (vedi scripts/sql/2026-11-12-segnalazioni.sql). Sostituisce l'Excel
+  // «Report lamentele e segnalazioni». Il report è un permesso a parte, in
+  // Report: sono numeri per la direzione, non per il banco.
+  {
+    chiave: 'segnalazioni',
+    label: 'Segnalazioni soci',
+    href: '/dashboard/segnalazioni',
+    gruppo: 'Segreteria',
+  },
   // Il lavoro dei rinnovi Core, prima su un foglio Excel a parte: chi lo
   // lavora ogni giorno (gli operatori di segreteria, vedi
   // staff_users.operatore_segreteria) non ha bisogno — e spesso non ha il
@@ -295,6 +306,15 @@ const DEFINIZIONI = [
   // (lead → direzione, incassi → incassato...): questo permesso apre la
   // pagina, non allarga quello che si può leggere.
   { chiave: 'report', label: 'Report PDF', href: '/dashboard/report', gruppo: 'Report' },
+  // Cifre sulle segnalazioni dei soci: per settore, motivo, ora e giorno,
+  // problemi che si ripetono, tempi di presa in carico e risoluzione. Chi
+  // lavora le segnalazioni ha il permesso `segnalazioni` e non vede questo.
+  {
+    chiave: 'segnalazioni-report',
+    label: 'Report segnalazioni',
+    href: '/dashboard/segnalazioni/report',
+    gruppo: 'Report',
+  },
 ] as const
 
 export type SezioneChiave = (typeof DEFINIZIONI)[number]['chiave']
