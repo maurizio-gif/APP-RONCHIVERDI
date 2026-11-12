@@ -85,6 +85,29 @@ const DEFINIZIONI = [
     href: '/dashboard/lead-meta',
     gruppo: 'Segreteria',
   },
+
+  // Lamentele e disservizi riferiti dai soci al banco: si registrano, si
+  // assegnano al responsabile del settore, si seguono fino alla risoluzione
+  // (vedi scripts/sql/2026-11-12-segnalazioni.sql). Sostituisce l'Excel
+  // «Report lamentele e segnalazioni». Il report è un permesso a parte, in
+  // Report: sono numeri per la direzione, non per il banco.
+  {
+    chiave: 'segnalazioni',
+    label: 'Segnalazioni',
+    href: '/dashboard/segnalazioni',
+    gruppo: 'Segreteria',
+  },
+  // Le richieste di manutenzione nate dalle segnalazioni (tipologia
+  // «Manutenzione»): una riga per intervento, rossa da fare, gialla
+  // programmata, verde fatta, con la data prevista che inserisce il
+  // responsabile. Un permesso a sé, per il responsabile e i manutentori:
+  // chiunque abbia Segnalazioni può però inviare una richiesta.
+  {
+    chiave: 'manutenzione',
+    label: 'Manutenzione',
+    href: '/dashboard/segnalazioni/manutenzione',
+    gruppo: 'Manutenzione',
+  },
   // Il lavoro dei rinnovi Core, prima su un foglio Excel a parte: chi lo
   // lavora ogni giorno (gli operatori di segreteria, vedi
   // staff_users.operatore_segreteria) non ha bisogno — e spesso non ha il
@@ -305,6 +328,15 @@ const DEFINIZIONI = [
   // (lead → direzione, incassi → incassato...): questo permesso apre la
   // pagina, non allarga quello che si può leggere.
   { chiave: 'report', label: 'Report PDF', href: '/dashboard/report', gruppo: 'Report' },
+  // Cifre sulle segnalazioni dei soci: per settore, motivo, ora e giorno,
+  // problemi che si ripetono, tempi di presa in carico e risoluzione. Chi
+  // lavora le segnalazioni ha il permesso `segnalazioni` e non vede questo.
+  {
+    chiave: 'segnalazioni-report',
+    label: 'Report segnalazioni',
+    href: '/dashboard/segnalazioni/report',
+    gruppo: 'Report',
+  },
 ] as const
 
 export type SezioneChiave = (typeof DEFINIZIONI)[number]['chiave']
@@ -356,7 +388,7 @@ export const CHIAVI_SEZIONI: readonly SezioneChiave[] = SEZIONI.map((s) => s.chi
 // chi ne ha bisogno. Amministrazione perché sono dati riservati; Personal
 // Training perché il controllo delle sessioni è di una persona sola; Report
 // perché sono numeri per la direzione, non per il banco.
-export const GRUPPI_FUORI_DAL_CORREDO: readonly string[] = ['Amministrazione', 'Personal Training', 'Report']
+export const GRUPPI_FUORI_DAL_CORREDO: readonly string[] = ['Amministrazione', 'Personal Training', 'Report', 'Manutenzione']
 
 // Il corredo di un operatore appena invitato: le sezioni operative, senza
 // quelle dei partner esterni e senza i gruppi riservati.
