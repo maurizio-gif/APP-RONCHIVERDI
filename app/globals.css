@@ -11999,3 +11999,210 @@ table.tabella-compatta tr.rop-totale td {
 	margin-top: 1rem;
 	font-size: var(--text-2xs);
 }
+
+/* ── Segnalazioni dei soci ───────────────────────────────────────────────── */
+
+.sg-coppia {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 1rem;
+}
+
+@media (max-width: 640px) {
+	.sg-coppia {
+		grid-template-columns: 1fr;
+	}
+}
+
+.tk-form .sg-coppia + .field,
+.tk-form .field + .sg-coppia,
+.tk-form .sg-urgenza + .field,
+.tk-form .field + .sg-spunta,
+.tk-form .sg-coppia + .sg-spunta {
+	margin-top: 1rem;
+}
+
+.sg-coppia select,
+.sg-coppia input,
+.sg-assegna select {
+	width: 100%;
+	font: inherit;
+}
+
+.sg-urgenza {
+	border: 0;
+	padding: 0;
+	margin: 1rem 0 0;
+	min-width: 0;
+}
+
+.sg-urgenza legend {
+	padding: 0;
+	margin-bottom: 0.4rem;
+	font-weight: 600;
+}
+
+.sg-opzione {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.6rem;
+	padding: 0.6rem 0.75rem;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	cursor: pointer;
+}
+
+.sg-opzione + .sg-opzione {
+	margin-top: 0.4rem;
+}
+
+.sg-urgenza .sg-opzione,
+.tk-form .sg-spunta {
+	display: flex;
+	text-transform: none;
+	letter-spacing: normal;
+	font-size: inherit;
+	font-weight: 400;
+}
+
+.sg-opzione input,
+.sg-spunta input {
+	flex: none;
+	width: auto;
+	margin-top: 0.2rem;
+}
+
+.sg-opzione > span {
+	display: flex;
+	flex-direction: column;
+	gap: 0.1rem;
+}
+
+.sg-opzione .muted,
+.sg-spunta .muted {
+	text-transform: none;
+	letter-spacing: normal;
+}
+
+.sg-opzione-attiva {
+	border-color: var(--border-strong);
+	background: var(--bg-alt);
+}
+
+.sg-spunta {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.6rem;
+	cursor: pointer;
+}
+
+.sg-spunta input {
+	margin-top: 0.25rem;
+}
+
+.sg-conta {
+	display: inline-block;
+	min-width: 1.3em;
+	margin-left: 0.25rem;
+	padding: 0 0.35em;
+	border-radius: 999px;
+	background: rgba(28, 28, 24, 0.12);
+	font-size: 0.85em;
+	text-align: center;
+}
+
+.sg-anteprima {
+	max-width: 46ch;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.sg-ritardo {
+	margin-left: 0.35rem;
+}
+
+.sg-dati {
+	display: grid;
+	grid-template-columns: max-content 1fr;
+	gap: 0.3rem 1rem;
+	margin: 1rem 0 0;
+}
+
+.sg-dati dt {
+	color: var(--text-muted);
+}
+
+.sg-dati dd {
+	margin: 0;
+}
+
+.sg-assegna {
+	margin: 1rem 0;
+}
+
+.sg-riga {
+	display: flex;
+	gap: 0.5rem;
+	align-items: center;
+}
+
+.sg-colonne {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+	gap: 1rem;
+	align-items: start;
+}
+
+.sg-barre {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	gap: 0.45rem;
+}
+
+.sg-barre li {
+	display: grid;
+	grid-template-columns: minmax(7rem, 14rem) 1fr 3.5rem;
+	align-items: center;
+	gap: 0.75rem;
+	font-size: var(--text-sm, 0.9rem);
+}
+
+.sg-barra {
+	display: block;
+	height: 0.6rem;
+	border-radius: 999px;
+	background: var(--bg-alt);
+	overflow: hidden;
+}
+
+.sg-barra > span {
+	display: block;
+	height: 100%;
+	border-radius: 999px;
+	background: var(--bg-dark);
+}
+
+.sg-barre-n {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
+.sg-soci {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.sg-soci li {
+	display: flex;
+	justify-content: space-between;
+	padding: 0.4rem 0;
+	text-transform: capitalize;
+}
+
+.sg-soci li + li {
+	border-top: 1px solid var(--border);
+}
