@@ -201,3 +201,43 @@ export function durataLeggibile(ore: number): string {
   if (ore < 48) return `${Math.round(ore)} h`
   return `${Math.round(ore / 24)} giorni`
 }
+
+// ── foto ────────────────────────────────────────────────────────────────────
+//
+// Solo immagini (comprese le foto dell'iPhone, HEIC/HEIF), fino a 10 MB
+// l'una e cinque per volta. Gli stessi limiti stanno sul bucket
+// segnalazioni-foto, che rifiuta il resto anche se qualcuno saltasse questo
+// controllo (scripts/sql/2026-11-12-segnalazioni-foto.sql).
+
+export const BUCKET_FOTO = 'segnalazioni-foto'
+export const MASSIMO_BYTE_FOTO = 10 * 1024 * 1024
+export const MASSIMO_FOTO = 5
+
+export type AllegatoSegnalazione = {
+  id: string
+  evento_id: string | null
+  percorso: string
+  nome: string
+  tipo: string | null
+  byte: number | null
+}
+
+// Il browser non sempre dà il tipo di un HEIC (su Windows arriva vuoto): si
+// ricava dall'estensione.
+export function tipoFoto(nome: string, tipo: string): string | null {
+  const t = tipo.toLowerCase()
+  if (t.startsWith('image/')) return t
+  const est = nome.toLowerCase().split('.').pop()
+  if (est === 'heic') return 'image/heic'
+  if (est === 'heif') return 'image/heif'
+  if (est && ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tif', 'tiff'].includes(est))
+    return `image/${est === 'jpg' ? 'jpeg' : est === 'tif' ? 'tiff' : est}`
+  return null
+}
+
+export function erroreFoto(f: { nome: string; tipo: string; byte: number }): string | null {
+  if (!tipoFoto(f.nome, f.tipo)) return `«${f.nome}»: si possono allegare solo foto.`
+  if (f.byte > MASSIMO_BYTE_FOTO) return `«${f.nome}» supera i 10 MB.`
+  if (f.byte <= 0) return `«${f.nome}» è vuota.`
+  return null
+}

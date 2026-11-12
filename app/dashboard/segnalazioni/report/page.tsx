@@ -68,9 +68,9 @@ export default async function ReportSegnalazioniPage({ searchParams }: { searchP
     <>
       <div className="page-head">
         <p className="eyebrow">
-          <Link href="/dashboard/segnalazioni">← Segnalazioni soci</Link>
+          <Link href="/dashboard/segnalazioni">← Lamentele</Link>
         </p>
-        <h1>Report segnalazioni</h1>
+        <h1>Report lamentele</h1>
         <p className="muted">{periodo.testo.toLowerCase()} · {r.ricevute} segnalazioni registrate nel CRM.</p>
       </div>
 

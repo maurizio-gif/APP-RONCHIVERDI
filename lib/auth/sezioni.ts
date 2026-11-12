@@ -82,7 +82,7 @@ const DEFINIZIONI = [
   // Report: sono numeri per la direzione, non per il banco.
   {
     chiave: 'segnalazioni',
-    label: 'Segnalazioni soci',
+    label: 'Lamentele',
     href: '/dashboard/segnalazioni',
     gruppo: 'Segreteria',
   },
@@ -311,7 +311,7 @@ const DEFINIZIONI = [
   // lavora le segnalazioni ha il permesso `segnalazioni` e non vede questo.
   {
     chiave: 'segnalazioni-report',
-    label: 'Report segnalazioni',
+    label: 'Report lamentele',
     href: '/dashboard/segnalazioni/report',
     gruppo: 'Report',
   },

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { registraSegnalazione } from '../actions'
 import { CampoNote } from '@/components/CampoNote'
 import { RicercaSocio, type SocioScelto } from './RicercaSocio'
+import { SceltaFoto, useFoto } from '../Foto'
 import { ETICHETTE_CANALE, URGENZE, type Canale, type Voce } from '@/lib/segnalazioni'
 
 // Il modulo della reception. Settore, motivo e urgenza sono scelte da
@@ -22,12 +23,14 @@ export function NuovaSegnalazione({ settori, motivi }: { settori: Voce[]; motivi
   const [richiamo, setRichiamo] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
   const [inCorso, setInCorso] = useState(false)
+  const foto = useFoto()
 
   async function invia(e: React.FormEvent) {
     e.preventDefault()
     setErrore(null)
     setInCorso(true)
     try {
+      const caricate = await foto.carica()
       const esito = await registraSegnalazione({
         settore,
         motivo,
@@ -37,6 +40,7 @@ export function NuovaSegnalazione({ settori, motivi }: { settori: Voce[]; motivi
         personaId: socio?.personaId ?? null,
         socioNome: socio?.nome ?? '',
         richiamoRichiesto: richiamo,
+        foto: caricate,
       })
       if (!esito.ok) {
         setErrore(esito.errore)
@@ -101,6 +105,11 @@ export function NuovaSegnalazione({ settori, motivi }: { settori: Voce[]; motivi
           placeholder="es. Nella sauna nessuno usa il telo e ci sono molte sacche all’interno."
           required
         />
+      </div>
+
+      <div className="field">
+        <span className="campo-etichetta">Foto (facoltativa)</span>
+        <SceltaFoto foto={foto} disabilitato={inCorso} />
       </div>
 
       <RicercaSocio valore={socio} onChange={setSocio} />

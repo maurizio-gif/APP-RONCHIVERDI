@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { passoSegnalazione, type Passo } from '../actions'
 import { CampoNote } from '@/components/CampoNote'
+import { SceltaFoto, useFoto } from '../Foto'
 import type { StatoSegnalazione } from '@/lib/segnalazioni'
 
 // I comandi di una segnalazione. Quello che c'è da fare dipende dallo stato:
@@ -30,17 +31,22 @@ export function PassiSegnalazione({
   const [assegna, setAssegna] = useState(assegnatoA ?? '')
   const [errore, setErrore] = useState<string | null>(null)
   const [inCorso, setInCorso] = useState<Passo | null>(null)
+  const foto = useFoto()
 
   async function esegui(passo: Passo) {
     setErrore(null)
     setInCorso(passo)
     try {
-      const esito = await passoSegnalazione(id, passo, testo, passo === 'assegna' ? assegna : undefined)
+      // La foto accompagna il passo che la porta (una nota, la risoluzione…):
+      // assegnare e prendere in carico non ne hanno.
+      const caricate = passo === 'assegna' || passo === 'prendi' ? [] : await foto.carica()
+      const esito = await passoSegnalazione(id, passo, testo, passo === 'assegna' ? assegna : undefined, caricate)
       if (!esito.ok) {
         setErrore(esito.errore)
         return
       }
       setTesto('')
+      if (caricate.length) foto.svuota()
       router.refresh()
     } catch (e) {
       setErrore(e instanceof Error ? e.message : 'Qualcosa è andato storto. Riprova.')
@@ -85,6 +91,7 @@ export function PassiSegnalazione({
                 placeholder="es. Richiamata la sig.ra Rossi: ha ringraziato, il problema non si ripresenta."
                 disabled={!!inCorso}
               />
+              <SceltaFoto foto={foto} disabilitato={!!inCorso} />
               <div className="tk-bottoni">
                 <button type="button" className="btn" onClick={() => esegui('richiamato')} disabled={!!inCorso}>
                   {occupato('richiamato', 'Socio richiamato, chiudi')}
@@ -103,6 +110,7 @@ export function PassiSegnalazione({
                 placeholder="Cosa è stato fatto, o una nota…"
                 disabled={!!inCorso}
               />
+              <SceltaFoto foto={foto} disabilitato={!!inCorso} />
               <div className="tk-bottoni">
                 <button type="button" className="btn" onClick={() => esegui('risolvi')} disabled={!!inCorso}>
                   {occupato('risolvi', richiamoDaFare ? 'Risolta, resta da richiamare il socio' : 'Segna come risolta')}

@@ -54,7 +54,7 @@ export default async function SegnalazioniPage({ searchParams }: { searchParams:
     <>
       <div className="page-head">
         <p className="eyebrow">Segreteria</p>
-        <h1>Segnalazioni soci</h1>
+        <h1>Lamentele</h1>
         <p className="muted">Lamentele e disservizi riferiti dai soci: chi li ha in carico, da quanto, a che punto sono.</p>
       </div>
 

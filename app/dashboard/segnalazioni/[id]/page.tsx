@@ -8,16 +8,21 @@ import {
   ETICHETTE_CANALE,
   ETICHETTE_EVENTO,
   ETICHETTE_STATO,
+  BUCKET_FOTO,
   ETICHETTE_URGENZA,
   SEZIONE_SEGNALAZIONI,
   inRitardo,
   quando,
+  type AllegatoSegnalazione,
   type EventoSegnalazione,
 } from '@/lib/segnalazioni'
+import { pesoLeggibile } from '@/lib/ticket'
 import { leggiSegnalazione, nomiElenchi, nomiStaff, operatoriSegnalazioni } from '@/lib/segnalazioni-server'
 import { PassiSegnalazione } from './PassiSegnalazione'
 
 export const dynamic = 'force-dynamic'
+
+const DURATA_URL_SECONDI = 600
 
 // Una segnalazione: cosa è stato riferito, la sua storia e i comandi per
 // farla avanzare.
@@ -33,8 +38,9 @@ export default async function SegnalazioneDettaglio({
   if (!s) notFound()
 
   const supabase = createSupabaseServiceClient()
-  const [{ data: eventi }, elenchi, nomi, operatori] = await Promise.all([
+  const [{ data: eventi }, { data: allegati }, elenchi, nomi, operatori] = await Promise.all([
     supabase.from('segnalazioni_eventi').select('id, creato_il, autore, tipo, testo').eq('segnalazione_id', s.id).order('creato_il'),
+    supabase.from('segnalazioni_allegati').select('id, evento_id, percorso, nome, tipo, byte').eq('segnalazione_id', s.id).order('creato_il'),
     nomiElenchi(),
     nomiStaff(),
     operatoriSegnalazioni(),
@@ -43,11 +49,24 @@ export default async function SegnalazioneDettaglio({
   const storia = (eventi ?? []) as EventoSegnalazione[]
   const io = emailCorrente()
 
+  const foto = (allegati ?? []) as AllegatoSegnalazione[]
+  const firmati = new Map<string, string>()
+  if (foto.length) {
+    const { data } = await supabase.storage.from(BUCKET_FOTO).createSignedUrls(
+      foto.map((f) => f.percorso),
+      DURATA_URL_SECONDI
+    )
+    for (const f of data ?? []) if (f.signedUrl && f.path) firmati.set(f.path, f.signedUrl)
+  }
+  const evRicezione = storia.find((e) => e.tipo === 'ricezione')
+  const fotoDi = (eventoId: string | null) =>
+    foto.filter((f) => f.evento_id === eventoId || (eventoId === evRicezione?.id && f.evento_id === null))
+
   return (
     <>
       <div className="page-head">
         <p className="eyebrow">
-          <Link href="/dashboard/segnalazioni">← Segnalazioni soci</Link>
+          <Link href="/dashboard/segnalazioni">← Lamentele</Link>
         </p>
         <h1>
           <span className="muted">#{s.numero}</span> {elenchi.settori.get(s.settore) ?? s.settore} ·{' '}
@@ -97,6 +116,7 @@ export default async function SegnalazioneDettaglio({
               <dt>Da risolvere entro</dt>
               <dd>{quando(s.scadenza_risoluzione_il)}</dd>
             </dl>
+            <ElencoFoto foto={fotoDi(evRicezione?.id ?? null)} firmati={firmati} />
           </div>
 
           <div className="card">
@@ -113,6 +133,7 @@ export default async function SegnalazioneDettaglio({
                     </span>
                   </div>
                   {e.testo && <p className="tk-testo">{e.testo}</p>}
+                  {e.tipo !== 'ricezione' && <ElencoFoto foto={fotoDi(e.id)} firmati={firmati} />}
                 </li>
               ))}
             </ol>
@@ -129,5 +150,30 @@ export default async function SegnalazioneDettaglio({
         />
       </div>
     </>
+  )
+}
+
+function ElencoFoto({ foto, firmati }: { foto: AllegatoSegnalazione[]; firmati: Map<string, string> }) {
+  if (!foto.length) return null
+  return (
+    <ul className="sg-foto-vista">
+      {foto.map((f) => {
+        const url = firmati.get(f.percorso)
+        // HEIC/HEIF non si vedono nei browser desktop: si scaricano.
+        const anteprima = url && f.tipo?.startsWith('image/') && !/hei[cf]/.test(f.tipo)
+        return (
+          <li key={f.id}>
+            {url ? (
+              <a href={url} target="_blank" rel="noopener">
+                {anteprima ? <img src={url} alt={f.nome} /> : <span className="sg-foto-icona">FOTO</span>}
+                <span className="muted">{pesoLeggibile(f.byte)}</span>
+              </a>
+            ) : (
+              <span className="muted">{f.nome} (non disponibile)</span>
+            )}
+          </li>
+        )
+      })}
+    </ul>
   )
 }

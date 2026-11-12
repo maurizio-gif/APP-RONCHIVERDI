@@ -1,5 +1,6 @@
 'use server'
 
+import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
@@ -7,10 +8,14 @@ import { registraLog } from '@/lib/audit'
 import { nomePersona } from '@/lib/persone'
 import { dividiTestoContatto } from '@/app/dashboard/agenda/nuovo-contatto'
 import {
+  BUCKET_FOTO,
   COLONNE_SEGNALAZIONE,
+  MASSIMO_FOTO,
   SEZIONE_SEGNALAZIONI,
   URGENZE,
+  erroreFoto,
   scadenzeDa,
+  tipoFoto,
   type Canale,
   type Segnalazione,
   type StatoSegnalazione,
@@ -35,6 +40,61 @@ async function operatore(): Promise<string | null> {
   const email = emailCorrente()
   if (!email) return null
   return (await utenteHaSezione(SEZIONE_SEGNALAZIONI)) ? email : null
+}
+
+
+export type FileDaCaricare = { nome: string; tipo: string; byte: number }
+export type FotoCaricata = { percorso: string; nome: string; tipo: string; byte: number }
+
+// La cartella di ciascuno nel bucket: chi registra una foto può indicare solo
+// file caricati da lui.
+function cartellaDi(email: string): string {
+  return email.toLowerCase().replace(/[^a-z0-9._-]/g, '_')
+}
+
+// I file non passano dal server (Vercel limita il corpo di una richiesta a
+// 4,5 MB, e una foto può arrivare a 10): il server controlla tipo e peso e
+// rilascia un URL firmato per ciascuna, il browser carica direttamente su
+// Supabase Storage. Il bucket rifiuta comunque ciò che non è un'immagine o
+// supera i 10 MB.
+export async function preparaFoto(
+  file: FileDaCaricare[]
+): Promise<{ ok: true; caricamenti: { percorso: string; token: string; tipo: string }[] } | { ok: false; errore: string }> {
+  const email = await operatore()
+  if (!email) return { ok: false, errore: 'Sessione scaduta o sezione non abilitata: rientra nel CRM.' }
+  if (file.length > MASSIMO_FOTO) return { ok: false, errore: `Al massimo ${MASSIMO_FOTO} foto.` }
+  for (const f of file) {
+    const errore = erroreFoto(f)
+    if (errore) return { ok: false, errore }
+  }
+  const supabase = createSupabaseServiceClient()
+  const caricamenti = []
+  for (const f of file) {
+    const tipo = tipoFoto(f.nome, f.tipo)!
+    const estensione = (f.nome.split('.').pop() ?? '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5)
+    const percorso = `${cartellaDi(email)}/${randomUUID()}${estensione ? `.${estensione}` : ''}`
+    const { data, error } = await supabase.storage.from(BUCKET_FOTO).createSignedUploadUrl(percorso)
+    if (error || !data) return { ok: false, errore: 'Non riesco a preparare il caricamento. Riprova.' }
+    caricamenti.push({ percorso, token: data.token, tipo })
+  }
+  return { ok: true, caricamenti }
+}
+
+async function registraFoto(segnalazioneId: string, eventoId: string | null, email: string, foto: FotoCaricata[]) {
+  const proprie = foto.filter((f) => f.percorso.startsWith(`${cartellaDi(email)}/`)).slice(0, MASSIMO_FOTO)
+  if (!proprie.length) return
+  const supabase = createSupabaseServiceClient()
+  await supabase.from('segnalazioni_allegati').insert(
+    proprie.map((f) => ({
+      segnalazione_id: segnalazioneId,
+      evento_id: eventoId,
+      percorso: f.percorso,
+      nome: f.nome.slice(0, 200),
+      tipo: f.tipo,
+      byte: f.byte,
+      caricato_da: email,
+    }))
+  )
 }
 
 // ── ricerca del socio ───────────────────────────────────────────────────────
@@ -88,6 +148,7 @@ export async function registraSegnalazione(dati: {
   personaId: string | null
   socioNome: string
   richiamoRichiesto: boolean
+  foto: FotoCaricata[]
 }): Promise<Esito> {
   const email = await operatore()
   if (!email) return { ok: false, errore: 'Sessione scaduta o sezione non abilitata: rientra nel CRM.' }
@@ -154,12 +215,16 @@ export async function registraSegnalazione(dati: {
   }
   const s = data as Segnalazione
 
-  await supabase.from('segnalazioni_eventi').insert([
-    { segnalazione_id: s.id, autore: email, tipo: 'ricezione', testo: null },
-    ...(responsabile
-      ? [{ segnalazione_id: s.id, autore: email, tipo: 'assegnazione', testo: 'Assegnata al responsabile del settore.' }]
-      : []),
-  ])
+  const { data: ev } = await supabase
+    .from('segnalazioni_eventi')
+    .insert({ segnalazione_id: s.id, autore: email, tipo: 'ricezione', testo: null })
+    .select('id')
+    .single()
+  if (responsabile)
+    await supabase
+      .from('segnalazioni_eventi')
+      .insert({ segnalazione_id: s.id, autore: email, tipo: 'assegnazione', testo: 'Assegnata al responsabile del settore.' })
+  await registraFoto(s.id, ev?.id ?? null, email, dati.foto)
 
   if (responsabile) {
     const nomi = await nomiStaff()
@@ -185,7 +250,8 @@ export async function passoSegnalazione(
   id: string,
   passo: Passo,
   testoGrezzo: string,
-  assegnatario?: string
+  assegnatario?: string,
+  foto: FotoCaricata[] = []
 ): Promise<Esito> {
   const io = await operatore()
   if (!io) return { ok: false, errore: 'Sessione scaduta o sezione non abilitata: rientra nel CRM.' }
@@ -262,14 +328,17 @@ export async function passoSegnalazione(
   }
 
   const supabase = createSupabaseServiceClient()
-  const { error } = await supabase
+  const { data: ev, error } = await supabase
     .from('segnalazioni_eventi')
     .insert({ segnalazione_id: s.id, autore: io, tipo, testo: testoEvento })
+    .select('id')
+    .single()
   if (error) {
     console.error('Passo della segnalazione non registrato:', error.message)
     return { ok: false, errore: 'Non sono riuscito a salvare. Riprova.' }
   }
   await supabase.from('segnalazioni').update({ ...patch, aggiornato_il: adesso }).eq('id', s.id)
+  await registraFoto(s.id, ev?.id ?? null, io, foto)
 
   // Assegnata a un collega: lo si avvisa per email.
   if (passo === 'assegna' && patch.assegnato_a && patch.assegnato_a !== io) {
