@@ -3,13 +3,15 @@ import { redirect } from 'next/navigation'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import {
   ETICHETTE_URGENZA,
+  LIVELLI_URGENZA,
   NOMI_GIORNI,
   SEZIONE_SEGNALAZIONI,
   SEZIONE_SEGNALAZIONI_REPORT,
   durataLeggibile,
+  eManutenzione,
   type Urgenza,
 } from '@/lib/segnalazioni'
-import { calcolaReport } from '@/lib/segnalazioni-report'
+import { calcolaManutenzione, calcolaReport } from '@/lib/segnalazioni-report'
 import { leggiSegnalazioni, nomiElenchi, nomiStaff } from '@/lib/segnalazioni-server'
 
 export const dynamic = 'force-dynamic'
@@ -17,6 +19,10 @@ export const dynamic = 'force-dynamic'
 // Il report per la direzione: quante segnalazioni, dove, quando, con che
 // risposta. Le cifre sono quelle del momento: ricalcolate a ogni apertura
 // sull'elenco intero (lib/segnalazioni-report.ts).
+//
+// Lamentele e manutenzione si leggono separate: i tempi di una richiesta di
+// manutenzione (con la sua data prevista) non si mescolano a quelli di una
+// lamentela di un socio.
 //
 // Una cautela di lettura: i dati dell'Excel storico non sono confrontabili con
 // questi (lì ora e motivo mancavano quasi sempre, e un picco di registrazioni
@@ -57,7 +63,8 @@ export default async function ReportSegnalazioniPage({ searchParams }: { searchP
   const dal = periodo.giorni ? new Date(Date.now() - periodo.giorni * 86400_000).toISOString() : undefined
 
   const [righe, elenchi, nomi] = await Promise.all([leggiSegnalazioni(dal), nomiElenchi(), nomiStaff()])
-  const r = calcolaReport(righe)
+  const r = calcolaReport(righe.filter((s) => !eManutenzione(s)))
+  const m = calcolaManutenzione(righe.filter(eManutenzione))
   const settore = (k: string) => elenchi.settori.get(k) ?? k
   const motivo = (k: string) => elenchi.motivi.get(k) ?? k
   const percento = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : '—')
@@ -68,10 +75,10 @@ export default async function ReportSegnalazioniPage({ searchParams }: { searchP
     <>
       <div className="page-head">
         <p className="eyebrow">
-          <Link href="/dashboard/segnalazioni">← Lamentele</Link>
+          <Link href="/dashboard/segnalazioni">← Segnalazioni</Link>
         </p>
-        <h1>Report lamentele</h1>
-        <p className="muted">{periodo.testo.toLowerCase()} · {r.ricevute} segnalazioni registrate nel CRM.</p>
+        <h1>Report segnalazioni</h1>
+        <p className="muted">{periodo.testo.toLowerCase()} · {r.ricevute} lamentele e {m.richieste} richieste di manutenzione registrate nel CRM.</p>
       </div>
 
       <div className="agenda-nav" style={{ marginBottom: '1rem', flexWrap: 'wrap' }}>
@@ -86,11 +93,13 @@ export default async function ReportSegnalazioniPage({ searchParams }: { searchP
         ))}
       </div>
 
-      {r.ricevute === 0 ? (
+      {r.ricevute === 0 && m.richieste === 0 && (
         <div className="card">
           <p className="vuoto">Nessuna segnalazione nel periodo.</p>
         </div>
-      ) : (
+      )}
+
+      {r.ricevute > 0 && (
         <>
           <div className="griglia-stat">
             <div className="stat stat-info">
@@ -193,12 +202,24 @@ export default async function ReportSegnalazioniPage({ searchParams }: { searchP
               </div>
               <Barre voci={r.perGiorno.map((n, i) => ({ etichetta: NOMI_GIORNI[i], n }))} />
               <div className="card-head" style={{ marginTop: '1.25rem' }}>
-                <h2>Per urgenza</h2>
+                <h2>Per tipologia</h2>
               </div>
               <Barre
-                voci={(Object.keys(r.perUrgenza) as Urgenza[]).map((u) => ({
-                  etichetta: ETICHETTE_URGENZA[u],
-                  n: r.perUrgenza[u],
+                voci={(Object.keys(r.perUrgenza) as Urgenza[])
+                  .filter((u) => u !== 'manutenzione')
+                  .map((u) => ({
+                    etichetta: ETICHETTE_URGENZA[u],
+                    n: r.perUrgenza[u],
+                  }))}
+              />
+              <div className="card-head" style={{ marginTop: '1.25rem' }}>
+                <h2>Per livello di urgenza</h2>
+                <span className="muted">da 1 a 5, attribuito alla registrazione</span>
+              </div>
+              <Barre
+                voci={LIVELLI_URGENZA.map((l) => ({
+                  etichetta: `${l.livello} · ${l.nome}`,
+                  n: r.perLivello[l.livello - 1],
                 }))}
               />
             </div>
@@ -265,6 +286,62 @@ export default async function ReportSegnalazioniPage({ searchParams }: { searchP
                   ))}
                 </ul>
               )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {m.richieste > 0 && (
+        <>
+          <div className="page-head" style={{ marginTop: '2rem' }}>
+            <h2>Manutenzione</h2>
+            <p className="muted">Le richieste degli operatori nel periodo.</p>
+          </div>
+          <div className="griglia-stat">
+            <div className="stat stat-info">
+              <span className="stat-testa">
+                <span className="stat-label">Richieste</span>
+              </span>
+              <span className="stat-valore">{m.richieste}</span>
+              <span className="stat-nota">archiviate escluse</span>
+            </div>
+            <div className={`stat ${m.daFare ? 'stat-warn' : 'stat-ok'}`}>
+              <span className="stat-testa">
+                <span className="stat-label">Da fare</span>
+              </span>
+              <span className="stat-valore">{m.daFare}</span>
+              <span className="stat-nota">senza data prevista</span>
+            </div>
+            <div className="stat">
+              <span className="stat-testa">
+                <span className="stat-label">Programmate</span>
+              </span>
+              <span className="stat-valore">{m.programmate}</span>
+              <span className="stat-nota">{m.inRitardo} in ritardo</span>
+            </div>
+            <div className="stat stat-ok">
+              <span className="stat-testa">
+                <span className="stat-label">Fatte</span>
+              </span>
+              <span className="stat-valore">{m.fatte}</span>
+              <span className="stat-nota">
+                {m.fatteConData ? `${m.fatteInData} su ${m.fatteConData} entro la data prevista` : 'nessuna con data prevista'}
+                {m.medianaFattoGiorni !== null && ` · mediana ${durataLeggibile(m.medianaFattoGiorni * 24)}`}
+              </span>
+            </div>
+          </div>
+          <div className="sg-colonne">
+            <div className="card">
+              <div className="card-head">
+                <h2>Dove si interviene</h2>
+              </div>
+              <Barre voci={m.perSettore.slice(0, 10).map((c) => ({ etichetta: settore(c.chiave), n: c.n }))} />
+            </div>
+            <div className="card">
+              <div className="card-head">
+                <h2>Cosa si ripara</h2>
+              </div>
+              <Barre voci={m.perMotivo.slice(0, 10).map((c) => ({ etichetta: motivo(c.chiave), n: c.n }))} />
             </div>
           </div>
         </>

@@ -11,9 +11,12 @@ import {
   BUCKET_FOTO,
   COLONNE_SEGNALAZIONE,
   MASSIMO_FOTO,
+  SEZIONE_MANUTENZIONE,
   SEZIONE_SEGNALAZIONI,
   URGENZE,
+  eManutenzione,
   erroreFoto,
+  giornoLeggibile,
   scadenzeDa,
   tipoFoto,
   type Canale,
@@ -22,7 +25,15 @@ import {
   type TipoEvento,
   type Urgenza,
 } from '@/lib/segnalazioni'
-import { avvisaAssegnatario, leggiSegnalazione, nomiElenchi, nomiStaff, operatoriSegnalazioni } from '@/lib/segnalazioni-server'
+import {
+  avvisaAssegnatario,
+  leggiSegnalazione,
+  nomiElenchi,
+  nomiStaff,
+  operatoriManutenzione,
+  operatoriSegnalazioni,
+  responsabileManutenzione,
+} from '@/lib/segnalazioni-server'
 
 // Le azioni sulle segnalazioni. Ogni passo scrive un evento nella storia
 // (segnalazioni_eventi). Restituiscono { ok, errore } invece di lanciare: in
@@ -30,16 +41,19 @@ import { avvisaAssegnatario, leggiSegnalazione, nomiElenchi, nomiStaff, operator
 
 export type Esito = { ok: true; id?: string } | { ok: false; errore: string }
 
+// «interno» non si sceglie: lo mette il server alle richieste di manutenzione.
 const CANALI: Canale[] = ['reception', 'telefono', 'email', 'altro']
 
 function aggiorna() {
   revalidatePath('/dashboard/segnalazioni', 'layout')
 }
 
-async function operatore(): Promise<string | null> {
+// L'operatore che agisce, se ha almeno una delle sezioni indicate.
+async function operatore(sezioni: ('segnalazioni' | 'manutenzione')[] = [SEZIONE_SEGNALAZIONI]): Promise<string | null> {
   const email = emailCorrente()
   if (!email) return null
-  return (await utenteHaSezione(SEZIONE_SEGNALAZIONI)) ? email : null
+  for (const sezione of sezioni) if (await utenteHaSezione(sezione)) return email
+  return null
 }
 
 
@@ -60,7 +74,7 @@ function cartellaDi(email: string): string {
 export async function preparaFoto(
   file: FileDaCaricare[]
 ): Promise<{ ok: true; caricamenti: { percorso: string; token: string; tipo: string }[] } | { ok: false; errore: string }> {
-  const email = await operatore()
+  const email = await operatore([SEZIONE_SEGNALAZIONI, SEZIONE_MANUTENZIONE])
   if (!email) return { ok: false, errore: 'Sessione scaduta o sezione non abilitata: rientra nel CRM.' }
   if (file.length > MASSIMO_FOTO) return { ok: false, errore: `Al massimo ${MASSIMO_FOTO} foto.` }
   for (const f of file) {
@@ -148,25 +162,36 @@ export async function registraSegnalazione(dati: {
   personaId: string | null
   socioNome: string
   richiamoRichiesto: boolean
+  // Da 1 a 5, attribuito da chi registra.
+  livelloUrgenza: number
   foto: FotoCaricata[]
 }): Promise<Esito> {
-  const email = await operatore()
+  // Una richiesta di manutenzione la può inviare anche chi ha solo la vista
+  // Manutenzione: è un operatore interno, non c'è un socio di mezzo.
+  const email = await operatore([SEZIONE_SEGNALAZIONI, SEZIONE_MANUTENZIONE])
   if (!email) return { ok: false, errore: 'Sessione scaduta o sezione non abilitata: rientra nel CRM.' }
 
   const descrizione = dati.descrizione.trim().slice(0, 4000)
   if (descrizione.length < 10) return { ok: false, errore: 'Descrivi cosa è successo, anche in poche parole.' }
   const urgenza = URGENZE.find((u) => u.chiave === dati.urgenza)?.chiave as Urgenza | undefined
-  if (!urgenza) return { ok: false, errore: 'Scegli l’urgenza.' }
-  const canale = CANALI.find((c) => c === dati.canale)
+  if (!urgenza) return { ok: false, errore: 'Scegli la tipologia.' }
+  const manutenzione = urgenza === 'manutenzione'
+  // Le lamentele dei soci sono di chi ha la sezione Segnalazioni.
+  if (!manutenzione && !(await utenteHaSezione(SEZIONE_SEGNALAZIONI)))
+    return { ok: false, errore: 'Non hai accesso alle segnalazioni dei soci.' }
+  const livello = Number(dati.livelloUrgenza)
+  if (!Number.isInteger(livello) || livello < 1 || livello > 5) return { ok: false, errore: 'Scegli il livello di urgenza, da 1 a 5.' }
+  const canale = manutenzione ? 'interno' : CANALI.find((c) => c === dati.canale)
   if (!canale) return { ok: false, errore: 'Scegli come è arrivata la segnalazione.' }
   const supabase = createSupabaseServiceClient()
 
   // Il socio scelto dall'anagrafica deve esistere (un id inventato
   // agganciava la segnalazione al nulla) e il suo nome si copia da lì; senza,
   // vale il nome scritto a mano.
-  let socioNome = dati.socioNome.trim().slice(0, 160) || null
+  // La manutenzione non ha socio né richiamo: l'operatore segnala per sé.
+  let socioNome = manutenzione ? null : dati.socioNome.trim().slice(0, 160) || null
   let personaId: string | null = null
-  if (dati.personaId) {
+  if (!manutenzione && dati.personaId) {
     const { data: persona } = await supabase
       .from('persone')
       .select('id, nome, cognome, email, cellulare')
@@ -176,7 +201,8 @@ export async function registraSegnalazione(dati: {
     personaId = persona.id as string
     socioNome = nomePersona(persona)
   }
-  if (dati.richiamoRichiesto && !socioNome)
+  const richiamoRichiesto = !manutenzione && dati.richiamoRichiesto
+  if (richiamoRichiesto && !socioNome)
     return { ok: false, errore: 'Se il socio vuole essere richiamato serve il suo nome.' }
 
   const [{ data: settore }, { data: motivo }] = await Promise.all([
@@ -188,7 +214,9 @@ export async function registraSegnalazione(dati: {
 
   const adesso = new Date()
   const scadenze = scadenzeDa(urgenza, adesso)
-  const responsabile = (settore.responsabile_email as string | null) ?? null
+  // Lamentele: il responsabile del settore. Manutenzione: il responsabile della
+  // manutenzione (segnalazioni_impostazioni), che poi la passa a un manutentore.
+  const responsabile = manutenzione ? await responsabileManutenzione() : ((settore.responsabile_email as string | null) ?? null)
 
   const { data, error } = await supabase
     .from('segnalazioni')
@@ -201,8 +229,9 @@ export async function registraSegnalazione(dati: {
       descrizione,
       socio_nome: socioNome,
       persona_id: personaId,
-      richiamo_richiesto: dati.richiamoRichiesto,
+      richiamo_richiesto: richiamoRichiesto,
       urgenza,
+      livello_urgenza: livello,
       assegnato_a: responsabile,
       scadenza_presa_il: scadenze.presa.toISOString(),
       scadenza_risoluzione_il: scadenze.risoluzione.toISOString(),
@@ -223,7 +252,7 @@ export async function registraSegnalazione(dati: {
   if (responsabile)
     await supabase
       .from('segnalazioni_eventi')
-      .insert({ segnalazione_id: s.id, autore: email, tipo: 'assegnazione', testo: 'Assegnata al responsabile del settore.' })
+      .insert({ segnalazione_id: s.id, autore: email, tipo: 'assegnazione', testo: manutenzione ? 'Inviata al responsabile della manutenzione.' : 'Assegnata al responsabile del settore.' })
   await registraFoto(s.id, ev?.id ?? null, email, dati.foto)
 
   if (responsabile) {
@@ -244,19 +273,24 @@ export async function registraSegnalazione(dati: {
 
 // ── i passi ─────────────────────────────────────────────────────────────────
 
-export type Passo = 'assegna' | 'prendi' | 'nota' | 'risolvi' | 'richiamato' | 'riapri' | 'archivia'
+export type Passo = 'assegna' | 'prendi' | 'nota' | 'risolvi' | 'richiamato' | 'riapri' | 'archivia' | 'programma'
 
 export async function passoSegnalazione(
   id: string,
   passo: Passo,
   testoGrezzo: string,
   assegnatario?: string,
-  foto: FotoCaricata[] = []
+  foto: FotoCaricata[] = [],
+  // Per «programma»: il giorno previsto (AAAA-MM-GG); vuoto = toglie la data.
+  dataPrevista?: string
 ): Promise<Esito> {
-  const io = await operatore()
-  if (!io) return { ok: false, errore: 'Sessione scaduta o sezione non abilitata: rientra nel CRM.' }
   const s = await leggiSegnalazione(id)
   if (!s) return { ok: false, errore: 'Segnalazione non trovata.' }
+  const manutenzione = eManutenzione(s)
+  // Le lamentele le lavora chi ha Segnalazioni, la manutenzione chi ha la vista
+  // Manutenzione.
+  const io = await operatore([manutenzione ? SEZIONE_MANUTENZIONE : SEZIONE_SEGNALAZIONI])
+  if (!io) return { ok: false, errore: 'Sessione scaduta o sezione non abilitata: rientra nel CRM.' }
 
   const testo = testoGrezzo.trim().slice(0, 4000) || null
   const adesso = new Date().toISOString()
@@ -267,9 +301,9 @@ export async function passoSegnalazione(
   switch (passo) {
     case 'assegna': {
       if (s.stato === 'risolta' || s.stato === 'archiviata') return { ok: false, errore: 'La segnalazione è chiusa: riaprila prima.' }
-      const operatori = await operatoriSegnalazioni()
+      const operatori = manutenzione ? await operatoriManutenzione() : await operatoriSegnalazioni()
       const scelto = operatori.find((o) => o.email === assegnatario)
-      if (!scelto) return { ok: false, errore: 'Scegli a chi assegnarla fra chi lavora le segnalazioni.' }
+      if (!scelto) return { ok: false, errore: manutenzione ? 'Scegli a chi assegnarla fra i manutentori.' : 'Scegli a chi assegnarla fra chi lavora le segnalazioni.' }
       tipo = 'assegnazione'
       patch = { assegnato_a: scelto.email }
       testoEvento = `Assegnata a ${scelto.nome}.${testo ? ` ${testo}` : ''}`
@@ -289,7 +323,9 @@ export async function passoSegnalazione(
 
     case 'risolvi': {
       if (s.stato === 'risolta' || s.stato === 'archiviata') return { ok: false, errore: 'La segnalazione è già chiusa.' }
-      if (!testo) return { ok: false, errore: 'Scrivi cosa è stato fatto: serve a chi la rilegge.' }
+      // Una lamentela si chiude spiegando cosa è stato fatto; per un intervento
+      // di manutenzione basta segnarlo fatto, la nota è facoltativa.
+      if (!testo && !manutenzione) return { ok: false, errore: 'Scrivi cosa è stato fatto: serve a chi la rilegge.' }
       tipo = 'risoluzione'
       // Il socio ha chiesto di essere richiamato: il problema è sistemato ma
       // la segnalazione non è chiusa finché non l'ha saputo.
@@ -304,6 +340,7 @@ export async function passoSegnalazione(
     }
 
     case 'richiamato':
+      if (manutenzione) return { ok: false, errore: 'Una richiesta di manutenzione non ha richiamo.' }
       if (s.stato !== 'da_richiamare') return { ok: false, errore: 'Non c’è un richiamo in attesa.' }
       if (!testo) return { ok: false, errore: 'Scrivi come è andata la telefonata.' }
       tipo = 'richiamo'
@@ -322,6 +359,30 @@ export async function passoSegnalazione(
       tipo = 'archiviazione'
       patch = { stato: 'archiviata' as StatoSegnalazione }
       break
+
+    case 'programma': {
+      if (!manutenzione) return { ok: false, errore: 'Le date sono delle richieste di manutenzione.' }
+      if (s.stato === 'risolta' || s.stato === 'archiviata') return { ok: false, errore: 'È chiusa: riaprila prima.' }
+      const giorno = (dataPrevista ?? '').trim()
+      if (giorno && (!/^\d{4}-\d{2}-\d{2}$/.test(giorno) || Number.isNaN(Date.parse(`${giorno}T00:00:00Z`))))
+        return { ok: false, errore: 'La data non è valida.' }
+      // Facoltativo: con la data si può anche indicare chi interviene.
+      let scelto: { email: string; nome: string } | undefined
+      if (assegnatario) {
+        scelto = (await operatoriManutenzione()).find((o) => o.email === assegnatario)
+        if (!scelto) return { ok: false, errore: 'Scegli chi interviene fra i manutentori.' }
+      }
+      tipo = 'programmazione'
+      patch = {
+        intervento_previsto_il: giorno || null,
+        // Con una data l'intervento è preso in carico; togliendola torna da fare.
+        stato: giorno && s.stato === 'ricevuta' ? 'in_carico' : s.stato,
+        presa_in_carico_il: s.presa_in_carico_il ?? (giorno ? adesso : null),
+        assegnato_a: scelto?.email ?? s.assegnato_a ?? io,
+      }
+      testoEvento = `${giorno ? `Intervento previsto il ${giornoLeggibile(giorno)}.` : 'Data prevista tolta.'}${scelto ? ` Interviene ${scelto.nome}.` : ''}${testo ? ` ${testo}` : ''}`
+      break
+    }
 
     default:
       return { ok: false, errore: 'Passo sconosciuto.' }

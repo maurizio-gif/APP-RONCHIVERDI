@@ -18,6 +18,8 @@ export function PassiSegnalazione({
   sonoIo,
   operatori,
   richiamoDaFare,
+  manutenzione,
+  dataPrevista,
 }: {
   id: string
   stato: StatoSegnalazione
@@ -25,10 +27,13 @@ export function PassiSegnalazione({
   sonoIo: boolean
   operatori: { email: string; nome: string }[]
   richiamoDaFare: boolean
+  manutenzione: boolean
+  dataPrevista: string | null
 }) {
   const router = useRouter()
   const [testo, setTesto] = useState('')
   const [assegna, setAssegna] = useState(assegnatoA ?? '')
+  const [data, setData] = useState(dataPrevista ?? '')
   const [errore, setErrore] = useState<string | null>(null)
   const [inCorso, setInCorso] = useState<Passo | null>(null)
   const foto = useFoto()
@@ -39,8 +44,15 @@ export function PassiSegnalazione({
     try {
       // La foto accompagna il passo che la porta (una nota, la risoluzione…):
       // assegnare e prendere in carico non ne hanno.
-      const caricate = passo === 'assegna' || passo === 'prendi' ? [] : await foto.carica()
-      const esito = await passoSegnalazione(id, passo, testo, passo === 'assegna' ? assegna : undefined, caricate)
+      const caricate = passo === 'assegna' || passo === 'prendi' || passo === 'programma' ? [] : await foto.carica()
+      const esito = await passoSegnalazione(
+        id,
+        passo,
+        testo,
+        passo === 'assegna' ? assegna : undefined,
+        caricate,
+        passo === 'programma' ? data : undefined
+      )
       if (!esito.ok) {
         setErrore(esito.errore)
         return
@@ -65,14 +77,36 @@ export function PassiSegnalazione({
 
       {chiusa ? (
         <>
-          <p className="muted">{stato === 'risolta' ? 'Segnalazione risolta.' : 'Segnalazione archiviata.'}</p>
+          <p className="muted">
+            {stato === 'risolta' ? (manutenzione ? 'Intervento fatto.' : 'Segnalazione risolta.') : 'Segnalazione archiviata.'}
+          </p>
           <button type="button" className="btn btn-ghost" onClick={() => esegui('riapri')} disabled={!!inCorso}>
             {occupato('riapri', 'Riaprila')}
           </button>
         </>
       ) : (
         <>
-          {stato === 'ricevuta' && (
+          {manutenzione && (
+            <div className="field sg-assegna">
+              <label htmlFor="sg-data">Data prevista dell’intervento</label>
+              <div className="sg-riga">
+                <input id="sg-data" type="date" value={data} onChange={(e) => setData(e.target.value)} disabled={!!inCorso} />
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => esegui('programma')}
+                  disabled={!!inCorso || data === (dataPrevista ?? '')}
+                >
+                  {occupato('programma', data ? 'Programma' : 'Togli la data')}
+                </button>
+              </div>
+              <p className="field-hint">
+                {dataPrevista ? 'Programmato: in elenco la riga è gialla.' : 'Senza data la richiesta resta rossa, da fare.'}
+              </p>
+            </div>
+          )}
+
+          {stato === 'ricevuta' && !manutenzione && (
             <div className="tk-bottoni">
               <button type="button" className="btn" onClick={() => esegui('prendi')} disabled={!!inCorso}>
                 {occupato('prendi', sonoIo || !assegnatoA ? 'La prendo in carico' : 'Prendila in carico tu')}
@@ -107,13 +141,20 @@ export function PassiSegnalazione({
                 value={testo}
                 onChange={(e) => setTesto(e.target.value)}
                 maxLength={4000}
-                placeholder="Cosa è stato fatto, o una nota…"
+                placeholder={manutenzione ? 'Cosa è stato fatto, o una nota (facoltativa)…' : 'Cosa è stato fatto, o una nota…'}
                 disabled={!!inCorso}
               />
               <SceltaFoto foto={foto} disabilitato={!!inCorso} />
               <div className="tk-bottoni">
                 <button type="button" className="btn" onClick={() => esegui('risolvi')} disabled={!!inCorso}>
-                  {occupato('risolvi', richiamoDaFare ? 'Risolta, resta da richiamare il socio' : 'Segna come risolta')}
+                  {occupato(
+                    'risolvi',
+                    manutenzione
+                      ? '✓ Intervento fatto'
+                      : richiamoDaFare
+                        ? 'Risolta, resta da richiamare il socio'
+                        : 'Segna come risolta'
+                  )}
                 </button>
                 <button type="button" className="btn btn-ghost" onClick={() => esegui('nota')} disabled={!!inCorso}>
                   {occupato('nota', 'Salva come nota')}
@@ -123,7 +164,7 @@ export function PassiSegnalazione({
           )}
 
           <div className="field sg-assegna">
-            <label htmlFor="sg-assegna">Assegnata a</label>
+            <label htmlFor="sg-assegna">{manutenzione ? 'Interviene' : 'Assegnata a'}</label>
             <div className="sg-riga">
               <select id="sg-assegna" value={assegna} onChange={(e) => setAssegna(e.target.value)} disabled={!!inCorso}>
                 <option value="">Scegli…</option>

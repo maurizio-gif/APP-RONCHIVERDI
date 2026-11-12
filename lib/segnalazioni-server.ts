@@ -5,6 +5,7 @@ import { emailCorrente } from '@/lib/auth/sezioni-server'
 import {
   COLONNE_SEGNALAZIONE,
   ETICHETTE_URGENZA,
+  SEZIONE_MANUTENZIONE,
   SEZIONE_SEGNALAZIONI,
   quando,
   type Segnalazione,
@@ -73,6 +74,32 @@ export async function operatoriSegnalazioni(): Promise<{ email: string; nome: st
   }))
 }
 
+// I manutentori: chi ha la vista Manutenzione. A loro si assegna un intervento.
+export async function operatoriManutenzione(): Promise<{ email: string; nome: string }[]> {
+  const supabase = createSupabaseServiceClient()
+  const { data } = await supabase
+    .from('staff_users')
+    .select('email, nome, cognome')
+    .contains('sezioni_consentite', [SEZIONE_MANUTENZIONE])
+    .order('nome')
+  return ((data ?? []) as { email: string; nome: string | null; cognome: string | null }[]).map((r) => ({
+    email: r.email,
+    nome: `${r.nome ?? ''} ${r.cognome ?? ''}`.trim() || r.email,
+  }))
+}
+
+// Chi riceve le nuove richieste di manutenzione (segnalazioni_impostazioni);
+// null finché non è impostato: le richieste si vedono comunque in Manutenzione.
+export async function responsabileManutenzione(): Promise<string | null> {
+  const supabase = createSupabaseServiceClient()
+  const { data } = await supabase
+    .from('segnalazioni_impostazioni')
+    .select('valore')
+    .eq('chiave', 'responsabile_manutenzione')
+    .maybeSingle()
+  return ((data?.valore as string | null | undefined) ?? '').trim().toLowerCase() || null
+}
+
 // Nome e cognome per email, anche di chi non ha più la sezione: la storia
 // delle segnalazioni dice chi ha fatto cosa.
 export async function nomiStaff(): Promise<Map<string, string>> {
@@ -121,19 +148,24 @@ export async function avvisaAssegnatario(
   a: string,
   dettagli: { settore: string; motivo: string; chi: string; assegnata: boolean }
 ) {
+  const manutenzione = s.urgenza === 'manutenzione'
   const sito = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://crm.ronchiverdi.it'
   const link = `${sito}/dashboard/segnalazioni/${s.id}`
-  const oggetto = `${dettagli.assegnata ? 'Segnalazione assegnata a te' : 'Nuova segnalazione'} #${s.numero}: ${dettagli.settore}`
+  const cosa = manutenzione ? 'Richiesta di manutenzione' : 'Segnalazione'
+  const oggetto = `${dettagli.assegnata ? `${cosa} assegnata a te` : manutenzione ? 'Nuova richiesta di manutenzione' : 'Nuova segnalazione'} #${s.numero}: ${dettagli.settore}`
   const intro = dettagli.assegnata
-    ? `${dettagli.chi} ti ha assegnato una segnalazione.`
-    : `${dettagli.chi} ha registrato una segnalazione nel tuo settore.`
+    ? `${dettagli.chi} ti ha assegnato ${manutenzione ? 'una richiesta di manutenzione' : 'una segnalazione'}.`
+    : manutenzione
+      ? `${dettagli.chi} ha inviato una richiesta di manutenzione.`
+      : `${dettagli.chi} ha registrato una segnalazione nel tuo settore.`
   const righe: [string, string][] = [
     ['Settore', dettagli.settore],
     ['Motivo', dettagli.motivo],
-    ['Urgenza', ETICHETTE_URGENZA[s.urgenza]],
+    ['Tipologia', ETICHETTE_URGENZA[s.urgenza]],
+    ['Urgenza', `${s.livello_urgenza} su 5`],
     ['Da prendere in carico entro', quando(s.scadenza_presa_il)],
   ]
-  if (s.socio_nome) righe.push(['Socio', s.socio_nome])
+  if (s.socio_nome && !manutenzione) righe.push(['Socio', s.socio_nome])
   const descrizione = s.descrizione.length > 1200 ? `${s.descrizione.slice(0, 1200)}…` : s.descrizione
 
   const html = `<!doctype html><html lang="it"><body style="margin:0;padding:24px 12px;background:#f7f6f2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1c1c18;">
@@ -145,7 +177,7 @@ export async function avvisaAssegnatario(
 ${righe.map(([k, v]) => `<tr><td style="padding-right:14px;color:#6b6a60;">${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}
 </table>
 <p style="margin:0 0 20px;padding:12px 14px;background:#f7f6f2;border-radius:8px;font-size:14px;line-height:1.6;white-space:pre-wrap;">${esc(descrizione)}</p>
-<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:#1c1c18;border-radius:999px;"><a href="${esc(link)}" style="display:inline-block;padding:12px 24px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;">Apri la segnalazione nel CRM</a></td></tr></table>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background:#1c1c18;border-radius:999px;"><a href="${esc(link)}" style="display:inline-block;padding:12px 24px;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;">Apri nel CRM</a></td></tr></table>
 </td></tr></table></td></tr></table></body></html>`
 
   const testo = `${intro}
@@ -154,14 +186,20 @@ ${righe.map(([k, v]) => `${k}: ${v}`).join('\n')}
 
 ${descrizione}
 
-Apri la segnalazione nel CRM: ${link}`
+Apri nel CRM: ${link}`
 
   return inviaEmail({
     a,
     oggetto,
     html,
     testo,
-    automazione: dettagli.assegnata ? 'Segnalazione: assegnata' : 'Segnalazione: nuova',
+    automazione: manutenzione
+      ? dettagli.assegnata
+        ? 'Manutenzione: assegnata'
+        : 'Manutenzione: nuova richiesta'
+      : dettagli.assegnata
+        ? 'Segnalazione: assegnata'
+        : 'Segnalazione: nuova',
     inviataDa: emailCorrente(),
   })
 }

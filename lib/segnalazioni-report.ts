@@ -1,4 +1,4 @@
-import { aperta, inRitardo, oraEGiornoRoma, type Segnalazione, type Urgenza } from '@/lib/segnalazioni'
+import { aperta, coloreManutenzione, inRitardo, oraEGiornoRoma, type Segnalazione, type Urgenza } from '@/lib/segnalazioni'
 
 // Le cifre del report segnalazioni, calcolate su un elenco già letto. Pure:
 // nessun accesso al database, così si leggono (e si provano) da sole.
@@ -53,6 +53,8 @@ export type ReportSegnalazioni = {
   medianaPresaOre: number | null
   medianaRisoluzioneOre: number | null
   perUrgenza: Record<Urgenza, number>
+  // Quante segnalazioni per livello di urgenza: l'indice 0 è il livello 1.
+  perLivello: number[]
   perSettore: RigaSettore[]
   perMotivo: Conteggio[]
   perOra: number[] // 24 valori
@@ -71,8 +73,12 @@ export function calcolaReport(righe: Segnalazione[], adesso: Date = new Date()):
   const dovute = attive.filter((s) => s.presa_in_carico_il || new Date(s.scadenza_presa_il) < adesso)
   const puntuali = dovute.filter((s) => s.presa_in_carico_il && new Date(s.presa_in_carico_il) <= new Date(s.scadenza_presa_il))
 
-  const perUrgenza: Record<Urgenza, number> = { sicurezza: 0, disservizio: 0, comfort: 0 }
-  for (const s of righe) perUrgenza[s.urgenza]++
+  const perUrgenza: Record<Urgenza, number> = { sicurezza: 0, disservizio: 0, comfort: 0, manutenzione: 0 }
+  const perLivello = Array<number>(5).fill(0)
+  for (const s of righe) {
+    perUrgenza[s.urgenza]++
+    if (s.livello_urgenza >= 1 && s.livello_urgenza <= 5) perLivello[s.livello_urgenza - 1]++
+  }
 
   const settori = new Set(righe.map((s) => s.settore))
   const perSettore: RigaSettore[] = [...settori]
@@ -144,6 +150,7 @@ export function calcolaReport(righe: Segnalazione[], adesso: Date = new Date()):
     medianaPresaOre: mediana(prese.map((s) => ore(s.ricevuta_il, s.presa_in_carico_il!))),
     medianaRisoluzioneOre: mediana(risolte.map((s) => ore(s.ricevuta_il, s.risolta_il!))),
     perUrgenza,
+    perLivello,
     perSettore,
     perMotivo: conta(righe, (s) => s.motivo),
     perOra,
@@ -152,5 +159,43 @@ export function calcolaReport(righe: Segnalazione[], adesso: Date = new Date()):
     ricorrenze,
     sociRicorrenti: soci,
     carico,
+  }
+}
+
+// ── manutenzione ────────────────────────────────────────────────────────────
+
+export type ReportManutenzione = {
+  richieste: number
+  daFare: number // rosso: nessuna data
+  programmate: number // giallo: con la data prevista
+  fatte: number // verde
+  inRitardo: number
+  // Fra le fatte con una data prevista: quante chiuse entro quel giorno.
+  fatteInData: number
+  fatteConData: number
+  medianaFattoGiorni: number | null
+  perSettore: Conteggio[]
+  perMotivo: Conteggio[]
+}
+
+export function calcolaManutenzione(righe: Segnalazione[], adesso: Date = new Date()): ReportManutenzione {
+  const attive = righe.filter((s) => s.stato !== 'archiviata')
+  const colore = (s: Segnalazione) => coloreManutenzione(s)
+  const fatte = attive.filter((s) => s.risolta_il)
+  const conData = fatte.filter((s) => s.intervento_previsto_il)
+  return {
+    richieste: attive.length,
+    daFare: attive.filter((s) => colore(s) === 'rosso').length,
+    programmate: attive.filter((s) => colore(s) === 'giallo').length,
+    fatte: fatte.length,
+    inRitardo: attive.filter((s) => inRitardo(s, adesso)).length,
+    fatteConData: conData.length,
+    fatteInData: conData.filter((s) => s.risolta_il!.slice(0, 10) <= s.intervento_previsto_il!).length,
+    medianaFattoGiorni: (() => {
+      const m = mediana(fatte.map((s) => ore(s.ricevuta_il, s.risolta_il!) / 24))
+      return m === null ? null : m
+    })(),
+    perSettore: conta(attive, (s) => s.settore),
+    perMotivo: conta(attive, (s) => s.motivo),
   }
 }

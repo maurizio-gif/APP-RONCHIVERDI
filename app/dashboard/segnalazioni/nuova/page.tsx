@@ -18,7 +18,7 @@ export default async function NuovaSegnalazionePage() {
     <>
       <div className="page-head">
         <p className="eyebrow">
-          <Link href="/dashboard/segnalazioni">← Lamentele</Link>
+          <Link href="/dashboard/segnalazioni">← Segnalazioni</Link>
         </p>
         <h1>Nuova segnalazione</h1>
         <p className="muted">Una lamentela o un disservizio riferito da un socio. Servono dove, cosa e cosa è successo.</p>

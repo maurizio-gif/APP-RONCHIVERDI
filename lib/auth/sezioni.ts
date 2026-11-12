@@ -82,9 +82,20 @@ const DEFINIZIONI = [
   // Report: sono numeri per la direzione, non per il banco.
   {
     chiave: 'segnalazioni',
-    label: 'Lamentele',
+    label: 'Segnalazioni',
     href: '/dashboard/segnalazioni',
     gruppo: 'Segreteria',
+  },
+  // Le richieste di manutenzione nate dalle segnalazioni (tipologia
+  // «Manutenzione»): una riga per intervento, rossa da fare, gialla
+  // programmata, verde fatta, con la data prevista che inserisce il
+  // responsabile. Un permesso a sé, per il responsabile e i manutentori:
+  // chiunque abbia Segnalazioni può però inviare una richiesta.
+  {
+    chiave: 'manutenzione',
+    label: 'Manutenzione',
+    href: '/dashboard/segnalazioni/manutenzione',
+    gruppo: 'Manutenzione',
   },
   // Il lavoro dei rinnovi Core, prima su un foglio Excel a parte: chi lo
   // lavora ogni giorno (gli operatori di segreteria, vedi
@@ -311,7 +322,7 @@ const DEFINIZIONI = [
   // lavora le segnalazioni ha il permesso `segnalazioni` e non vede questo.
   {
     chiave: 'segnalazioni-report',
-    label: 'Report lamentele',
+    label: 'Report segnalazioni',
     href: '/dashboard/segnalazioni/report',
     gruppo: 'Report',
   },
@@ -366,7 +377,7 @@ export const CHIAVI_SEZIONI: readonly SezioneChiave[] = SEZIONI.map((s) => s.chi
 // chi ne ha bisogno. Amministrazione perché sono dati riservati; Personal
 // Training perché il controllo delle sessioni è di una persona sola; Report
 // perché sono numeri per la direzione, non per il banco.
-export const GRUPPI_FUORI_DAL_CORREDO: readonly string[] = ['Amministrazione', 'Personal Training', 'Report']
+export const GRUPPI_FUORI_DAL_CORREDO: readonly string[] = ['Amministrazione', 'Personal Training', 'Report', 'Manutenzione']
 
 // Il corredo di un operatore appena invitato: le sezioni operative, senza
 // quelle dei partner esterni e senza i gruppi riservati.

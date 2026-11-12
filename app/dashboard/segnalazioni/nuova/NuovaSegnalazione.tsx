@@ -6,17 +6,24 @@ import { registraSegnalazione } from '../actions'
 import { CampoNote } from '@/components/CampoNote'
 import { RicercaSocio, type SocioScelto } from './RicercaSocio'
 import { SceltaFoto, useFoto } from '../Foto'
-import { ETICHETTE_CANALE, URGENZE, type Canale, type Voce } from '@/lib/segnalazioni'
+import { ETICHETTE_CANALE, LIVELLI_URGENZA, URGENZE, type Canale, type Voce } from '@/lib/segnalazioni'
 
-// Il modulo della reception. Settore, motivo e urgenza sono scelte da
-// elenchi chiusi (l'Excel aveva 65 modi di scrivere i settori); il resto è il
-// racconto, e il nome del socio se c'è.
+// Il modulo, unico punto d'ingresso. Settore, motivo e tipologia sono scelte da
+// elenchi chiusi (l'Excel aveva 65 modi di scrivere i settori), l'urgenza è un
+// livello da 1 a 5; il resto è il racconto, e il nome del socio se c'è.
+//
+// Con la tipologia «Manutenzione» la richiesta è di un operatore interno, non
+// di un socio: spariscono il socio, il canale e il richiamo, e va alla
+// manutenzione.
 
 export function NuovaSegnalazione({ settori, motivi }: { settori: Voce[]; motivi: Voce[] }) {
   const router = useRouter()
   const [settore, setSettore] = useState('')
   const [motivo, setMotivo] = useState('')
   const [urgenza, setUrgenza] = useState('disservizio')
+  // Il livello 1-5 lo sceglie chi registra: senza un valore di partenza, per
+  // non far passare un «3» che nessuno ha deciso.
+  const [livello, setLivello] = useState<number | null>(null)
   const [canale, setCanale] = useState<Canale>('reception')
   const [descrizione, setDescrizione] = useState('')
   const [socio, setSocio] = useState<SocioScelto | null>(null)
@@ -30,6 +37,11 @@ export function NuovaSegnalazione({ settori, motivi }: { settori: Voce[]; motivi
     setErrore(null)
     setInCorso(true)
     try {
+      if (livello === null) {
+        setErrore('Scegli il livello di urgenza, da 1 a 5.')
+        setInCorso(false)
+        return
+      }
       const caricate = await foto.carica()
       const esito = await registraSegnalazione({
         settore,
@@ -40,6 +52,7 @@ export function NuovaSegnalazione({ settori, motivi }: { settori: Voce[]; motivi
         personaId: socio?.personaId ?? null,
         socioNome: socio?.nome ?? '',
         richiamoRichiesto: richiamo,
+        livelloUrgenza: livello,
         foto: caricate,
       })
       if (!esito.ok) {
@@ -53,6 +66,8 @@ export function NuovaSegnalazione({ settori, motivi }: { settori: Voce[]; motivi
       setInCorso(false)
     }
   }
+
+  const manutenzione = urgenza === 'manutenzione'
 
   return (
     <form className="card tk-form" onSubmit={invia}>
@@ -82,7 +97,7 @@ export function NuovaSegnalazione({ settori, motivi }: { settori: Voce[]; motivi
       </div>
 
       <fieldset className="field sg-urgenza">
-        <legend>Quanto è urgente</legend>
+        <legend>Tipologia</legend>
         {URGENZE.map((u) => (
           <label key={u.chiave} className={`sg-opzione${urgenza === u.chiave ? ' sg-opzione-attiva' : ''}`}>
             <input type="radio" name="urgenza" value={u.chiave} checked={urgenza === u.chiave} onChange={() => setUrgenza(u.chiave)} />
@@ -94,8 +109,24 @@ export function NuovaSegnalazione({ settori, motivi }: { settori: Voce[]; motivi
         ))}
       </fieldset>
 
+      <fieldset className="field sg-livelli">
+        <legend>Urgenza</legend>
+        <div className="sg-livelli-scelta" role="radiogroup" aria-label="Livello di urgenza da 1 a 5">
+          {LIVELLI_URGENZA.map((l) => (
+            <label key={l.livello} className={`sg-livello sg-livello-${l.livello}${livello === l.livello ? ' sg-livello-attivo' : ''}`}>
+              <input type="radio" name="livello" value={l.livello} checked={livello === l.livello} onChange={() => setLivello(l.livello)} />
+              <b>{l.livello}</b>
+              <span>{l.nome}</span>
+            </label>
+          ))}
+        </div>
+        <p className="field-hint">
+          {livello === null ? 'Da 1 a 5: quanto pesa questa segnalazione.' : LIVELLI_URGENZA[livello - 1].criterio}
+        </p>
+      </fieldset>
+
       <div className="field">
-        <label htmlFor="sg-descrizione">Cosa è successo</label>
+        <label htmlFor="sg-descrizione">{manutenzione ? 'Cosa c’è da sistemare' : 'Cosa è successo'}</label>
         <CampoNote
           id="sg-descrizione"
           rows={4}
@@ -112,34 +143,44 @@ export function NuovaSegnalazione({ settori, motivi }: { settori: Voce[]; motivi
         <SceltaFoto foto={foto} disabilitato={inCorso} />
       </div>
 
-      <RicercaSocio valore={socio} onChange={setSocio} />
+      {!manutenzione && (
+        <>
+          <RicercaSocio valore={socio} onChange={setSocio} />
 
-      <div className="field">
-        <label htmlFor="sg-canale">Come è arrivata</label>
-        <select id="sg-canale" value={canale} onChange={(e) => setCanale(e.target.value as Canale)}>
-          {(Object.keys(ETICHETTE_CANALE) as Canale[]).map((c) => (
-            <option key={c} value={c}>
-              {ETICHETTE_CANALE[c]}
-            </option>
-          ))}
-        </select>
-      </div>
+          <div className="field">
+            <label htmlFor="sg-canale">Come è arrivata</label>
+            <select id="sg-canale" value={canale} onChange={(e) => setCanale(e.target.value as Canale)}>
+              {(Object.keys(ETICHETTE_CANALE) as Canale[])
+                .filter((c) => c !== 'interno')
+                .map((c) => (
+                  <option key={c} value={c}>
+                    {ETICHETTE_CANALE[c]}
+                  </option>
+                ))}
+            </select>
+          </div>
 
-      <label className="sg-spunta">
-        <input type="checkbox" checked={richiamo} onChange={(e) => setRichiamo(e.target.checked)} />
-        <span>
-          Il socio vuole essere richiamato
-          <span className="muted"> — la segnalazione resta aperta finché la customer care non lo richiama.</span>
-        </span>
-      </label>
+          <label className="sg-spunta">
+            <input type="checkbox" checked={richiamo} onChange={(e) => setRichiamo(e.target.checked)} />
+            <span>
+              Il socio vuole essere richiamato
+              <span className="muted"> — la segnalazione resta aperta finché la customer care non lo richiama.</span>
+            </span>
+          </label>
+        </>
+      )}
 
       {errore && <p className="error-banner">{errore}</p>}
 
       <div className="tk-invia">
         <button type="submit" className="btn" disabled={inCorso}>
-          {inCorso ? 'Registro…' : 'Registra la segnalazione'}
+          {inCorso ? 'Invio…' : manutenzione ? 'Invia alla manutenzione' : 'Registra la segnalazione'}
         </button>
-        <span className="muted">Va al responsabile del settore, se c’è; altrimenti resta da assegnare.</span>
+        <span className="muted">
+          {manutenzione
+            ? 'Va al responsabile della manutenzione, che inserisce la data dell’intervento.'
+            : 'Va al responsabile del settore, se c’è; altrimenti resta da assegnare.'}
+        </span>
       </div>
     </form>
   )

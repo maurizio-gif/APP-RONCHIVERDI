@@ -12272,3 +12272,152 @@ table.tabella-compatta tr.rop-totale td {
 	top: 0.2rem;
 	right: 0.2rem;
 }
+
+/* Il livello di urgenza da 1 a 5: cinque pulsanti affiancati. */
+.sg-livelli {
+	border: 0;
+	padding: 0;
+	margin: 1rem 0 0;
+	min-width: 0;
+}
+
+.sg-livelli legend {
+	padding: 0;
+	margin-bottom: 0.4rem;
+	font-weight: 600;
+}
+
+.sg-livelli-scelta {
+	display: grid;
+	grid-template-columns: repeat(5, 1fr);
+	gap: 0.4rem;
+}
+
+.tk-form .sg-livelli .sg-livello {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.1rem;
+	padding: 0.5rem 0.25rem;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	text-transform: none;
+	letter-spacing: normal;
+	font-weight: 400;
+	cursor: pointer;
+	text-align: center;
+}
+
+.sg-livello input {
+	position: absolute;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.sg-livello b {
+	font-size: 1.25rem;
+	line-height: 1.1;
+}
+
+.sg-livello span {
+	font-size: var(--text-2xs);
+	color: var(--text-muted);
+}
+
+.sg-livello:focus-within {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+.tk-form .sg-livelli .sg-livello-attivo {
+	border-color: var(--border-strong);
+	background: var(--bg-dark);
+	color: var(--text-on-dark);
+}
+
+.sg-livello-attivo span {
+	color: var(--text-muted-on-dark);
+}
+
+/* ── Manutenzione: i colori dello stato ──────────────────────────────────── */
+/* Rosso da fare, giallo programmato, verde fatto. Il colore non è l'unico
+   segno: ogni riga porta anche il testo dello stato. */
+
+.sg-colore-rosso {
+	background: var(--error-tint);
+	color: var(--error);
+}
+
+.sg-colore-giallo {
+	background: var(--warn-tint);
+	color: var(--warn);
+}
+
+.sg-colore-verde {
+	background: var(--ok-tint);
+	color: var(--ok);
+}
+
+.sg-colore-grigio {
+	background: var(--fill-soft);
+	color: var(--text-muted);
+}
+
+.sg-legenda {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.4rem 0.6rem;
+	margin-bottom: 1rem;
+	font-size: var(--text-sm);
+	color: var(--text-muted);
+}
+
+.sg-legenda .badge + .badge,
+.sg-legenda .badge {
+	margin-left: 0.4rem;
+}
+
+.sg-legenda .badge:first-child {
+	margin-left: 0;
+}
+
+.sg-tabella-manutenzione .sg-riga > td:first-child {
+	border-left: 4px solid transparent;
+}
+
+.sg-tabella-manutenzione .sg-riga-rosso {
+	background: var(--error-tint);
+}
+
+.sg-tabella-manutenzione .sg-riga-rosso > td:first-child {
+	border-left-color: var(--error);
+}
+
+.sg-tabella-manutenzione .sg-riga-giallo {
+	background: var(--warn-tint);
+}
+
+.sg-tabella-manutenzione .sg-riga-giallo > td:first-child {
+	border-left-color: var(--warn);
+}
+
+.sg-tabella-manutenzione .sg-riga-verde {
+	background: var(--ok-tint);
+}
+
+.sg-tabella-manutenzione .sg-riga-verde > td:first-child {
+	border-left-color: var(--ok);
+}
+
+.sg-riga-data {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+}
+
+.sg-riga-data input,
+.sg-tabella-manutenzione select {
+	font: inherit;
+	max-width: 11rem;
+}
