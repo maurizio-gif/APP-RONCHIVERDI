@@ -1080,6 +1080,23 @@ subito dopo il cambio si legge il fotogramma di mezzo, non il colore d'arrivo.
 Ultima passata: al buio nessun testo sotto 4,5:1; al chiaro gli stessi sei
 badge marginali di prima (4,18–4,43), invariati.
 
+## Lead Meta (caricamento a mano)
+
+I lead dei moduli delle sponsorizzate su Facebook e Instagram si caricano in
+**Segreteria → Lead Meta** ([`app/dashboard/lead-meta`](app/dashboard/lead-meta)),
+incollando l'esportazione di Gestione lead di Meta (con la sua intestazione) o
+righe `nome, cognome, email, cellulare` copiate da un foglio. Il parser è in
+[`lib/leadMeta.ts`](lib/leadMeta.ts).
+
+Ogni riga diventa una richiesta Club in `form_contatti` con
+`origine = 'meta-lead-ads'`, `utm_source = facebook`, `utm_medium = paid` e la
+campagna in `utm_campaign`: il trigger crea persona e trattativa «da prendere
+in carico», che si lavora dalla Dashboard come le altre. Ovunque compaia ha la
+targhetta blu **Meta Lead Ads** (`META_LEAD` in `lib/provenienza.ts`) e la
+dashboard direzionale la conta come «Meta ADV». Ricaricare la stessa
+esportazione non duplica: stessa email o stesso telefono nella stessa campagna
+si saltano. Il permesso è la sezione `lead-meta`, da assegnare in Gestione utenti.
+
 ## Stato
 
 Fatto: autenticazione, invito e primo accesso, permessi granulari, guscio del

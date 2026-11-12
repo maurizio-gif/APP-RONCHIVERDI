@@ -75,6 +75,16 @@ const DEFINIZIONI = [
     href: '/dashboard/agenda/phone-email-in',
     gruppo: 'Segreteria',
   },
+  // I lead dei moduli Meta (Facebook / Instagram Lead Ads), caricati a mano
+  // incollando l'esportazione di Gestione lead: entrano come richieste Club con
+  // la targhetta «Meta Lead Ads» e la campagna, e da lì si prendono in carico
+  // come ogni altro lead (vedi app/dashboard/lead-meta e lib/leadMeta.ts).
+  {
+    chiave: 'lead-meta',
+    label: 'Lead Meta',
+    href: '/dashboard/lead-meta',
+    gruppo: 'Segreteria',
+  },
   // Il lavoro dei rinnovi Core, prima su un foglio Excel a parte: chi lo
   // lavora ogni giorno (gli operatori di segreteria, vedi
   // staff_users.operatore_segreteria) non ha bisogno — e spesso non ha il

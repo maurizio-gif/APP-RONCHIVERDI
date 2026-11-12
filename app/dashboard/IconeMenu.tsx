@@ -51,6 +51,8 @@ const DISEGNI: Record<string, React.ReactNode> = {
   'phone-email-in': (
     <path d="M4 5c0 8.5 6.5 15 15 15l2-4-5-2-1.5 1.5A11.6 11.6 0 0 1 9 10.5L10.5 9 8.5 4 4 5z" />
   ),
+  // Lead Meta: il megafono di una sponsorizzata.
+  'lead-meta': <path d="M4 10v4h3l7 4V6L7 10H4zM17 9.5a3.5 3.5 0 0 1 0 5" />,
   // Club e Family: la stella dell'abbonamento, la voce di punta.
   'richieste-club': <path d="M12 3.5l2.6 5.5 6 .8-4.4 4.2 1.1 6-5.3-2.9-5.3 2.9 1.1-6L3.4 9.8l6-.8z" />,
   // Tennis: la palla con la cucitura.
