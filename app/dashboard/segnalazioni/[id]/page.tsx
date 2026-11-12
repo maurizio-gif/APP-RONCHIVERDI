@@ -77,7 +77,13 @@ export default async function SegnalazioneDettaglio({
             <p className="tk-testo">{s.descrizione}</p>
             <dl className="sg-dati">
               <dt>Socio</dt>
-              <dd>{s.socio_nome ?? <span className="muted">non indicato</span>}</dd>
+              <dd>
+                {s.persona_id ? (
+                  <Link href={`/dashboard/persone/${s.persona_id}`}>{s.socio_nome ?? 'Scheda del socio'}</Link>
+                ) : (
+                  (s.socio_nome ?? <span className="muted">non indicato</span>)
+                )}
+              </dd>
               <dt>Richiamo</dt>
               <dd>
                 {s.richiamo_richiesto

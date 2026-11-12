@@ -28,6 +28,7 @@ export type Segnalazione = {
   motivo: string
   descrizione: string
   socio_nome: string | null
+  persona_id: string | null
   richiamo_richiesto: boolean
   urgenza: Urgenza
   stato: StatoSegnalazione
@@ -41,7 +42,7 @@ export type Segnalazione = {
 }
 
 export const COLONNE_SEGNALAZIONE =
-  'id, numero, ricevuta_il, raccolta_da, canale, settore, motivo, descrizione, socio_nome, richiamo_richiesto, urgenza, stato, assegnato_a, presa_in_carico_il, risolta_il, richiamato_il, scadenza_presa_il, scadenza_risoluzione_il, aggiornato_il'
+  'id, numero, ricevuta_il, raccolta_da, canale, settore, motivo, descrizione, socio_nome, persona_id, richiamo_richiesto, urgenza, stato, assegnato_a, presa_in_carico_il, risolta_il, richiamato_il, scadenza_presa_il, scadenza_risoluzione_il, aggiornato_il'
 
 export type EventoSegnalazione = {
   id: string

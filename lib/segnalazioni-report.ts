@@ -109,9 +109,16 @@ export function calcolaReport(righe: Segnalazione[], adesso: Date = new Date()):
   }
   const ricorrenze = [...coppie.values()].filter((c) => c.n >= 3).sort((a, b) => b.n - a.n)
 
-  const soci = conta(righe, (s) => s.socio_nome?.trim().toLowerCase() || null)
+  // Chi è in anagrafica si raggruppa per persona (due grafie dello stesso
+  // nome restano una persona); gli altri per nome scritto.
+  const nomePerChiave = new Map<string, string>()
+  const soci = conta(righe, (s) => {
+    const chiave = s.persona_id ?? s.socio_nome?.trim().toLowerCase() ?? null
+    if (chiave && s.socio_nome && !nomePerChiave.has(chiave)) nomePerChiave.set(chiave, s.socio_nome.trim())
+    return chiave
+  })
     .filter((c) => c.n >= 2)
-    .map((c) => ({ socio: c.chiave, n: c.n }))
+    .map((c) => ({ socio: nomePerChiave.get(c.chiave) ?? c.chiave, n: c.n }))
 
   const operatori = new Set(righe.map((s) => s.assegnato_a).filter((e): e is string => !!e))
   const carico: CaricoOperatore[] = [...operatori]

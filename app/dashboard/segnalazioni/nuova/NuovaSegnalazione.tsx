@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { registraSegnalazione } from '../actions'
 import { CampoNote } from '@/components/CampoNote'
+import { RicercaSocio, type SocioScelto } from './RicercaSocio'
 import { ETICHETTE_CANALE, URGENZE, type Canale, type Voce } from '@/lib/segnalazioni'
 
 // Il modulo della reception. Settore, motivo e urgenza sono scelte da
@@ -17,7 +18,7 @@ export function NuovaSegnalazione({ settori, motivi }: { settori: Voce[]; motivi
   const [urgenza, setUrgenza] = useState('disservizio')
   const [canale, setCanale] = useState<Canale>('reception')
   const [descrizione, setDescrizione] = useState('')
-  const [socioNome, setSocioNome] = useState('')
+  const [socio, setSocio] = useState<SocioScelto | null>(null)
   const [richiamo, setRichiamo] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
   const [inCorso, setInCorso] = useState(false)
@@ -33,7 +34,8 @@ export function NuovaSegnalazione({ settori, motivi }: { settori: Voce[]; motivi
         urgenza,
         canale,
         descrizione,
-        socioNome,
+        personaId: socio?.personaId ?? null,
+        socioNome: socio?.nome ?? '',
         richiamoRichiesto: richiamo,
       })
       if (!esito.ok) {
@@ -101,27 +103,17 @@ export function NuovaSegnalazione({ settori, motivi }: { settori: Voce[]; motivi
         />
       </div>
 
-      <div className="sg-coppia">
-        <div className="field">
-          <label htmlFor="sg-socio">Socio (se si è presentato)</label>
-          <input
-            id="sg-socio"
-            value={socioNome}
-            onChange={(e) => setSocioNome(e.target.value)}
-            maxLength={160}
-            placeholder="Nome e cognome"
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="sg-canale">Come è arrivata</label>
-          <select id="sg-canale" value={canale} onChange={(e) => setCanale(e.target.value as Canale)}>
-            {(Object.keys(ETICHETTE_CANALE) as Canale[]).map((c) => (
-              <option key={c} value={c}>
-                {ETICHETTE_CANALE[c]}
-              </option>
-            ))}
-          </select>
-        </div>
+      <RicercaSocio valore={socio} onChange={setSocio} />
+
+      <div className="field">
+        <label htmlFor="sg-canale">Come è arrivata</label>
+        <select id="sg-canale" value={canale} onChange={(e) => setCanale(e.target.value as Canale)}>
+          {(Object.keys(ETICHETTE_CANALE) as Canale[]).map((c) => (
+            <option key={c} value={c}>
+              {ETICHETTE_CANALE[c]}
+            </option>
+          ))}
+        </select>
       </div>
 
       <label className="sg-spunta">

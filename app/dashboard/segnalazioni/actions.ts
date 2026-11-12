@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { createSupabaseServiceClient } from '@/lib/supabase/serviceClient'
 import { emailCorrente, utenteHaSezione } from '@/lib/auth/sezioni-server'
 import { registraLog } from '@/lib/audit'
+import { nomePersona } from '@/lib/persone'
+import { dividiTestoContatto } from '@/app/dashboard/agenda/nuovo-contatto'
 import {
   COLONNE_SEGNALAZIONE,
   SEZIONE_SEGNALAZIONI,
@@ -35,6 +37,45 @@ async function operatore(): Promise<string | null> {
   return (await utenteHaSezione(SEZIONE_SEGNALAZIONI)) ? email : null
 }
 
+// ── ricerca del socio ───────────────────────────────────────────────────────
+
+export type SocioTrovato = { id: string; nome: string | null; cognome: string | null; email: string | null; cellulare: string | null }
+export type EsitoRicerca = { ok: true; soci: SocioTrovato[]; altri: boolean } | { ok: false; errore: string }
+
+const RISULTATI_RICERCA = 20
+
+// La stessa ricerca sull'anagrafica che usano Contatti e Phone In (soci
+// Info4U compresi), ma con il permesso delle segnalazioni: chi registra una
+// lamentela alla reception può non avere l'agenda. Nome e cognome in qualsiasi
+// ordine ed email passano da cerca_persone; il cellulare dalle ultime nove
+// cifre (cerca_persone_per_cellulare).
+export async function cercaSocio(testo: string): Promise<EsitoRicerca> {
+  if (!(await operatore())) return { ok: false, errore: 'Sessione scaduta o sezione non abilitata: rientra nel CRM.' }
+  const cercato = testo.trim()
+  if (cercato.length < 3) return { ok: false, errore: 'Scrivi almeno tre caratteri: nome e cognome, email o cellulare.' }
+
+  const supabase = createSupabaseServiceClient()
+  const campi = dividiTestoContatto(cercato)
+  const { data, error } = campi.cellulare
+    ? await supabase.rpc('cerca_persone_per_cellulare', {
+        p_cifre: campi.cellulare.replace(/\D/g, '').slice(-9),
+        p_limite: RISULTATI_RICERCA + 1,
+      })
+    : await supabase.rpc('cerca_persone', { p_query: cercato, p_limite: RISULTATI_RICERCA + 1 })
+  if (error) {
+    console.error('Ricerca del socio non riuscita:', error.message)
+    return { ok: false, errore: 'La ricerca non è riuscita. Riprova.' }
+  }
+  const righe = ((data ?? []) as SocioTrovato[]).map((r) => ({
+    id: r.id,
+    nome: r.nome,
+    cognome: r.cognome,
+    email: r.email,
+    cellulare: r.cellulare,
+  }))
+  return { ok: true, soci: righe.slice(0, RISULTATI_RICERCA), altri: righe.length > RISULTATI_RICERCA }
+}
+
 // ── registrazione ───────────────────────────────────────────────────────────
 
 export async function registraSegnalazione(dati: {
@@ -43,6 +84,8 @@ export async function registraSegnalazione(dati: {
   urgenza: string
   canale: string
   descrizione: string
+  // Il socio scelto dall'anagrafica; se manca vale il nome scritto a mano.
+  personaId: string | null
   socioNome: string
   richiamoRichiesto: boolean
 }): Promise<Esito> {
@@ -55,11 +98,26 @@ export async function registraSegnalazione(dati: {
   if (!urgenza) return { ok: false, errore: 'Scegli l’urgenza.' }
   const canale = CANALI.find((c) => c === dati.canale)
   if (!canale) return { ok: false, errore: 'Scegli come è arrivata la segnalazione.' }
-  const socioNome = dati.socioNome.trim().slice(0, 160) || null
+  const supabase = createSupabaseServiceClient()
+
+  // Il socio scelto dall'anagrafica deve esistere (un id inventato
+  // agganciava la segnalazione al nulla) e il suo nome si copia da lì; senza,
+  // vale il nome scritto a mano.
+  let socioNome = dati.socioNome.trim().slice(0, 160) || null
+  let personaId: string | null = null
+  if (dati.personaId) {
+    const { data: persona } = await supabase
+      .from('persone')
+      .select('id, nome, cognome, email, cellulare')
+      .eq('id', dati.personaId)
+      .maybeSingle()
+    if (!persona) return { ok: false, errore: 'Socio non trovato: cercalo di nuovo.' }
+    personaId = persona.id as string
+    socioNome = nomePersona(persona)
+  }
   if (dati.richiamoRichiesto && !socioNome)
     return { ok: false, errore: 'Se il socio vuole essere richiamato serve il suo nome.' }
 
-  const supabase = createSupabaseServiceClient()
   const [{ data: settore }, { data: motivo }] = await Promise.all([
     supabase.from('segnalazioni_settori').select('chiave, nome, responsabile_email').eq('chiave', dati.settore).eq('attivo', true).maybeSingle(),
     supabase.from('segnalazioni_motivi').select('chiave, nome').eq('chiave', dati.motivo).eq('attivo', true).maybeSingle(),
@@ -81,6 +139,7 @@ export async function registraSegnalazione(dati: {
       motivo: motivo.chiave,
       descrizione,
       socio_nome: socioNome,
+      persona_id: personaId,
       richiamo_richiesto: dati.richiamoRichiesto,
       urgenza,
       assegnato_a: responsabile,
